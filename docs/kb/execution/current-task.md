@@ -21,266 +21,106 @@ dependencies: [KB-081, KB-082, KB-088, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## ▶ Active task: `M2-B11` — health checks and structured logging (R-23)
+## ▶ No active task — the candidate pool is genuinely empty
 
-**Selected 2026-08-21** after the owner merged `M2-B06` (`65d9666`, `--no-ff`), which released it.
-Task file: [`tasks/M2-B11.md`](tasks/M2-B11.md). P2, 3 d, `task_type: DevOps`, gate **G2**,
-`depends_on: [M2-A06]` — `Completed` and merged. Branch: `migration/M2-B11-health-checks-logging`,
-cut fresh from `master`.
+**`M2-B11` closed `Needs Review` 2026-08-21** (branch `migration/M2-B11-health-checks-logging`,
+tip `12dad11`; validated `PASS` on attempt 2 of 4, 0 escalations, independently re-derived).
+Nothing in the dependency graph names `M2-B11` as a prerequisite, so its close **releases no
+other task**. Select ran afterward and found no dependency-ready candidate — see *Why every
+`Ready`/`Blocked` task is excluded* below. This is a clean [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks)
+stop, not a failure: the constraint is the merge queue, not execution capacity.
 
-**It was the only candidate.** Everything else fails step 1 or the five-part test: `M0-06` already
-has a branch; `M0-11` is a `Product Decision` and never self-selectable; `M2-A02` is gated on the
-unanswered **Q-28** *and* on **R-65**; `M2-B05` is `Blocked` awaiting re-specification onto
-**R-66**; `M2-C01` is behind `M2-C00`'s merge; the rest are finished and unmerged.
-
-**Its one information dependency is answered, and it constrains the design.** **Q-35** settled that
-an inbound `X-Correlation-Id` is **ignored** — a client-controlled value can forge log correlation,
-so the id is always server-generated. If distributed tracing is later wanted, W3C `traceparent` is
-the mechanism and `Activity` already honours it.
-
-> **Known merge-time risk, accepted at selection rather than discovered later.** M2-B11 edits
-> `V.SMART/V.SMART.Api/Program.cs`, and two **finished but unmerged** branches also touch it —
-> `migration/M2-B09-reference-endpoints` and `migration/M2-A08-row-scope-and-account-gates`.
-> Selection step 2 drops candidates sharing a surface with *in-flight* work; neither of those is
-> in flight, and no live worktree holds either (`wt-M2-A08` is on the *other* A08 branch, which
-> does not touch `Program.cs`; `wt-M2-B01` is stale now that M2-B01 has merged). So this is a
-> textual conflict to resolve when those branches land, not two sessions editing in parallel.
-> Registrations in `Program.cs` are additive, so the resolution should be mechanical.
+**The one thing that would change this: an owner merging any of the branches in the table
+below.** Each merge is very likely to release at least one further task (M2-B01-shaped rows
+release M2-B09; M2-A01-03-shaped rows release M2-A02/M2-A07/M2-A08's dependents; M2-C00 releases
+the whole M2-C tree). Re-run Select the moment any of them lands.
 
 ---
 
-## ✅ `M2-B06` — `Completed` and merged 2026-08-21 (`65d9666`)
+## `M2-B11` — closed 2026-08-21, `Needs Review`
 
-`POST /api/v1/files`, `GET /api/v1/files/{id:int}`, the ADR-005 Excel contract on one reference
-resource (`currencies`), an `ApiFileUploadService` for a host that had none, and `IBrowserFile`
-removed from `ICompanyService`/`CompanyService`. Both hosts at their exact baselines (**6694** /
-**6697**, 0 errors), Api tests **117 → 148**, Shared **84**, all **seven** required negative tests
-passing individually, plus a byte-identity round trip.
+Health checks (`GET /health/live`, `GET /health/ready`) covering the master DB and a configurable
+tenant subset, plus a new `ILogger`-based `StructuredLoggingService` implementing the unchanged
+`ILoggingService` contract with named audit properties and a `TenantInfo` redaction policy — R-23.
+`FileLoggingService` is kept as the Blazor/MAUI registration; the new sink is wired only in
+`V.SMART.Api`. Attempt 1 failed the CI warning-gate ratchet (`CS8767` in the new
+`TenantInfoDestructuringPolicy`, one over the 6693 baseline); attempt 2 fixed it (annotation
+only, `81ad961`) and passed. R-23 is marked **resolved for `V.SMART.Api` only** — still open for
+the Blazor and MAUI hosts. Two criteria stated as unmet rather than glossed: the
+tenant-unreachable-while-master-healthy 503 was proved only at unit level (writing a bogus
+`Tenants` row was out of scope), and no `LogUserAction` event was observed over HTTP (no call
+site reachable from `V.SMART.Api` — adding one is out of scope). Full record:
+[`tasks/M2-B11.md` § Execution Record](tasks/M2-B11.md#execution-record-2026-08-21-branch-migrationm2-b11-health-checks-logging)
+and its close-out addendum; tracker footnote ³⁶; [`runner-state.md`](runner-state.md).
 
-**Two criteria were openly unmet at merge** and the merge does not close them: no Blazor screen was
-opened, and there is no end-to-end HTTP test against two real tenant databases (needs a tenant-DB
-credential — **Q-14 / R-01 / Q-32**). Detail: tracker footnote ³⁵ and the task file's Execution
-Record.
-
-> **⚠ The branch is two commits, and the first is not the executing session's work.** `e9b143b` is
-> ~979 lines found uncommitted in the working tree, left by an earlier runner session killed
-> mid-implementation. It was verified before being committed — build at baseline, scope diff, the
-> stream copy confirmed present — and committed separately so it stays independently reviewable.
-> See [`runner-state.md`](runner-state.md) § *Process note — an orphaned working tree*.
-
-### Two decisions M2-B06 raised and did not take
-
-| | |
-|---|---|
-| **R-67** | **`SaveCorresFileAsync` writes a zero-byte file and reports success** (`WebFileUploadService.cs:100-104` — the stream copy is commented out). **Every correspondence and drawing uploaded through the Blazor UI has been landing empty.** Survivable only because `Correspondence.Image` holds a second copy and the two download screens disagree about which to read. The task forbade fixing it; uncommenting line 102 changes live behaviour and needs its own task. |
-| **Q-16, storage half** | Uploaded files live on a **local filesystem**. Containerised with no mounted volume, they are lost on every redeploy; behind more than one instance, a file uploaded to A is invisible to B. Both failures are silent. No blob storage, CDN or virus scanning exists anywhere (a recorded negative result, INV-045). |
+**Produced:** [KB-113](../architecture/observability.md) (health-check contract, audit-event
+schema, sink deferral pending Q-16, retention policy, redaction policy); **INV-046** (494
+`LogUserAction` call sites, all in `V.SMART.Shared`, zero in `V.SMART.Api` or `V.SMART.Web`; the
+`#if ANDROID || WINDOWS || MACCATALYST` `_basePath` branch confirmed dead on both TFMs).
 
 ---
 
-## 🚩 Two tasks still need an owner decision before any related work starts
+## The merge queue — nine branches unmerged (census, kept current)
 
-### 1. `M2-B05` — the task's premise is false; it needs re-specifying, not retrying
-
-Selected cleanly on 2026-08-21 (P1, 2 d, prerequisite merged, **zero** file overlap with any
-unmerged branch), investigated, and stopped before a line was written. It exists to *"replace
-the magic integer literals currently passed as `screenCode`"*. **There are none.** The code
-resolves the screen code at runtime from the database by name —
-`GetScreenCodeByScreenNameAsync`, **166** call sites across **61** Razor pages — and of **244**
-stock-call expressions inspected, **zero** pass a literal in that position.
-
-**R-10 was marked `Confirmed` from a method signature rather than a call site**, and a 2-day,
-36-file task was written on it. The risk it describes is real but names the **wrong
-parameter**: `AddOrUpdateStockAsync`'s *second* argument is `storeId`, and **55 sites pass a
-bare `6` or `7`** — `REJECTION STORE` and `REWORK STORE`, confirmed against both a
-rebuilt-from-source and the live database. Filed as **R-66**, and the obvious thing to re-cut
-M2-B05 into. Evidence: **INV-044**, tracker footnote ³¹, the ⛔ banner on
-[`tasks/M2-B05.md`](tasks/M2-B05.md).
-
-### 2. `M2-A02` must not start until R-65 is decided
-
-The `M0-01-03` rebuild drill (2026-08-21) found that
-`V.SMART/V.SMART.Api/Authorization/ScreenCatalogue.cs` compiles **152** screen names while
-every real database — the one rebuilt from source control **and** the live development one —
-holds **150**. `ScreenCode` runs 1…152 with **114 and 115 absent**; later migrations
-`DeleteData` them, and the compile-time catalogue was copied from the `HasData` seed list
-without the deletes. The two phantoms are **`Bill Paid List`** and **`Bill Pending List`**.
-
-`ScreenRightStartupValidator` accepts both. So `[RequireScreen("Bill Paid List")]` **passes
-startup validation and then denies every request forever, in every tenant, silently** — the
-exact failure [KB-105](../architecture/server-side-authorization-spec.md) warns about at its
-own `:130`. `M2-A02` is the task that annotates the first controller; it must not begin against
-a catalogue containing two unusable names.
-
-Tracked as **R-65** ([`technical-debt-register.md`](../risks/technical-debt-register.md)),
-owner **Vivek**. Three KB-105 facts recorded as `Confirmed` are corrected there — they were
-derived from the seed block, and **the seeded state is not the migrated state** once a later
-migration deletes seed rows.
-
----
-
-## The merge queue — seven branches still unmerged (census, kept current)
-
-**`M2-B06` has left this queue** — merged 2026-08-21 as `65d9666`. `M2-B11` is now in flight.
-Everything below is still outstanding and still blocking its own dependents:
-
-`M2-B04` closed `Needs Review` on 2026-08-21 (attempt 2, validated `PASS`). The Select phase
-that followed produced an **empty candidate set**, so the run halted rather than guessing. That
-is a [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks) stop and a
-successful outcome of the loop, not a failure. Owner: **Vivek**. Full control state:
-[`runner-state.md`](runner-state.md).
-
-### The one thing that would change this
-
-**Six branches carry a claimed `PASS` and are unmerged; a seventh task is `Blocked` on the
-owner.** Nothing they depend on is missing; nothing is being re-derived. Until they land on
+Nothing below is missing a prerequisite; nothing is being re-derived. Until these land on
 `master`, [selection rule](dependency-graph.md#ready-task-selection-rule) step 1 keeps every one
 of their dependents `Blocked`, because a prerequisite that is `Needs Review` is not `Completed`.
-
-Each row below was read from the branch itself this session, not inherited from the previous
-runner state — which on two of them was **wrong** (see *A correction*, below).
+**Never merge or push from an execution session** ([`CLAUDE.md`](../../../CLAUDE.md) § Standing
+constraints) — this table is for the owner to act on.
 
 | Task | Branch | Tip | State on that branch |
 |---|---|---|---|
+| `M2-B11` | `migration/M2-B11-health-checks-logging` | `12dad11` | `Needs Review`, validated `PASS` (attempt 2 of 4) |
 | `M2-B04` | `migration/M2-B04-decouple-pages-references` | `5ca1c10` | `Needs Review`, validated `PASS` (attempt 2) |
-| `M2-A08` | `migration/M2-A08-row-scope-and-account-gates` | `bca92fd` | `Needs Review`, validated `PASS` — its tracker row says so |
-| `M2-A08` ⚠ | `migration/M2-A08-row-level-scoping` | `6e6633a` | **A second branch for the same task**, live in `wt-M2-A08`, doing different work (INV-028 → KB-120, answering Q-05…Q-08). Its own tracker row still reads `Ready`. **Needs an owner decision on which branch is the real `M2-A08`.** |
+| `M2-A08` | `migration/M2-A08-row-scope-and-account-gates` | `bca92fd` | `Needs Review`, validated `PASS` |
+| `M2-A08` ⚠ | `migration/M2-A08-row-level-scoping` | `6e6633a` | **A second branch for the same task** (INV-028 → KB-120, answering Q-05…Q-08). **Needs an owner decision on which branch is the real `M2-A08`.** |
 | `M2-A07` | `migration/M2-A07-me-endpoint` | `e3bc96c` | `Needs Review`, validated `PASS` |
 | `M2-C00` | `migration/M2-C00-kb050-angular-rewrite` | `b3c0e6e` | `Needs Review`, validated `PASS` — releases the whole `M2-C` tree |
-| `M2-B01` | `migration/M2-B01-api-versioning` | `045a7f4` | Close-out commit claims `PASS`, **11 of 12 criteria met, criterion 4 partial**. Its own tracker row was never updated off `Ready`. |
-| `M0-10` | `migration/M0-10-candelete-guard-audit` | `fc8e0c0` | Close-out commit claims `Needs Review` after attempt 3, regression repaired. Its own tracker row was never updated off `Ready`. |
+| `M2-B09` | `migration/M2-B09-reference-endpoints` | `d1175db` | `Needs Review` — six cached reference endpoints, R-15 boundary fix |
+| `M2-B06` | `migration/M2-B06-file-endpoints` | (merged) | **`Completed`, merged to `master` `65d9666`** — no longer in this queue |
+| `M0-10` | `migration/M0-10-candelete-guard-audit` | `fc8e0c0` | `Needs Review` after attempt 3, regression repaired |
 | `M0-01-03` | `migration/M0-01-03-rebuild-drill` | `34b5e32` | `Needs Review` — drill §§2–6 executed and passing; §7 and a named operator outstanding |
 | `M2-B12-01` | `migration/M2-B12-01-inv-012-numbering` | `407d0ba` | 🚩 **`Blocked` — escalation budget exhausted, awaiting Vivek.** Not `PASS`. |
 
-**Never merge or push from an execution session** ([`CLAUDE.md`](../../../CLAUDE.md) § Standing
-constraints). These are listed so the owner can act, not so a session can.
-
-### A correction, and why it is worth reading
-
-The runner state this session inherited claimed **`M2-B12-01` was validated `PASS` and awaiting
-merge**. It was not. That branch's own tip commit is *"Record close-out — BLOCKED, escalation
-budget exhausted, **corrects a premature PASS**"*, and its runner-state says plainly that the
-earlier `PASS` was claimed for a tip (`58e7bee`) whose own failure-log entry recorded `FAIL` —
-*"no genuine `PASS` of `58e7bee` exists anywhere in this repository."* The task is `Blocked` with
-2 of 3 attempts used and its single escalation spent; the escalated fix at `8a54f96` has never
-been re-validated.
-
-That false `PASS` had already propagated into two files before this session, and this session
-propagated it once more before checking. **It was caught only because `git stash list` happened
-to show a branch name next to the words "corrects a premature PASS".** The same check found
-`M2-B01` and `M0-10`, neither of which the inherited state mentioned at all.
-
-**The lesson is the one footnote ²¹ already paid for once:** a status inherited from a sibling
-branch is a claim, not a fact, and `git log --oneline -2 <branch>` costs nothing. Read the branch.
-
-### Why every remaining task was excluded
-
-| Task | Why not |
-|---|---|
-| `M0-01-03` | **The rank winner (P0), stopped at KB-091 §8 item 5.** See below — the block is now narrower than the task file claims. |
-| `M2-B05` | **Selected 2026-08-21, then `Blocked` — premise falsified, needs owner re-specification.** See below. |
-| `M2-B06` | **Done — `Needs Review` 2026-08-21, unmerged.** The `M2-B01` merge released it and it was executed as written; footnote ³² was right that it was mis-sequenced, not mis-specified. See the top of this file. |
-| `M2-B11` | `Ready` but P2, and **dropped at step 2**: its `source_files` name `V.SMART/V.SMART.Api/Program.cs` and `V.SMART.Api.csproj`, both of which unmerged `M2-B01` changes. |
-| `M0-06`, `M0-11` | `M0-06` already has a branch (`migration/M0-06-remove-default-admin`). `M0-11` is a **`Product Decision`** — never self-selectable; surfacing it to you *is* the action. |
-| `M2-B09` | `Ready`, P1, but **dropped at selection step 2**: its `source_files` name `V.SMART/V.SMART.Api/Program.cs` and `Controllers/CurrencyController.cs`, and unmerged `M2-B01` names both. Becomes the obvious next pick the moment `M2-B01` lands. |
-| `M2-B01`, `M0-10` | Each already has a branch with a close-out commit claiming `PASS`/`Needs Review`, plus a live worktree. Finished-and-unmerged, not available to re-take. |
-| `M2-A02` | `Ready` but gated on the unanswered **Q-28**: an API-only administrator holds zero `UserRight` rows because `AuthController.Login` never calls `SyncRightsForUserAsync`. Annotating `CurrencyController` before that is answered authenticates the administrator into an empty UI. |
-| `M2-C01` | `Blocked` behind `M2-C00`'s merge. |
-| `M2-B04`, `M2-A08`, `M2-C00`, `M2-A07` | Done, `PASS`, unmerged (see table above). |
-| `M2-B12-01` | **`Blocked`, not done** — escalation budget exhausted, named owner **Vivek**, and the escalated fix at `8a54f96` has never been re-validated. Re-dispatching it autonomously would spend the task's last attempt slot on exactly the unsupervised re-validation the previous orchestrator declined to spend it on. |
-
-## `M0-01-03` — ✅ decided and run on 2026-08-21; what is left is a person, not a blocker
-
-**The owner authorised runbook §§2–6 and they were executed. All of them passed.** An empty
-database became a working tenant database from repository artefacts alone in about a minute:
-`MasterDbContext` applied, one `Tenants` row, **108 migrations in ~50 s** → 197 tables, 150
-`Screens`, the `Administrator` user, then **91 stored procedures in 2.16 s, 0 failed**, proven
-idempotent on a second run. `db/deploy-stored-procedures.ps1` loses its `UNVERIFIED` banner on
-evidence, its ordering assumption moves from *Inferred* to **Confirmed**, and R-04's
-"add a deployment step" half closes. Branch `migration/M0-01-03-rebuild-drill` (`34b5e32`).
-
-**What is still open, and why it is not something a session can close:**
-
-1. **Runbook §7** — start `V.SMART.Web`, log in as the seeded `Administrator` (R-09:
-   disposable environment), open a list screen, run one report through `ReportExecutor`, print
-   one document through `ReportService.Generate_Report`. This is the *"and the app runs against
-   it"* half of G0 criterion 1 and it was not attempted. **The two drill databases were left in
-   place precisely so this can be done without repeating §§2–6** —
-   `db/REBUILD-DRILL-LOG.md` names them and gives the two `DROP DATABASE` statements for
-   afterwards.
-2. **A named operator.** The task requires the drill be *"executed end to end at least once by
-   a named person"*. That is an accountability requirement; a session signing its own log would
-   be the bookkeeping equivalent of inventing a business rule.
-3. **A genuinely empty instance**, if the *"fresh, empty SQL Server"* wording is to be
-   evidenced strictly. The drill created two throwaway databases on the pre-existing
-   development instance and wrote to nothing else — but never exercised a cold one.
-
-**The record below is kept because its diagnosis is still worth reading.**
-
-### How this task was blocked twice by its own stale text
+**Note `M2-B01` has already merged** (`ae9d2c8`, `--no-ff`, 2026-08-21) and is `Completed` — it
+is why `M2-B06`, `M2-B09` and `M2-B11` became selectable this run.
 
 ---
 
-## `M0-01-03` — the premise that blocked it (historical)
+## Why every `Ready`/`Blocked` task is excluded right now
 
-**Task file:** [`tasks/M0-01-03.md`](tasks/M0-01-03.md). **Status:** `Ready`, P0, 1 d, 0 attempts
-used. Every repository-side artefact is already **on `master`**:
-`db/deploy-stored-procedures.ps1`, `db/RUNBOOK-rebuild-tenant-database.md`,
-`db/REBUILD-DRILL-LOG.md` (skeleton, every field `TBD`), and 91 `.sql` files under
-`db/stored-procedures/`. **The only outstanding work is executing the rebuild drill and
-recording the outcome** — which is the last open half of **G0 exit criterion 1**.
+| Task | Why not |
+|---|---|
+| `M0-06` | `Ready`, P1, but **already has a branch** (`migration/M0-06-remove-default-admin`) — five-part test part 5 excludes it. |
+| `M0-11` | A **`Product Decision`** (Q-01, silent FIFO under-issue) — never self-selectable; surfacing it to the owner *is* the action. |
+| `M2-A02` | `Ready`, P0, but gated on **two things**: the unanswered **Q-28** (an API-only administrator holds zero `UserRight` rows because `AuthController.Login` never calls `SyncRightsForUserAsync`), and **R-65** (two phantom screen names — `Bill Paid List`, `Bill Pending List` — pass `ScreenRightStartupValidator` but would deny every request forever, silently, if either were annotated). Owner: **Vivek** for both. |
+| `M2-B05` | `Blocked` — its premise (magic `screenCode` literals) was falsified by INV-044; the real defect is 55 bare `storeId` literals (R-66). Needs owner re-specification onto R-66, not a retry. |
+| `M2-C01` | `Blocked` behind `M2-C00`'s merge. |
+| `M2-B04`, `M2-A08`, `M2-C00`, `M2-A07`, `M2-B09`, `M0-10`, `M0-01-03` | Done and unmerged — see the merge-queue table above. |
+| `M2-B12-01` | `Blocked`, not done — escalation budget exhausted, named owner **Vivek**; the escalated fix at `8a54f96` has never been re-validated. |
 
-**The task file's step 7 is out of date and should not be followed as written.** It says *"You
-cannot execute it — there is no SQL Server instance reachable from this session and no
-credential to use if there were."* Re-verified this session, that is **false**:
+---
 
-- `MSSQL$SQLEXPRESS` is **Running**;
-- `sqlcmd` is present (`…/Client SDK/ODBC/170/Tools/Binn/SQLCMD.EXE`) and so is the `SqlServer`
-  PowerShell module;
-- it is reachable by **Windows integrated auth**, so no credential need be acquired or reused.
+## Standing blockers worth reading before picking anything up
 
-Tracker footnote ²¹ already recorded this on 2026-08-19 and reclassified the task `Needs
-Review` → `Ready`. What genuinely remains unavailable is narrower than "an environment", and it
-is two things:
-
-1. **A named operator.** The task requires the drill be *"executed end to end at least once by a
-   named person"*, and the log records who. That is an accountability requirement, not a
-   technical one — a session cannot satisfy it by signing itself.
-2. **The UI smoke test** (runbook step 7): start the Blazor host, log in with the seeded
-   `Administrator` account, open a list screen, run one report, and **print one document** —
-   the print path being the one that proves `Sp_Print_CompanyDetails` deployed
-   (`ReportService.cs:74-77`). Note R-09: that credential is a known default, so the drill
-   environment must be disposable.
-
-**What a session could do without either** — and what it would be worth — is runbook steps 2–6:
-create throwaway master and tenant databases on the local instance, apply `MasterDbContext`'s
-schema, insert one `Tenants` row, apply the 219 EF migrations, run
-`db/deploy-stored-procedures.ps1`, and verify the deployed procedure count against
-`manifest.csv`. That would produce the **first real evidence for Q-02** (how EF migrations reach
-a tenant database — still *Unknown*) and the first real test of whether the deployment script's
-**ordering assumption holds**, which the task file itself flags as *Inferred, not verified*
-(deferred name resolution). It would leave criterion 7 and the operator field open and honest.
-
-**This needs the owner's authorisation before a session does it**, because it executes DDL
-against a live instance that also carries the real `NexGenErpDb_Master` and a 197-table
-`NexGenErpDb`, and because the task file names a human for exactly this step. Offering it is
-the useful action; assuming it is not.
+- **R-65** (`ScreenCatalogue.cs` — two phantom screen names) blocks `M2-A02`. Owner **Vivek**.
+  [`technical-debt-register.md`](../risks/technical-debt-register.md).
+- **Q-28** (API-only administrators hold zero `UserRight` rows) also blocks `M2-A02`.
+  [`open-questions.md`](../open-questions.md).
+- **`M0-01-03`** needs a **named operator** to run runbook §7 (start `V.SMART.Web`, log in, run
+  one report, print one document) and sign the drill log — an accountability requirement, not a
+  technical one. The two throwaway drill databases are left in place for this. See
+  [`tasks/M0-01-03.md`](tasks/M0-01-03.md).
+- **`M2-A08`** has two competing branches; the owner needs to pick one before either merges.
+- **Three sibling worktrees may still be live** (`wt-M0-10`, `wt-M2-A08`, `wt-M2-B01`) —
+  `git worktree list` belongs in Select alongside the tracker, which cannot see them.
 
 ## Also true right now
 
-- **`M2-B04`'s `PASS` leaves two gates open** and the reviewer should not read it as
-  "BR-APPR-001 observed intact". Acceptance criterion 9, the manual approval-workflow
-  regression, is `NOT CHECKABLE` without a tenant-DB credential (Q-14 / R-01 / Q-32); the MAUI
-  head was not built. The mechanical argument that nothing could have changed is strong — the
-  diff touches no method body, signature, attribute or mapping — but it is an argument, not an
-  observation.
-- **The headline dependency M2-B04 was written to sever turned out to be dead text.**
-  `Authorization.razor` contains zero occurrences of `static` and declares no type, so the
-  `using static` import set was provably empty. The task removed a documentation-level
-  architectural violation and installed a CI-enforced guard; it did **not** sever a real
-  compile-time coupling. R-11 and BR-APPR-001 now say so without overclaiming.
-- **New question `Q-55`** — whether `FundTransFilter.Bank`, now unreferenced by any repository
-  or Razor caller, should be deleted. Raised rather than acted on.
-- **Three sibling worktrees were live when this run resumed** (`wt-M0-10`, `wt-M2-A08`,
-  `wt-M2-B01`), none of them this session's. `git worktree list` is part of selection now, not a
-  curiosity — the tracker cannot see them, and `M2-A08` already has two branches from two
-  sessions doing the same task.
+- **R-67** — `SaveCorresFileAsync` (`WebFileUploadService.cs:100-104`) writes a zero-byte file
+  and reports success; every Blazor correspondence/drawing upload has been landing empty. Found
+  by M2-B06, deliberately left unfixed (out of scope), survivable only because
+  `Correspondence.Image` holds a second copy.
+- **Q-16** now has a storage half (M2-B06) and an observability half (M2-B11): uploaded files
+  and the log sink both currently live on local disk/filesystem with no durability guarantee
+  under an unknown deployment topology.

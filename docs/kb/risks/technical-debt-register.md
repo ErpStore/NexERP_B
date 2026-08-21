@@ -1048,16 +1048,55 @@ alongside `V.SMART.Shared.*`, and one `V.SMARTV.Shared.…` (a typo namespace).
 **Impact.** Visual inconsistency; part of why the product looks dated.
 **Action.** Resolved by construction in the SPA rewrite — one library only.
 
-### R-23 — Flat-file logging with no aggregation, and an unsanitised path
-**Confirmed.** `FileLoggingService` writes flat text files under `App_Data/Logs/`.
+### R-23 — Flat-file logging with no aggregation, and an unsanitised path — **RESOLVED FOR `V.SMART.Api` 2026-08-21 (M2-B11); STILL OPEN FOR THE BLAZOR AND MAUI HOSTS**
+**Was Confirmed.** `FileLoggingService` writes flat text files under `App_Data/Logs/`.
 **Impact.** No searchability, no alerting, unbounded growth, lost on container restart.
 **Action.** Structured logging (Serilog) to a real sink (M2-B11); preserve the *user-action
 audit trail* as a first-class feature.
+
+**Closed by M2-B11 for `V.SMART.Api`.** Serilog writes compact JSON to two rolling files split
+on an `EventType` discriminator: `audit-{date}.json` (`EventType = "UserAction"`, retention
+**3650**) and `diagnostics-{date}.json` (retention **14**) — both are Serilog
+`retainedFileCountLimit` values, i.e. a **retained file count** that equals days only while a
+day fits in one file; see KB-113 § *Separability and retention*. A 64 MB size cap applies, and
+`ReadFrom.Configuration` lets a deployment add a second sink without a rebuild. The six audit
+fields are **named properties** — `UserName`, `Machine`, `IpAddress`, `Screen`, `Action`,
+`AdditionalInfo` — plus `EventType` and the M2-A06 correlation id, so the audit trail is
+queryable by user, by screen and by date range. `LogDeveloperError` now logs the `Exception`
+object. `ILoggingService`'s three signatures are unchanged and `FileLoggingService` is kept.
+Contract: **[KB-113](../architecture/observability.md)**.
+
+> **⚠ It is resolved for one host of three, and that is deliberate — do not "finish the job"
+> by moving the registration.** `AddVSmartDomain()` still registers
+> `ILoggingService → FileLoggingService`; `V.SMART.Api/Program.cs` overrides it afterwards.
+> Neither the Blazor host nor the MAUI head has a Serilog sink configured, so changing the
+> shared registration would route a **live** audit trail — 494 call sites across 202 files
+> (INV-046) — into a console and a debug window, i.e. **delete** it. Giving `V.SMART.Web` a
+> durable structured sink is a separate task. See [KB-113 §6](../architecture/observability.md).
+
+**Two of the four impacts are only partly closed, stated plainly:**
+- *Unbounded growth* — closed for the API (rotation, retention, size cap). Open for the other
+  two hosts, which still call `File.AppendAllTextAsync` with no cap.
+- *Lost on container restart* — **not closed by code, and cannot be.** The new files default to
+  `{ContentRoot}/App_Data/Logs`, reproducing the old location. `Observability:Logging:Directory`
+  **must** point at a mounted volume in any containerised deployment or the ten-year audit
+  retention is fiction.
+
+**Credential leak, addressed as part of the fix (it would otherwise have been made worse).**
+Structured logging serialises objects, and `TenantInfo.ConnectionString` is a live credential.
+`TenantInfoDestructuringPolicy` reduces any `TenantInfo` reaching any sink to
+`{ TenantId, Hostname }`, and `SensitiveDataRedactor` scrubs credential- and locator-shaped
+`keyword=value` pairs out of free-text fields. Tested; and a live run whose master *and* tenant
+connections both failed produced a diagnostics file with **0 hits** for the password,
+`Password`, `TenantInfo`, `SQLEXPRESS` and `NexGenErpDb`.
+
 **Input now available (M2-A06, 2026-08-20).** Every API request carries a correlation id
 (`Activity.Current?.Id ?? HttpContext.TraceIdentifier`), returned in the `X-Correlation-Id`
-response header and in every `problem+json` body's `traceId`. M2-B11 should enrich its sink
-with that value rather than inventing a second id;
-`V.SMART/V.SMART.Api/Middleware/CorrelationId.cs` is the one definition.
+response header and in every `problem+json` body's `traceId`. M2-B11 enriches its sink with
+that value rather than inventing a second id;
+`V.SMART/V.SMART.Api/Middleware/CorrelationId.cs` is the one definition. **Accepted drift
+risk:** `StructuredLoggingService` restates that expression rather than calling it, because
+`V.SMART.Shared` cannot reference `V.SMART.Api` — KB-113 §6 records it.
 
 > **Corrections and an added security finding, 2026-08-12 (Confirmed).**
 >
@@ -1080,10 +1119,22 @@ with that value rather than inventing a second id;
 > can silently stop is not an audit trail — this matters for the "preserve it as a
 > first-class feature" instruction above.
 >
-> **4. `_basePath` may be null on some targets.** The `#if ANDROID || WINDOWS || MACCATALYST`
-> branch (`:11-16`) has its assignment commented out. Source state is **Confirmed**; the
-> runtime consequence on the Windows-targeted build is **Unknown** and must be checked before
-> M2-B11 relies on the path.
+> **4. `_basePath` may be null on some targets — ANSWERED 2026-08-21 (M2-B11, INV-046): NO.**
+> The `#if ANDROID || WINDOWS || MACCATALYST` branch (`:11-16`) has its assignment commented
+> out, which remains **Confirmed** — but the branch is **never compiled**.
+> `dotnet msbuild V.SMART.Shared.csproj -getProperty:DefineConstants` returns `TRACE;DEBUG` on
+> **both** target frameworks, including `net9.0-windows10.0.19041.0`: those symbols come from
+> `Microsoft.NET.Sdk.Maui`, which needs `<UseMaui>true</UseMaui>`, and `V.SMART.Shared.csproj:1`
+> uses `Microsoft.NET.Sdk.Razor` and never sets it. A `ProjectReference` is evaluated with its
+> own properties, not the consuming MAUI project's. So the `#else` branch always runs,
+> `_basePath` is always `AppContext.BaseDirectory/App_Data`, and **the MAUI host does log** —
+> to the application directory, like the others. **Confirmed**, no longer Unknown.
+>
+> **5. The three impacts above are unchanged by M2-B11 for the Blazor and MAUI hosts.** The
+> unsanitised username path (`:31`), the swallowed failures (`:89-104`) and the shared
+> developer-log file (`:76`) all still exist in `FileLoggingService`, which those two hosts
+> still resolve. `V.SMART.Api` no longer touches any of them. Q-09 is still the deciding
+> question for the path-traversal severity.
 
 ### R-24 — No API error contract — **CLOSED 2026-08-20 (M2-A06)**
 **Was Confirmed.** `CurrencyController` returned two different 400 shapes; there was no

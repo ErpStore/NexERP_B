@@ -113,3 +113,28 @@ The tenancy design itself is **sound and should be preserved**. Only the *resolu
 front door* needs work, and it is small (one login-request field, one CORS config, one
 error path). No change to `TenantDbContextFactory`, `TenantInfo`, or the
 database-per-tenant model is proposed.
+
+## Health checks read `MasterDbContext.Tenants` directly — `ITenantProvider` cannot be used
+
+Added by **M2-B11** (2026-08-21). Recorded here because the reason is a property of *this*
+design, and rediscovering it costs half a task.
+
+`GET /health/ready` probes tenant databases, and it **must not** go through
+`ITenantProvider`/`ITenantDbContextFactory`. `TenantProvider.GetCurrentTenant()` resolves from
+`_httpContextAccessor?.HttpContext?.User?.FindFirst("TenantId")` (`TenantProvider.cs:33-34`),
+falling back to the request host and then `tenant.json`; `TenantDbContextFactory` depends on it
+(`TenantDbContextFactory.cs:7-12`). **A health probe has no `HttpContext`, no JWT and no user**
+— the endpoints are anonymous precisely because an orchestrator cannot present one — so none of
+those resolution steps can produce a tenant.
+
+`V.SMART/V.SMART.Api/HealthChecks/TenantDatabaseHealthCheck.cs` therefore reads
+`MasterDbContext.Tenants` (`MasterDbContext.cs:8`), takes a **configurable subset** (default:
+the lowest one `Id`, because probing every tenant on every poll does not scale and lets one sick
+tenant unready the whole service), and opens a `SqlConnection` on
+`TenantInfo.ConnectionString` directly with a clamped connect timeout. It reports each probed
+tenant as an opaque `tenant-{Id}` and never discloses the `Name`, the `Hostname`, the connection
+string or any exception text.
+
+This is the **only** correct shape for an unauthenticated probe in a database-per-tenant system;
+it is not a hack, and it does not weaken tenant isolation — nothing it reads leaves the process
+except a status word. Full contract: [KB-113](observability.md) §2–3.

@@ -251,13 +251,30 @@ uses is **Unknown** — see [`open-questions.md`](../open-questions.md) Q-04.
   action, info
 - `DeveloperLogs/` — INFO / ERROR with stack traces
 
-There is **no** structured logging, no correlation IDs, no log aggregation, no metrics, no
-health checks, no APM. `Microsoft.Extensions.Logging` is configured only at default levels.
-**Confirmed.**
+**That description is still exactly true of `V.SMART.Web` and the MAUI head, and no longer true
+of `V.SMART.Api`.** Which host resolves which implementation is the thing to know here:
+
+| Host | `ILoggingService` | Sink |
+|---|---|---|
+| `V.SMART.Api` | `StructuredLoggingService` (M2-B11) | Serilog → compact JSON, `audit-{date}.json` / `diagnostics-{date}.json`, split on `EventType`, enriched with the M2-A06 correlation id |
+| `V.SMART.Web` (Blazor) | `FileLoggingService` — **unchanged** | the flat text files described above |
+| `V.SMART` (MAUI) | `FileLoggingService` — **unchanged** | ditto |
+
+`AddVSmartDomain()` registers `FileLoggingService`; `V.SMART.Api/Program.cs` overrides it after
+that call. The split is deliberate — the Blazor and MAUI hosts have no Serilog sink, so moving
+the shared registration would send a live audit trail to a console. **Full contract, the
+audit-event schema, retention, the health-check disclosure rules and the `TenantInfo` redaction
+policy: [KB-113](observability.md).**
+
+Metrics and APM remain absent (Confirmed). Health checks now exist for `V.SMART.Api` only:
+`GET /health/live` and `GET /health/ready` (KB-113 §2).
 
 The user-action log is a genuine audit trail with business value (who did what, on which
-screen) and should be preserved as a capability — but re-implemented against a proper sink
-when the API layer is built. See [`migration/migration-strategy.md`](../migration/migration-strategy.md) Phase 5.
+screen). M2-B11 preserved it as a first-class, queryable capability for the API host without
+changing `ILoggingService`'s three signatures. **Note INV-046's finding before assuming the
+trail is complete: coverage is patchy — 7 of 18 `Pages/` module folders emit no user action at
+all, and no `V.SMART.Api` code path calls `LogUserAction` yet.** See
+[`migration/migration-strategy.md`](../migration/migration-strategy.md) Phase 5.
 
 ## Error handling
 
