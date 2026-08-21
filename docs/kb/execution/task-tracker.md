@@ -123,11 +123,11 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 |---|---|---|---|---|---|---|---|---|
 | M2-B07 | M2 | Shared `AddVSmartDomain()` DI extension | Backend | **Completed**²⁰ | P0 | G0 | 3 d | G2 |
 | M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | **Needs Review**²⁸ *(validated `PASS` on attempt 2; on `migration/M2-B04-decouple-pages-references` `5ca1c10`, unmerged)* | P0 | M2-B07 | 1 wk | G2 |
-| M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Needs Review**²⁹ *(close-out claims `PASS`, 11 of 12 criteria, criterion 4 partial; on `migration/M2-B01-api-versioning` `045a7f4`, unmerged)* | P1 | M2-B07 | 1 d | G2 |
+| M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Completed**³³ | P1 | M2-B07 | 1 d | G2 |
 | M2-B02 | M2 | Paging / sort / filter contract | Backend | **Completed**²⁴ | P0 | M2-A06 | 1 wk | G2 |
 | M2-B03 | M2 | Codify the controller template | Documentation | Blocked | P0 | M2-A02, M2-B02 | 2 d | G2 |
 | M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Blocked**³¹ *(⛔ premise falsified — needs re-specification by the owner; no code written, no branch)* | P1 | M2-B07 | 2 d | G2 |
-| M2-B06 | M2 | File upload / download endpoints | Backend | **Blocked**³² *(undeclared hard dependency on **M2-B01**, which is unmerged)* | P1 | M2-A06, **M2-B01** | 1 wk | G2 |
+| M2-B06 | M2 | File upload / download endpoints | Backend | **Ready**³² *(released 2026-08-21 by the M2-B01 merge)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Ready** | P1 | **M2-B07**, M2-B02 | 3 d | G2 |
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | Blocked | P0 | M2-B03 | 3 d | G2 |
@@ -1710,3 +1710,33 @@ implementer would have to invent. That interacts with **R-65** (two catalogue na
 database) and with the still-open fact that `[RequireScreen]` is **opt-in, not
 deny-by-default** — an unannotated controller is currently allowed through, which `M2-A02` is
 meant to close.
+
+³³ **M2-B01: `Completed` and merged to `master` 2026-08-21** (`ae9d2c8`, `--no-ff`), on the
+owner's explicit instruction. Validated `PASS`, **11 of 12 acceptance criteria MET**.
+
+**Re-verified on `master` after the merge, not taken from the branch's own report:**
+`dotnet build V.SMART.Api --no-incremental` → **0 errors, 6694 warnings**, matching KB-083's
+`--no-incremental` row exactly (delta 0); `tests/V.SMART.Api.Tests` **117 passed**;
+`tests/V.SMART.Shared.Tests` **84 passed**. Both controllers now read
+`[Route($"{ApiRoutes.V1}/auth")]` and `[Route($"{ApiRoutes.V1}/currencies")]`.
+
+*(The Shared suite is 84 here, not the 86 that `M2-B04`'s record cites — the two extra are that
+branch's architecture-guard tests, still unmerged. Not a regression.)*
+
+**Criterion 4 is `PARTIAL` and was accepted knowingly.** `POST /api/v1/auth/login` reaches and
+executes the action, and `POST /api/auth/login` now returns **404**, so the routing content —
+the only thing this task changes — is fully proven. The login **success branch** was never
+exercised, because it needs a valid dev-tenant credential no session may obtain (Q-14 / R-01 /
+Q-32). The diff contains **zero lines** inside `AuthController`'s body, `JwtTokenService`, or
+anything else on the token path. **To close it:** one valid dev-tenant credential, then a single
+`POST /api/v1/auth/login` expecting `200` with a `token` field.
+
+**Releases three tasks at once** — `M2-B06`, `M2-B09` and `M2-B11` were all blocked on the
+`/api/v1` route surface and the `ApiRoutes.V1` constant this branch introduces. `M2-B06`'s
+block was footnote ³²'s undeclared dependency; `M2-B09` and `M2-B11` were step-2 same-file
+conflicts on `Program.cs`/`CurrencyController.cs` with this branch while it was in flight.
+
+**Housekeeping:** the worktree `C:/Kumar/NexGen-ERP---2025-master/wt-M2-B01` and the branch
+`migration/M2-B01-api-versioning` are now merged and can be removed
+(`git worktree remove wt-M2-B01 && git branch -d migration/M2-B01-api-versioning`). Left in
+place — removing another session's worktree is not this session's call.
