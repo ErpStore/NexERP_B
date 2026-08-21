@@ -126,7 +126,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Needs Review**²⁹ *(close-out claims `PASS`, 11 of 12 criteria, criterion 4 partial; on `migration/M2-B01-api-versioning` `045a7f4`, unmerged)* | P1 | M2-B07 | 1 d | G2 |
 | M2-B02 | M2 | Paging / sort / filter contract | Backend | **Completed**²⁴ | P0 | M2-A06 | 1 wk | G2 |
 | M2-B03 | M2 | Codify the controller template | Documentation | Blocked | P0 | M2-A02, M2-B02 | 2 d | G2 |
-| M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Ready** | P1 | M2-B07 | 2 d | G2 |
+| M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Blocked**³¹ *(⛔ premise falsified — needs re-specification by the owner; no code written, no branch)* | P1 | M2-B07 | 2 d | G2 |
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Ready** | P1 | M2-A06 | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Ready** | P1 | **M2-B07**, M2-B02 | 3 d | G2 |
@@ -1636,3 +1636,38 @@ on the pre-existing development instance and wrote to nothing else, which leaves
 the G0 wording unevidenced too. **Both drill databases were deliberately left in place** so a
 named operator can run §7 without repeating §§2–6; `db/REBUILD-DRILL-LOG.md` names them and
 gives the two `DROP DATABASE` statements.
+
+³¹ **M2-B05: `Ready` → `Blocked` 2026-08-21. Its central premise is false, and no code was
+written.** Owner **Vivek**; the task needs re-specifying, not retrying. Full evidence:
+**INV-044** in [`investigation-registry.md`](../investigation-registry.md), the ⛔ banner on
+[`tasks/M2-B05.md`](tasks/M2-B05.md), and the corrected **R-10** in
+[`technical-debt-register.md`](../risks/technical-debt-register.md).
+
+The task exists to *"replace the magic integer literals currently passed as `screenCode`"*.
+**There are none.** The screen code is resolved at runtime from the database by screen name —
+`GetScreenCodeByScreenNameAsync`, **166** call sites across **61** Razor pages. Of **244**
+stock-call expressions inspected, **zero** pass an integer literal in the `screenCode`
+position, and the only `screenCode = <integer>` assignment in the repository is commented out.
+Its literal-replacement deliverable and Implementation Steps 8–10 — including the one the task
+file itself calls *"the single most important verification step"* — have no subject, and
+generating the constants class alone would commit a file no call site uses.
+
+**The risk R-10 describes is real; it named the wrong parameter.** `AddOrUpdateStockAsync`'s
+**second** argument is `storeId`, and **55 call sites pass a bare `6` or `7`** — confirmed as
+`REJECTION STORE` and `REWORK STORE` against both a rebuilt-from-source and the live
+development database, with all 9 `Stores` rows migration-seeded and identical between them.
+Filed as **R-66**, and the obvious candidate for whatever M2-B05 is re-cut into. Note the
+asymmetry that makes it worse than R-10 as written: `screenCode` is looked up by name and
+therefore *cannot* be got wrong, while `storeId` sits at position 2 beside `itemId`, unnamed
+and unchecked, encoding a business assumption in 55 places.
+
+**How this was missed until now.** R-10 was marked `Confirmed` without a call site being
+opened — the same shape as `M0-01-03`'s stale "no SQL Server is reachable" (footnote ³⁰) and
+KB-105's seed-derived "152 screens" (**R-65**). *Three times in two sessions, a claim about the
+source stood in for a claim about the running system.* Reading the signature is not reading the
+call site; reading the seed is not reading the database.
+
+**What survives re-specification:** M2-B05's *secondary* value. ADR-004's `[RequireScreen("…")]`
+still takes a hand-typed string and `ScreenCatalogue.cs` still hard-codes two screen names no
+database contains (**R-65**). A generated, database-derived catalogue would serve that and fix
+R-65 together — but that belongs with **M2-A02**.

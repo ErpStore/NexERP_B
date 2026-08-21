@@ -2738,3 +2738,65 @@ should prefer it and say which one it used.
 **Disposition** — task closed `Needs Review`, 1 of 3 attempts used, 0 escalations, two
 acceptance criteria openly unmet (runbook §7; the named-operator requirement). Run halted after
 it: the candidate set is empty again and the merge queue is seven branches deep.
+
+---
+
+### M2-B05 · premise falsified at Investigate · 2026-08-21
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED |
+| Model in use | opus |
+| Validator verdict | n/a — nothing was implemented to validate |
+| Failure category | **specification** — the task file describes code that does not exist |
+
+**Selected, investigated, and stopped before writing a line.** `M2-B05` won the Select phase
+cleanly: P1, 2 d, prerequisite `M2-B07` `Completed` and merged, **zero file overlap with any of
+the seven unmerged branches**, and no `⛔` banner. Its own Implementation Step 2 says to
+*"re-verify the seed rather than trusting this document … Report any divergence."* Doing that,
+and then reading the call sites, falsified the task.
+
+**What the task assumes.** *"Replace the magic integer literals currently passed as
+`screenCode`"* into `IStockManagerService`, across "up to 36 call-site files".
+
+**What the code does.** Resolves the screen code **at runtime, from the database, by screen
+name**: `screenCode = await …GetScreenCodeByScreenNameAsync(ScreenName);` — **166** call sites,
+**61** Razor pages. Of **244** stock-call expressions captured and inspected, **0** pass an
+integer literal in the `screenCode` position. The only `screenCode = <integer>` assignment in
+the repository is **commented out** (`SalaryDetails.razor:252`). Every
+`GetQtyBalQtyByStockAddAsync` call passes the variable.
+
+**Root cause — R-10 was marked `Confirmed` from a signature, not a call site.** It reads
+*"take `int screenCode`, which callers pass as literals"*. The first clause is true and was
+checked; the second does not follow from it and was not. A task was then written on the second
+clause, sized at 2 days and 36 files, and sat `Ready` in the tracker.
+
+**The near-miss worth recording.** The first automated scan of the call expressions reported
+**zero** bare integers, and that was *wrong* — a positional parse defeated by commas inside
+nested calls. Re-checking the same data a second way found **55** bare integers (`6` and `7`),
+which turned out to be `storeId`, not `screenCode`. **Both the false negative and the true
+finding came from distrusting a negative result and re-deriving it differently.** Had the first
+scan been accepted, the conclusion — "no literals" — would have been *right for the wrong
+reason*, and **R-66 would have been missed entirely**.
+
+**The real defect, now filed as R-66.** `AddOrUpdateStockAsync`'s **second** parameter is
+`storeId`, and 55 sites pass a bare `6`/`7` = `REJECTION STORE`/`REWORK STORE` — confirmed
+against a rebuilt-from-source database *and* the live one, all 9 `Stores` rows migration-seeded
+and identical between them. Worse than R-10 as written, because `screenCode` is looked up by
+name and cannot be got wrong, while `storeId` is unnamed, sits at position 2 beside `itemId`,
+and encodes a business assumption in 55 places.
+
+**Disposition** — `blocked`, category **specification**, owner **Vivek**. Not a retry
+candidate: no attempt was consumed, no branch exists, and re-dispatching would re-derive the
+same falsification. The task file carries a `⛔` banner so no future session infers the missing
+specification from the stale body, and R-10 is corrected at the source so the next reader does
+not rebuild the task from it.
+
+**Third instance of one failure shape in two sessions.** `M0-01-03`'s "no SQL Server is
+reachable" (tracker footnote ³⁰), KB-105's seed-derived "152 screens" (**R-65**), and now
+R-10's "callers pass as literals". Each was recorded as settled fact; each was a claim about
+the *source* standing in for a claim about the *running system*; each cost a task. **Reading a
+signature is not reading a call site. Reading a seed block is not reading a database. Reading a
+config default is not reading an environment.** The KB's Confirmed/Inferred/Unknown discipline
+already covers this — what it lacks is a habit of asking *which* of those two things a
+"Confirmed" was checked against.

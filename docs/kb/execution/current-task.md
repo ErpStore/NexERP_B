@@ -21,7 +21,26 @@ dependencies: [KB-081, KB-082, KB-088, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## 🚩 Read this first — `M2-A02` must not start until R-65 is decided
+## 🚩 Two tasks now need an owner decision before any related work starts
+
+### 1. `M2-B05` — the task's premise is false; it needs re-specifying, not retrying
+
+Selected cleanly on 2026-08-21 (P1, 2 d, prerequisite merged, **zero** file overlap with any
+unmerged branch), investigated, and stopped before a line was written. It exists to *"replace
+the magic integer literals currently passed as `screenCode`"*. **There are none.** The code
+resolves the screen code at runtime from the database by name —
+`GetScreenCodeByScreenNameAsync`, **166** call sites across **61** Razor pages — and of **244**
+stock-call expressions inspected, **zero** pass a literal in that position.
+
+**R-10 was marked `Confirmed` from a method signature rather than a call site**, and a 2-day,
+36-file task was written on it. The risk it describes is real but names the **wrong
+parameter**: `AddOrUpdateStockAsync`'s *second* argument is `storeId`, and **55 sites pass a
+bare `6` or `7`** — `REJECTION STORE` and `REWORK STORE`, confirmed against both a
+rebuilt-from-source and the live database. Filed as **R-66**, and the obvious thing to re-cut
+M2-B05 into. Evidence: **INV-044**, tracker footnote ³¹, the ⛔ banner on
+[`tasks/M2-B05.md`](tasks/M2-B05.md).
+
+### 2. `M2-A02` must not start until R-65 is decided
 
 The `M0-01-03` rebuild drill (2026-08-21) found that
 `V.SMART/V.SMART.Api/Authorization/ScreenCatalogue.cs` compiles **152** screen names while
@@ -99,7 +118,11 @@ branch is a claim, not a fact, and `git log --oneline -2 <branch>` costs nothing
 | Task | Why not |
 |---|---|
 | `M0-01-03` | **The rank winner (P0), stopped at KB-091 §8 item 5.** See below — the block is now narrower than the task file claims. |
-| `M2-B09` | `Ready`, P1, but **dropped at selection step 2**: its `source_files` name `V.SMART/V.SMART.Api/Program.cs` and `Controllers/CurrencyController.cs`, and in-flight `M2-B01` (live in `wt-M2-B01`) names both. Becomes the obvious next pick the moment `M2-B01` lands. |
+| `M2-B05` | **Selected 2026-08-21, then `Blocked` — premise falsified, needs owner re-specification.** See below. |
+| `M2-B06` | `Ready`, P1, 1 wk, no file conflicts — **the honest next candidate**, but it lost the tie-break to `M2-B05` on estimate (2 d vs 1 wk) and has not been investigated. It touches `V.SMART.Web` and the MAUI head, so it is a larger, riskier change than anything this run has attempted. |
+| `M2-B11` | `Ready` but P2, and **dropped at step 2**: its `source_files` name `V.SMART/V.SMART.Api/Program.cs` and `V.SMART.Api.csproj`, both of which unmerged `M2-B01` changes. |
+| `M0-06`, `M0-11` | `M0-06` already has a branch (`migration/M0-06-remove-default-admin`). `M0-11` is a **`Product Decision`** — never self-selectable; surfacing it to you *is* the action. |
+| `M2-B09` | `Ready`, P1, but **dropped at selection step 2**: its `source_files` name `V.SMART/V.SMART.Api/Program.cs` and `Controllers/CurrencyController.cs`, and unmerged `M2-B01` names both. Becomes the obvious next pick the moment `M2-B01` lands. |
 | `M2-B01`, `M0-10` | Each already has a branch with a close-out commit claiming `PASS`/`Needs Review`, plus a live worktree. Finished-and-unmerged, not available to re-take. |
 | `M2-A02` | `Ready` but gated on the unanswered **Q-28**: an API-only administrator holds zero `UserRight` rows because `AuthController.Login` never calls `SyncRightsForUserAsync`. Annotating `CurrencyController` before that is answered authenticates the administrator into an empty UI. |
 | `M2-C01` | `Blocked` behind `M2-C00`'s merge. |

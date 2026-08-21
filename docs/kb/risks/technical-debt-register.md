@@ -669,15 +669,98 @@ offline from the committed hash.
 **Action.** Force a password change on first login; or seed with a random per-deployment
 password; or disable the account after real users exist.
 
-### R-10 — `ScreenCode` magic numbers with no typed definition
-**Confirmed.** `StockManagerService.AddOrUpdateStockAsync/IssueOrUpdateStockAsync` take
-`int screenCode`, which callers pass as literals. `StockAdd.ScreenCode`/`StockIssue.ScreenCode`
-are the stock-movement source discriminator. The only definition is 152 seeded `Screens`
-rows. No enum or constants class exists.
-**Impact.** A wrong literal silently misattributes stock movements and corrupts stock
-position reports. Invisible to the compiler.
-**Action.** Generate a `ScreenCodes` static class from the seed and replace all literals
-before the API exposes stock operations.
+### R-10 — ~~`ScreenCode` magic numbers with no typed definition~~ → **misidentified; the real magic number is `storeId`**
+> ⛔ **CORRECTED 2026-08-21 (INV-044). The central claim below — *"which callers pass as
+> literals"* — is FALSE, and was marked `Confirmed` without being checked against a call
+> site.** No `screenCode` literal exists anywhere in the codebase. The code resolves the
+> screen code **at runtime, from the database, by screen name**:
+>
+> ```csharp
+> // e.g. SCNAddUpsert.razor:791
+> screenCode = await _scnGenService.GetScreenCodeByScreenNameAsync(ScreenName);
+> ```
+>
+> **Evidence (all re-derived this session, negative results included):**
+>
+> | Check | Result |
+> |---|---|
+> | `GetScreenCodeByScreenNameAsync` call sites | **166** (61 Razor pages) |
+> | Assignments matching `screenCode = <integer>` | **1**, and it is commented out (`SalaryDetails.razor:252`) |
+> | Stock-call expressions captured and inspected | **244** |
+> | …passing an integer literal in the `screenCode` position | **0** |
+> | `GetQtyBalQtyByStockAddAsync` calls passing a literal `screenCode` | **0** — every one passes the variable |
+>
+> **The `152` figure in the paragraph below is also wrong** — 152 rows are *seeded*, but later
+> migrations delete two, and every real database holds **150**. See **R-65**.
+>
+> **What this does to the task built on it.** [M2-B05](../execution/tasks/M2-B05.md) exists to
+> *"replace the magic integer literals currently passed as `screenCode`"*. **There are none to
+> replace.** Its literal-replacement deliverable, and the "prove no value changed" verification
+> that is called *"the single most important verification step in the task"*, both have no
+> subject. Generating the 152-constant class alone would produce a file with **no call site to
+> use it**. The task is `Blocked` pending re-specification by the owner — see tracker
+> footnote ³¹.
+>
+> **What is still true and still worth doing:** the *secondary* value the task names. ADR-004's
+> `[RequireScreen("…")]` takes a hand-typed screen-name string, and
+> `V.SMART.Api/Authorization/ScreenCatalogue.cs` already hard-codes that vocabulary — wrongly,
+> with two names that exist in no database (**R-65**). A generated, database-derived constants
+> class would serve that need *and* fix R-65. That is a different task from the one written,
+> and it belongs with **M2-A02**, not here.
+
+**Original text, retained because the *class* of risk is real — it is the parameter that was
+wrong, not the concern:** `StockManagerService.AddOrUpdateStockAsync/IssueOrUpdateStockAsync`
+take `int screenCode`. `StockAdd.ScreenCode`/`StockIssue.ScreenCode` are the stock-movement
+source discriminator. The only definition is the seeded `Screens` rows. No enum or constants
+class exists. **Impact:** a wrong literal silently misattributes stock movements and corrupts
+stock position reports, invisible to the compiler. **That impact is real — see R-66, where the
+literals actually are.**
+
+---
+
+### R-66 — Hardcoded `storeId` literals `6` and `7` in stock movements
+**Confirmed by measurement, 2026-08-21 (INV-044).** *(Id `R-66` follows **R-65**; **R-64** is
+held by the unmerged `migration/M0-10-candelete-guard-audit` branch — checked with
+`git branch --no-merged master`.)*
+
+This is the risk **R-10 was reaching for and misfiled**. `AddOrUpdateStockAsync`'s second
+parameter is `storeId`, and **55 call sites pass a bare `6` or `7`**:
+
+```csharp
+// ToolCribReturnService.cs:158 — a rejection movement
+await _stockManagerService.AddOrUpdateStockAsync(sub.ItemId.Value, 6, sub.RejQty,
+    1, null, screenCode, sub.TCReturnSubId, entity.TCReturnNo, entity.TCReturnDate, sub.RejRemark);
+
+// LabourSCNService.cs:733 — a rework movement
+await _stockManagerService.AddOrUpdateStockAsync(subItem.ItemId ?? 0, 7, (subItem.ReworkQty.Value), …);
+```
+
+**What they mean, confirmed against two databases:**
+
+| `StoreId` | `StoreName` | Rebuilt from source | Live dev DB |
+|---|---|---|---|
+| 6 | `REJECTION STORE` | present | present |
+| 7 | `REWORK STORE` | present | present |
+
+All 9 `Stores` rows are migration-seeded and **byte-identical between the rebuilt and the live
+database**, so today these literals are *correct*. The risk is not that they are wrong now.
+
+**Impact.** `storeId` sits at position **2** in a twelve-parameter list of mostly `int`s,
+adjacent to `itemId` — transposing them compiles cleanly and silently books stock to the wrong
+store. Unlike `screenCode`, which the code looks up by name and therefore cannot get wrong,
+`6` and `7` are unnamed and unchecked. They also encode a **business assumption** — that
+rejection and rework are distinct stores with those ids — in 55 places rather than one.
+
+**Also worth noting:** a `storeId` is *tenant data*, not a compile-time catalogue. It is
+seeded identically today, but nothing enforces that a tenant cannot renumber or add stores, and
+no constraint ties literal `6` to `REJECTION STORE`. That is what makes this worse than R-10
+as originally written, not better.
+
+**Action.** Name them — a `StoreIds` constants class, or better, resolve by name the way
+`screenCode` already is, which would make the two paths consistent. **Do this before the API
+exposes stock operations**, for R-10's original reason: an API multiplies callers and removes
+the UI's implicit context. Owner **Vivek**; needs a task, and is the obvious candidate for
+M2-B05's re-specification.
 
 ### R-11 — `IApprovalService` depends on a Razor page type
 **Confirmed.** `IApprovalService.cs` declares
