@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-20
+last_verified: 2026-08-21
 dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
@@ -127,7 +127,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B02 | M2 | Paging / sort / filter contract | Backend | **Completed**²⁴ | P0 | M2-A06 | 1 wk | G2 |
 | M2-B03 | M2 | Codify the controller template | Documentation | Blocked | P0 | M2-A02, M2-B02 | 2 d | G2 |
 | M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Blocked**³¹ *(⛔ premise falsified — needs re-specification by the owner; no code written, no branch)* | P1 | M2-B07 | 2 d | G2 |
-| M2-B06 | M2 | File upload / download endpoints | Backend | **Ready**³² *(released 2026-08-21 by the M2-B01 merge)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
+| M2-B06 | M2 | File upload / download endpoints | Backend | **Needs Review**³² ³⁵ | P1 | M2-A06, M2-B01 | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Needs Review**³⁴ *(implemented; on `migration/M2-B09-reference-endpoints` `d1175db`, unmerged)* | P1 | **M2-B07**, M2-B02, M2-B01 | 3 d | G2 |
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | Blocked | P0 | M2-B03 | 3 d | G2 |
@@ -1796,3 +1796,55 @@ task**, recorded in KB-124 §6.
 **R-15 is `partially resolved`, not closed** — correct at the API boundary, still coercing
 in-process across **105** call sites of `GetIGST`/`GetGST`, and the `CalculationService`
 disagreement (170 on one path, 0 on the other) is untouched.
+
+³⁵ **M2-B06: implemented 2026-08-21, `Needs Review` on `migration/M2-B06-file-endpoints`.**
+Footnote ³² was right that the task was sound and only mis-sequenced: once `M2-B01` merged it
+needed no re-specification and was executed as written.
+
+**Read the branch as two commits, deliberately.** `e9b143b` is **~979 lines this session did not
+author** — found uncommitted in the working tree at session start, written 16:04–16:18 IST minutes
+before, almost certainly by an earlier runner session killed mid-implementation (the M2-B06 Select
+bookkeeping was written at 16:04 and no commit followed). Both live peer Claude sessions were asked
+and ruled themselves out; no Visual Studio was running. The owner chose to adopt it. It was verified
+before committing — build at baseline, stream copy present, every must-not-change file byte-unchanged
+— but a reviewer should read it as unattributed code that passed inspection, not as reasoned-through
+work. Everything after it is this session's.
+
+**Delivered:** `POST /api/v1/files`, `GET /api/v1/files/{id:int}`, the three
+`/api/v1/currencies/{export,import,import-template}` endpoints as the ADR-005 reference
+implementation on **one** resource, and `ApiFileUploadService` — the `IFileUploadService`
+implementation `V.SMART.Api` had none of, registered as a host registration beside
+`AddVSmartDomain()` rather than inside it. `ICompanyService`/`CompanyService` no longer reference
+`IBrowserFile`; the adaptation moved to the single Razor call site, `CompanyUpsert.razor:1105`.
+
+**Verified:** `V.SMART.Api` **0 errors / 6694 warnings** and `V.SMART.Web` **0 / 6697** — both the
+exact baselines, the Razor change adding none; `tests/V.SMART.Api.Tests` **117 → 148 passed**;
+`tests/V.SMART.Shared.Tests` **84 passed**, no regression. All **seven** required negative tests
+pass and are reported individually, plus a byte-identity round trip.
+
+**One hazard that had to be designed around.** `CompanyService` used to call
+`OpenReadStream(maxAllowedSize: maxFileSize)` *after* its own size check. Moving the stream to the
+caller inverts the order, and `OpenReadStream` **throws** when the file exceeds the limit it is
+handed — which would have replaced the screen's "File size is too large" toast with an exception,
+an observable Blazor behaviour change. The call site opens with
+`Math.Max(e.File.Size, maxFileSize)` so the open never throws and the service still owns the real
+check.
+
+**Two criteria openly unmet, and they are the same two `M2-B09` closed with.** No Blazor screen was
+opened, so the manual upload/download regression is an argument (nothing touched but one call site;
+`WebFileUploadService` byte-unchanged; both hosts at baseline) rather than an observation. And there
+is **no end-to-end HTTP test against two real tenant databases** — N2/N6/N7 are proved at the policy
+and unit level; the wire-level proof needs a tenant-DB credential no session may acquire
+(**Q-14 / R-01 / Q-32**).
+
+**A live defect was found and deliberately left in place → R-67.** `SaveCorresFileAsync` creates the
+file and leaves the stream copy commented out (`WebFileUploadService.cs:100-104`), returning the
+path as though it succeeded, so **every Blazor correspondence and drawing upload lands as 0 bytes**.
+It has been survivable only because `Correspondence.Image` holds a second copy and the two download
+screens disagree about which to read. Fixing it changes live behaviour and needs its own task.
+
+**Also recorded:** **INV-045** (the file-handling investigation, including the negative result that
+no blob storage, CDN or virus scanning exists anywhere), and a storage half added to **Q-16** —
+uploads live on a local filesystem, and a containerised or multi-instance deployment loses or splits
+them silently.
+

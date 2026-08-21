@@ -133,7 +133,7 @@ author one *and* an AutoMapper profile before `<W>-06`.
 |---|---|---|
 | B1 | **~60–80 resource controllers** over existing services, following one template | 8–12 wks (mechanical, parallelisable) |
 | B2 | **Extract `@code` business logic into services** — ~184k LOC to triage; the real number needing extraction is far smaller, but must be assessed per screen | **the dominant cost; per-module** |
-| B3 | **File upload/download endpoints** — replace `IBrowserFile` and local-path `IFileOpener` | 1 wk |
+| B3 | **File upload/download endpoints** — replace `IBrowserFile` and local-path `IFileOpener` | ~~1 wk~~ **DELIVERED (M2-B06, 2026-08-21)** |
 | B4 | **Report endpoints** — `GET /api/reports/…` → `application/pdf`; Excel export/import endpoints | 1 wk |
 | B5 | **Permission bootstrap endpoint** — `GET /api/me` returning user, tenant, role, and the full `UserRight` set so Angular can render correctly | 2 days |
 | B6 | **Reference-data endpoints** — GST rates, screen catalogue, UOM, states, currencies, terms | 3 days |
@@ -141,6 +141,28 @@ author one *and* an AutoMapper profile before `<W>-06`.
 | B8 | **Approval endpoints** enforcing `UserAuthority` server-side | 1 wk |
 | B9 | **Server-side sort/filter/paging contract** consistent across all list endpoints | 1 wk — **contract delivered by M2-B02 (2026-08-20); rollout ongoing.** See below |
 | B10 | **OpenAPI → TypeScript client generation** in CI | 3 days |
+
+**B3 status (M2-B06, 2026-08-21).** Delivered. `POST /api/v1/files` and
+`GET /api/v1/files/{id:int}` replace `IBrowserFile` and the JS-interop `IFileOpener`;
+`V.SMART.Api` gains the `IFileUploadService` implementation it had none of, registered as a host
+registration beside `AddVSmartDomain()` and never inside it. `ICompanyService`/`CompanyService` no
+longer reference `IBrowserFile` — the adaptation moved to the one Razor call site
+(`CompanyUpsert.razor:1105`). Full contract and security controls:
+[`api-overview.md`](api-overview.md).
+
+Two things a reader should carry forward rather than assume closed:
+
+- **The Excel endpoints are a reference implementation, not a rollout.** They exist on
+  `currencies` only. Item **B4**'s Excel half is therefore *proven*, not *done*; rolling the
+  pattern out is per-module work (KB-080 §10). B4's report half is untouched.
+- **`IFileOpener` is not deleted and must not be.** The two Blazor hosts still use it. It becomes
+  dead only when the last Razor page is retired, far beyond M2.
+
+**A live defect was found and deliberately not fixed:** `SaveCorresFileAsync` writes a **zero-byte
+file** and reports success (`WebFileUploadService.cs:100-104`) — the stream copy is commented out.
+Every Blazor correspondence/drawing upload has been landing empty. Recorded as **R-67**; the API
+path copies correctly and is tested for byte identity. Fixing the Blazor path changes live
+behaviour and needs its own task.
 
 **B9 status (M2-B02, 2026-08-20).** The contract itself is delivered and proven on one endpoint:
 `PagedResult<T>`, `PagedQuery`, a per-resource typed query record, `SortSpecification` (syntax +

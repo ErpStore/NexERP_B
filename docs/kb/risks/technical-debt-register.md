@@ -19,9 +19,10 @@ source_files:
   - V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/EInvoiceAPIService/EWayDatabaseService.cs
   - db/deploy-stored-procedures.ps1
   - db/RUNBOOK-rebuild-tenant-database.md
+  - V.SMART/V.SMART.Web/Services/WebFileUploadService.cs
 status: complete
 confidence: mixed
-last_verified: 2026-08-20
+last_verified: 2026-08-21
 dependencies: [KB-011, KB-012, KB-013, KB-040, KB-102]
 ---
 
@@ -921,6 +922,47 @@ React app; `**/dist/` already covers the common case.
 The **restated** half of R-14 (large parts of the tree untracked) is *not* closed by M0-08 and
 keeps its High rating for the parts still outstanding; `V.SMART/V.SMART.Api/` and `docs/` are
 now tracked (commits `2c224b6`, M0-00), the `.sln` disposition remains M0-00's record.
+
+---
+
+### R-67 — `SaveCorresFileAsync` writes a zero-byte file and reports success
+**Confirmed** (M2-B06, 2026-08-21). `V.SMART/V.SMART.Web/Services/WebFileUploadService.cs:100-104`:
+
+```csharp
+100   await using var fileStream = File.Create(fullPath);
+101   await using var inputStream = file.OpenReadStream(20 * 1024 * 1024);
+102  // await inputStream.CopyToAsync(fileStream);        <-- COMMENTED OUT
+104   return "/" + relativePath.Replace("\\", "/");
+```
+
+The destination file is created, **the copy that would fill it is commented out**, and the method
+returns the path as though the upload succeeded. Every correspondence and drawing uploaded through
+the Blazor UI therefore lands on disk as **0 bytes**, with no error shown to the user.
+
+**Impact.** Silent data loss on the Blazor upload path, for correspondence and drawing documents.
+This is not a migration artefact — it is live in the running application today.
+
+**Why it is survivable in practice, and why that is not a reason to leave it.** The bytes are
+stored a second time, in the `Correspondence.Image` column (`Correspondence.cs:14`, written by
+`CorrespondenceUpload.razor:306-309`), and the two live download screens disagree about which copy
+to serve: `CorrespondenceListByReference.razor:357-363` abandoned the path and serves the column,
+while `CorrespondanceList.razor:319-321` still opens the empty file. The defect is therefore
+invisible on one screen and total on the other. Anything reading the on-disk tree directly — a
+backup, a report, a future service — sees only empty files.
+
+**Not fixed here, deliberately.** M2-B06 constraints forbid editing `WebFileUploadService.cs`, for
+two stated reasons: a user may have built a workaround around the current behaviour, and mixing a
+live-app bug fix into a migration task makes the diff impossible to review or revert independently.
+
+**The API path does not reproduce it.**
+`V.SMART/V.SMART.Api/Services/ApiFileUploadService.cs:155` performs the copy, and
+`FileEndpointSecurityTests.RoundTrip_stored_bytes_are_identical_and_the_layout_matches_blazor`
+asserts byte identity — the assertion `WebFileUploadService` would fail.
+
+**Action.** Owner decision: whether to uncomment line 102 on the Blazor path. Doing so changes the
+observable behaviour of the live application — files stop being empty — so it needs its own task
+and its own regression check, not a quiet edit. Until then, treat the on-disk correspondence tree
+as unreliable and the `Image` column as the source of truth.
 
 ---
 

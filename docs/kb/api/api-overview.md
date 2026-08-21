@@ -198,6 +198,80 @@ the standard two-step delete-guard pattern (see BR-SO-001 for the same shape in 
 
 ---
 
+### `POST /api/v1/files`
+
+**M2-B06, 2026-08-21.** `multipart/form-data`, replacing Blazor's `IBrowserFile` upload path.
+Form fields: `file` (required), `refType`, `docType`.
+
+| Status | Body | Condition |
+|---|---|---|
+| 201 | `FileUploadResponse` — `id`, `fileName`, `filePath`, `contentType`, `sizeBytes`; `Location` header points at the download | stored |
+| 400 | `problem+json`, `type: …/validation-error` | no file, empty file, or an extension not on the allow-list |
+| **409** | `problem+json`, `type: …/business-rule`, `title: "File name already exists."` | the duplicate-name rule of `CorrespondenceUpload.razor:341-347` |
+| **413** | `problem+json`, `type: …/payload-too-large` | above `FileStorage:MaxUploadBytes` |
+
+**Not idempotent.** Every POST creates a new file — the `Guid.NewGuid()` prefix guarantees a
+distinct name — and a new `Correspondence` row. A client that retries a timed-out request creates
+a duplicate. A general idempotency-key mechanism is [M2-B12-03](../execution/tasks/M2-B12-03.md);
+until it lands, clients must not retry blind.
+
+### `GET /api/v1/files/{id:int}`
+
+| Status | Body | Condition |
+|---|---|---|
+| 200 | the bytes, with the resolved `Content-Type` and `Content-Disposition: attachment` | found |
+| 404 | `problem+json`, `type: …/not-found`, `title: "File not found."` | **unknown id, another tenant's id, or a row whose bytes are gone — deliberately indistinguishable** |
+
+**Security controls, all tested** (`tests/V.SMART.Api.Tests/FileEndpointSecurityTests.cs`):
+
+- **Authentication and rights.** `[Authorize]` plus `[RequireScreen("Correspondences")]`;
+  upload needs `Create`, download needs `View`. An unauthenticated download endpoint over a
+  per-tenant folder tree would be a cross-tenant data leak, so the download is gated too.
+- **Path traversal is structurally impossible.** `{id:int}` is a route constraint, so `../`,
+  `%2e%2e%2f` and every other traversal string fails to match the route and never reaches the
+  action. Behind that, a *stored* path is canonicalised and proved to be inside the uploads root
+  (`UploadPaths.IsInsideRoot`) before any file is opened, so a poisoned `Correspondence.FilePath`
+  row cannot become an arbitrary file read.
+- **Tenant isolation is structural, not a check.** `{id}` resolves through
+  `IUnitOfWork.Correspondances`, scoped to the tenant-resolved `ApplicationDbContext`. A tenant-B
+  token queries tenant B's database. "Not yours" and "does not exist" return byte-identical
+  responses, so the endpoint is not an existence oracle.
+- **Content type is validated, never trusted.** Membership of a 24-extension **allow-list**
+  (`UploadContentTypes`) is the gate; the type stored and later served is this API's own mapping,
+  not the browser-supplied header. The list is copied verbatim from the only extension check that
+  existed — `CorrespondenceUpload.razor:213-220` — so nothing uploadable through Blazor is refused
+  and nothing new is permitted. `.svg` is served as `application/octet-stream` rather than
+  `image/svg+xml`: an SVG is script-bearing, and serving one natively from the SPA origin would
+  make the upload endpoint a stored-XSS vector.
+
+**Two size limits, deliberately.** `[RequestSizeLimit]`/`[RequestFormLimits]` refuse anything over
+**20 MB** before the action runs — that attribute needs a compile-time constant — and the action
+then applies `FileStorage:MaxUploadBytes`, which a deployment may lower. 20 MB is the same ceiling
+`WebFileUploadService.cs:101` passes to `OpenReadStream`, so the HTTP path is never more permissive
+than the Blazor path. Note the correspondence *screen* refuses at 5 MB
+(`CorrespondenceUpload.razor:222`) — a page-level rule, not a storage rule, not carried here; a
+deployment wanting parity sets `FileStorage:MaxUploadBytes`.
+
+**Storage.** Byte-identical on-disk results to `WebFileUploadService` for the same inputs:
+`uploads/{drawings|correspondences}/{safeCompany}/{safeRefType}/{guid}_{name}`, per-tenant
+segmentation by `tenant.Hostname`, the same `Path.GetInvalidFileNameChars()` stripping and
+lowercasing. `FileStorage:Root` is configurable because `WebRootPath` resolves to a *different*
+directory in each host; point both hosts at one path and either can read the other's files. Whether
+that root is durable in the target deployment is **Unknown** — see `Q-16`.
+
+### `GET /api/v1/currencies/export` · `POST /api/v1/currencies/import` · `GET /api/v1/currencies/import-template`
+
+**M2-B06, 2026-08-21.** The **reference implementation** of the ADR-005 Excel contract, on one
+resource only. Rolling it out to the rest is per-module work (KB-080 §10). Currency was chosen
+because it is the one resource that already has a full controller, so the endpoints could be added
+without inventing a service surface at the same time.
+
+`ExcelExportService` and `ExcelTemplateService` are **wrapped, not modified** — verified by diff.
+`[Authorize]` + `[RequireScreen("Currency")]`; export and template need `View`, import needs
+`Create`.
+
+---
+
 ## Error contract (M2-A06)
 
 **Confirmed** — implemented 2026-08-20 by task M2-A06, ADR-002 §4. Every error response from

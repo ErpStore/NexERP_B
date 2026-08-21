@@ -1102,7 +1102,14 @@ else
     {
         var maxFileSize = (target == "Logo" ? 200 : 100) * 1024;
 
-        var (success, path, url) = await _companyService.UploadFileAsync(e.File, target, maxFileSize);
+        // M2-B06: the service no longer takes IBrowserFile, so the adaptation happens here, at the
+        // UI boundary where the Blazor type belongs. maxAllowedSize is the file's own size when
+        // that is the larger number: OpenReadStream throws immediately if the file exceeds the limit
+        // it is given, and throwing is NOT what this screen did before - it showed the service's
+        // "File size is too large" toast. Opening a stream reads nothing, so for an oversized file
+        // the service still refuses on size and the bytes are still never touched.
+        using var stream = e.File.OpenReadStream(maxAllowedSize: Math.Max(e.File.Size, maxFileSize));
+        var (success, path, url) = await _companyService.UploadFileAsync(stream, e.File.Name, e.File.Size, target, maxFileSize);
 
         if (success)
         {

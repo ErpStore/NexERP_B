@@ -1,7 +1,7 @@
-﻿using Microsoft.AspNetCore.Components.Forms;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http.Json;
 using System.Text;
@@ -131,17 +131,22 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.MasterService
         }
 
         // Method to handle file uploads
-        public async Task<(bool success, string filePath, string fileUrl)> UploadFileAsync(IBrowserFile file, string target, long maxFileSize)
+        // M2-B06: was UploadFileAsync(IBrowserFile file, ...). The parameter is now the stream plus
+        // the two facts the body ever read off the file - Name and Size - so that V.SMART.Api can
+        // call this method with an IFormFile's stream. The order of operations is unchanged and
+        // deliberately so: the size is refused BEFORE the stream is touched, which is what made the
+        // old code safe to call with an oversized file. The caller opens and disposes the stream;
+        // this method must not, or it would close a stream it does not own.
+        public async Task<(bool success, string filePath, string fileUrl)> UploadFileAsync(Stream content, string fileName, long fileSize, string target, long maxFileSize)
         {
             try
             {
-                if (file.Size > maxFileSize)
+                if (fileSize > maxFileSize)
                 {
                     return (false, $"File size is too large. Max size is {maxFileSize / 1024} KB.", null);
                 }
 
-                using var stream = file.OpenReadStream(maxAllowedSize: maxFileSize);
-                var result = await _fileUploadService.SaveFileAsync(file.Name, stream, target);
+                var result = await _fileUploadService.SaveFileAsync(fileName, content, target);
                 var parts = result.Split('|');
 
                 if (parts.Length < 2)
