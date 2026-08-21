@@ -144,6 +144,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C00 | M2 | Rewrite KB-050 frontend architecture for Angular | Documentation | **Completed**²⁶˒³⁸ *(merged to `master` `0da6a35` on owner instruction 2026-08-21)* | P0 | G0 | 2 d | G2 |
 | M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Completed**²⁶˒⁴⁰ *(merged to `master` `2dd4e53` on owner instruction 2026-08-21)* | P0 | M2-C00 | 3 d | G2 |
 | M2-C11 | M2 | **Adopt** the Angular pilot as the app baseline | DevOps | Blocked²⁶˒³⁸ *(dependency cleared — `M2-C00` merged `0da6a35` 2026-08-21; now gated on **Q-38**, what `M2-C11` is for under ADR-007)* | P2 | M2-C00 | 0.5 d | G2 |
+| M2-C12 | M2 | **Re-specify the superseded M2-C / M2-D tree for Angular** | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 4 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | Blocked²⁶ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; still **⛔ superseded**: `tasks/M2-C10.md` specifies React and must be re-specified for Angular before it can be selected)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started *(parent — never worked directly)* | P0 | M2-C01 | 2 wks | G2 |
@@ -2038,3 +2039,30 @@ moment this branch is reviewed and merged.
 
 Full record: [`tasks/M2-C01.md` § Execution Record
 (2026-08-21)](tasks/M2-C01.md#execution-record-2026-08-21).
+
+⁴¹ **M2-C12: created `Ready` 2026-08-21 — the task that unblocks the entire frontend tree.**
+Merging `M2-C01` (`2dd4e53`) cleared the last *dependency* on `M2-C04-01`, `M2-C10`, `M2-C04` and
+`M2-C02`, and unblocked **none** of them: all 25 task files in `M2-C02…C11` and `M2-D01…D03`
+still carry the byte-identical `⛔ STOP — this specification is superseded` banner and specify
+React. [CLAUDE.md](../../../CLAUDE.md) makes that banner a **stop-and-report**, never a licence to
+infer the missing specification, so selection step 4 refuses every one of them regardless of what
+the dependency graph says.
+
+**The banner named its own release condition and that condition is now met.** It reads *"Gating
+task: `M2-C00` rewrites KB-050 for Angular. Until that lands there is no authoritative structure
+to specify against."* `M2-C00` landed at `0da6a35`; `M2-C01` then put a real Angular workspace on
+disk at `frontend/nexgen-web/`. There are now two authoritative sources to specify against, so
+the deliberate deferral is over.
+
+**`M2-C00` is the precedent, not an analogy** — it rewrote KB-050 *and* re-specified `M2-C01` in
+the same change, which is the sole reason `M2-C01` was selectable. `M2-C12` does for the
+remaining 25 what `M2-C00` did for one.
+
+**It runs ahead of G0** (`⬜ Not met`) as a **documentation-only** task, the same deliberate
+exception recorded for `M2-A01-01` in footnote ¹⁸: no code, no schema, no runtime behaviour, and
+an acceptance criterion that proves the diff is confined to `docs/kb/`.
+
+**One of the 25 cannot be re-specified and that is specified as such.** `M2-C11` is gated on the
+unanswered **Q-38** — what it is *for*, now that `M2-C01` has already created the Angular
+workspace it existed to adopt. `M2-C12` replaces its supersession banner with a statement of
+Q-38 and leaves it `Blocked` on **Vivek**, rather than inferring an answer.
