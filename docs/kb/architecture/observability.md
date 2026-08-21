@@ -218,6 +218,14 @@ That is the entire point of the migration: `Screen = "Sales Order"` is a query;
 | Audit | `audit-{date}.json` | `Observability:Logging:AuditRetentionDays`, **default 3650** (10 years) | `EventType == "UserAction"` |
 | Diagnostics | `diagnostics-{date}.json` | `Observability:Logging:DiagnosticRetentionDays`, **default 14** | everything else |
 
+**Precision, because the option names say "days" and the sink does not.** Both values are
+passed to Serilog's `retainedFileCountLimit` (`V.SMART/V.SMART.Api/Program.cs:88`, `:100`),
+which is a **retained file count**, not a span of days. With one file per day the two
+coincide, which is the intent — but `rollOnFileSizeLimit: true` is also set, so a day whose
+volume exceeds the 64 MB cap produces more than one file and the *effective* retention span
+falls below the nominal number. Sizing a deployment on the ten-year figure must account for
+this, or raise `FileSizeLimitBytes`.
+
 **Startup fails if `AuditRetentionDays <= DiagnosticRetentionDays`.** R-23 requires audit
 retention to be independent of and longer than diagnostic retention, and configuration can
 express the opposite; refusing at startup is cheaper than discovering it when someone asks what

@@ -1056,8 +1056,10 @@ audit trail* as a first-class feature.
 
 **Closed by M2-B11 for `V.SMART.Api`.** Serilog writes compact JSON to two rolling files split
 on an `EventType` discriminator: `audit-{date}.json` (`EventType = "UserAction"`, retention
-**3650 days**) and `diagnostics-{date}.json` (retention **14 days**), with a 64 MB size cap and
-`ReadFrom.Configuration` so a deployment can add a second sink without a rebuild. The six audit
+**3650**) and `diagnostics-{date}.json` (retention **14**) — both are Serilog
+`retainedFileCountLimit` values, i.e. a **retained file count** that equals days only while a
+day fits in one file; see KB-113 § *Separability and retention*. A 64 MB size cap applies, and
+`ReadFrom.Configuration` lets a deployment add a second sink without a rebuild. The six audit
 fields are **named properties** — `UserName`, `Machine`, `IpAddress`, `Screen`, `Action`,
 `AdditionalInfo` — plus `EventType` and the M2-A06 correlation id, so the audit trail is
 queryable by user, by screen and by date range. `LogDeveloperError` now logs the `Exception`
