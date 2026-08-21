@@ -2800,3 +2800,49 @@ signature is not reading a call site. Reading a seed block is not reading a data
 config default is not reading an environment.** The KB's Confirmed/Inferred/Unknown discipline
 already covers this — what it lacks is a habit of asking *which* of those two things a
 "Confirmed" was checked against.
+
+---
+
+### Select · ADR-007 staleness test is unusable as written · 2026-08-21
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED |
+| Failure category | **process** — an instruction that cannot be applied as literally written |
+
+**The rule.** [`CLAUDE.md`](../../../CLAUDE.md) says: *"If you find React, Vite, Mantine or
+TanStack named in a task file, that file is **stale and needs re-specifying**, not following."*
+
+**Applied literally, it blocks the entire project.** Every task file in
+`docs/kb/execution/tasks/` names React at least once — **77 of 77**. The floor is **6 hits**,
+and they are pure boilerplate, identical across files:
+
+| Source of the hit | Example |
+|---|---|
+| A `## React Changes` section header, whose body usually reads *"Not applicable"* | `M2-B07.md:399-401` |
+| An embedded copy of the old `CLAUDE.md` in each file's *Fresh-Session Execution Prompt* | `M2-B07.md:574-591` |
+| The standing constraint *"Do not reimplement ERP business logic in React/TypeScript"* | `M2-B07.md:914` |
+
+`M2-B07` is `Completed` **and merged** while tripping this test six times, which is the proof
+the test is wrong rather than the file.
+
+**Why it matters, concretely.** `M2-B06` (Ready, P1, the only remaining candidate) scores
+**13** — twice the floor. On the literal rule it is stale and must not be followed. On
+inspection it is **not**: its seven non-boilerplate hits are prose describing *the client that
+will consume the endpoints* (*"a React client cannot use `IBrowserFile`"*), and every one of
+those statements is equally true of an Angular client. **Its actual deliverable — replace
+`IBrowserFile`/`IFileOpener` with HTTP file endpoints — is stack-agnostic and survives ADR-007
+untouched.** Blocking it would have been a false positive that cost a real task.
+
+**The distinction the rule needs.** Not *"names React"* but *"specifies React work"* — i.e.
+the task's own deliverable is a React artefact. That is what the `M2-C*`/`M2-D*` files are, and
+they already carry `⛔` banners (28 of them, counted); the banner, not the grep, is the reliable
+signal. A workable test: **a task file is ADR-007-stale if it carries a `⛔` banner, or if
+React/Vite/Mantine/TanStack appears outside its `## React Changes` section and its
+*Fresh-Session Execution Prompt* boilerplate.**
+
+**Owner decision, because `CLAUDE.md` is the owner's instruction file** and a session should
+not quietly reinterpret a standing constraint to suit itself. Recorded rather than acted on.
+Note the sweep that added the 28 banners was correct in its choices — it banner-marked exactly
+the frontend tree and left backend tasks like `M2-B06` alone. It is the *prose rule* in
+`CLAUDE.md` that over-reaches, not the sweep.
