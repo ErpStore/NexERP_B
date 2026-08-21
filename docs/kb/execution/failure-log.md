@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-19
+last_verified: 2026-08-20
 dependencies: [KB-081, KB-089, KB-091]
 ---
 
@@ -3118,3 +3118,184 @@ verified structurally, not behaviourally.
 
 **Next attempt routed to** — re-validation of the same branch. No model escalation; no KB-091
 §6.3 trigger applied.
+### M2-C00 · attempt 1 · validation · 2026-08-20
+
+| Field | Value |
+|---|---|
+| Runner state | validated FAIL |
+| Model in use | opus (independent validator) |
+| Validator verdict | **FAIL** |
+| Failure category | acceptance-criterion |
+
+**Branch / commit** — `migration/M2-C00-kb050-angular-rewrite`, `aebc477`. 5 files, +678/-990,
+**all Markdown under `docs/kb/`**. `git diff --stat master...HEAD` confirms no file under
+`V.SMART/`, `frontend/`, `db/` or `.github/` was touched.
+
+**What is genuinely met, verified first-hand this session — do not re-do it on the retry.**
+
+- **Criterion 1 (Angular end to end).** A case-insensitive grep for react, vite, mantine,
+  tanstack, zustand, hook form, zod, next.js, axios and recharts over `react-architecture.md`
+  returns 17 lines, and every one is a negation, a historical note, or the words "Reactive
+  Forms" / "Testing … Vitest". No section instructs a React library as the thing to build.
+- **Criterion 4 (error handling against the shipped contract).** Every citation checked against
+  source and **all correct**: `ApiProblems.cs:7-13` (doc comment), `:16` (media type), `:40`
+  (instance = request path), `:43` / `:86` / `:131` (traceId), `:47-53` (409 verbatim title),
+  `:55-57` (404), `:59-64` (401), `:66-88` (403 frozen shape with screen/right extensions),
+  `:90-102` (tenant), `:104-115` (500), `:117-133` (validation errors keyed by field); and
+  `ProblemTypes.cs:17,20,23,26,29,32,35,38,41` each land on exactly the constant cited. This
+  section is the strongest part of the change.
+- **Every pilot citation is correct**, re-read from disk: `auth.service.ts:29-35,60-61,66-72`
+  (localStorage JWT), `:34-40` (signals), `:53-58` and `:54` (hand-built unversioned URL),
+  `auth.guard.ts:11-20`, `auth.interceptor.ts:12-24`, `app.config.ts:10-25,14,16-23`,
+  `app.routes.ts:3-6` (eager imports), `environments/environment.ts:1-5` and
+  `environment.prod.ts:1-4` (both literally apiBaseUrl 'http://localhost:5144'), `package.json`
+  (@angular/core ^19.2.0, @angular/cli ^19.2.27, primeng ^19.1.4, karma ~6.4.0,
+  jasmine-core ~5.6.0). The **negative result is also true**: a grep for permission / hasRight /
+  screenright / rights across `frontend/vsmart-erp/src/` returns no matches, so "no permission
+  gating of any kind" is Confirmed, not asserted.
+- **Criteria 2, 5 (substance), 6 (substance), 7, 8 and 9 met.** doc_id KB-050 and the filename
+  are unchanged; the warning banner that stood at `react-architecture.md:18` on `master` is gone
+  and no STOP banner remains; `M2-C01.md` is a full Angular re-specification with its STOP banner
+  removed and the React record preserved; no code was written.
+- **Backend unaffected, measured not assumed:** `dotnet build
+  V.SMART/V.SMART.Api/V.SMART.Api.csproj` printed **6695 Warning(s) / 0 Error(s)** — exactly the
+  KB-083 baseline, no new warnings.
+
+**What failed.**
+
+**1. Criterion 3 — "The stack section matches ADR-007's table exactly" — NOT MET, and the
+document asserts otherwise.** A mechanical diff of `ADR-007-angular-stack.md:86-103` columns 1-2
+against `react-architecture.md:69-86` columns 1-2 gives 16 of 17 rows byte-identical and one
+that differs:
+
+```
+13c13
+<  Tables | **PrimeNG Table**; `LineItemGrid` re-evaluated, see below
+---
+>  Tables | **PrimeNG Table**; `LineItemGrid` re-evaluated — `M2-C07`'s call per ADR-007,
+   with AG Grid as the named fallback
+```
+
+The substituted text is *true* (ADR-007:117-125 says exactly that), and copying "see below"
+verbatim would have left a dangling pointer inside KB-050 — so the edit itself is defensible.
+What is not defensible is `react-architecture.md:64-65`, which claims the table is a copy "with
+**only** the 'Change from ADR-003' column dropped". It is not. The criterion's second clause
+("rather than restating the rationale") is also strained by that cell. **Cheapest correct fix:
+keep the cell and amend the sentence**, saying the "see below" pointer was resolved in place and
+naming ADR-007:117-125.
+
+**2. Three ADR-007 file:line citations point at text that is not there** — twice attributing a
+verbatim inline quotation to lines that do not contain it. ADR-007 has exactly one commit
+(`2f5ba16`, 197 lines) and was not touched by this change, so these are wrong as written, not
+stale.
+
+| Where | Cites | Actually at | The cited lines contain |
+|---|---|---|---|
+| `react-architecture.md:201-202` | ADR-007:180-186, for the quote "M2-C02 decides the token storage model … must not copy the pilot's approach by default" | ADR-007:151-153 | "Why now rather than later" / "Neutral — No backend work is affected" |
+| `react-architecture.md:221-222` | ADR-007:188-190, for the quote "a defect to remove, not a pattern to keep" | ADR-007:155-157 | the "What this ADR does not decide" heading and its first bullet |
+| `react-architecture.md:403` | ADR-007:145-148, for the eight WCAG contrast corrections and the type scale | ADR-007:140-142 | the "one component library, never mixed" bullet and the next heading |
+| `react-architecture.md:92` | ADR-007:139-149, for three carried-over items | ADR-007:137-146 | misses :137-138, where the first of the three (server-authoritative everything) lives, and runs 3 lines past the section |
+
+Correct citations verified in the same document: :86-103 (stack table), :166-169 (discarded
+React tasks), :195-197 (delete-or-dormant); and in `M2-C01.md`, `ci.yml:241-311` / `:312-359`
+(the frontend job block starts at 241 with the job key at 255, frontend-e2e at 318, file 360
+lines). So this is four bad pointers in an otherwise carefully cited document, not a systemic
+failure.
+
+**3. The required Execution Record was never written, and `M2-C00.md`'s own frontmatter still
+says `status: Ready`.** `git log -- docs/kb/execution/tasks/M2-C00.md` shows only `5cfb3fe`, the
+file's creation; commit `aebc477` did not touch it. KB-088 §4 lists `tasks/<TASK-ID>.md` as
+**"Always — frontmatter status + Execution Record"**, and every comparable task file has one
+(M2-A01-01, M2-A01-03, M2-A06, M2-B02 one each; M2-C04-01 three). The implementer's note that
+task-tracker.md, current-task.md and failure-log.md belong to the orchestrator is correct and is
+**not** what is missing here — the task's own file is the implementer's to write.
+
+**Known and deliberate, not counted as failures** — recorded so the retry neither re-fixes nor
+reopens them:
+
+- **Three anchors are broken by the authorised heading rename** "What is deliberately *not*
+  rebuilt in React" to "… in the SPA": `M2-C08-01.md` (twice) and `M2-C08-02.md` still link
+  `#what-is-deliberately-not-rebuilt-in-react`. The count is independently confirmed as exactly
+  three, and **all nine other cited anchors still resolve** against the new heading list
+  (#project-structure x10, #document-editor-pattern-the-core-abstraction x8, #error-handling x5,
+  #performance-targets x4, #data-fetching-conventions x4, #permission-based-rendering x2,
+  #design-constraints-from-the-existing-system x2, #recommended-stack, #authentication-flow).
+  The break is disclosed at `react-architecture.md:407-410`. Repointing three links is not
+  "re-specifying" a task file and would have been cheaper than the note, but it is a judgement
+  call, not a criterion breach.
+- Keeping the filename `react-architecture.md` — the criterion permits it explicitly.
+- Q-37 (the M2-C11 archive-vs-adopt contradiction) raised rather than decided — correct
+  behaviour under M2-C00's own "Do not" list.
+
+**Disposition** — `not fixed`. This file contains no prior M2-C00 entry; attempt 1, not a loop.
+
+**Next attempt routed to** — the same model, as a narrow correction pass on the same branch. All
+three failures are mechanical, and the retry must not rewrite what already passed: amend
+`react-architecture.md:64-65` (or the Tables cell), correct the four line ranges at
+`react-architecture.md:92`, `:201-202`, `:221-222` and `:403`, and append the Execution Record
+plus a status to `tasks/M2-C00.md`. **No re-derivation of the error-handling section, the pilot
+tables or `M2-C01.md` is warranted — all three were verified correct here.**
+
+---
+
+### M2-C00 · attempt 2 · diagnosis + fix · 2026-08-20
+
+| Field | Value |
+|---|---|
+| Runner state | diagnosed, fixed, awaiting re-validation |
+| Model in use | opus (diagnostician) |
+| Cause class | **implementation-error** |
+| Disposition | **fixed** |
+| Tried before | **no** — the attempt-1 entry above records `not fixed`; this is the first time any correction has been applied |
+
+**Reproduced first-hand before touching anything.** All three failures observed on
+`aebc477`, not taken on report:
+
+- `diff` of `ADR-007-angular-stack.md:86-103` columns 1–2 against `react-architecture.md:69-86`
+  printed the single `13c13` Tables-row difference the validator reported, while
+  `react-architecture.md:64-65` claimed the copy dropped *only* the "Change from ADR-003" column.
+- `ADR-007-angular-stack.md` read in full at `:113-197`: the quote *"must not copy the pilot's
+  approach by default"* is at `:151-153` (not `:180-186`, which is *"Why now rather than later"*);
+  *"a defect to remove, not a pattern to keep"* is at `:155-157` (not `:188-190`, the *"What this
+  ADR does not decide"* heading); the WCAG-corrections bullet is at `:140-142` (not `:145-148`);
+  the three carried-over items span `:137-142` (not `:139-149`, which starts one bullet late and
+  runs into the next section).
+- `grep -n '^status' tasks/M2-C00.md` → `10:status: Ready`; `grep -n '^## ' tasks/M2-C00.md` →
+  four headings, no `## Execution Record`; `git log --oneline -- tasks/M2-C00.md` → only `5cfb3fe`.
+
+**Root cause.** Three unrelated bookkeeping defects in a documentation deliverable, all
+mechanical: (1) an edit to one table cell that was defensible in itself but left the sentence
+introducing the table false and restated a fragment of ADR-007's rationale, which criterion 3
+forbids; (2) four `file:line` pointers written from a stale mental model of a file that has
+exactly one commit; (3) the KB-088 §4 "Always" update to the task's own file was simply not done.
+**No business rule, no architecture decision and no legacy behaviour is implicated** — the diff
+is Markdown only, and the substantive sections (error contract, pilot facts, `M2-C01`
+re-specification) were verified correct at validation and were **not** touched here.
+
+**Fix applied** — commit `6d0aebb` on `migration/M2-C00-kb050-angular-rewrite`, four files, all
+Markdown under `docs/kb/`:
+
+| Defect | Fix | Re-validated by |
+|---|---|---|
+| 1 | Tables row restored byte-identical (**PrimeNG Table**; `LineItemGrid` re-evaluated, see below); a three-line note under the table says *"see below"* is ADR-007's own forward reference to `ADR-007-angular-stack.md:117-125`, **not** a pointer into KB-050, and that it is copied unresolved so the tables stay byte-comparable. `:64-65` left as written — it is now true | `diff` of `ADR-007:86-103` cols 1–2 vs `react-architecture.md:69-86` → **no output** |
+| 2 | `react-architecture.md` `:205` → `:151-153`, `:226` → `:155-157`, `:407` → `:140-142`, `:96` → `:137-142`. Two over-wide ranges not flagged by the validator also tightened: `M2-C01.md:79` `76-82` → `76-80`, `M2-C01.md:230` `126-128` → `127-128`, and `Q-37`'s `76-82` → `76-80` | Each of the **eight** ADR-007 ranges KB-050 now cites was `sed -n`'d out of the file this session and matched against the text it is offered for. `grep -nE '(180-186\|188-190\|145-148\|139-149)'` over both files → no matches remain |
+| 3 | `tasks/M2-C00.md`: `status: Needs Review` and a `## Execution Record (2026-08-20)` covering what was done, what attempt 1 got wrong, what attempt 2 changed, and the three known-and-deliberate non-defects | `grep -n '^## Execution Record'` → `110`; `grep -n '^status:'` → `10:status: Needs Review` |
+
+**Deliberately not done, and why.** The three broken `#what-is-deliberately-not-rebuilt-in-react`
+anchors in `M2-C08-01.md` (×2) and `M2-C08-02.md` were left alone: editing an `M2-C` task file
+other than `M2-C01` is on this task's *Do not* list, and the validator recorded the breakage as a
+judgement call rather than a criterion breach. Nothing that passed validation was re-derived —
+the error-handling section, every `ApiProblems.cs` / `ProblemTypes.cs` citation, every pilot
+citation and `M2-C01.md`'s substance are byte-unchanged by this pass.
+
+**No command beyond `git`, `grep`, `sed` and `diff` was run, and none was needed** — the diff is
+Markdown only. The `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` → 6695 Warning(s) /
+0 Error(s) baseline in the attempt-1 entry above was the validator's observation, not this
+session's, and still holds because no non-Markdown file was touched.
+
+**Residual risk.** (a) Criterion 3 is now literally satisfied, but a reader of KB-050 meets an
+unresolved *"see below"* pointing into another document — traded deliberately for byte-identity,
+and explained in place. (b) The Execution Record's attempt-1 narrative is reconstructed from the
+committed diff and the validation verdict, not from the implementing session's own notes.
+(c) Line-number citations remain inherently fragile: eight in KB-050 and six in `M2-C01.md` point
+into a file that any future edit will shift.

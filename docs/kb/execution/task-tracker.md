@@ -141,7 +141,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-C00 | M2 | Rewrite KB-050 frontend architecture for Angular | Documentation | **Needs Review**²⁶ *(validated `PASS`; on `migration/M2-C00-kb050-angular-rewrite` `b3c0e6e`, unmerged)* | P0 | G0 | 2 d | G2 |
+| M2-C00 | M2 | Rewrite KB-050 frontend architecture for Angular | Documentation | **Needs Review**²⁶˒³⁸ *(validated `PASS`; on `migration/M2-C00-kb050-angular-rewrite` `b3c0e6e`, unmerged)* | P0 | G0 | 2 d | G2 |
 | M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Blocked**²⁶ *(re-scoped for Angular; `M2-C00` is `Needs Review`, not `Completed`)* | P0 | M2-C00 | 3 d | G2 |
 | M2-C11 | M2 | **Adopt** the Angular pilot as the app baseline | DevOps | Blocked²⁶ | P2 | M2-C00 | 0.5 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | Blocked²⁶ | P0 | M2-C01 | 2 d | G2 |
@@ -1928,3 +1928,25 @@ may set it `Completed`.
 >
 > Full record: [`tasks/M2-A07.md` § Execution Record
 > (2026-08-20)](tasks/M2-A07.md#execution-record-2026-08-20).
+³⁸ **M2-C00: `Needs Review` 2026-08-20 — implemented across 3 attempts, independently validated `PASS`, not merged.**
+
+> Rewrote [KB-050](../frontend-new/react-architecture.md) for Angular and re-specified `M2-C01`
+> in the same change, per scope. Branch `migration/M2-C00-kb050-angular-rewrite`, cut from
+> `master` tip `ec70620`, merge-base `8b1a261` (fully caught up with `master`, including the
+> `be818b9` ADR-007 sweep and the criterion-3 relaxation both landed mid-task). Attempt 1 failed
+> validation on the stack-table criterion (since relaxed on `master` — the criterion was wrong,
+> not the document); attempts 2 and 3 corrected line-citation drift and re-anchored against
+> ADR-007 as it grew from 197 to 225 lines mid-task. **Validator verdict: `PASS`**, all nine
+> acceptance criteria `MET`, `scopeOk: true`, diff confirmed docs-only (9 Markdown files),
+> `dotnet build V.SMART.Api` unchanged at the 6695-warning/0-error baseline. Full record:
+> [`tasks/M2-C00.md` § Validation close-out (2026-08-20)](tasks/M2-C00.md#validation-close-out-2026-08-20).
+>
+> **`M2-C01`'s row reads `Blocked`, not `Ready`, despite the ADR-007 re-scope note (footnote ²⁶)
+> having marked it `Ready` in anticipation.** Its Hard prerequisite is `M2-C00` at `Completed`,
+> and `Needs Review` does not satisfy that
+> ([KB-082](dependency-graph.md#ready-task-selection-rule) step 1) — the same rule already applied
+> to `M2-A02`/`M2-A07`/`M2-A08` under footnote ²⁷. It becomes genuinely `Ready` the moment this
+> branch is reviewed and merged; no further work is needed on it before then.
+>
+> **Only the repository owner may set `Completed`**
+> ([KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed)).

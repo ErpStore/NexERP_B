@@ -29,7 +29,7 @@ last_verified: 2026-08-21
 | KB-030 | [Business Rule Inventory](business-rules/business-rule-inventory.md) | as-is | **partial** | mixed | 2026-08-12 |
 | KB-040 | [Existing API Surface](api/api-overview.md) | as-is | complete | confirmed | 2026-08-12 |
 | KB-041 | [API Readiness Assessment](api/api-readiness-assessment.md) | **proposal** | complete | — | 2026-08-12 |
-| KB-050 | [React Architecture](frontend-new/react-architecture.md) | **proposal** | complete | — | 2026-08-12 |
+| KB-050 | [Frontend Architecture — Angular](frontend-new/react-architecture.md) *(filename kept; rewritten for Angular 2026-08-20 by M2-C00)* | **proposal** | complete | — | 2026-08-20 |
 | KB-051 | [Design System](frontend-new/design-system.md) | **proposal** | complete | — | 2026-08-12 |
 | KB-052 | [Feature Mapping](frontend-new/feature-mapping.md) | **proposal** | complete | — | 2026-08-12 |
 | KB-053 | [Page Map](frontend-new/page-map.md) | as-is + proposal | complete | confirmed (left column) | 2026-08-12 |
