@@ -33,7 +33,7 @@ frontend + API.
 | # | Mechanism | Granularity | Storage | Enforced where |
 |---|---|---|---|---|
 | 1 | **Role** | 2 values: `Administrator`, `User` | `User.Role` (`UserRole` enum) | `<AuthorizeView Roles="…">` in Razor |
-| 2 | **Screen rights** | per user × per screen × {View, Create, Edit, Delete, Hide} | `UserRight` rows joined to `Screens` (152 seeded) | `BaseUserRightsComponent` in the UI **only** |
+| 2 | **Screen rights** | per user × per screen × {View, Create, Edit, Delete, Hide} | `UserRight` rows joined to `Screens` (**150 present**; 152 seeded, 2 deleted by later migrations — corrected 2026-08-21, see **R-65**) | `BaseUserRightsComponent` in the UI **only** |
 | 3 | **Approval authority** | per user × per document type × level | `UserAuthority` (12 boolean/level column pairs) | `ApprovalService` + `Authorization` page |
 
 ## 1. Authentication
@@ -116,7 +116,11 @@ User (1) ──< UserRight >── (1) Screens
 ```
 
 `Screens { Id, ScreenCode, ScreenName, IsPrintRequired }` — 152 rows seeded in
-`ApplicationDbContext.OnModelCreating`. Screen names are human strings such as
+`ApplicationDbContext.OnModelCreating`, but **only 150 survive**: later migrations
+`DeleteData` two of them, so every real database (rebuilt or live) holds **150** rows with
+`ScreenCode` 1…152 and 114/115 absent. The two deleted names, `Bill Paid List` and
+`Bill Pending List`, are **still present in `V.SMART.Api/Authorization/ScreenCatalogue.cs`** —
+see **R-65**, a silent-lockout risk for `M2-A02`. Screen names are human strings such as
 `"Sales Order"`, `"Purchase Order"`, `"Stock-Add"`, `"Labour Invoice"`, `"Job Order"`,
 `"Route Card"`, `"Payments"`, `"Salary"`, `"GSTITC04"`.
 

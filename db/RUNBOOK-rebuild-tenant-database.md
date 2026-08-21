@@ -24,23 +24,33 @@ never actually been run is not evidence of anything; the drill is.
 
 - **Use a throwaway, disposable, non-production SQL Server instance or container**, and
   throwaway credentials on it. Nothing in this drill should touch a real tenant.
-- **Never use the credentials hardcoded in
-  `V.SMART/V.SMART.Shared/Data/MigrationData/ApplicationDbContextFactory.cs` or
-  `MasterDbContextFactory.cs`.** Those are two of the four files identified in
-  `docs/kb/execution/README.md` §7 as holding a committed SA password and a production
-  host, on a publicly reachable GitHub repository (R-01/R-02,
-  `docs/kb/risks/technical-debt-register.md`). Every command in this runbook supplies its
-  own connection string explicitly — as a command-line argument or an environment variable
-  — specifically so that neither factory's hardcoded value is ever silently used. **If a
-  step below appears to succeed without you having supplied a connection string, stop —
-  it silently used the hardcoded one, and that is not this drill.**
-- **Task M0-03 (externalise configuration secrets) has not landed as of this writing**
-  (Confirmed: `V.SMART/V.SMART.Web/appsettings.json` and both design-time factories above
-  are still committed with hardcoded values, unchanged by this task — this task's
-  constraints explicitly forbid touching any file under `V.SMART/`). Every step below
-  therefore uses the explicit-command-line-argument / environment-variable form. Once
-  M0-03 lands, prefer its externalised-configuration surface instead — this runbook should
-  be revisited then, not before.
+- ✅ **UPDATED 2026-08-21 by the first drill — the design-time factories no longer hold a
+  credential to leak, and you must now supply one through an environment variable.**
+  `ApplicationDbContextFactory.cs` and `MasterDbContextFactory.cs` used to carry a committed
+  SA password and production host (two of the four files `docs/kb/execution/README.md` §7
+  identifies; R-01/R-02). **M0-03-01 replaced that with a fail-fast resolver**, so there is
+  now *"deliberately no default value"* — the factory throws unless you configure one.
+  Consequently:
+
+  **`--connection` on its own is not enough, and the earlier version of this runbook was
+  wrong to say it was.** `dotnet ef` applies `--connection` *after* the factory constructs
+  the context, and the factory throws first. Set the environment variable the error message
+  names — note the **two contexts use different keys**:
+
+  ```powershell
+  $env:ConnectionStrings__MasterDb            = "<connection string>"   # §3, MasterDbContext
+  $env:ConnectionStrings__DesignTimeTenantDb  = "<connection string>"   # §5, ApplicationDbContext
+  ```
+
+  Keep `--connection` on the command line as well; it is harmless and keeps the target
+  explicit at the call site. **The old warning — "if a step succeeds without a connection
+  string, it silently used the hardcoded one" — no longer applies**: a step that succeeds
+  without one is now impossible, because the factory fails loudly instead. That is an
+  improvement, not a regression.
+- **Task M0-03's design-time half has landed; its host-configuration half has not.** Both
+  design-time factories are fixed (above). `V.SMART/V.SMART.Web/appsettings.json` still ships
+  `"MasterDb": ""` and the runtime host configuration is still M0-03's remaining work, so §7
+  below still uses the explicit environment-variable form.
 - Do not paste a real connection string, hostname, IP literal, or tenant name into
   `db/REBUILD-DRILL-LOG.md` or any commit message. Redact to `<redacted>` and keep the real
   value in your own terminal/secret manager only.
@@ -51,11 +61,11 @@ never actually been run is not evidence of anything; the drill is.
 
 | # | Item | How to check | Status as of this writing |
 |---|---|---|---|
-| 1 | A fresh, empty, non-production SQL Server instance or container reachable from this machine | you provide it | **Human prerequisite — not available to the AI session that wrote this runbook** |
-| 2 | SQL Server version/edition of that instance | `SELECT @@VERSION;` once connected | **TBD — record in `db/REBUILD-DRILL-LOG.md`, do not assume** |
+| 1 | A fresh, empty, non-production SQL Server instance or container reachable from this machine | you provide it | **Still required. The 2026-08-21 drill did NOT have one** — it used the development workstation's pre-existing `MSSQL$SQLEXPRESS`, created its own two throwaway databases on it, and wrote to nothing else. That leaves the *"fresh, empty SQL Server"* half of G0 criterion 1 unevidenced — see `db/REBUILD-DRILL-LOG.md` §1, Deviation 1. |
+| 2 | SQL Server version/edition of that instance | `SELECT @@VERSION;` once connected | **Record it; do not assume.** The 2026-08-21 drill ran against **SQL Server 2019 (RTM) 15.0.2000.5 (X64), Express Edition**. |
 | 3 | .NET SDK installed | `dotnet --version` | **Confirmed, this session: .NET 10 SDK (10.0.300 / 10.0.302) present; all four projects target `net9.0` (or `net9.0-windows10.0.19041.0`) and build via SDK roll-forward — INV-029.** `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` succeeds with 0 errors on this SDK (§8 below). |
-| 4 | `dotnet-ef` tool installed | `dotnet tool list -g` and `dotnet ef --version` | **Confirmed NOT installed, this session** (`dotnet tool list -g` returned no rows; `dotnet ef --version` failed with "does not exist"). You must install it — see §2 below. Do not assume it is present on your machine either; re-check. |
-| 5 | `SqlServer` PowerShell module installed (needed for `db/deploy-stored-procedures.ps1`, step 5) | `Get-Module -ListAvailable -Name SqlServer` | **Unknown in your environment — check before step 5, not during it.** Install with `Install-Module -Name SqlServer -Scope CurrentUser` (needs internet access) if missing. |
+| 4 | `dotnet-ef` tool installed | `dotnet tool list -g` and `dotnet ef --version` | **Varies by machine — re-check, do not trust either answer here.** It was absent when this runbook was written; on 2026-08-21 it was **already installed, 10.0.11**, and nothing had to be installed. See §2. |
+| 5 | `SqlServer` PowerShell module installed (needed for `db/deploy-stored-procedures.ps1`, step 6) | `Get-Module -ListAvailable -Name SqlServer` | **Check before step 6, not during it.** Present on the 2026-08-21 drill machine at **22.4.5.1**. Install with `Install-Module -Name SqlServer -Scope CurrentUser` (needs internet access) if missing. |
 | 6 | You can reach the SQL Server instance with a throwaway login that can create databases | `sqlcmd`/SSMS/Azure Data Studio connectivity test | your responsibility to verify first |
 
 Record the actual answers (not the table above) in `db/REBUILD-DRILL-LOG.md` §1.
@@ -74,10 +84,15 @@ dotnet tool install --global dotnet-ef --version 9.0.5
 dotnet ef --version    # verify
 ```
 
-If a different (older) `dotnet-ef` is already installed globally, either uninstall it first
-(`dotnet tool uninstall --global dotnet-ef`) or use a local tool manifest instead — a
-version mismatch between the CLI and the package reference is a common source of confusing
-errors, not something to work around by ignoring the warning.
+If an **older** `dotnet-ef` is already installed globally, either uninstall it first
+(`dotnet tool uninstall --global dotnet-ef`) or use a local tool manifest instead — an
+older CLI against newer packages is a common source of confusing errors, not something to
+work around by ignoring the warning.
+
+**A newer CLI is fine, and the drill proved it.** On 2026-08-21 a **10.0.11** CLI applied
+every migration against the pinned **9.0.5** package references with no error and no
+mismatch warning. Do not spend time downgrading a newer tool to match; the direction that
+breaks is CLI *older* than runtime.
 
 **Verification:** `dotnet ef --version` prints a version. Record it in
 `db/REBUILD-DRILL-LOG.md`.
@@ -107,12 +122,17 @@ dotnet ef database update `
     --connection $masterConn
 ```
 
+**Set `$env:ConnectionStrings__MasterDb` before running this** — see §0. Without it the
+command fails with *"Design-time connection string 'ConnectionStrings:MasterDb' is not
+configured … there is deliberately no default value"*, because the factory throws before
+`dotnet ef` ever applies `--connection`. This is the one failure the 2026-08-21 drill hit
+(`db/REBUILD-DRILL-LOG.md` §10 row 1).
+
 Notes:
-- `--connection` is what makes this safe: it overrides whatever
-  `MasterDbContextFactory.CreateDbContext()` would otherwise return (its hardcoded value —
-  see §0). **Do not omit `--connection` and assume the factory's default is harmless; it
-  is a committed credential pointing at a specific local SQL Express instance, and it is
-  not your throwaway instance.**
+- `--connection` alone does **not** make this safe and does not override the factory —
+  the environment variable does. Keep `--connection` anyway: it is harmless and keeps the
+  target explicit at the call site. The factory no longer carries a hardcoded credential to
+  fall back to (M0-03-01), so there is nothing left to silently use.
 - `--project` and `--startup-project` both point at `V.SMART.Shared` because that is where
   both `MasterDbContext` and its `IDesignTimeDbContextFactory<MasterDbContext>`
   implementation live — no separate executable host project is required for this step.
@@ -190,10 +210,20 @@ Use **exactly** the same connection string you put in the `Tenants` row's
 `ConnectionString` column in §4, so the application resolves to the database you just
 migrated.
 
-**This will take a while** — 218 migrations, ~2.5M lines total, including per-migration
-model-snapshot copies (`docs/kb/risks/technical-debt-register.md`, R-30). Do not assume a
-long-running `dotnet ef` process has hung; record the actual wall-clock time in
-`db/REBUILD-DRILL-LOG.md`.
+**Set `$env:ConnectionStrings__DesignTimeTenantDb` before running this** — a *different* key
+from §3's, see §0.
+
+**It is faster than this runbook used to claim: ~50 seconds** on the 2026-08-21 drill
+(SQL Server 2019 Express, local). The earlier "this will take a while, do not assume it has
+hung" warning was written from the ~2.5M-line file size (R-30), not from a measurement.
+Record your own wall-clock time in `db/REBUILD-DRILL-LOG.md`.
+
+**It is also fewer migrations than "218".** That figure counts *files*; each migration is a
+`.cs` plus a `.Designer.cs`. There are **109 migration classes**, of which EF applies
+**108** — one, `20260324053747_AddnewTemperveryTable`, has no `.Designer.cs` and so is not
+recognised as a migration at all and has never been applied to any database. See
+`db/REBUILD-DRILL-LOG.md` **F2**/**F3**. `SELECT COUNT(*) FROM __EFMigrationsHistory` on a
+correct rebuild returns **108**.
 
 **This step also seeds reference data** — `Screens` (152 rows, the permission catalogue)
 and the single `Administrator` user (`ApplicationDbContext.cs:1136` `HasData`) are baked
@@ -205,10 +235,22 @@ in `db/REBUILD-DRILL-LOG.md` §5 — this is the artefact Q-02 gains as "one wor
 
 **Verification:**
 ```sql
-SELECT COUNT(*) FROM sys.tables;     -- expect a number in the low hundreds, matching 196 DbSets plus indexes/history tables
-SELECT COUNT(*) FROM Screens;        -- expect 152
+SELECT COUNT(*) FROM sys.tables;               -- expect 197 (196 DbSets + __EFMigrationsHistory)
+SELECT COUNT(*) FROM Screens;                  -- expect 150 -- NOT 152, see below
+SELECT COUNT(*) FROM __EFMigrationsHistory;    -- expect 108, see above
 SELECT UserName FROM Users WHERE UserId = 1;   -- expect 'Administrator'
 ```
+
+⚠ **`Screens` is 150, not 152 — this runbook said 152 and was wrong.** Verified 2026-08-21
+against both the rebuilt database *and* the live development database: both hold **150** rows,
+with `ScreenCode` running 1…152 and **114 and 115 absent** (later migrations `DeleteData`
+them). If you get 150, your rebuild is correct.
+
+**The same two rows are still present in `V.SMART.Api/Authorization/ScreenCatalogue.cs`,
+which is a live defect** — `Bill Paid List` and `Bill Pending List` are compile-time-valid
+screen names that no database contains, so a controller annotated with either passes startup
+validation and then denies every request forever. Owner **Vivek**, lands on `M2-A02`. Full
+analysis: `db/REBUILD-DRILL-LOG.md` **F4**.
 Record actual counts in `db/REBUILD-DRILL-LOG.md` §5. If `dotnet ef` reports an ambiguous
 target framework, add `--framework net9.0` as in §3.
 
@@ -237,9 +279,20 @@ string). It is **safe and expected to re-run** — every file is `CREATE OR ALTE
 second run against the same database should report the same "applied" count with no
 changes.
 
-**This script is UNVERIFIED as of this writing** — see its own header comment. If it fails,
-that is exactly what this drill exists to surface; record the failure in full (the file
-named, the error text) in `db/REBUILD-DRILL-LOG.md` §6, fix what's fixable, and re-run.
+✅ **This script is VERIFIED as of 2026-08-21** — it was UNVERIFIED when written. First real
+run against a freshly migrated database: **91 applied, 0 skipped, 0 failed, in 2.16 s**, with
+the completeness check passing (0 undocumented gaps, 4 documented exceptions warned). A second
+consecutive run reported the same 91 applied with the procedure count unchanged, so the
+`CREATE OR ALTER` idempotency claim holds in practice, not just on paper.
+
+**The ordering assumption is now evidence, not inference.** The script's header called the
+no-ordering-dependency claim *Inferred* from SQL Server's deferred name resolution and *"not
+verified in this environment"*. 91 procedures applied in stable sorted order with zero
+failures. **Confirmed.**
+
+If it does fail for you, that is still exactly what this drill exists to surface; record the
+failure in full (the file named, the error text) in `db/REBUILD-DRILL-LOG.md` §6, fix what's
+fixable, and re-run.
 
 **Verification:**
 ```sql
@@ -257,6 +310,21 @@ check against `db/stored-procedures/manifest.csv`.
 ---
 
 ## 7. Smoke test — start the Blazor host, log in, run one report, print one document
+
+> ❌ **This whole section has never been executed.** The 2026-08-21 drill ran §§2–6 only. It
+> is the *"and the app runs against it"* half of G0 criterion 1, and it remains unevidenced.
+>
+> ✅ **What that drill did establish, short of running the app:** `Sp_Print_CompanyDetails` —
+> the procedure every FastReport path resolves before the document's own procedure — was
+> executed directly against the rebuilt database and **succeeded**, returning its correct
+> 63-column shape with exit code 0. A procedure that executes has resolved every table it
+> references, so the schema and the deployed procedures are mutually consistent. That is not
+> the print test, but it removes the most likely reason for the print test to fail.
+>
+> ⚠ **Expect an empty company header when you do run it.** Migrations seed `Screens` and the
+> `Administrator` user, but **nothing seeds `CompanyDetails`** — `Sp_Print_CompanyDetails`
+> returned **zero rows** on the rebuilt database. Insert a `CompanyDetails` row before
+> judging the print output broken (`db/REBUILD-DRILL-LOG.md` **F5**).
 
 ### 7a. Point the Web host at your throwaway master database, without editing any file
 
