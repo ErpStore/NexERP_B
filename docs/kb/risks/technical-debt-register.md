@@ -127,7 +127,7 @@ Encrypt the `Tenants` connection-string column. Use least-privilege SQL logins, 
 > occupied before this task, were:
 >
 > | File | Lines (pre-M0-03-02) | What was there |
-|---|---|---|
+> |---|---|---|
 > | `V.SMART/V.SMART.Shared/Data/MigrationData/ApplicationDbContextFactory.cs` | `:13` active, `:14` commented | SA literal; commented production host `154.61.76.112,1533` / `bspl` |
 > | `V.SMART/V.SMART.Shared/Data/MigrationData/MasterDbContextFactory.cs` | `:11` commented, `:12` active | commented production host; active SA literal |
 > | `V.SMART/V.SMART/MauiProgram.cs` | `:228` commented, `:231` active, `:235` commented | production host; active SA literal; third host `VK-7-HP\SQLEXPRESS` |
@@ -719,8 +719,8 @@ must then go green. Proposed as `M0-10a`, 0.5 d.
 > **R-61 is filed under `## Medium`, not here.** It was briefly filed in this `High` section
 > while [KB-061](delete-guard-audit.md) §3.2 rated it *Medium*; the contradiction was
 > corrected 2026-08-21 (M0-10, attempt 2) in favour of **Medium**, because no delete is
-> wrongly permitted today — the risk is entirely prospective. R-61 sits between R-15 and R-16
-> in the Medium section.
+> wrongly permitted today — the risk is entirely prospective. R-61 opens the Medium section,
+> immediately before R-15.
 
 ### R-62 — Three guards can never refuse, a fourth is inert after one check; three are wired to live delete buttons
 **Confirmed.** `StoreInterTransService.cs:211` (body is a single `return (true, …)`),
