@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Serilog.Core;
 using Serilog.Events;
 using V.SMART.Shared.Data;
@@ -26,7 +27,11 @@ namespace V.SMART.Api.Logging
     /// </summary>
     public sealed class TenantInfoDestructuringPolicy : IDestructuringPolicy
     {
-        public bool TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory, out LogEventPropertyValue? result)
+        // [NotNullWhen(true)] mirrors Serilog's own IDestructuringPolicy declaration. Omitting it
+        // is a nullability-contract mismatch (CS8767), which the committed CI analyzer ratchet
+        // (ci/warning-baseline.json, .github/workflows/ci.yml) fails on. Behaviour is unchanged:
+        // this method already never returns true with a null result.
+        public bool TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory, [NotNullWhen(true)] out LogEventPropertyValue? result)
         {
             if (value is not TenantInfo tenant)
             {
