@@ -21,7 +21,7 @@ source_files:
   - db/RUNBOOK-rebuild-tenant-database.md
 status: complete
 confidence: mixed
-last_verified: 2026-08-20
+last_verified: 2026-08-21
 dependencies: [KB-011, KB-012, KB-013, KB-040, KB-102]
 ---
 
@@ -679,14 +679,52 @@ position reports. Invisible to the compiler.
 **Action.** Generate a `ScreenCodes` static class from the seed and replace all literals
 before the API exposes stock operations.
 
-### R-11 — `IApprovalService` depends on a Razor page type
-**Confirmed.** `IApprovalService.cs` declares
+### R-11 — `IApprovalService` depends on a Razor page type — **CLOSED 2026-08-21 (M2-B04)**
+**Was Confirmed.** `IApprovalService.cs` declared
 `using static V.SMART.Shared.Pages.Planning_Module_Pages.Authorization_Pages.Authorization;`.
-Plus 13 other business/data/mapping files reference `V.SMART.Shared.Pages`.
-**Impact.** The business layer cannot be consumed without the UI assembly; the approval
-workflow cannot be exposed over HTTP as-is.
-**Action.** Move the shared types into `ViewModels/`; remove all `Pages` references from
-non-UI projects; add an architecture test to keep it that way.
+
+**Count corrected (Confirmed, M2-B04).** This entry said "13 other" files; the true figure was
+**16 `using` directives across 15 distinct non-UI files** — `Data/AccountsModule/FundTrans.cs`
+carried two (`:11` and `:12`). KB-041's "14 reference `Pages`" was wrong for the same reason.
+The full pre-fix inventory, with line numbers, is the table in
+[`execution/tasks/M2-B04.md` § *Existing Behavior to Preserve*](../execution/tasks/M2-B04.md).
+
+**The proposed action was wrong, and the real fix was much smaller.** This entry said "move
+the shared types into `ViewModels/`". No type had to move. **15 of the 16 directives imported
+nothing and were simply deleted**; the compiler confirmed it (`dotnet build
+V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-incremental` → 0 errors). Nine of the ten
+referenced page namespaces declare no public type at all, and the tenth (`GridMode` in
+`Report_Module_Pages.TrackReports_Pages`) is declared inside `@code`, so nothing referenced it
+from outside either.
+
+**The `using static` on `Authorization` imported nothing.**
+`V.SMART/V.SMART.Shared/Pages/Planning_Module_Pages/Authorization_Pages/Authorization.razor`
+contains **zero** occurrences of the keyword `static` (Confirmed — `grep -c "static"` returns
+`0`), so a `using static` on it imports an empty set. The `UserAuthority` parameter in
+`IApprovalService.ApproveAsync` comes from `V.SMART.Shared.Data.Master.Admin_Module`, imported
+at `IApprovalService.cs:1`.
+
+**Exactly one directive was load-bearing** —
+`V.SMART/V.SMART.Shared/ViewModels/AccountsViewModel/FundTransFilterVM.cs`. Its `Bank`
+property was typed against the **Razor component** `…Bank_Pages.Bank`, not the EF entity
+`Banks` (`V.SMART/V.SMART.Shared/Data/Master/Accounts_Module/Banks.cs:6`). Deleting the
+directive produced `CS0246` at that line. Fixed by retyping the property to `Banks?`, not by
+moving any type. The property is read-but-never-assigned outside the ViewModel, so the retype
+is behaviour-neutral — but whether it was ever *meant* to carry the entity is **Q-55**.
+
+**Guard installed.** `tests/V.SMART.Shared.Tests/Architecture/NoPagesReferenceFromDomainTests.cs`
+holds two complementary tests: a reflection scan of the compiled assembly (catches a real
+type-level dependency; cannot see an unused `using`) and a source-text scan of
+`V.SMART/V.SMART.Shared/**/*.cs` excluding `Pages/` (catches the unused-`using` case). Both
+were **demonstrated to fail** on a seeded violation on 2026-08-21 and pass after reverting it.
+The Shared suite runs in CI (`.github/workflows/ci.yml`), so reintroduction now fails the
+build. No `scripts/check-no-pages-references.sh` was created — the test project already
+existed, so the task's shell-script fallback did not apply.
+
+**Still open, deliberately:** `V.SMART.Shared` remains **one assembly** containing both the
+domain and 333 Razor pages. M2-B04 removed the compile-time *references*, not the physical
+coupling; splitting `Pages/` into its own project is a separate, much larger change and is not
+scheduled. Nothing prevents a future `using` other than the guard above.
 
 ### R-12 — Document numbering race condition
 **Inferred (high confidence)** — the risk stands, but **the stated cause was wrong**; see the
@@ -1144,7 +1182,8 @@ them.
 ## Priority sequence
 
 **Week 1 (do these regardless of the migration):** R-01, R-02, R-04, R-09.
-**Before the second API controller:** R-03, ~~R-24~~ (closed 2026-08-20, M2-A06), R-11.
+**Before the second API controller:** R-03, ~~R-24~~ (closed 2026-08-20, M2-A06),
+~~R-11~~ (closed 2026-08-21, M2-B04).
 **Before any stock-touching module migrates:** R-05 (tests first), R-07, R-10.
 **During Phase 2–3:** R-06 (per module), R-12, R-13, R-26.
 **Opportunistic:** everything Low.

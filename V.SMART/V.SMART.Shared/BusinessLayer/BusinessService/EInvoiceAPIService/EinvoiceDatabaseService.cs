@@ -3,7 +3,6 @@ using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IEInvoiceAPI
 using V.SMART.Shared.Data.Master.Company_Module;
 using V.SMART.Shared.E_Invoice;
 using V.SMART.Shared.E_Invoice.E_InvoiceHelper;
-using V.SMART.Shared.Pages.Master_Module_pages.Items_Pages;
 using V.SMART.Shared.Repository.IRepository;
 using V.SMART.Shared.Repository.IRepository.IMasterRepository.IMasterSettings;
 using V.SMART.Shared.Services;

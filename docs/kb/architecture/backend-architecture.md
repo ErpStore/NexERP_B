@@ -16,7 +16,7 @@ database_tables: []
 business_rules: [BR-CALC-001, BR-STK-001]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-20
+last_verified: 2026-08-21
 dependencies: [KB-010, KB-013]
 ---
 
@@ -41,6 +41,32 @@ boundary. Services accept and return serialisable ViewModels with `DataAnnotatio
 validation attributes, which map cleanly to JSON request/response bodies and to
 client-side schemas. **Confirmed** — see `ViewModels/MasterViewModel/AccountsViewModel/CurrencyVM.cs`
 and the working proof in `V.SMART.Api/Controllers/CurrencyController.cs`.
+
+### The domain must not reference the Blazor UI — enforced by a test
+
+**Added 2026-08-21 (M2-B04, Confirmed).** `V.SMART.Shared` is a **single assembly** holding
+both the domain (`BusinessLayer/`, `Data/`, `Repository/`, `Mappings/`, `ViewModels/`,
+`E_Invoice/`) and the Blazor UI (`Pages/`, 333 Razor files). The compiler therefore does not
+stop domain code importing the UI namespace, and before M2-B04, **16 `using
+V.SMART.Shared.Pages…` directives across 15 non-UI files** did exactly that — including a
+business-layer *interface*, `IApprovalService.cs`.
+
+Those are now zero, and the property is guarded by
+`tests/V.SMART.Shared.Tests/Architecture/NoPagesReferenceFromDomainTests.cs`, which runs in
+CI as part of the Shared suite (`.github/workflows/ci.yml`). It holds **two complementary
+tests**, and both are needed:
+
+| Test | Catches | Blind to |
+|---|---|---|
+| `Domain_Types_Do_Not_Reference_Pages_Types` | a real dependency — base type, implemented interface, field, property, method parameter/return, unwrapped through arrays and generic arguments — from any of the six domain namespace roots onto a type under `V.SMART.Shared.Pages` | an **unused** `using` directive, which leaves no trace in assembly metadata |
+| `Domain_Source_Files_Contain_No_Pages_Using_Directives` | the unused-`using` case, by scanning the source text of `V.SMART/V.SMART.Shared/**/*.cs` excluding `Pages/`, `obj/` and `bin/` | anything not expressed in source text of that project |
+
+Both collect **all** violations and name every offender in the failure message. Both were
+demonstrated to fail against a seeded violation on 2026-08-21.
+
+This removes the compile-time coupling. It does **not** split the assembly — physically
+separating `Pages/` into its own project remains unscheduled, and until it happens this test
+is the only thing preventing the coupling returning.
 
 ## Generic repository
 

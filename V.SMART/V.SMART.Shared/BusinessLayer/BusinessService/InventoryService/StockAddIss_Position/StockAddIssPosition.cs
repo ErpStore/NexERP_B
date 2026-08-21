@@ -5,7 +5,6 @@ using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IInventorySe
 using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IStockAddIss_Position;
 using V.SMART.Shared.Data.Inventory_Stock_.StoreTransferNote;
 using V.SMART.Shared.Data.Master.Inventory;
-using V.SMART.Shared.Pages.Master_Module_pages.Store_Pages;
 using V.SMART.Shared.Repository.IRepository;
 using V.SMART.Shared.Services;
 using V.SMART.Shared.ViewModels;
