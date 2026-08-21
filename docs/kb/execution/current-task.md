@@ -31,21 +31,45 @@ successful outcome of the loop, not a failure. Owner: **Vivek**. Full control st
 
 ### The one thing that would change this
 
-**Five branches are validated `PASS` and unmerged.** Nothing they depend on is missing; nothing
-is being re-derived. Until they land on `master`, [selection rule](dependency-graph.md#ready-task-selection-rule)
-step 1 keeps every one of their dependents `Blocked`, because a prerequisite that is
-`Needs Review` is not `Completed`.
+**Six branches carry a claimed `PASS` and are unmerged; a seventh task is `Blocked` on the
+owner.** Nothing they depend on is missing; nothing is being re-derived. Until they land on
+`master`, [selection rule](dependency-graph.md#ready-task-selection-rule) step 1 keeps every one
+of their dependents `Blocked`, because a prerequisite that is `Needs Review` is not `Completed`.
 
-| Task | Branch | Tip | Releases on merge |
+Each row below was read from the branch itself this session, not inherited from the previous
+runner state — which on two of them was **wrong** (see *A correction*, below).
+
+| Task | Branch | Tip | State on that branch |
 |---|---|---|---|
-| `M2-B04` | `migration/M2-B04-decouple-pages-references` | `5ca1c10` | G2 progress; closes R-11's action item |
-| `M2-B12-01` | `migration/M2-B12-01-inv-012-numbering` | — | `M2-B12-02` |
-| `M2-A08` | `migration/M2-A08-row-level-scoping` **and** `migration/M2-A08-row-scope-and-account-gates` | — | ⚠ **two branches for one task** — needs an owner decision on which to keep |
-| `M2-C00` | `migration/M2-C00-kb050-angular-rewrite` | `b3c0e6e` | the whole `M2-C` tree, starting with `M2-C01` |
-| `M2-A07` | `migration/M2-A07-me-endpoint` | `61da4bd` | its dependents |
+| `M2-B04` | `migration/M2-B04-decouple-pages-references` | `5ca1c10` | `Needs Review`, validated `PASS` (attempt 2) |
+| `M2-A08` | `migration/M2-A08-row-scope-and-account-gates` | `bca92fd` | `Needs Review`, validated `PASS` — its tracker row says so |
+| `M2-A08` ⚠ | `migration/M2-A08-row-level-scoping` | `6e6633a` | **A second branch for the same task**, live in `wt-M2-A08`, doing different work (INV-028 → KB-120, answering Q-05…Q-08). Its own tracker row still reads `Ready`. **Needs an owner decision on which branch is the real `M2-A08`.** |
+| `M2-A07` | `migration/M2-A07-me-endpoint` | `e3bc96c` | `Needs Review`, validated `PASS` |
+| `M2-C00` | `migration/M2-C00-kb050-angular-rewrite` | `b3c0e6e` | `Needs Review`, validated `PASS` — releases the whole `M2-C` tree |
+| `M2-B01` | `migration/M2-B01-api-versioning` | `045a7f4` | Close-out commit claims `PASS`, **11 of 12 criteria met, criterion 4 partial**. Its own tracker row was never updated off `Ready`. |
+| `M0-10` | `migration/M0-10-candelete-guard-audit` | `fc8e0c0` | Close-out commit claims `Needs Review` after attempt 3, regression repaired. Its own tracker row was never updated off `Ready`. |
+| `M2-B12-01` | `migration/M2-B12-01-inv-012-numbering` | `407d0ba` | 🚩 **`Blocked` — escalation budget exhausted, awaiting Vivek.** Not `PASS`. |
 
 **Never merge or push from an execution session** ([`CLAUDE.md`](../../../CLAUDE.md) § Standing
 constraints). These are listed so the owner can act, not so a session can.
+
+### A correction, and why it is worth reading
+
+The runner state this session inherited claimed **`M2-B12-01` was validated `PASS` and awaiting
+merge**. It was not. That branch's own tip commit is *"Record close-out — BLOCKED, escalation
+budget exhausted, **corrects a premature PASS**"*, and its runner-state says plainly that the
+earlier `PASS` was claimed for a tip (`58e7bee`) whose own failure-log entry recorded `FAIL` —
+*"no genuine `PASS` of `58e7bee` exists anywhere in this repository."* The task is `Blocked` with
+2 of 3 attempts used and its single escalation spent; the escalated fix at `8a54f96` has never
+been re-validated.
+
+That false `PASS` had already propagated into two files before this session, and this session
+propagated it once more before checking. **It was caught only because `git stash list` happened
+to show a branch name next to the words "corrects a premature PASS".** The same check found
+`M2-B01` and `M0-10`, neither of which the inherited state mentioned at all.
+
+**The lesson is the one footnote ²¹ already paid for once:** a status inherited from a sibling
+branch is a claim, not a fact, and `git log --oneline -2 <branch>` costs nothing. Read the branch.
 
 ### Why every remaining task was excluded
 
@@ -53,10 +77,11 @@ constraints). These are listed so the owner can act, not so a session can.
 |---|---|
 | `M0-01-03` | **The rank winner (P0), stopped at KB-091 §8 item 5.** See below — the block is now narrower than the task file claims. |
 | `M2-B09` | `Ready`, P1, but **dropped at selection step 2**: its `source_files` name `V.SMART/V.SMART.Api/Program.cs` and `Controllers/CurrencyController.cs`, and in-flight `M2-B01` (live in `wt-M2-B01`) names both. Becomes the obvious next pick the moment `M2-B01` lands. |
-| `M2-B01`, `M0-10` | Already have live sibling worktrees — not this session's to take. |
+| `M2-B01`, `M0-10` | Each already has a branch with a close-out commit claiming `PASS`/`Needs Review`, plus a live worktree. Finished-and-unmerged, not available to re-take. |
 | `M2-A02` | `Ready` but gated on the unanswered **Q-28**: an API-only administrator holds zero `UserRight` rows because `AuthController.Login` never calls `SyncRightsForUserAsync`. Annotating `CurrencyController` before that is answered authenticates the administrator into an empty UI. |
 | `M2-C01` | `Blocked` behind `M2-C00`'s merge. |
-| `M2-B04`, `M2-B12-01`, `M2-A08`, `M2-C00`, `M2-A07` | Done, `PASS`, unmerged (see table above). |
+| `M2-B04`, `M2-A08`, `M2-C00`, `M2-A07` | Done, `PASS`, unmerged (see table above). |
+| `M2-B12-01` | **`Blocked`, not done** — escalation budget exhausted, named owner **Vivek**, and the escalated fix at `8a54f96` has never been re-validated. Re-dispatching it autonomously would spend the task's last attempt slot on exactly the unsupervised re-validation the previous orchestrator declined to spend it on. |
 
 ## `M0-01-03` — the decision the owner actually needs to make
 

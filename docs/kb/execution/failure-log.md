@@ -2644,12 +2644,26 @@ drop, was transient and never independently confirmed. Attempt 2 avoided (a) by 
 candidate set** and the run halted rather than guessing. No agent was dispatched and no attempt
 was consumed against any task. Owner: **Vivek**.
 
-**Why the set was empty** — five branches are validated `PASS` and unmerged (`M2-B04`,
-`M2-B12-01`, `M2-A08`, `M2-C00`, `M2-A07`), so [selection rule](dependency-graph.md#ready-task-selection-rule)
-step 1 holds every dependent `Blocked`; `M2-A02` is gated on unanswered **Q-28**; `M2-C01` sits
-behind `M2-C00`'s merge; `M2-B01` and `M0-10` already have live sibling worktrees; `M2-B09` is
-dropped at step 2 for sharing `V.SMART.Api/Program.cs` and `Controllers/CurrencyController.cs`
-with in-flight `M2-B01`; and `M0-01-03`, the P0 rank winner, is a §8 item 5 stop.
+**Why the set was empty** — six branches carry a claimed `PASS` and are unmerged (`M2-B04`,
+`M2-A08`, `M2-A07`, `M2-C00`, `M2-B01`, `M0-10`), so [selection rule](dependency-graph.md#ready-task-selection-rule)
+step 1 holds every dependent `Blocked`; `M2-B12-01` is `Blocked` on Vivek with its escalation
+budget exhausted; `M2-A02` is gated on unanswered **Q-28**; `M2-C01` sits behind `M2-C00`'s
+merge; `M2-B09` is dropped at step 2 for sharing `V.SMART.Api/Program.cs` and
+`Controllers/CurrencyController.cs` with unmerged `M2-B01`; and `M0-01-03`, the P0 rank winner,
+is a §8 item 5 stop.
+
+**A false `PASS` was found and corrected in the same breath.** The state this session inherited
+listed `M2-B12-01` as validated `PASS` and awaiting merge. It is not: that branch's tip commit
+is *"Record close-out — BLOCKED, escalation budget exhausted, **corrects a premature PASS**"*,
+and its own runner-state says the earlier `PASS` was claimed for tip `58e7bee` whose failure-log
+entry recorded `FAIL` — *"no genuine `PASS` of `58e7bee` exists anywhere in this repository."*
+This session propagated that false `PASS` into `master` once before checking, then corrected it.
+**It was caught by accident** — `git stash list` printed the branch name next to the words
+"corrects a premature PASS". The same check then surfaced `M2-B01` (close-out claiming `PASS`,
+11 of 12 criteria, criterion 4 partial) and `M0-10` (close-out claiming `Needs Review` after
+attempt 3), neither of which the inherited state mentioned at all, and both of whose *own*
+tracker rows still read `Ready`. **A status inherited from a sibling branch is a claim, not a
+fact**; `git log --oneline -2 <branch>` and `git worktree list` are now part of Select.
 
 **The one finding worth carrying** — `M0-01-03`'s block is **narrower than its own task file
 says**. Step 7 of that file asserts no SQL Server is reachable and no credential exists. Both
