@@ -2846,3 +2846,48 @@ not quietly reinterpret a standing constraint to suit itself. Recorded rather th
 Note the sweep that added the 28 banners was correct in its choices — it banner-marked exactly
 the frontend tree and left backend tasks like `M2-B06` alone. It is the *prose rule* in
 `CLAUDE.md` that over-reaches, not the sweep.
+
+---
+
+### M2-B06 · undeclared dependency found at Select · 2026-08-21
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED |
+| Failure category | **dependency** — a hard prerequisite the task file does not declare |
+
+**The last candidate in the pool, and it is mis-sequenced rather than wrong.** No code written,
+no branch, no attempt consumed.
+
+M2-B06 specifies every endpoint under `/api/v1` and states the route rule as *"plural
+kebab-case under `/api/v1`"*. **`master` has no `/api/v1`** — its controllers are
+`[Route("api/auth")]` and `[Route("api/currencies")]`. The prefix and the `ApiRoutes.V1`
+constant live only on the unmerged `migration/M2-B01-api-versioning` branch, whose own doc
+comment states the rule a from-master branch would have to violate: *"no controller author
+writes the version string by hand."* Hard-coding the prefix, dropping to `api/files`, or
+recreating `ApiRoutes.cs` are all worse than waiting. `depends_on` updated to
+`[M2-A06, M2-B01]`.
+
+**Why the selection rule did not catch it.** Step 1 checks that every **declared** Hard
+prerequisite is `Completed` and merged. `M2-A06` is, so the task passed. Step 2 checks
+same-**file** conflicts, and M2-B06 shares no file with `M2-B01` — the collision is on a
+**route surface** and a **constant**, not a path. **A dependency that exists in the
+specification but not in the front-matter is invisible to both steps.** Worth knowing when
+reading `Ready` in the tracker: it means "no declared blocker", not "no blocker".
+
+**Second near-miss avoided in the same task.** On `CLAUDE.md`'s literal ADR-007 test — any task
+file naming React is stale — M2-B06 fails, at 13 hits. Blocking it on that would have been
+wrong: the hits are boilerplate plus prose about the consuming client, and the deliverable is
+stack-agnostic. Two different false signals pointed at the same task in one Select pass, and
+neither was the real reason it cannot run.
+
+**Disposition** — `blocked` on `M2-B01` merging. **No re-specification needed**; unlike
+`M2-B05` the task is sound. It becomes selectable the moment M2-B01 lands, and the tracker
+footnote ³² carries a warning not to re-block it on the React grep at that point.
+
+**With M2-B06 out, the candidate set is empty on every path.** `M2-B09` and `M2-B11` are
+blocked by the same unmerged `M2-B01`; `M2-A02` by `Q-28` and now `R-65`; `M2-B05` needs
+re-specification; `M0-06`, `M0-10`, `M2-A08`, `M2-A07`, `M2-C00`, `M2-B04`, `M0-01-03` all have
+branches; `M2-B12-01` is escalation-exhausted; `M0-11` is a Product Decision. **One merge —
+`M2-B01` — releases three tasks at once.** That is the highest-leverage action available to the
+owner, and it is not an execution problem.

@@ -127,7 +127,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B02 | M2 | Paging / sort / filter contract | Backend | **Completed**²⁴ | P0 | M2-A06 | 1 wk | G2 |
 | M2-B03 | M2 | Codify the controller template | Documentation | Blocked | P0 | M2-A02, M2-B02 | 2 d | G2 |
 | M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Blocked**³¹ *(⛔ premise falsified — needs re-specification by the owner; no code written, no branch)* | P1 | M2-B07 | 2 d | G2 |
-| M2-B06 | M2 | File upload / download endpoints | Backend | **Ready** | P1 | M2-A06 | 1 wk | G2 |
+| M2-B06 | M2 | File upload / download endpoints | Backend | **Blocked**³² *(undeclared hard dependency on **M2-B01**, which is unmerged)* | P1 | M2-A06, **M2-B01** | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Ready** | P1 | **M2-B07**, M2-B02 | 3 d | G2 |
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | Blocked | P0 | M2-B03 | 3 d | G2 |
@@ -1671,3 +1671,42 @@ call site; reading the seed is not reading the database.
 still takes a hand-typed string and `ScreenCatalogue.cs` still hard-codes two screen names no
 database contains (**R-65**). A generated, database-derived catalogue would serve that and fix
 R-65 together — but that belongs with **M2-A02**.
+
+³² **M2-B06: `Ready` → `Blocked` 2026-08-21 — it has a hard dependency on `M2-B01` that its
+own `depends_on` does not declare.** No code written, no branch. This was the last candidate in
+the pool, and finding it exhausts the selectable set entirely.
+
+**The conflict.** M2-B06's *API Changes* table mandates *"plural kebab-case under `/api/v1`"*
+and every endpoint it specifies is `/api/v1/...`. **`master` has no `/api/v1`.** Its two
+controllers are `[Route("api/auth")]` and `[Route("api/currencies")]`. The version prefix, and
+the `ApiRoutes.V1` constant that owns it, exist **only** on the unmerged
+`migration/M2-B01-api-versioning` branch — whose own doc comment states the rule this task
+would have to break: *"no controller author writes the version string by hand."*
+
+A branch cut from `master` therefore has three options, all bad:
+
+| Option | Why it fails |
+|---|---|
+| Hard-code `api/v1/files` | Writes the version string by hand — the exact thing `ApiRoutes` exists to prevent — and desynchronises from M2-B01 |
+| Use `api/files`, matching master | Violates M2-B06's own acceptance criteria and ADR-002 §6 |
+| Recreate `ApiRoutes.cs` | Duplicates a **new file** that already exists on M2-B01's branch — the worst kind of merge collision |
+
+**M2-B06 becomes genuinely `Ready` the moment `M2-B01` merges**, and needs no re-specification
+— unlike `M2-B05` (footnote ³¹), this task is sound, it is only mis-sequenced. Add `M2-B01` to
+its `depends_on`.
+
+**Note what did *not* block it.** M2-B06 names React 13 times and has a `## React Changes`
+section, which on `CLAUDE.md`'s literal ADR-007 test makes it stale. It is not: those hits are
+boilerplate plus prose describing the consuming client, and its deliverable — replacing
+`IBrowserFile`/`IFileOpener` with HTTP file endpoints — is stack-agnostic and survives the
+Angular switch untouched. That test needs tightening; see `failure-log.md`, *"ADR-007 staleness
+test is unusable as written"*. **Do not re-block this task on the grep when M2-B01 lands.**
+
+**One thing to settle before it runs.** Its security section requires `[RequireScreen]` on
+every endpoint. Suitable seeded screens do exist for the Excel endpoints — `Excel Upload` (97)
+and `Master Upload` (25) — but there is **no generic "Files" screen**, and the task says only
+that download *"requires the right on the screen that owns the file"*, which is a design the
+implementer would have to invent. That interacts with **R-65** (two catalogue names exist in no
+database) and with the still-open fact that `[RequireScreen]` is **opt-in, not
+deny-by-default** — an unannotated controller is currently allowed through, which `M2-A02` is
+meant to close.

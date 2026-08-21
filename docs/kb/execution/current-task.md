@@ -119,7 +119,7 @@ branch is a claim, not a fact, and `git log --oneline -2 <branch>` costs nothing
 |---|---|
 | `M0-01-03` | **The rank winner (P0), stopped at KB-091 §8 item 5.** See below — the block is now narrower than the task file claims. |
 | `M2-B05` | **Selected 2026-08-21, then `Blocked` — premise falsified, needs owner re-specification.** See below. |
-| `M2-B06` | `Ready`, P1, 1 wk, no file conflicts — **the honest next candidate**, but it lost the tie-break to `M2-B05` on estimate (2 d vs 1 wk) and has not been investigated. It touches `V.SMART.Web` and the MAUI head, so it is a larger, riskier change than anything this run has attempted. |
+| `M2-B06` | **`Blocked`³² — undeclared hard dependency on `M2-B01`.** It specifies every endpoint under `/api/v1`; `master` has no `/api/v1` (its controllers are `api/auth` and `api/currencies`), and the prefix plus the `ApiRoutes.V1` constant live only on M2-B01's unmerged branch. **The task is sound and needs no re-specification** — it is mis-sequenced, and becomes selectable the moment M2-B01 merges. |
 | `M2-B11` | `Ready` but P2, and **dropped at step 2**: its `source_files` name `V.SMART/V.SMART.Api/Program.cs` and `V.SMART.Api.csproj`, both of which unmerged `M2-B01` changes. |
 | `M0-06`, `M0-11` | `M0-06` already has a branch (`migration/M0-06-remove-default-admin`). `M0-11` is a **`Product Decision`** — never self-selectable; surfacing it to you *is* the action. |
 | `M2-B09` | `Ready`, P1, but **dropped at selection step 2**: its `source_files` name `V.SMART/V.SMART.Api/Program.cs` and `Controllers/CurrencyController.cs`, and unmerged `M2-B01` names both. Becomes the obvious next pick the moment `M2-B01` lands. |
