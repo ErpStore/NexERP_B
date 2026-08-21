@@ -2891,3 +2891,230 @@ re-specification; `M0-06`, `M0-10`, `M2-A08`, `M2-A07`, `M2-C00`, `M2-B04`, `M0-
 branches; `M2-B12-01` is escalation-exhausted; `M0-11` is a Product Decision. **One merge —
 `M2-B01` — releases three tasks at once.** That is the highest-leverage action available to the
 owner, and it is not an execution problem.
+
+---
+
+### M2-B11 · validation FAIL — the CI analyzer warning ratchet rises · 2026-08-21
+
+| Field | Value |
+|---|---|
+| Branch | `migration/M2-B11-health-checks-logging`, commit `7b4b86c` (not merged, not pushed) |
+| Runner state | attempt 1 rejected at independent validation |
+| Failure category | **build** — the committed CI warning gate exits 1 on this branch |
+
+**Everything else passed. This one thing did not, and it is objective.**
+
+`tools/compare-warnings.ps1`, run by the validator against the CI-flavour build log
+(`dotnet restore` then `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-restore
+--no-incremental -v normal`), reports:
+
+```
+baseline   : ci/warning-baseline.json (total 6693)
+measured   : 6694
+=== FAIL -- warning total rose above the baseline ===
+  baseline 6693, measured 6694, delta +1
+Codes that increased:
+  CS8767  1 -> 2  (+1)
+=== Gate: FAILED ===
+GATE EXIT CODE = 1
+```
+
+**The source is a file this branch creates.** Before: the single `CS8767` was
+`V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/LeadService/LeadService.cs:77`. After:
+a second at `V.SMART/V.SMART.Api/Logging/TenantInfoDestructuringPolicy.cs:29` —
+
+```
+warning CS8767: Nullability of reference types in type of parameter 'result' of
+'bool TenantInfoDestructuringPolicy.TryDestructure(object value,
+ILogEventPropertyValueFactory propertyValueFactory, out LogEventPropertyValue? result)'
+doesn't match implicitly implemented member 'bool IDestructuringPolicy.TryDestructure(...)'
+```
+
+The gate is wired into `.github/workflows/ci.yml:159-164` (*Analyzer warning gate -
+V.SMART.Api*), so this fails CI on merge, not just locally.
+
+**Why the implementer's own measurement missed it — worth recording, because the trap will
+recur.** The Execution Record claims *"0 errors, 6695 warnings — exactly the baseline, +0"*.
+That figure is from the **plain** `dotnet build` (restore included), whose KB-086 reference is
+6,695 — so it looks like a match. But the gate compares the **`--no-restore`** flavour against
+**6693**, because separating restore moves 2 `NU1608` warnings out of the log
+([KB-083](prompt-template.md#verified-repository-commands), KB-087 §4). The most recent
+`--no-incremental` plain-build measurement on a branch was **6,694** (M2-B07 attempt 2), so
+6,695 was already +1 against the live figure. **The `6,695` in M2-B11's acceptance criterion is
+the wrong number to gate on; `tools/compare-warnings.ps1` is the only measurement that decides
+CI.** A task whose acceptance criterion quotes a warning total should run the gate, not the
+plain build.
+
+The same Execution Record notes three `CS8625` warnings were silenced with `= null!`
+*"specifically so the CI warning ratchet stays green"* — the intent was right; the
+verification used the wrong command, and one warning of a different code was left.
+
+**The likely fix is one line** — annotate the `out` parameter to match Serilog's
+`IDestructuringPolicy` contract (`[NotNullWhen(true)] out LogEventPropertyValue? result`), then
+**re-run `tools/compare-warnings.ps1`, not `dotnet build`**, to confirm exit 0. No design change
+is implied: the destructuring policy itself is correct and is covered by passing tests.
+
+**What was verified and is NOT in question** (all re-run by the validator, not taken on report):
+
+| Check | Observed |
+|---|---|
+| `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-incremental` | 0 errors, 6695 warnings |
+| `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj --no-incremental` | 0 errors, 6697 warnings — Blazor host intact |
+| `dotnet test tests/V.SMART.Api.Tests/…` | 179 passed, 0 failed |
+| `dotnet test tests/V.SMART.Shared.Tests/…` | 84 passed, 0 failed — no regression |
+| `GET /health/live`, master unreachable, no token | **200** `{"status":"Healthy","totalDurationMs":0,"checks":[]}` |
+| `GET /health/ready`, master unreachable | **503**, `master-db` and `tenant-db` each named, nothing disclosed |
+| `GET /health/ready`, real master + real tenant | **200**, `detail:{"tenant-1":"Healthy"}` |
+| `GET /health/ready`, master Healthy, tenant check failing | **503**, `master-db` Healthy, `tenant-db` Unhealthy — the two checks are genuinely independent |
+| `git diff` on `ILoggingService.cs` and `FileLoggingService.cs` | both **empty** — the frozen contract held |
+| grep of every emitted log file for `Password`/`SQLEXPRESS`/`NexGenErpDb`/`TenantInfo`/`Trusted_Connection` | **0 hits**, including on runs whose master connection failed |
+| `dotnet msbuild V.SMART.Shared.csproj -getProperty:DefineConstants -p:TargetFramework=net9.0-windows10.0.19041.0` | `TRACE;DEBUG` — the `#if ANDROID \|\| WINDOWS \|\| MACCATALYST` finding independently reproduced |
+
+**Two observations recorded for the reviewer, neither a blocker:**
+
+1. **`retainedFileCountLimit` is a file count, not days.** `Program.cs:88,100` pass
+   `AuditRetentionDays` (3650) and `DiagnosticRetentionDays` (14) to
+   `retainedFileCountLimit` while `rollOnFileSizeLimit: true` is also set. With one file per
+   day the two coincide; a day that exceeds the 64 MB cap produces extra files and the
+   effective retention falls **below** the documented span. KB-113 §5 and R-23 describe these
+   as "days" without the caveat.
+2. **`SensitiveDataRedactor` runs over every `additionalInfo`**, and its locator pattern
+   includes `address|addr|database|server`. Today's call sites format changes as
+   `Name: 'old' → 'new'` (colon), so nothing matches — but a future `Address = …` in an audit
+   field would be silently replaced by `***REDACTED***`. The audit trail is now
+   live-reachable from `V.SMART.Api` through the 88 `BusinessLayer` and 35 `Repository` files
+   that call `LogUserAction`, so this is not hypothetical forever.
+
+---
+
+### M2-B11 · attempt 1 · diagnosis · 2026-08-21
+
+*(Diagnosis pass over the validator's `FAIL` above — written by the debugger per
+[KB-091 §7](autonomous-runner.md#7-persistent-state--what-is-written-where). **A fix was
+applied**, to the one file that caused the failure and that this task itself creates.)*
+
+| Field | Value |
+|---|---|
+| Runner state | FIXED — re-validated locally with the gate, not with a plain build |
+| Model in use | opus (diagnosis) |
+| Validator verdict | FAIL |
+| Failure category | build (confirmed — not re-classified); cause class **implementation-error** |
+
+**Reproduced — yes, independently, at the committed state `7b4b86c`.** The working tree
+already carried an *uncommitted* one-line change to
+`V.SMART/V.SMART.Api/Logging/TenantInfoDestructuringPolicy.cs` (provenance unattributed — see
+*Provenance* below). To reproduce honestly I first restored the committed version of that file
+(`git show HEAD:… > …`) and re-ran the exact CI-flavour sequence:
+
+```
+$ dotnet restore V.SMART/V.SMART.Api/V.SMART.Api.csproj                      -> exit 0
+$ dotnet build   V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-restore \
+                 --no-incremental -v normal -nologo                          -> exit 0
+    6694 Warning(s)
+    0 Error(s)
+
+$ bash tools/compare-warnings.sh <log> ci/warning-baseline.json V.SMART.Api
+baseline   : ci/warning-baseline.json (total 6693)
+measured   : 6694
+=== FAIL -- warning total rose above the baseline ===
+  baseline 6693, measured 6694, delta +1
+Codes that increased:
+  CS8767  1 -> 2  (+1)
+=== Gate: FAILED ===
+GATE EXIT=1
+```
+
+The two `CS8767` sites extracted from that same log:
+
+```
+V.SMART\V.SMART.Shared\BusinessLayer\BusinessService\LeadService\LeadService.cs(77,37)   <- pre-existing (the baseline's one)
+V.SMART\V.SMART.Api\Logging\TenantInfoDestructuringPolicy.cs(29,21)                       <- NEW, this branch
+```
+
+`pwsh` is **not installed on this workstation** (`command -v pwsh` -> nothing), so the POSIX
+sibling `tools/compare-warnings.sh` was used. KB-083 records the two variants as verified to
+agree; CI itself runs the `.ps1` (`.github/workflows/ci.yml:159-164`).
+
+**Root cause** — `TenantInfoDestructuringPolicy.TryDestructure` declared its `out` parameter as
+plain `out LogEventPropertyValue? result`, while Serilog's `IDestructuringPolicy` declares the
+same parameter with `[NotNullWhen(true)]`. That is a nullability-*attribute* mismatch on an
+implicitly implemented interface member — exactly what `CS8767` reports — and it pushed the
+ratcheted analyzer total from 6693 to 6694. A missed annotation on a new file: a simple
+implementation error, not a design, contract or business-rule problem. The destructuring policy
+itself is correct and its tests pass.
+
+**Secondary, and the reason the implementer did not see it** — already diagnosed correctly in
+the validator's entry above and confirmed here by measurement: the Execution Record's *"6695
+warnings — exactly the baseline, +0"* came from the **plain** `dotnet build`, which is not what
+CI gates on. Measured on this branch today: plain build **6694** after the fix (**6695** before),
+`--no-restore` **6693** after (**6694** before). The offset between the two flavours is **1**
+today, not the 2 that KB-083 records — so *neither* plain-build figure can be mapped onto the
+baseline by arithmetic. **`tools/compare-warnings.ps1`/`.sh` is the only measurement that
+decides CI, and it is the one a warning-count acceptance criterion must run.**
+
+**Fix applied** — one file, the one this branch creates, inside the task's authorised scope:
+
+`V.SMART/V.SMART.Api/Logging/TenantInfoDestructuringPolicy.cs`
+- `using System.Diagnostics.CodeAnalysis;` added
+- `out LogEventPropertyValue? result` -> `[NotNullWhen(true)] out LogEventPropertyValue? result`
+- a four-line comment recording why the annotation is load-bearing
+
+No behavioural change, and the annotation is *true* of the implementation as written: the method
+assigns a non-null `StructureValue` on every `return true` path and `null` only on the
+`return false` path.
+
+**Provenance of the change — stated rather than glossed.** The `[NotNullWhen(true)]` edit was
+**already present, uncommitted, in the working tree** when this diagnosis session started
+(`git status --porcelain` -> ` M V.SMART/V.SMART.Api/Logging/TenantInfoDestructuringPolicy.cs`),
+authored by neither this session nor commit `7b4b86c` — most likely a killed session, the
+pattern already recorded for `M2-B06`. It was read in full, judged correct, reproduced against
+the pre-fix state first, and then adopted. It was **not** taken on trust.
+
+**Re-validated — the gate, not a plain build:**
+
+```
+$ dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-restore --no-incremental -v normal -nologo
+    6693 Warning(s)
+    0 Error(s)
+$ bash tools/compare-warnings.sh <log> ci/warning-baseline.json V.SMART.Api
+measured   : 6693
+=== Gate: PASSED (equal to baseline) ===
+GATE EXIT=0
+```
+
+Remaining `CS8767` sites in that log: **one**, `LeadService.cs(77,37)` — the pre-existing one.
+`dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj` ->
+`Passed! - Failed: 0, Passed: 179, Skipped: 0, Total: 179, Duration: 2 s`.
+`dotnet build … --no-incremental` (plain) -> `6694 Warning(s) / 0 Error(s) / 00:01:10.88`.
+
+`V.SMART.Web`'s gate was **not** re-run and does not need to be: `git diff --stat master...HEAD`
+touches nothing under `V.SMART/V.SMART.Shared/` or `V.SMART/V.SMART.Web/`, so the Web total is
+unchanged from `master`. Stated as unmeasured rather than asserted.
+
+**Disposition** — `fixed`. Not a loop: this fix appears in this log only as the validator's
+*suggestion*, never as an attempted-and-failed repair. Nothing was weakened — the baseline
+`ci/warning-baseline.json` was **not** touched, and `--update` was never passed to the gate.
+
+**Left for the orchestrator, not done here:**
+
+1. `docs/kb/execution/tasks/M2-B11.md` § Execution Record still claims *"0 errors, 6695
+   warnings — exactly the baseline, +0"*. That statement is false in both halves and should be
+   replaced with the gate result above. Task-file close-out bookkeeping is not the debugger's
+   to write.
+2. The acceptance criterion that quotes *"compared against 6,695"* gates on the wrong
+   measurement. Worth re-cutting as *"`tools/compare-warnings.ps1` exits 0"* for any future
+   task, and KB-083's "offset 2" note re-measured — it is 1 today.
+3. The two non-blocking observations in the validator's entry (`retainedFileCountLimit` is a
+   file count, not days; `SensitiveDataRedactor` over `additionalInfo`) are untouched by this
+   fix and remain open for review.
+
+**Residual risk** — (i) the gate was run through `compare-warnings.sh`, not the `.ps1` CI
+actually invokes, because `pwsh` is absent here; the two are recorded as agreeing (KB-083,
+KB-087) but that agreement was not re-observed today. (ii) No hosted CI run exists for this
+branch — the same standing gap as Q-20/Q-22. (iii) The two runtime gaps the validator recorded
+stand unchanged: no `audit-*.json` was ever produced at runtime because no `LogUserAction` call
+site is reachable from the six existing endpoints, and the Blazor host's user-action logging was
+verified structurally, not behaviourally.
+
+**Next attempt routed to** — re-validation of the same branch. No model escalation; no KB-091
+§6.3 trigger applied.

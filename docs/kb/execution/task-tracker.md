@@ -131,7 +131,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Needs Review**³⁴ *(implemented; on `migration/M2-B09-reference-endpoints` `d1175db`, unmerged)* | P1 | **M2-B07**, M2-B02, M2-B01 | 3 d | G2 |
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | Blocked | P0 | M2-B03 | 3 d | G2 |
-| M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Ready** | P2 | M2-A06 | 3 d | G2 |
+| M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Needs Review**³⁶ *(validated `PASS` on attempt 2 of 4; on `migration/M2-B11-health-checks-logging` `12dad11`, unmerged)* | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Blocked**²⁹ *(escalation budget exhausted, owner **Vivek**; on `migration/M2-B12-01-inv-012-numbering` `407d0ba`, unmerged — the earlier `PASS` was premature)* | P0 | M2-B07 | 2 d | G2 |
 | M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | Blocked | P0 | M2-B12-01 | 1 d | G2 |
@@ -1848,3 +1848,32 @@ no blob storage, CDN or virus scanning exists anywhere), and a storage half adde
 uploads live on a local filesystem, and a containerised or multi-instance deployment loses or splits
 them silently.
 
+
+³⁶ **M2-B11: `Ready` → `Needs Review` 2026-08-21.** Health checks (`GET /health/live`,
+`GET /health/ready`) and a new `ILogger`-based `StructuredLoggingService` land on
+`migration/M2-B11-health-checks-logging` (`7b4b86c`, plus two follow-ups: `81ad961` fixed a
+`CS8767` nullability mismatch the warning-gate ratchet caught on attempt 1, `12dad11` corrected
+the Execution Record's own warning-gate measurement and the retention wording). `ILoggingService`
+is byte-identical (`git diff` empty); `FileLoggingService` is kept and still the Blazor/MAUI
+registration; the new implementation is wired only in `V.SMART.Api`. **Validated `PASS` on
+attempt 2 of 4** (attempt 1 failed the CI warning ratchet at 6694 vs. the 6693 gate baseline —
+category `implementation-error`, fixed same session, no loop). Independent-validator run:
+`dotnet build V.SMART.Api` 0 errors, gate `tools/compare-warnings.sh` measured 6693 = baseline,
+**PASSED**; `dotnet test tests/V.SMART.Api.Tests` 179 passed (148 → 179); `dotnet test
+tests/V.SMART.Shared.Tests` 84 passed; `V.SMART.Web` 0 errors / 6697 (its exact baseline).
+Runtime probes against a real local SQL Server confirmed `/health/live` returns 200 with the
+master DB unreachable and touches no database (`Predicate = _ => false`); `/health/ready`
+returns 200 with both `master-db` and `tenant-db` healthy, and 503 naming `master-db` when it is
+down; a credential grep of every emitted `diagnostics-*.json` found zero hits for `Password`,
+`TenantInfo`, `ConnectionString` or a server/database name. Produced **KB-113**
+([observability.md](../architecture/observability.md)) and **INV-046** (494 `LogUserAction`
+call sites, all in `V.SMART.Shared`, zero in `V.SMART.Api` — so no audit event was observed at
+runtime, only proved at unit level; the `#if ANDROID || WINDOWS || MACCATALYST` `_basePath`
+branch confirmed dead on both TFMs). **R-23 is marked resolved for `V.SMART.Api` only** — still
+open for the Blazor and MAUI hosts, which keep `FileLoggingService` unchanged. **Criteria not
+met, stated rather than glossed:** the tenant-unreachable-while-master-healthy 503 was proved
+only at unit level, not over HTTP (writing a bogus `Tenants` row was out of scope); no
+`LogUserAction` event was observed at runtime because no code path in `V.SMART.Api` calls it;
+the Blazor host was not started; the MAUI head was not built (unverified per KB-083). Full
+record: [`tasks/M2-B11.md` § Execution Record](tasks/M2-B11.md#execution-record-2026-08-21-branch-migrationm2-b11-health-checks-logging).
+Nothing depends on `M2-B11` in the dependency graph, so no other row is released by this close.
