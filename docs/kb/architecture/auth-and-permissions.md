@@ -14,12 +14,12 @@ source_files:
   - V.SMART/V.SMART.Api/Auth/JwtTokenService.cs
   - V.SMART/V.SMART.Api/Controllers/AuthController.cs
 entities: [User, UserRight, UserAuthority, Screens, ApprovalHistory]
-api_endpoints: ["POST /api/auth/login"]
+api_endpoints: ["POST /api/v1/auth/login"]
 database_tables: [Users, UserRights, UserAuthority, Screens, ApprovalHistory]
 business_rules: [BR-AUTH-001, BR-AUTH-002, BR-AUTH-003, BR-APPR-001]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-12
+last_verified: 2026-08-21
 dependencies: [KB-010, KB-012]
 ---
 
@@ -85,7 +85,7 @@ kept as-is so existing credentials keep working.
 
 ### REST API (new, partial)
 
-`POST /api/auth/login` → `AuthController.Login`:
+`POST /api/v1/auth/login` → `AuthController.Login`:
 1. `_tenantProvider.GetCurrentTenant()`; 400 if unresolved.
 2. `_unitOfWork.Users.LoginAsync(username, password)`; 401 if null.
 3. `JwtTokenService.CreateToken(user, tenant.Id)`.
