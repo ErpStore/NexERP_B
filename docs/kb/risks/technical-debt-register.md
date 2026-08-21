@@ -1181,10 +1181,40 @@ wording (`"Prouction SCN"` vs `"Prouction SCN Assembly"`, spelling as in source)
 rot, not divergent logic.
 **Action.** Wire or delete, per guard. Proposed as `M0-10b`, 1 d, P2.
 
-### R-15 — Invalid GST rate silently coerced to zero
+### R-15 — Invalid GST rate silently coerced to zero — **PARTIALLY RESOLVED (M2-B09, 2026-08-21)**
 **Confirmed.** `CommonConstants.GetIGST/GetGST` use `FirstOrDefault(r => r == rate)`,
 returning `0` for an unlisted rate rather than raising.
 **Action.** Return `decimal?` or throw; validate at the API boundary.
+
+> ✅ **The API-boundary half is done. The in-process half is not, and this row stays open.**
+>
+> **What M2-B09 delivered.** `[GstRate]`
+> (`V.SMART/V.SMART.Api/Contracts/GstRateAttribute.cs`) is a `DataAnnotations` attribute that
+> any request DTO carrying a GST rate applies. An off-ladder rate is rejected with a **400**
+> `application/problem+json` naming the field and listing every permitted value (ADR-002 §4);
+> `0.000` is still accepted, because an over-eager fix that rejected zero would break every
+> genuinely zero-rated line. It supports both ladders separately — `28.000` is a valid IGST
+> rate and *not* a valid CGST/SGST rate, and validating against the wrong list would pass
+> silently in production, so the tests pin that too.
+>
+> **It deliberately does not call `GetIGST`/`GetGST`.** It cannot: their return value *is* the
+> ambiguity. Membership is tested against `IGSTRates`/`GSTRates` directly, where "absent" and
+> "zero" are distinct answers. A test asserts this explicitly by pinning
+> `GetIGST(19m) == GetIGST(0m) == 0m` and then showing the attribute tells the two apart.
+>
+> **Why the helpers were not changed.** `CommonConstants.cs` is untouched — it is on M2-B09's
+> *Files That Must Not Change* list. `GetIGST`/`GetGST` have **105 call sites** across the
+> Blazor app (`grep`, 2026-08-21); changing their return type or making them throw alters
+> behaviour for every one of them. That is a separate decision with a separate blast radius,
+> and it is what remains of this row.
+>
+> **The *disagreement* below is untouched and is still the harder half.** `CalculationService`
+> applies any rate it is given while a sanitising caller turns an unlisted rate into zero tax —
+> 170 on one path, 0 on the other. **M2-B09 does not resolve that**; it only ensures a bad rate
+> cannot enter through the API. Fixing R-15 fully still means deciding which path is
+> authoritative.
+>
+> Full design and rationale: [KB-124](../api/reference-data-and-caching.md) §3.
 
 > **Pinned by executable tests 2026-08-19 (M0-12-02). Not closed.**
 >
