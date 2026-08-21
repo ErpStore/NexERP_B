@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-20
+last_verified: 2026-08-21
 dependencies: [KB-080, KB-002, KB-003, KB-005, KB-088, KB-090]
 ---
 
@@ -350,65 +350,49 @@ total. CI (M0-07) must record this baseline and fail on *new* warnings — it ca
 
 ## Verified frontend commands
 
-> **⚠ These rows describe the React app, which [`ADR-007`](../decisions/ADR-007-angular-stack.md)
-> superseded on 2026-08-20.** They are **still factually correct** — every command below was
-> measured and still runs today — so they are kept rather than deleted, per this table's own rule
-> that it records observed results and never predictions.
->
-> **Do not treat them as the frontend contract.** The stack is Angular + PrimeNG. When the
-> re-scoped `M2-C01` scaffolds the Angular app, it replaces this whole section with measured
-> Angular CLI commands and deletes these rows in the same change — **not before**, because until
-> then removing them would make this document silently wrong in the other direction.
->
-> The Angular pilot at `frontend/vsmart-erp/` still has no verified command here; `M2-C11`
-> (re-scoped from *archive* to *adopt as baseline*) is where it acquires one.
+**Rewritten 2026-08-21 by the re-scoped `M2-C01`, which deleted the React workspace at
+`frontend/nexgen-web/` and created the Angular one at the same path.** The React rows this
+section used to carry are gone with the commands they described — that was this table's own
+standing instruction, and it is now discharged. The historical React measurements survive in
+[`tasks/M2-C01.md`](tasks/M2-C01.md) § *Historical Execution Record*, which is where a
+superseded measurement belongs.
 
-Added by **M2-C01**, which created `frontend/nexgen-web/` — the repository's first React
-project. Before it, this document had **no** frontend row of any kind; the only other
-JavaScript tree, `frontend/vsmart-erp/`, was then the archived Angular pilot and has never had a
-verified command here.
-
-Every command below was **run locally on 2026-08-19** on this Windows workstation
-(`node v24.19.0`, `npm 11.17.0`) from `frontend/nexgen-web/`, after `rm -rf node_modules`
-followed by `npm ci`. Exit codes were observed, not assumed.
+Every command below was **run locally on 2026-08-21** on this Windows workstation from
+`frontend/nexgen-web/`. Observed toolchain: **Node v24.19.0**, **npm 11.17.0**, **Angular CLI
+22.1.5**, `@angular/core` **22.1.3**, `primeng` **22.1.0**, `typescript` **6.0.3**. Exit codes
+were observed, not assumed.
 
 | Purpose | Command (from `frontend/nexgen-web/`) | Verified result |
 |---|---|---|
-| Install exactly what the lockfile pins | `npm ci` | exit 0; **554 packages in 23s** from an empty `node_modules/`. Two `allow-scripts` warnings (`esbuild`, `msw` postinstall not auto-approved by npm 11) — **not** failures: the platform binary `@esbuild/win32-x64` is a normal optional dependency and is present, and every build/test below passes without approving them |
-| Typecheck | `npm run typecheck` | exit 0, no output. Runs `tsc --noEmit` twice — `tsconfig.json` (`src/` + `e2e/`) and `tsconfig.node.json` (root config files) — because the two need different `lib`/`types` |
-| Lint | `npm run lint` | exit 0, no output. `eslint . --max-warnings=0`, type-aware `typescript-eslint`, `react-hooks`, `jsx-a11y`, `simple-import-sort`, plus the two ADR-003 `no-restricted-imports` rules |
-| Format check | `npm run format:check` | exit 0 — "All matched files use Prettier code style!" Re-observed 2026-08-19 after the correction noted below; the row as first written was not observed |
-| Unit tests | `npm run test -- --run` | exit 0 — **1 test file, 1 test passed**, ~30s cold (jsdom environment setup dominates: 20.4s), ~3.7s warm |
-| Coverage | `npm run coverage` | exit 0 — statements **82.89 %**, branches **100 %**, functions **80 %**, lines **82.89 %**. `vitest.config.ts` thresholds are set to the floor of those numbers, so they can only be raised. **Re-observed 2026-08-20** on `migration/M2-C04-01-design-tokens` after the theme layer landed: exit 0 — statements **95.90 %**, branches **100 %**, functions **86.95 %**, lines **95.90 %**, 150 tests. Thresholds unchanged; the gate held and the measured numbers rose |
-| Production build | `npm run build` | exit 0 — typecheck then `vite build`, 830 modules, **3.56s**. Entry chunk `assets/index-*.js` 289.69 kB raw / **90.90 kB gzip**; vendor `react` chunk 102.50 kB / 34.48 kB gzip; Mantine CSS 201.38 kB / 29.30 kB gzip. Initial JS gzip **125.38 kB** against KB-050's `< 250 KB gzip` budget |
-| E2E smoke | `npm run e2e` | exit 0 — **1 passed (6.2s)**, chromium. Playwright starts the Vite dev server itself. Requires `npx playwright install chromium` once per machine; that download succeeded here |
+| Install exactly what the lockfile pins | `npm ci` | exit 0. See the note below on `npm install` vs `npm ci` — the lockfile is committed and CI uses `npm ci` |
+| Typecheck | `npm run typecheck` | exit 0, no output. Three `tsc --noEmit` passes — `tsconfig.app.json`, `tsconfig.spec.json`, `tsconfig.e2e.json` — because the app, the specs and the Playwright config need different `types`. **`tsc` does not check templates**; `strictTemplates` is enforced by `npm run build` and `npm run test:ci`, both of which invoke the Angular compiler |
+| Lint | `npm run lint` | exit 0 — "All files pass linting." `ng lint --max-warnings=0`, type-aware `typescript-eslint`, `angular-eslint` template a11y rules as errors, plus the two ADR-007 `no-restricted-imports` rules |
+| Format check | `npm run format:check` | exit 0 — "All matched files use Prettier code style!" |
+| Unit tests | `npm run test:ci` | exit 0 — **2 test files, 6 tests passed**, 4.8 s warm (17 s cold; jsdom environment setup dominates). Runner is **Vitest 4.1.11** through `@angular/build:unit-test`, the Angular CLI's default at 22.1.5. **Not Karma** |
+| Production build | `npm run build` | exit 0 — 3.1 s warm (8.1 s cold). Initial total **436.85 kB raw / 104.20 kB estimated transfer (gzip)**; lazy `placeholder-component` chunk 17.68 kB / 5.05 kB. Against KB-050's `< 250 KB gzip` initial budget |
+| E2E smoke | `npm run e2e` | exit 0 — **1 passed (6.8 s)**, chromium. Playwright starts `ng serve` itself on 127.0.0.1:4300. Requires `npx playwright install chromium` once per machine |
 
-**Correction, 2026-08-19 (M2-C01 attempt 1 → attempt 2).** The `Format check` row above was
-originally committed (`4ac7241`) claiming `exit 0` when the command actually exited **1** on
-that tree: `frontend/nexgen-web/README.md` was edited after the last `npm run format` and
-carried un-normalised markdown (`*emphasis*` rather than `_emphasis_`, unaligned table pipes).
-Validation caught it, `npm run format` was run, and the row was then re-observed as stated.
-Recorded here rather than silently overwritten, because this table's only value is that its
-rows were run — see [`failure-log.md`](failure-log.md) (KB-092), M2-C01 attempt 1.
+**`npm run e2e` needs `--host 127.0.0.1`, and that is baked into `playwright.config.ts`.** The
+first run of the Playwright `webServer` timed out after 180 s against `http://127.0.0.1:4300`
+while `ng serve`'s default bind (`localhost`) was up and serving. Recorded because the failure
+mode — a 180 s timeout with a visibly healthy dev server — reads like a Playwright fault and is
+not one.
 
-**`npm ci`, never `npm install`, in CI.** `package-lock.json` is committed, and it carries the
-Linux optional binaries for `rollup` and `esbuild` as well as the Windows ones — so moving the
-CI job to `ubuntu-latest` later is available, though M2-C01 deliberately did not take it (the
-job's first ever run should not also be its first run on an unverified platform).
+**`npm ci`, never `npm install`, in CI.** `package-lock.json` is committed. `npm install` here
+emits four `allow-scripts` warnings (`esbuild`, `lmdb`, `msgpackr-extract`, `@parcel/watcher`
+postinstall scripts not auto-approved by npm 11); every command in the table above passes
+without approving them.
 
-**Node version, stated plainly (M2-C01 deviation).** `.nvmrc` pins **22** and CI resolves from
-it, but `package.json` declares `"engines": { "node": ">=22" }` with an **open upper bound**,
-not the `>=22 <23` the task file asked for. The only Node on this workstation is **24.19.0**,
-and this task's definition of done is that the commands above are *verified* — which can only
-be done on the Node actually installed. A closed `<23` range would have made every local
-`npm` command emit `EBADENGINE`, and an outright failure under `engine-strict`. Nothing above
-was verified on Node 22.
+**Node, stated plainly.** `.nvmrc` pins **24** and `package.json` declares
+`"engines": { "node": ">=24.15.0 <25" }`. This is the intersection of ADR-007's supported range
+(`^22.22.3 || ^24.15.0 || >=26.0.0`) with the only Node installed on this workstation, so the
+range CI resolves is the range every command above actually ran on. Nothing here was verified on
+Node 22.
 
-**Not yet verified (do not put these in a prompt):** `npm run dev` and `npm run preview` as
-CI-checkable commands (they are long-running servers; only the Playwright `webServer` path
-exercises `dev`), and any frontend command on a GitHub-hosted runner — the `frontend` and
-`frontend-e2e` jobs added to `.github/workflows/ci.yml` by M2-C01 have **never executed**,
-because an execution session may not push.
+**Not yet verified (do not put these in a prompt):** `npm start` / `ng serve` as a CI-checkable
+command (it is a long-running server; only the Playwright `webServer` path exercises it), and
+any frontend command on a GitHub-hosted runner — the `frontend` and `frontend-e2e` jobs in
+`.github/workflows/ci.yml` have **never executed**, because an execution session may not push.
 
 ## Test commands
 

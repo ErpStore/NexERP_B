@@ -18,7 +18,7 @@ database_tables: []
 business_rules: [BR-CALC-001, BR-STK-001, BR-SO-001, BR-SO-003, BR-AUTH-002]
 status: proposal
 confidence: n/a
-last_verified: 2026-08-20
+last_verified: 2026-08-21
 dependencies: [KB-013, KB-015, KB-040, KB-041, KB-051, KB-105, ADR-002, ADR-004, ADR-007]
 ---
 
@@ -176,12 +176,33 @@ Rules, each of which the pilot either already honours or is the counter-example 
 - **Each feature folder holds** `*.routes.ts`, a typed `*.service.ts` over `HttpClient`, `models/`,
   and its page and component folders. Validators are generated from OpenAPI, not hand-written.
 
-> **`frontend/nexgen-web/` still exists on disk** — the React scaffold built by the pre-ADR-007
-> `M2-C01` and discarded by ADR-007 (`ADR-007-angular-stack.md:194-195`). **Whether it is deleted
-> or left dormant is the re-scoped `M2-C01`'s decision, not this document's**
-> (`ADR-007-angular-stack.md:223-225`). Nothing in this document is realised by that tree; the
-> "realised at `frontend/nexgen-web/`" reconciliation note and the design-token extension note that
-> stood in this section described React artefacts and were removed with the rest of the React text.
+> **Realised at `frontend/nexgen-web/` on 2026-08-21 by `M2-C01`, which deleted the React
+> scaffold that occupied that path and created the Angular workspace in the same commit** (the
+> deletion default ADR-007 set at `ADR-007-angular-stack.md:223-225`).
+>
+> The structure above is what was built, with four **additions**, reconciled here rather than left
+> as undocumented drift:
+>
+> - **`app/core/i18n/`** — `in-memory-translate-loader.ts`, the runtime-switchable `ngx-translate`
+>   loader ADR-007 requires from day one. It is a singleton, so `core/` is where it belongs; the
+>   bundles it serves stay in `src/i18n/`.
+> - **`app/core/errors/`** — `global-error-handler.ts`, the `ErrorHandler` override this document's
+>   *Error handling* table already calls for at the "Global" layer, which had no folder named.
+> - **`app/features/placeholder/`** — the scaffold's single lazily-loaded page. It is not an ERP
+>   module and `M2-C03` removes it when the real shell lands.
+> - **`e2e/`** at the workspace root (outside `src/`) — the Playwright specs, which cannot live
+>   under a `tsconfig.app.json` include.
+>
+> Two details of the generated tree differ from the block above and the block, not the code, is the
+> thing that was stale: the Angular CLI at 22.1.5 defaults `--file-name-style-guide` to `2025`
+> (which generates `app.ts`, not `app.component.ts`), and `M2-C01` passed
+> `--file-name-style-guide=2016` so the realised tree matches the `app.component.ts` naming above.
+> The CLI also generates `src/styles.scss` as a file; it was moved to `src/styles/styles.scss` to
+> match the `styles/` directory above, with `angular.json` updated.
+>
+> **Not yet realised:** every `features/<module>/` folder, `core/api/generated/` (`M2-B10`),
+> `core/auth/` (`M2-C02`), `core/http/` (`M2-C02`), `layout/*` (`M2-C03`) and every
+> `shared/components/*` primitive (`M2-C04-*`) are empty directories carrying a `.gitkeep`.
 
 ## Authentication flow
 
@@ -438,9 +459,20 @@ Layers that implement the table:
 | Time to interactive on the app shell | < 2 s on a mid-range laptop |
 
 Every feature route is lazily loaded (`loadComponent` / `loadChildren`), and the generated API
-client is tree-shaken per feature. **The measured bundle baselines previously recorded here were
-React figures and have been removed** — they say nothing about an Angular build. The Angular
-scaffold task re-measures against the same targets, and that measurement becomes the new baseline.
+client is tree-shaken per feature. The React bundle baselines this section used to carry were
+removed when ADR-007 landed — they said nothing about an Angular build.
+
+**Angular baseline, measured 2026-08-21 by `M2-C01` (`npm run build`, Angular CLI 22.1.5):**
+initial total **436.85 kB raw / 104.20 kB estimated transfer (gzip)** — Angular + PrimeNG runtime
+chunk 222.23 kB / 66.56 kB, `main` 214.62 kB / 37.64 kB, styles 0 bytes — against the
+`< 250 KB gzip` target above, i.e. **42 % of budget**. The single lazy route chunk is 17.68 kB /
+5.05 kB. This is a **placeholder app**: no shell, no auth, no grid, no design tokens. It is the
+baseline `M2-C03` is measured against, not evidence the budget is safe.
+
+`angular.json`'s production budgets are necessarily expressed in **raw** bytes — Angular budgets
+cannot be set on transfer size — so the initial budget is 600 kB warning / 800 kB error, the raw
+equivalent of the 250 kB gzip target at the ~3× ratio measured above. A per-route-chunk budget is
+deliberately not set until a real feature route exists to size it against.
 
 ## Accessibility
 

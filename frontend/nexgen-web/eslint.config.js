@@ -1,136 +1,104 @@
-// ESLint flat config. Two of the rules below are not style preferences: they are
-// ADR-003 (docs/kb/decisions/ADR-003-react-stack.md) made mechanical.
-//   1. Exactly ONE component library. ADR-003 "the two are never mixed"; the
-//      live Blazor UI mixes MudBlazor 8 and Bootstrap 5 (risk R-22) and that is
-//      the mistake this rule exists to prevent recurring here.
-//   2. shared/api/generated/** is import-restricted to shared/api/**. The
-//      generated OpenAPI client arrives in M2-B10; the rule is written now so it
-//      never has to be retrofitted across a large codebase.
-import js from '@eslint/js';
-import jsxA11y from 'eslint-plugin-jsx-a11y';
-import reactHooks from 'eslint-plugin-react-hooks';
-import simpleImportSort from 'eslint-plugin-simple-import-sort';
-import globals from 'globals';
-import tseslint from 'typescript-eslint';
+// @ts-check
+const eslint = require('@eslint/js');
+const { defineConfig } = require('eslint/config');
+const tseslint = require('typescript-eslint');
+const angular = require('angular-eslint');
 
-const bannedComponentLibraries = [
-  {
-    group: ['@mui/*', '@mui'],
-    message: 'ADR-003: Mantine is the only component library. Do not add MUI.',
-  },
-  {
-    group: ['antd', 'antd/*'],
-    message: 'ADR-003: Mantine is the only component library. Do not add Ant Design.',
-  },
-  {
-    group: ['bootstrap', 'bootstrap/*', 'react-bootstrap', 'react-bootstrap/*'],
-    message:
-      'ADR-003: Mantine is the only component library. Do not add Bootstrap (see risk R-22).',
-  },
-  {
-    group: ['primereact', 'primereact/*', 'primeng', 'primeflex', 'primeicons'],
-    message:
-      'ADR-003: Mantine is the only component library. PrimeReact/PrimeNG belong to the archived Angular pilot.',
-  },
-  {
-    group: ['@chakra-ui/*', '@radix-ui/*', 'moment'],
-    message: 'ADR-003: not part of the approved stack.',
-  },
-];
+/**
+ * ADR-007: "one component library, never mixed" (see also R-22 - the Blazor UI
+ * loads MudBlazor *and* Bootstrap). PrimeNG is the only permitted component
+ * library, and this rule is the enforcement point alongside package.json.
+ */
+const bannedComponentLibraries = {
+  patterns: [
+    {
+      group: [
+        '@angular/material',
+        '@angular/material/*',
+        '@mui/*',
+        'antd',
+        'antd/*',
+        'bootstrap',
+        'bootstrap/*',
+        'primereact',
+        'primereact/*',
+        '@chakra-ui/*',
+        'react',
+        'react-dom',
+        'moment',
+      ],
+      message:
+        'ADR-007 permits exactly one component library: PrimeNG. Use dates from date-fns and money from decimal.js.',
+    },
+  ],
+};
 
-export default tseslint.config(
+/**
+ * The OpenAPI-generated client (M2-B10) is reachable only through core/api/*.
+ * Written now so it never has to be retrofitted across feature code.
+ */
+const bannedGeneratedClientImports = {
+  patterns: [
+    {
+      group: ['**/core/api/generated/*', '@/core/api/generated/*'],
+      message:
+        'Import the generated OpenAPI client only from core/api/**; feature code uses the typed services there.',
+    },
+  ],
+};
+
+module.exports = defineConfig([
   {
-    ignores: [
-      'dist/**',
-      'coverage/**',
-      'playwright-report/**',
-      'test-results/**',
-      'node_modules/**',
-    ],
+    ignores: ['dist/**', 'coverage/**', 'playwright-report/**', 'test-results/**', '.angular/**'],
   },
-  js.configs.recommended,
   {
-    // Type-aware linting applies to TypeScript only. eslint.config.js itself is
-    // plain JS and is not in any tsconfig, so type-checked rules must not reach it.
-    files: ['**/*.{ts,tsx}'],
-    extends: [...tseslint.configs.recommendedTypeChecked],
+    files: ['**/*.ts'],
     languageOptions: {
       parserOptions: {
-        // Both projects, explicitly: tsconfig.json covers src/ and e2e/,
-        // tsconfig.node.json covers the build/test config files at the root.
-        project: ['./tsconfig.json', './tsconfig.node.json'],
-        tsconfigRootDir: import.meta.dirname,
+        projectService: true,
+        tsconfigRootDir: __dirname,
       },
-      globals: { ...globals.browser },
     },
-    plugins: {
-      'react-hooks': reactHooks,
-      'jsx-a11y': jsxA11y,
-      'simple-import-sort': simpleImportSort,
-    },
+    extends: [
+      eslint.configs.recommended,
+      tseslint.configs.recommendedTypeChecked,
+      tseslint.configs.stylistic,
+      angular.configs.tsRecommended,
+    ],
+    processor: angular.processInlineTemplates,
     rules: {
-      ...reactHooks.configs.recommended.rules,
-      ...jsxA11y.flatConfigs.recommended.rules,
-      // M2-C04-01: raw colour literals are banned outside the token layer.
-      // A component that hardcodes a colour is how a second visual language gets
-      // in (risk R-22); tokens.css is the only file allowed to name a colour, and
-      // ESLint does not lint CSS, so it needs no exception here -- the CSS half is
-      // covered by src/shared/theme/no-raw-colour.test.ts.
-      'no-restricted-syntax': [
+      '@angular-eslint/directive-selector': [
         'error',
-        {
-          selector: 'Literal[value=/#[0-9a-fA-F]{3,8}/]',
-          message:
-            'Raw colour literal. Use a design token instead - var(--accent), or token() from src/shared/theme/tokens. Colours live only in src/shared/theme/tokens.css (M2-C04-01, risk R-22).',
-        },
-        {
-          selector: 'Literal[value=/\\b(rgba?|hsla?|oklch|lab|lch)\\(/]',
-          message:
-            'Raw colour function. Use a design token instead - var(--accent), or token() from src/shared/theme/tokens. Colours live only in src/shared/theme/tokens.css (M2-C04-01, risk R-22).',
-        },
-        {
-          selector: 'TemplateElement[value.raw=/#[0-9a-fA-F]{3,8}/]',
-          message:
-            'Raw colour literal in a template string. Use a design token (M2-C04-01, risk R-22).',
-        },
+        { type: 'attribute', prefix: 'app', style: 'camelCase' },
       ],
-      'simple-import-sort/imports': 'error',
-      'simple-import-sort/exports': 'error',
-      'no-restricted-imports': 'off',
-      '@typescript-eslint/no-restricted-imports': [
+      '@angular-eslint/component-selector': [
+        'error',
+        { type: 'element', prefix: 'app', style: 'kebab-case' },
+      ],
+      'no-restricted-imports': [
         'error',
         {
           patterns: [
-            ...bannedComponentLibraries,
-            {
-              group: ['@/shared/api/generated/*', '**/shared/api/generated/*'],
-              message:
-                'The generated OpenAPI client (M2-B10) may only be imported from src/shared/api/**. Re-export what you need from there.',
-            },
+            ...bannedComponentLibraries.patterns,
+            ...bannedGeneratedClientImports.patterns,
           ],
         },
       ],
     },
   },
   {
-    // shared/api/** is the one place allowed to reach into the generated client.
-    // Only the generated-client half of the rule is lifted here -- the banned
-    // component libraries (ADR-003 / R-22) stay banned in this directory too,
-    // so the rule is re-declared with just those patterns rather than 'off'.
-    files: ['src/shared/api/**/*.{ts,tsx}'],
+    // The generated client's own wrapper layer is the one place allowed to
+    // reach into core/api/generated/**.
+    files: ['src/app/core/api/**/*.ts'],
     rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        { patterns: [...bannedComponentLibraries] },
-      ],
+      'no-restricted-imports': ['error', bannedComponentLibraries],
     },
   },
   {
-    files: ['*.config.ts'],
-    languageOptions: { globals: { ...globals.node } },
+    files: ['**/*.html'],
+    // Template accessibility rules are errors from commit one: a11y is a
+    // build-time gate, not a later pass (KB-051 Accessibility commitments).
+    extends: [angular.configs.templateRecommended, angular.configs.templateAccessibility],
+    rules: {},
   },
-  {
-    files: ['e2e/**/*.ts', 'src/test/**/*.ts'],
-    languageOptions: { globals: { ...globals.node } },
-  },
-);
+]);
