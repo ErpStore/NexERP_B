@@ -21,21 +21,38 @@ dependencies: [KB-081, KB-082, KB-088, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## ✅ `M2-B01` merged, and the pool is no longer empty
+## ✅ `M2-B06` closed `Needs Review` — and the pool is empty again
 
-The owner merged `M2-B01` on 2026-08-21 (`ae9d2c8`), which released three tasks at once.
-**`M2-B09` was then executed to completion** — `Needs Review` on
-`migration/M2-B09-reference-endpoints` (`d1175db`): six cached reference endpoints under
-`/api/v1/reference`, the R-15 GST fix at the boundary, **KB-124**, 117 → **162** Api tests,
-every build at its exact baseline, scope verified by diff. Two criteria openly unmet — no
-Blazor screen opened, and no end-to-end two-tenant HTTP test (the residual risk, KB-124 §6).
+**`M2-B06` was executed to completion on 2026-08-21** and closed `Needs Review` on
+`migration/M2-B06-file-endpoints`: `POST /api/v1/files`, `GET /api/v1/files/{id:int}`, the ADR-005
+Excel contract on **one** reference resource (`currencies`), an `ApiFileUploadService` for a host
+that had none, and `IBrowserFile` removed from `ICompanyService`/`CompanyService`. Both hosts build
+at their exact baselines (**6694** / **6697**, 0 errors), Api tests **117 → 148**, Shared **84**, all
+**seven** required negative tests passing and reported individually, plus a byte-identity round trip.
+Two criteria openly unmet — no Blazor screen was opened, and there is no end-to-end two-tenant HTTP
+test. Full account: tracker footnote ³⁵ and the task file's Execution Record.
 
-**Selectable right now, for the first time this run:**
+> **⚠ Read the branch as two commits.** `e9b143b` is **~979 lines the executing session did not
+> author** — found uncommitted in the working tree at session start, almost certainly left by an
+> earlier runner killed mid-implementation. It was verified before being committed, and committed
+> separately so it stays independently reviewable and revertible, but a reviewer should treat it as
+> unattributed code that passed inspection rather than as reasoned-through work. See
+> [`runner-state.md`](runner-state.md) § *Process note — an orphaned working tree*.
 
-| Task | | Note |
-|---|---|---|
-| `M2-B06` | P1, 1 wk | File upload/download endpoints. Released by the `M2-B01` merge. **Do not re-block it on the React grep** — see footnote ³² and the `failure-log.md` entry on the ADR-007 test. Settle its `[RequireScreen]` design first: `Excel Upload` (97) and `Master Upload` (25) exist, but there is no generic "Files" screen. |
-| `M2-B11` | P2, 3 d | Health checks + structured logging. Touches `Program.cs` and the `.csproj`. |
+### Nothing is selectable, and this time the runner is partly blocking itself
+
+`M2-B11` (P2, 3 d, health checks + structured logging) is otherwise ready — prerequisite `M2-A06`
+merged, no `⛔` banner, no open question against it. It is dropped at
+[selection rule](dependency-graph.md#ready-task-selection-rule) **step 2** only because its
+`source_files` name `V.SMART/V.SMART.Api/Program.cs` and `V.SMART.Api.csproj`, and `Program.cs` is
+modified on the unmerged `M2-B06` branch. **Merging `M2-B06` releases it immediately.**
+
+### Two new decisions for the owner
+
+| | |
+|---|---|
+| **R-67** | **`SaveCorresFileAsync` writes a zero-byte file and reports success** (`WebFileUploadService.cs:100-104` — the stream copy is commented out). **Every correspondence and drawing uploaded through the Blazor UI has been landing empty.** It is survivable only because `Correspondence.Image` holds a second copy and the two download screens disagree about which to read. M2-B06 was forbidden to fix it and did not; the API path copies correctly and is tested for byte identity. **Uncommenting line 102 changes live application behaviour and needs its own task.** |
+| **Q-16, storage half** | Uploaded files live on a **local filesystem**. In a containerised deployment with no mounted volume they are lost on every redeploy; behind more than one instance a file uploaded to A is invisible to B. Both failures are silent. No blob storage, CDN or virus scanning exists anywhere (a recorded negative result, INV-045). M2-B06 deliberately designed no blob-storage migration — that needs this answer first. |
 
 ---
 
@@ -100,6 +117,7 @@ runner state — which on two of them was **wrong** (see *A correction*, below).
 
 | Task | Branch | Tip | State on that branch |
 |---|---|---|---|
+| `M2-B06` | `migration/M2-B06-file-endpoints` | *(this run)* | `Needs Review` — 12 of 14 criteria met; two openly unmet. **Two commits: `e9b143b` is adopted, unattributed work.** |
 | `M2-B04` | `migration/M2-B04-decouple-pages-references` | `5ca1c10` | `Needs Review`, validated `PASS` (attempt 2) |
 | `M2-A08` | `migration/M2-A08-row-scope-and-account-gates` | `bca92fd` | `Needs Review`, validated `PASS` — its tracker row says so |
 | `M2-A08` ⚠ | `migration/M2-A08-row-level-scoping` | `6e6633a` | **A second branch for the same task**, live in `wt-M2-A08`, doing different work (INV-028 → KB-120, answering Q-05…Q-08). Its own tracker row still reads `Ready`. **Needs an owner decision on which branch is the real `M2-A08`.** |
@@ -137,7 +155,7 @@ branch is a claim, not a fact, and `git log --oneline -2 <branch>` costs nothing
 |---|---|
 | `M0-01-03` | **The rank winner (P0), stopped at KB-091 §8 item 5.** See below — the block is now narrower than the task file claims. |
 | `M2-B05` | **Selected 2026-08-21, then `Blocked` — premise falsified, needs owner re-specification.** See below. |
-| `M2-B06` | **`Blocked`³² — undeclared hard dependency on `M2-B01`.** It specifies every endpoint under `/api/v1`; `master` has no `/api/v1` (its controllers are `api/auth` and `api/currencies`), and the prefix plus the `ApiRoutes.V1` constant live only on M2-B01's unmerged branch. **The task is sound and needs no re-specification** — it is mis-sequenced, and becomes selectable the moment M2-B01 merges. |
+| `M2-B06` | **Done — `Needs Review` 2026-08-21, unmerged.** The `M2-B01` merge released it and it was executed as written; footnote ³² was right that it was mis-sequenced, not mis-specified. See the top of this file. |
 | `M2-B11` | `Ready` but P2, and **dropped at step 2**: its `source_files` name `V.SMART/V.SMART.Api/Program.cs` and `V.SMART.Api.csproj`, both of which unmerged `M2-B01` changes. |
 | `M0-06`, `M0-11` | `M0-06` already has a branch (`migration/M0-06-remove-default-admin`). `M0-11` is a **`Product Decision`** — never self-selectable; surfacing it to you *is* the action. |
 | `M2-B09` | `Ready`, P1, but **dropped at selection step 2**: its `source_files` name `V.SMART/V.SMART.Api/Program.cs` and `Controllers/CurrencyController.cs`, and unmerged `M2-B01` names both. Becomes the obvious next pick the moment `M2-B01` lands. |

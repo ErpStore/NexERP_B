@@ -58,6 +58,10 @@ namespace V.SMART.Api.Middleware
         public static ObjectResult TenantUnresolvedProblem(this ControllerBase controller, int status, string title)
             => ApiProblems.ToResult(ApiProblems.TenantUnresolved(controller.HttpContext, status, title));
 
+        /// <summary><b>413</b> — the upload exceeds the configured maximum (M2-B06).</summary>
+        public static ObjectResult PayloadTooLargeProblem(this ControllerBase controller, string title)
+            => ApiProblems.ToResult(ApiProblems.PayloadTooLarge(controller.HttpContext, title));
+
         /// <summary><b>400</b> with the <c>errors</c> dictionary keyed by field.</summary>
         public static ObjectResult ValidationProblemResult(this ControllerBase controller)
             => ApiProblems.ToResult(ApiProblems.Validation(controller.HttpContext, controller.ModelState));

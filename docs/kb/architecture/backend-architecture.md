@@ -16,7 +16,7 @@ database_tables: []
 business_rules: [BR-CALC-001, BR-STK-001]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-20
+last_verified: 2026-08-21
 dependencies: [KB-010, KB-013]
 ---
 
@@ -193,6 +193,40 @@ Keyless result types are registered as `DbSet`s on `ApplicationDbContext`
 called by the application (see R-04). The other 82 exist only inside the live
 tenant databases. This is risk **R-04** and must be resolved before any environment can be
 rebuilt from source. See [`risks/technical-debt-register.md`](../risks/technical-debt-register.md).
+
+## File storage — two implementations, one on-disk layout
+
+**Confirmed** (M2-B06, 2026-08-21; INV-045). File storage is a **host seam**, not domain code:
+`AddVSmartDomain()` deliberately omits `IFileUploadService` and `IFileOpener` (M2-B07) because each
+host supplies its own. There are now **three** implementations of the upload interface and **two**
+of the opener:
+
+| Host | Upload | Download |
+|---|---|---|
+| `V.SMART.Web` (Blazor Server) | `WebFileUploadService` — takes `IBrowserFile` | `WebFileOpener` — JS interop, base64 over the SignalR circuit |
+| `V.SMART` (MAUI Hybrid) | `MauiFileUploadService` | `DesktopFileOpener` — local path |
+| `V.SMART.Api` | **`ApiFileUploadService`** (new) — takes a `Stream` | none needed: over HTTP a download **is** the response |
+
+**The on-disk layout is shared and must stay identical**, so either host can read the other's
+files: `uploads/{Logos|IsoLogos|drawings|correspondences}/{safeCompany}/[{safeRefType}/]{guid}_{name}`,
+segmented per tenant by `tenant.Hostname`, with `Path.GetInvalidFileNameChars()` stripped and the
+result lowercased. `ApiFileUploadService` is a line-by-line transcription of
+`WebFileUploadService` with the Blazor and JS-interop types removed — and with the stream copy that
+`WebFileUploadService.cs:102` leaves commented out (**R-67**).
+
+Two consequences worth carrying:
+
+- **The root is configuration in the API, and has to be.** `WebRootPath` resolves to a *different*
+  directory in each host, so mirroring the folder logic without a shared root would produce a
+  second, disjoint store. `FileStorage:Root` exists to point both hosts at one path; unset, it
+  falls back to `WebRootPath ?? "wwwroot"`, byte-identical to the Blazor behaviour.
+- **Durability is Unknown.** Files live on a local filesystem; whether that survives the target
+  deployment is `Q-16`, not a settled design.
+
+`IFileOpener` is **not** dead and must not be deleted — both Blazor hosts still use it. It becomes
+dead only when the last Razor page is retired, far beyond M2.
+
+---
 
 ## Integrations with external systems
 
