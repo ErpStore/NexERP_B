@@ -18,6 +18,12 @@ api_endpoints:
   - "POST /api/v1/currencies"
   - "PUT /api/v1/currencies/{id}"
   - "DELETE /api/v1/currencies/{id}"
+  - "GET /api/v1/reference/gst-rates"
+  - "GET /api/v1/reference/states"
+  - "GET /api/v1/reference/uoms"
+  - "GET /api/v1/reference/currencies"
+  - "GET /api/v1/reference/screens"
+  - "GET /api/v1/reference/terms"
 database_tables: [Users, Currency, Tenants]
 business_rules: [BR-AUTH-001]
 status: complete
@@ -195,6 +201,40 @@ canonical `400`; a **service rejection is now `409`**, because it is a business-
 
 **Business logic.** `CanDeleteCurrencyAsync(id)` then `DeleteCurrencyByCurrIdAsync(id)` —
 the standard two-step delete-guard pattern (see BR-SO-001 for the same shape in Sales).
+
+---
+
+### `GET /api/v1/reference/*` (M2-B09)
+
+Six read-only lookup lists behind one tenant-keyed output cache. Full design, measurements and
+the tenancy classification of each list: **[KB-124](reference-data-and-caching.md)**.
+
+| Endpoint | Returns | Rows (measured 2026-08-21) |
+|---|---|---:|
+| `GET /api/v1/reference/gst-rates` | `{ igst[], cgstSgst[] }`, paired by index | 12 + 12 |
+| `GET /api/v1/reference/states` | `StateDto[]` | 40 |
+| `GET /api/v1/reference/uoms` | `UomDto[]` | 49 |
+| `GET /api/v1/reference/currencies` | `CurrencyDto[]` — flat, no rate feed | 3 |
+| `GET /api/v1/reference/screens` | `ScreenDto[]` — the permission vocabulary | **150** |
+| `GET /api/v1/reference/terms` | `TermsDto[]`, active only | 0 |
+
+**Authentication** is required on all six. **`[NoScreenRight]`**, not `[RequireScreen]`:
+reference data is a precondition for rendering any screen, so no single screen owns it, and
+gating it would deadlock the UI for the same reason it would for `GET /api/v1/me`
+(KB-105 §2.4).
+
+**Caching.** `Cache-Control: private, max-age=60` (configurable via
+`Caching:ReferenceDataSeconds`); the server-side key **includes the `TenantId` claim**, and the
+policy disables caching entirely rather than falling back to an unkeyed entry when it cannot
+establish the tenant. There is no invalidation by design — these lists are edited through Blazor
+screens that know nothing about this cache, so a short TTL is honest where a phantom
+invalidation path would not be.
+
+> **`/reference/screens` returns 150, not the 152 that `ScreenCatalogue.cs` compiles.** The
+> endpoint reports what the database holds; the catalogue is wrong. See **R-65**.
+
+> **`/reference/currencies` is not `/api/v1/currencies`.** The latter is the paged, writable
+> CRUD surface for the Currency master; this is a flat cached list for populating a selector.
 
 ---
 

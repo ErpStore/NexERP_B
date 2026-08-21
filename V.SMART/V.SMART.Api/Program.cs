@@ -5,6 +5,7 @@ using Microsoft.OpenApi.Models;
 using System.Text;
 using V.SMART.Api.Auth;
 using V.SMART.Api.Authorization;
+using V.SMART.Api.Caching;
 using V.SMART.Api.Middleware;
 using V.SMART.Shared.DependencyInjection;
 using V.SMART.Shared.Services;
@@ -173,6 +174,14 @@ builder.Services.AddScoped<ScreenRightAuthorizationFilter>();
 builder.Services.AddScoped<AuthenticationStateProvider, ApiAuthStateProvider>();
 builder.Services.AddSingleton(new JwtTokenService(builder.Configuration));
 
+// M2-B09 — output caching for the /api/v1/reference route group only, never globally. The
+// policy is hand-written (ReferenceCachePolicy -> TenantScopedOutputCachePolicy) because the
+// framework's default policy declines to cache authenticated responses, and every endpoint in
+// that group is [Authorize] — composing on the default would have produced a cache that
+// silently stores nothing. Opting in means owning the key, so the key includes the TenantId
+// claim and the policy fails closed when it cannot establish one.
+builder.Services.AddOutputCache(options => ReferenceCachePolicy.Register(options, builder.Configuration));
+
 var app = builder.Build();
 
 // M2-A01-02 — a misannotated action is a property of the assembly, not of a request, so it is
@@ -197,6 +206,18 @@ app.UseErrorContract();
 app.UseCors("AngularDev");
 app.UseAuthentication();
 app.UseAuthorization();
+
+// M2-B09 — deliberately AFTER UseAuthentication and UseAuthorization, and the order is
+// load-bearing in both directions:
+//
+//   * After UseAuthentication, because the cache key is the TenantId claim. Placed earlier,
+//     HttpContext.User would still be anonymous when the policy builds the key, the policy
+//     would fail closed on every request, and the cache would silently never store anything.
+//   * After UseAuthorization, so a cache hit is still an authenticated, authorized request.
+//     The cache short-circuits MVC, not the security pipeline — an expired or missing token
+//     gets 401 whether or not a cached body exists for that tenant.
+app.UseOutputCache();
+
 app.MapControllers();
 
 app.Run();

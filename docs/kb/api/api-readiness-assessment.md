@@ -136,7 +136,7 @@ author one *and* an AutoMapper profile before `<W>-06`.
 | B3 | **File upload/download endpoints** — replace `IBrowserFile` and local-path `IFileOpener` | 1 wk |
 | B4 | **Report endpoints** — `GET /api/reports/…` → `application/pdf`; Excel export/import endpoints | 1 wk |
 | B5 | **Permission bootstrap endpoint** — `GET /api/me` returning user, tenant, role, and the full `UserRight` set so Angular can render correctly | 2 days |
-| B6 | **Reference-data endpoints** — GST rates, screen catalogue, UOM, states, currencies, terms | 3 days |
+| B6 | ✅ **DELIVERED (M2-B09, 2026-08-21)** — ~~Reference-data endpoints — GST rates, screen catalogue, UOM, states, currencies, terms~~. All six live under `/api/v1/reference`, tenant-keyed output cached. See [KB-124](reference-data-and-caching.md). | 3 days |
 | B7 | **Typed screen-code constants** replacing the magic integers passed to `IStockManagerService` | 2 days |
 | B8 | **Approval endpoints** enforcing `UserAuthority` server-side | 1 wk |
 | B9 | **Server-side sort/filter/paging contract** consistent across all list endpoints | 1 wk — **contract delivered by M2-B02 (2026-08-20); rollout ongoing.** See below |
@@ -157,7 +157,7 @@ sweep. Read B9 as *contract done, rollout ~1/134*.
 
 | # | Item |
 |---|---|
-| C1 | Rate limiting, response compression, output caching for reference data |
+| C1 | Rate limiting, response compression, ~~output caching for reference data~~ — **the output-caching third is DELIVERED (M2-B09)**; rate limiting and response compression remain. See [KB-124](reference-data-and-caching.md) §2. |
 | C2 | Health checks + structured logging sink (replace flat files) |
 | C3 | ~~API versioning (`/api/v1`)~~ — **DELIVERED 2026-08-21 by [M2-B01](../execution/tasks/M2-B01.md).** All six endpoints moved under `/api/v1`; the prefix lives in the single constant `V.SMART/V.SMART.Api/ApiRoutes.cs` (`ApiRoutes.V1`) and no controller writes it literally. No versioning package was added — one version needs no negotiation, and `Asp.Versioning.Mvc` would complicate the Swagger document M2-B10 generates the client from. **Pulled forward out of P2 into M2 deliberately:** versioning touches every controller's route attribute, so its cost grows with controller count while its value does not ([KB-080 §9](../execution/README.md), "land it while there are two controllers, not sixty"). See [KB-040 § *Versioning*](api-overview.md#versioning-m2-b01) |
 | C4 | Integration tests, starting with `IStockManagerService` and `ICalculationService` |
