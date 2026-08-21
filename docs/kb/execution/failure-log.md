@@ -2682,3 +2682,59 @@ fact and inherited by later sessions. It has now cost this task a second stop.
 retry candidate: no attempt was spent, and re-dispatching changes nothing without an owner
 action. The useful action is surfacing it, which is what this entry and
 [`current-task.md`](current-task.md) do.
+
+---
+
+### M0-01-03 · drill executed · 2026-08-21
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED (merge queue), task closed `Needs Review` |
+| Model in use | opus |
+| Validator verdict | n/a — the owner scoped the run directly; no validator dispatched |
+| Failure category | none — one in-run failure, recovered |
+
+**Not a task failure.** Recorded here because two of this project's recurring failure *shapes*
+appeared again, and because one in-run failure is worth the next operator's time.
+
+**The in-run failure (recovered).** `dotnet ef database update --connection …` failed with
+*"Design-time connection string 'ConnectionStrings:MasterDb' is not configured … there is
+deliberately no default value"*. Root cause: `dotnet ef` applies `--connection` **after** the
+design-time factory constructs the context, and **M0-03-01 replaced the factories' hardcoded
+credential with a fail-fast resolver**, so the factory throws first. `--connection` alone can
+therefore never work for these contexts. Fix: set `$env:ConnectionStrings__MasterDb` (§3) and
+`$env:ConnectionStrings__DesignTimeTenantDb` (§5) — **two different keys**, deliberately
+(`ApplicationDbContextFactory.cs:16`). Landed in the runbook, whose §0 warning *"a step that
+succeeds without a connection string silently used the hardcoded one"* is now obsolete: that
+can no longer happen, which is a security improvement, not a regression.
+
+**Recurring shape 1 — a stale negative result blocked real work, for the second time.** The
+task file's step 7 asserts *"You cannot execute it — there is no SQL Server instance reachable
+from this session and no credential to use if there were."* Both clauses were false:
+`MSSQL$SQLEXPRESS` was running and reachable by **Windows integrated authentication**, so no
+credential was needed at all. Tracker footnote ²¹ had recorded this on 2026-08-19 and moved the
+task `Ready`; **the task file was never updated**, so the runner re-derived the block from the
+task file and stopped on it. *A negative result needs the same `file:line`-grade evidence as a
+positive one, and unlike a positive one it decays — "I could not find X" is a claim about the
+search.* **When a footnote corrects a premise, the task file that states the premise must be
+corrected in the same change**, or the correction does not reach the next reader.
+
+**Recurring shape 2 — a `Confirmed` claim derived from source, never checked against reality.**
+KB-105 records *"Exactly 152 `Screens` rows are seeded"* as **Confirmed**, cited to the
+`HasData` block. The block does contain 152 initialisers. But at least ten later migrations
+`DeleteData` rows from `Screens`, so every real database holds **150** — verified against both
+the rebuilt database and the live development database, `ScreenCode` 1…152 with 114 and 115
+absent. **The seeded state is not the migrated state.** `ScreenCatalogue.cs` inherited the
+error, and `ScreenRightStartupValidator` will therefore accept `[RequireScreen("Bill Paid
+List")]` and then deny every request forever, silently — the lockout KB-105 itself warns about
+at `:130`. Tracked as **R-65**, owner Vivek, blocking **`M2-A02`**.
+
+**The general lesson, which is the same one both times:** *reading the code that writes a
+value is not the same as reading the value.* A seed block, a config default and a failed search
+are all evidence **about the source**, not about the running system. Where a cheap direct
+observation exists — and a full database rebuild is now a **~1-minute** operation — the KB
+should prefer it and say which one it used.
+
+**Disposition** — task closed `Needs Review`, 1 of 3 attempts used, 0 escalations, two
+acceptance criteria openly unmet (runbook §7; the named-operator requirement). Run halted after
+it: the candidate set is empty again and the merge queue is seven branches deep.

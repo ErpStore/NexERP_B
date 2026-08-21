@@ -21,6 +21,28 @@ dependencies: [KB-081, KB-082, KB-088, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
+## 🚩 Read this first — `M2-A02` must not start until R-65 is decided
+
+The `M0-01-03` rebuild drill (2026-08-21) found that
+`V.SMART/V.SMART.Api/Authorization/ScreenCatalogue.cs` compiles **152** screen names while
+every real database — the one rebuilt from source control **and** the live development one —
+holds **150**. `ScreenCode` runs 1…152 with **114 and 115 absent**; later migrations
+`DeleteData` them, and the compile-time catalogue was copied from the `HasData` seed list
+without the deletes. The two phantoms are **`Bill Paid List`** and **`Bill Pending List`**.
+
+`ScreenRightStartupValidator` accepts both. So `[RequireScreen("Bill Paid List")]` **passes
+startup validation and then denies every request forever, in every tenant, silently** — the
+exact failure [KB-105](../architecture/server-side-authorization-spec.md) warns about at its
+own `:130`. `M2-A02` is the task that annotates the first controller; it must not begin against
+a catalogue containing two unusable names.
+
+Tracked as **R-65** ([`technical-debt-register.md`](../risks/technical-debt-register.md)),
+owner **Vivek**. Three KB-105 facts recorded as `Confirmed` are corrected there — they were
+derived from the seed block, and **the seeded state is not the migrated state** once a later
+migration deletes seed rows.
+
+---
+
 ## No task is in flight — the runner is stopped, and the blocker is the merge queue
 
 `M2-B04` closed `Needs Review` on 2026-08-21 (attempt 2, validated `PASS`). The Select phase
@@ -48,6 +70,7 @@ runner state — which on two of them was **wrong** (see *A correction*, below).
 | `M2-C00` | `migration/M2-C00-kb050-angular-rewrite` | `b3c0e6e` | `Needs Review`, validated `PASS` — releases the whole `M2-C` tree |
 | `M2-B01` | `migration/M2-B01-api-versioning` | `045a7f4` | Close-out commit claims `PASS`, **11 of 12 criteria met, criterion 4 partial**. Its own tracker row was never updated off `Ready`. |
 | `M0-10` | `migration/M0-10-candelete-guard-audit` | `fc8e0c0` | Close-out commit claims `Needs Review` after attempt 3, regression repaired. Its own tracker row was never updated off `Ready`. |
+| `M0-01-03` | `migration/M0-01-03-rebuild-drill` | `34b5e32` | `Needs Review` — drill §§2–6 executed and passing; §7 and a named operator outstanding |
 | `M2-B12-01` | `migration/M2-B12-01-inv-012-numbering` | `407d0ba` | 🚩 **`Blocked` — escalation budget exhausted, awaiting Vivek.** Not `PASS`. |
 
 **Never merge or push from an execution session** ([`CLAUDE.md`](../../../CLAUDE.md) § Standing
@@ -83,7 +106,39 @@ branch is a claim, not a fact, and `git log --oneline -2 <branch>` costs nothing
 | `M2-B04`, `M2-A08`, `M2-C00`, `M2-A07` | Done, `PASS`, unmerged (see table above). |
 | `M2-B12-01` | **`Blocked`, not done** — escalation budget exhausted, named owner **Vivek**, and the escalated fix at `8a54f96` has never been re-validated. Re-dispatching it autonomously would spend the task's last attempt slot on exactly the unsupervised re-validation the previous orchestrator declined to spend it on. |
 
-## `M0-01-03` — the decision the owner actually needs to make
+## `M0-01-03` — ✅ decided and run on 2026-08-21; what is left is a person, not a blocker
+
+**The owner authorised runbook §§2–6 and they were executed. All of them passed.** An empty
+database became a working tenant database from repository artefacts alone in about a minute:
+`MasterDbContext` applied, one `Tenants` row, **108 migrations in ~50 s** → 197 tables, 150
+`Screens`, the `Administrator` user, then **91 stored procedures in 2.16 s, 0 failed**, proven
+idempotent on a second run. `db/deploy-stored-procedures.ps1` loses its `UNVERIFIED` banner on
+evidence, its ordering assumption moves from *Inferred* to **Confirmed**, and R-04's
+"add a deployment step" half closes. Branch `migration/M0-01-03-rebuild-drill` (`34b5e32`).
+
+**What is still open, and why it is not something a session can close:**
+
+1. **Runbook §7** — start `V.SMART.Web`, log in as the seeded `Administrator` (R-09:
+   disposable environment), open a list screen, run one report through `ReportExecutor`, print
+   one document through `ReportService.Generate_Report`. This is the *"and the app runs against
+   it"* half of G0 criterion 1 and it was not attempted. **The two drill databases were left in
+   place precisely so this can be done without repeating §§2–6** —
+   `db/REBUILD-DRILL-LOG.md` names them and gives the two `DROP DATABASE` statements for
+   afterwards.
+2. **A named operator.** The task requires the drill be *"executed end to end at least once by
+   a named person"*. That is an accountability requirement; a session signing its own log would
+   be the bookkeeping equivalent of inventing a business rule.
+3. **A genuinely empty instance**, if the *"fresh, empty SQL Server"* wording is to be
+   evidenced strictly. The drill created two throwaway databases on the pre-existing
+   development instance and wrote to nothing else — but never exercised a cold one.
+
+**The record below is kept because its diagnosis is still worth reading.**
+
+### How this task was blocked twice by its own stale text
+
+---
+
+## `M0-01-03` — the premise that blocked it (historical)
 
 **Task file:** [`tasks/M0-01-03.md`](tasks/M0-01-03.md). **Status:** `Ready`, P0, 1 d, 0 attempts
 used. Every repository-side artefact is already **on `master`**:

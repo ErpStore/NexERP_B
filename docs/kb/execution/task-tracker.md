@@ -73,7 +73,7 @@ its children are `Completed` — it is never worked directly.
 | M0-01 | M0 | Capture DDL for all 94 stored procedures *(parent)* | Database | **In Progress** | P0 | — | 4–5 d | G0 |
 | M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Completed** | P0 | — | 1 d | G0 |
 | M0-01-02 | M0 | — script the missing procedures from a live tenant DB | Database | **Completed** | P0 | M0-01-01 | 2 d | G0 |
-| M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Ready**¹ ²¹ | P0 | M0-01-02 | 1 d | G0 |
+| M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ ²¹ ³⁰ *(drill §§2–6 executed and passing; §7 and a named operator still outstanding; on `migration/M0-01-03-rebuild-drill` `34b5e32`, unmerged)* | P0 | M0-01-02 | 1 d | G0 |
 | M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Completed**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
 | M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Completed**¹² | P0 | M0-07 | 0.5 d | G0 |
@@ -1584,3 +1584,55 @@ subject next to the branch name.
 branch is a *claim*, not a fact, and it decays exactly as fast as the branches move. Confirming
 it costs one `git log` per branch. `git worktree list` belongs in the same check — three sibling
 worktrees were live this session and the tracker cannot see any of them.
+
+³⁰ **M0-01-03: the rebuild drill ran on 2026-08-21 — §§2–6 passing, §7 and the named operator
+still outstanding.** Branch `migration/M0-01-03-rebuild-drill` (`34b5e32`), unmerged. Full
+record: `db/REBUILD-DRILL-LOG.md`, and *Execution Record (2026-08-21)* in
+[`tasks/M0-01-03.md`](tasks/M0-01-03.md).
+
+**The task file's own step 7 was stale and blocked this task twice.** It says *"You cannot
+execute it — there is no SQL Server instance reachable from this session and no credential to
+use if there were."* Both clauses were false: `MSSQL$SQLEXPRESS` was running and reachable by
+**Windows integrated authentication**, so no credential was needed at all. Footnote ²¹ recorded
+exactly this on 2026-08-19 and moved the task `Needs Review` → `Ready`, **but nobody updated
+the task file**, so the next session read the old premise as current and the autonomous runner
+stopped on it again. *Same failure shape footnote ²¹ was written about: a negative result is a
+claim about the search, not about the world, and it decays.*
+
+**What the drill established.** An empty database becomes a working tenant database from
+repository artefacts alone in about a minute: `MasterDbContext` applied, one `Tenants` row,
+**108 migrations in ~50 s** producing 197 tables, 150 `Screens` and the `Administrator` user,
+then **91 stored procedures in 2.16 s, 0 failed**, idempotent on a second run.
+`db/deploy-stored-procedures.ps1` loses its `UNVERIFIED` banner on evidence and its ordering
+assumption moves from *Inferred* to **Confirmed**. R-04's "add a deployment step" half closes.
+One failure, fixed in the runbook: `--connection` alone cannot work, because M0-03-01 replaced
+the design-time factories' hardcoded credential with a fail-fast resolver that throws before
+`dotnet ef` applies it — so the runbook's old *"a step that succeeds without a connection
+string silently used the hardcoded one"* warning is now obsolete, and that is an improvement.
+
+**🚩 The drill's most valuable output is a security finding that has nothing to do with the
+drill — R-65, and it lands on `M2-A02`.** `V.SMART.Api/Authorization/ScreenCatalogue.cs`
+compiles **152** screen names; the rebuilt database **and** the live development database both
+hold **150**, with `ScreenCode` 114 and 115 absent. The two phantoms are **`Bill Paid List`**
+and **`Bill Pending List`**. `ScreenRightStartupValidator` accepts both, so a controller
+annotated `[RequireScreen("Bill Paid List")]` **passes startup validation and then denies every
+request forever, in every tenant, silently** — precisely the lockout KB-105 warns about at its
+own `:130`. Three KB-105 facts recorded as **Confirmed** are corrected: they were derived from
+the `HasData` seed block, and the seeded state is not the migrated state once later migrations
+`DeleteData` seed rows. **`M2-A02` must not begin against this catalogue.** Owner **Vivek**.
+
+**Also raised:** **Q-65** — `20260324053747_AddnewTemperveryTable` is the only migration file
+with no `.Designer.cs`, so EF has never applied it to any database; ⚠ do not resolve it by
+generating the Designer, because its `Up()` renames ~100 tables. And **"219 migrations" was a
+file count** — 109 migration classes, 108 applicable, +1 for `MasterDb` (KB-012, R-30
+corrected).
+
+**Why it is not `Completed`.** Two acceptance criteria are genuinely open, not merely
+unverified: runbook **§7** (start the Blazor host, log in, run one report, print one document —
+the *"and the app runs against it"* half of G0 criterion 1) was **not attempted**, and the task
+requires **a named person** to execute the drill, which an autonomous session is not. The
+instance was also not a *fresh, empty* SQL Server — the drill created two throwaway databases
+on the pre-existing development instance and wrote to nothing else, which leaves that half of
+the G0 wording unevidenced too. **Both drill databases were deliberately left in place** so a
+named operator can run §7 without repeating §§2–6; `db/REBUILD-DRILL-LOG.md` names them and
+gives the two `DROP DATABASE` statements.
