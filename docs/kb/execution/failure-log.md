@@ -3224,7 +3224,7 @@ reopens them:
   "re-specifying" a task file and would have been cheaper than the note, but it is a judgement
   call, not a criterion breach.
 - Keeping the filename `react-architecture.md` — the criterion permits it explicitly.
-- Q-37 (the M2-C11 archive-vs-adopt contradiction) raised rather than decided — correct
+- Q-38 (the M2-C11 archive-vs-adopt contradiction) raised rather than decided — correct
   behaviour under M2-C00's own "Do not" list.
 
 **Disposition** — `not fixed`. This file contains no prior M2-C00 entry; attempt 1, not a loop.

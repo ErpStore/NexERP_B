@@ -188,7 +188,7 @@ Message at `:273`: `"Your trial period has expired. Please contact Administrator
 
 | # | Carve-out | Note |
 |---|---|---|
-| a | `!IsDesktop` | `IsDesktop` is `Configuration["AppEnvironment"] == "Desktop"` (`Login.razor:224`) — a property of the **host**, not the user, and **not** `User.IsDesktop`. The desktop build never enforces the trial. See **Q-37**. |
+| a | `!IsDesktop` | `IsDesktop` is `Configuration["AppEnvironment"] == "Desktop"` (`Login.razor:224`) — a property of the **host**, not the user, and **not** `User.IsDesktop`. The desktop build never enforces the trial. See **Q-39**. |
 | b | `UserId > 1` | user 1 is exempt |
 | c | `TrialDays > 0` | exempt **even with a past `ExpiryDate`**. The write path only derives an `ExpiryDate` when `TrialDays > 0` (`RegisterUpsert.razor:1062-1068`) |
 
@@ -226,7 +226,7 @@ compares, never writes `IsMobile`/`IsDesktop`, and calls `IJSRuntime` four times
 | Gate | API before M2-A08 | API after |
 |---|---|---|
 | Trial | none | **enforced** in `AuthController.Login`, all three carve-outs, message verbatim, `403` with `type: …/trial-expired` |
-| Device | none | **evaluator ported and tested** (`Auth/AccountGates.cs`, `DeviceGate`), **not wired** — P4 deferred, Q-38 |
+| Device | none | **evaluator ported and tested** (`Auth/AccountGates.cs`, `DeviceGate`), **not wired** — P4 deferred, Q-40 |
 | QR expiry | no QR path exists at all | fixed at the query (§3); still no QR endpoint |
 | Row scope | none | mechanism in place (§5); no scoped endpoint exists yet |
 
@@ -303,7 +303,7 @@ Reported as the task requires. Everything not listed here re-verified **unchange
 | claim 4: *"the only two `Pages/` hits are in `LeadsUpsert.razor`"* | **False.** `RegisterUpsert.razor:622,1018,1022,1024,1037,1038,1042` also touch `UserVM.StateCodes` — admin assignment UI, still not row scoping |
 | claim 6: *"exactly one call site"* for the scoped method | true — but the **unscoped** sibling has **four**, not the implied one |
 | *"KB-100 is the expected `doc_id`"* | **Taken** by M2-B12-01. `INDEX.md` records next free as **KB-108**, which this document claims |
-| Dependencies table: *"M2-A04 owns `POST /api/v1/auth/login`"* | M2-A04 is *"Refresh tokens + revocation"* and **Blocked**. No counterparty — see **Q-38** |
+| Dependencies table: *"M2-A04 owns `POST /api/v1/auth/login`"* | M2-A04 is *"Refresh tokens + revocation"* and **Blocked**. No counterparty — see **Q-40** |
 | *React Changes* section, `frontend/nexgen-web/` | superseded by **ADR-007** (Angular), 2026-08-20 |
 
 ---
@@ -316,8 +316,8 @@ Owner for every row: **Vivek, the repository owner**. Raised 2026-08-20 by M2-A0
 |---|---|---|
 | **P1** | Does row scope extend beyond `Leads`? | **No — answered by the default, and by evidence.** It has never applied elsewhere (§2.1). `ScopedEntityCatalogue` has one entry, and a test asserts it. Extending it is available and is a product decision with a blast radius. |
 | **P2** | Do users with an empty `StateCodesCsv` keep seeing **zero** leads? | **Yes — preserved**, proven by test. Pair it with an explicit empty-state message client-side (§9) so it reads as a configuration gap, not an outage. |
-| **P3** | Are the trial carve-outs preserved? | **All three preserved verbatim** and annotated in code with their `Login.razor` lines. `!IsDesktop` **flagged for confirmation** — **Q-37**, unanswered. |
-| **P4** | Does the API enforce device binding? | **DEFERRED, unanswered — Q-38.** The evaluator is ported and tested; nothing calls it. Recorded as a decision, not an omission. |
+| **P3** | Are the trial carve-outs preserved? | **All three preserved verbatim** and annotated in code with their `Login.razor` lines. `!IsDesktop` **flagged for confirmation** — **Q-39**, unanswered. |
+| **P4** | Does the API enforce device binding? | **DEFERRED, unanswered — Q-40.** The evaluator is ported and tested; nothing calls it. Recorded as a decision, not an omission. |
 | **P5** | Does fixing `GetUserByQrToken` change behaviour for a current caller? | **No** — both callers already reject expired tokens, and there is no third caller. **Fixed.** |
 | **P6** *(new — not in the task file)* | Is the `UserId == 1` unscoped carve-out (§2.5) ported? | **Yes — preserved.** Dropping it takes data away from that account on day one. Resolved **once, in the provider**, from the claim — never per call site. |
 | **P7** *(new)* | Is the paging total computed **within** scope? | **Yes — a deliberate behaviour change.** Blazor counts unscoped (`LeadsList.razor:396-401`); matching it would leak a count. Pinned by test. |
@@ -348,9 +348,9 @@ selects Angular, superseding ADR-003's React.
 query; the row-scope mechanism, including the startup refusal for an undeclared scoped
 endpoint.
 
-**Not enforced, deliberately:** the device gate (P4/Q-38). **Not applicable yet:** there is no
+**Not enforced, deliberately:** the device gate (P4/Q-40). **Not applicable yet:** there is no
 QR endpoint and no Leads endpoint, so the row-scope mechanism has no production caller — it is
 in place so the first one cannot get it wrong.
 
-**Still open:** Q-37 (the desktop exemption), Q-38 (the device gate and login-path ownership),
+**Still open:** Q-39 (the desktop exemption), Q-40 (the device gate and login-path ownership),
 and M2-B08's report predicate (§5.3), which has to be invented rather than ported.

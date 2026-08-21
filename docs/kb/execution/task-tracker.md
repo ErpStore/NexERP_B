@@ -73,14 +73,14 @@ its children are `Completed` — it is never worked directly.
 | M0-01 | M0 | Capture DDL for all 94 stored procedures *(parent)* | Database | **In Progress** | P0 | — | 4–5 d | G0 |
 | M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Completed** | P0 | — | 1 d | G0 |
 | M0-01-02 | M0 | — script the missing procedures from a live tenant DB | Database | **Completed** | P0 | M0-01-01 | 2 d | G0 |
-| M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ ²¹ ³⁰ *(drill §§2–6 executed and passing; §7 and a named operator still outstanding; on `migration/M0-01-03-rebuild-drill` `34b5e32`, unmerged)* | P0 | M0-01-02 | 1 d | G0 |
+| M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ ²¹ ³⁰ *(drill §§2–6 executed and passing; §7 and a named operator still outstanding; **merged** to `master` `1aa1106` 2026-08-21 on owner instruction — stays `Needs Review`: merging the runbook does not supply the operator)* | P0 | M0-01-02 | 1 d | G0 |
 | M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Completed**⁶ | P1 | M0-01-02 | 1 d | G0 |
 | M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
 | M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Completed**¹² | P0 | M0-07 | 0.5 d | G0 |
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | **Completed**¹⁴ | P0 | M0-12-01 | 2.5 d | G0 |
 | M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | **Completed**¹³ | P0 | M0-12-01 | 3 d | G0 |
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | **Completed**¹⁵ | P1 | M0-12-01 | 0.5 d | G0 |
-| M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | **Needs Review**²⁹ *(close-out claims `PASS` after attempt 3; on `migration/M0-10-candelete-guard-audit` `fc8e0c0`, unmerged; that branch's own row still reads `Ready`)* | P1 | M0-09 | 2 d | G0 |
+| M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | **Completed**²⁹ *(merged to `master` `843a04e` on owner instruction 2026-08-21)* | P1 | M0-09 | 2 d | G0 |
 | M0-06 | M0 | Remove the seeded default Administrator credential | Security | **Ready** | P1 | M0-12-01 | 1 d | G0 |
 | M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Completed**¹⁰ | P2 | M0-03-01 | 0.5 d | G0 |
 | M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | **Ready**¹⁷ | P0 | M0-13 | decision | G0 |
@@ -114,24 +114,24 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A04 | M2 | Refresh tokens + revocation | Security | Blocked | P0 | M2-A01-02 | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
-| M2-A07 | M2 | `GET /api/v1/me` | Backend | **Needs Review**³⁷ *(validated `PASS`; on `migration/M2-A07-me-endpoint` `61da4bd`, unmerged)* | P0 | M2-A01-03 | 2 d | G2 |
-| M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | **Needs Review**²⁹˒³⁹ *(validated `PASS`; on `migration/M2-A08-row-scope-and-account-gates` `bca92fd`, unmerged; ⚠ a second branch `migration/M2-A08-row-level-scoping` also claims this task)* | P0 | M2-A01-03 | 3 d | G2 |
+| M2-A07 | M2 | `GET /api/v1/me` | Backend | **Completed**³⁷ *(merged to `master` `80c209b` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 2 d | G2 |
+| M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | **Completed**²⁹˒³⁹ *(merged to `master` `380c805` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 3 d | G2 |
 
 ### M2-B — API structure
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
 | M2-B07 | M2 | Shared `AddVSmartDomain()` DI extension | Backend | **Completed**²⁰ | P0 | G0 | 3 d | G2 |
-| M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | **Needs Review**²⁸ *(validated `PASS` on attempt 2; on `migration/M2-B04-decouple-pages-references` `5ca1c10`, unmerged)* | P0 | M2-B07 | 1 wk | G2 |
+| M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | **Completed**²⁸ *(merged to `master` `f054c75` on owner instruction 2026-08-21)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Completed**³³ | P1 | M2-B07 | 1 d | G2 |
 | M2-B02 | M2 | Paging / sort / filter contract | Backend | **Completed**²⁴ | P0 | M2-A06 | 1 wk | G2 |
 | M2-B03 | M2 | Codify the controller template | Documentation | Blocked | P0 | M2-A02, M2-B02 | 2 d | G2 |
 | M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Blocked**³¹ *(⛔ premise falsified — needs re-specification by the owner; no code written, no branch)* | P1 | M2-B07 | 2 d | G2 |
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Completed**³² ³⁵ *(merged to `master` 2026-08-21, `65d9666`)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
-| M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Needs Review**³⁴ *(implemented; on `migration/M2-B09-reference-endpoints` `d1175db`, unmerged)* | P1 | **M2-B07**, M2-B02, M2-B01 | 3 d | G2 |
+| M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Completed**³⁴ *(merged to `master` `501b12d` on owner instruction 2026-08-21)* | P1 | **M2-B07**, M2-B02, M2-B01 | 3 d | G2 |
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | Blocked | P0 | M2-B03 | 3 d | G2 |
-| M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Needs Review**³⁶ *(validated `PASS` on attempt 2 of 4; on `migration/M2-B11-health-checks-logging` `12dad11`, unmerged)* | P2 | M2-A06 | 3 d | G2 |
+| M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Blocked**²⁹ *(escalation budget exhausted, owner **Vivek**; on `migration/M2-B12-01-inv-012-numbering` `407d0ba`, unmerged — the earlier `PASS` was premature)* | P0 | M2-B07 | 2 d | G2 |
 | M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | Blocked | P0 | M2-B12-01 | 1 d | G2 |
@@ -141,9 +141,9 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-C00 | M2 | Rewrite KB-050 frontend architecture for Angular | Documentation | **Needs Review**²⁶˒³⁸ *(validated `PASS`; on `migration/M2-C00-kb050-angular-rewrite` `b3c0e6e`, unmerged)* | P0 | G0 | 2 d | G2 |
-| M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Blocked**²⁶ *(re-scoped for Angular; `M2-C00` is `Needs Review`, not `Completed`)* | P0 | M2-C00 | 3 d | G2 |
-| M2-C11 | M2 | **Adopt** the Angular pilot as the app baseline | DevOps | Blocked²⁶ | P2 | M2-C00 | 0.5 d | G2 |
+| M2-C00 | M2 | Rewrite KB-050 frontend architecture for Angular | Documentation | **Completed**²⁶˒³⁸ *(merged to `master` `0da6a35` on owner instruction 2026-08-21)* | P0 | G0 | 2 d | G2 |
+| M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Ready**²⁶ *(released 2026-08-21 — `M2-C00` is now `Completed` and merged `0da6a35`)* | P0 | M2-C00 | 3 d | G2 |
+| M2-C11 | M2 | **Adopt** the Angular pilot as the app baseline | DevOps | Blocked²⁶˒³⁸ *(dependency cleared — `M2-C00` merged `0da6a35` 2026-08-21; now gated on **Q-38**, what `M2-C11` is for under ADR-007)* | P2 | M2-C00 | 0.5 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | Blocked²⁶ | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started *(parent — never worked directly)* | P0 | M2-C01 | 2 wks | G2 |
@@ -1982,8 +1982,8 @@ verbatim and annotated (`!IsDesktop`, `UserId > 1`, `TrialDays > 0`), refusal me
 byte-for-byte identical, as a distinguishable `403` — not a generic `401`. **Device gate
 deliberately deferred**: the evaluator is written and tested (`AccountGates.DeviceGate`) but
 not wired in, because the task's assumed counterparty, `M2-A04`, is itself `Blocked` with no
-other task owning `POST /api/auth/login`. Recorded as **Q-38**; the trial gate's `!IsDesktop`
-exemption (deliberate or an oversight — undeterminable from source) is **Q-37**.
+other task owning `POST /api/auth/login`. Recorded as **Q-40**; the trial gate's `!IsDesktop`
+exemption (deliberate or an oversight — undeterminable from source) is **Q-39**.
 
 **Q-08 corrected, not merely answered**: `StateCodesCsv` scopes nothing for customers or
 vendors anywhere in the codebase — confirmed by a fresh negative grep, independently

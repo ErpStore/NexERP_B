@@ -264,7 +264,7 @@ the §2 mechanism with no extra work. **Confirmed.**
 carve-outs verbatim; `GetUserByQrToken` excludes expired tokens; row scope has a mechanism
 (`V.SMART.Api/Authorization/RowScope*`, applied **at the query**, with a startup validator that
 refuses to boot an undeclared scoped endpoint) but no production caller yet, because no Leads
-endpoint exists. The **device gate is deliberately not enforced** — see Q-38.
+endpoint exists. The **device gate is deliberately not enforced** — see Q-40.
 ## Summary: what the new API must implement
 
 | Requirement | Source of truth | Priority |

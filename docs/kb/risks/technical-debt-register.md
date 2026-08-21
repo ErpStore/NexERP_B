@@ -338,7 +338,7 @@ verbatim and the message byte-for-byte from `Login.razor:273`; it returns `403` 
 distinguishable `ProblemDetails.type`, never a `401`. The **QR expiry** half is fixed in the
 query (see R-16), though the API still has no QR endpoint. The **device gate** is ported as a
 tested evaluator (`V.SMART/V.SMART.Api/Auth/AccountGates.cs`, `DeviceGate`) but is **not wired
-in**: decision P4 is deferred and unanswered — **Q-38**. So one of the three bypasses is closed,
+in**: decision P4 is deferred and unanswered — **Q-40**. So one of the three bypasses is closed,
 one is fixed but unreachable, and one is open **on the record** rather than by omission.
 [KB-108](../architecture/row-scope-and-account-gates.md) §4.
 
