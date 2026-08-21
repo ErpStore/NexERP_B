@@ -80,7 +80,7 @@ its children are `Completed` — it is never worked directly.
 | M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | **Completed**¹⁴ | P0 | M0-12-01 | 2.5 d | G0 |
 | M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | **Completed**¹³ | P0 | M0-12-01 | 3 d | G0 |
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | **Completed**¹⁵ | P1 | M0-12-01 | 0.5 d | G0 |
-| M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | **Ready** | P1 | M0-09 | 2 d | G0 |
+| M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | **Needs Review**²⁹ *(close-out claims `PASS` after attempt 3; on `migration/M0-10-candelete-guard-audit` `fc8e0c0`, unmerged; that branch's own row still reads `Ready`)* | P1 | M0-09 | 2 d | G0 |
 | M0-06 | M0 | Remove the seeded default Administrator credential | Security | **Ready** | P1 | M0-12-01 | 1 d | G0 |
 | M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Completed**¹⁰ | P2 | M0-03-01 | 0.5 d | G0 |
 | M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | **Ready**¹⁷ | P0 | M0-13 | decision | G0 |
@@ -115,7 +115,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
 | M2-A07 | M2 | `GET /api/v1/me` | Backend | **Needs Review** *(validated `PASS`; on `migration/M2-A07-me-endpoint` `61da4bd`, unmerged)* | P0 | M2-A01-03 | 2 d | G2 |
-| M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | **Ready** | P0 | M2-A01-03 | 3 d | G2 |
+| M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | **Needs Review**²⁹ *(validated `PASS`; on `migration/M2-A08-row-scope-and-account-gates` `bca92fd`, unmerged; ⚠ a second branch `migration/M2-A08-row-level-scoping` also claims this task)* | P0 | M2-A01-03 | 3 d | G2 |
 
 ### M2-B — API structure
 
@@ -123,7 +123,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 |---|---|---|---|---|---|---|---|---|
 | M2-B07 | M2 | Shared `AddVSmartDomain()` DI extension | Backend | **Completed**²⁰ | P0 | G0 | 3 d | G2 |
 | M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | **Needs Review**²⁸ *(validated `PASS` on attempt 2; on `migration/M2-B04-decouple-pages-references` `5ca1c10`, unmerged)* | P0 | M2-B07 | 1 wk | G2 |
-| M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Ready** | P1 | M2-B07 | 1 d | G2 |
+| M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Needs Review**²⁹ *(close-out claims `PASS`, 11 of 12 criteria, criterion 4 partial; on `migration/M2-B01-api-versioning` `045a7f4`, unmerged)* | P1 | M2-B07 | 1 d | G2 |
 | M2-B02 | M2 | Paging / sort / filter contract | Backend | **Completed**²⁴ | P0 | M2-A06 | 1 wk | G2 |
 | M2-B03 | M2 | Codify the controller template | Documentation | Blocked | P0 | M2-A02, M2-B02 | 2 d | G2 |
 | M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Ready** | P1 | M2-B07 | 2 d | G2 |
@@ -133,7 +133,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | Blocked | P0 | M2-B03 | 3 d | G2 |
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Ready** | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
-| M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Ready** | P0 | M2-B07 | 2 d | G2 |
+| M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Blocked**²⁹ *(escalation budget exhausted, owner **Vivek**; on `migration/M2-B12-01-inv-012-numbering` `407d0ba`, unmerged — the earlier `PASS` was premature)* | P0 | M2-B07 | 2 d | G2 |
 | M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | Blocked | P0 | M2-B12-01 | 1 d | G2 |
 | M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked | P0 | M2-B12-02 | 3 d | G2 |
 
@@ -1548,3 +1548,39 @@ category as `M0-12-01` attempt 1 (`failure-log.md`), where the retry alone clear
 cleared this one too. Attempt 2 resumed from the surviving working-tree diff rather than
 re-deriving it, and wrote the guard test with `Write`/`Edit` instead of the Bash heredoc whose
 quoting bug had cost attempt 1 that file. **2 of 3 attempts used, 0 escalations.**
+
+²⁹ **Branch-state census, 2026-08-21 — four rows above were `Ready` on `master` while finished
+or blocked work already existed on a branch.** This is not bookkeeping pedantry: it is the exact
+condition that produced **two independent branches for `M2-A08`**
+(`migration/M2-A08-row-scope-and-account-gates`, which validated `PASS`, and
+`migration/M2-A08-row-level-scoping`, still live in `wt-M2-A08` doing different work — INV-028 →
+KB-120 and the Q-05…Q-08 answers). A session cutting from `master` reads `Ready` and starts
+work that already exists.
+
+Each state below was read from the branch itself — `git log --oneline -2 <branch>` plus that
+branch's own tracker row — not inherited from a summary:
+
+| Task | Branch | Tip | Actual state |
+|---|---|---|---|
+| `M2-B12-01` | `migration/M2-B12-01-inv-012-numbering` | `407d0ba` | 🚩 **`Blocked`, owner Vivek.** Escalation budget exhausted: validated `FAIL` at `fa4a2ad`, crossed `escalate_after_failures: 2`, the one permitted escalation was spent on a diagnosis committed as `8a54f96`, **and that fix has never been re-validated**. 2 of 3 attempts used. |
+| `M2-A08` | `…-row-scope-and-account-gates` | `bca92fd` | `Needs Review`, validated `PASS`. |
+| `M2-A08` ⚠ | `…-row-level-scoping` | `6e6633a` | Second branch, same task id, different content, live worktree. **Owner decides which is the real `M2-A08`.** |
+| `M2-B01` | `migration/M2-B01-api-versioning` | `045a7f4` | Close-out claims validated `PASS`, **11 of 12 criteria met, criterion 4 partial**. |
+| `M0-10` | `migration/M0-10-candelete-guard-audit` | `fc8e0c0` | Close-out claims `Needs Review` after attempt 3, regression repaired. |
+
+**`M2-B01` and `M0-10` never updated their own tracker rows off `Ready`**, so even reading their
+branches directly, the tracker is not where their status lives — the commit subject and the task
+file are. That is worth fixing at merge.
+
+**A false `PASS` was corrected in the course of this census.** The runner state carried into this
+session recorded `M2-B12-01` as validated `PASS` and awaiting merge; it had already propagated
+into more than one file, and this session propagated it onto `master` once before checking.
+`M2-B12-01`'s own tip commit says the opposite in its subject line — *"corrects a premature
+PASS"* — and its runner-state adds that **no genuine `PASS` of `58e7bee` exists anywhere in this
+repository**. It was caught only because `git stash list` incidentally printed that commit
+subject next to the branch name.
+
+**The rule this earns, which belongs with footnote ²¹'s:** a status inherited from a sibling
+branch is a *claim*, not a fact, and it decays exactly as fast as the branches move. Confirming
+it costs one `git log` per branch. `git worktree list` belongs in the same check — three sibling
+worktrees were live this session and the tracker cannot see any of them.
