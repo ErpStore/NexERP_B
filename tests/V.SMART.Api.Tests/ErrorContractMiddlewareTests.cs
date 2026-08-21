@@ -103,7 +103,7 @@ namespace V.SMART.Api.Tests
             // (TenantDbContextFactory.cs:19). The exception is produced by the real type, so the
             // stack frame the middleware matches on is the real one, not a fabricated string.
             var factory = new TenantDbContextFactory(new NullTenantProvider());
-            var context = ErrorContractTestContext.Create("/api/currencies", "GET");
+            var context = ErrorContractTestContext.Create("/api/v1/currencies", "GET");
 
             await Handler(_ =>
             {

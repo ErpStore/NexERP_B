@@ -14,7 +14,7 @@ using Xunit;
 namespace V.SMART.Api.Tests
 {
     /// <summary>
-    /// M2-A06 — <c>POST /api/auth/login</c>'s two failure paths. Both keep their pre-M2-A06 status
+    /// M2-A06 — <c>POST /api/v1/auth/login</c>'s two failure paths. Both keep their pre-M2-A06 status
     /// and their message; only the body shape changes.
     /// </summary>
     public class AuthControllerErrorContractTests
@@ -77,7 +77,7 @@ namespace V.SMART.Api.Tests
             {
                 ControllerContext = new ControllerContext
                 {
-                    HttpContext = ErrorContractTestContext.Create("/api/auth/login", "POST")
+                    HttpContext = ErrorContractTestContext.Create("/api/v1/auth/login", "POST")
                 }
             };
         }

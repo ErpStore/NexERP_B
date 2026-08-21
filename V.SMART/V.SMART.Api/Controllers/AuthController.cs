@@ -9,7 +9,7 @@ using V.SMART.Shared.Services.MultiCompanyService;
 namespace V.SMART.Api.Controllers
 {
     [ApiController]
-    [Route("api/auth")]
+    [Route($"{ApiRoutes.V1}/auth")]
     public class AuthController : ControllerBase
     {
         private readonly IUnitOfWork _unitOfWork;

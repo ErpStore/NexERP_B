@@ -368,7 +368,7 @@ namespace V.SMART.Api.Tests
             string? userId = "1",
             string? tenantId = "1")
         {
-            var http = ErrorContractTestContext.Create("/api/currencies/7", "PUT");
+            var http = ErrorContractTestContext.Create("/api/v1/currencies/7", "PUT");
 
             var claims = new List<Claim> { new(ClaimTypes.Name, "tester") };
             if (userId is not null)

@@ -26,7 +26,7 @@ namespace V.SMART.Api.Tests
     /// </summary>
     public class PagedContractTests
     {
-        private static CurrencyController Controller(FakeCurrencyService service, string path = "/api/currencies")
+        private static CurrencyController Controller(FakeCurrencyService service, string path = "/api/v1/currencies")
             => new(service)
             {
                 ControllerContext = new ControllerContext { HttpContext = ErrorContractTestContext.Create(path) }

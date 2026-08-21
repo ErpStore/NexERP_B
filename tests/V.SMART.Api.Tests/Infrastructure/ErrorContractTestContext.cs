@@ -13,7 +13,7 @@ namespace V.SMART.Api.Tests.Infrastructure
         internal static readonly JsonSerializerOptions ReadOptions = new(JsonSerializerDefaults.Web);
 
         /// <summary>A request context with a readable response body.</summary>
-        public static DefaultHttpContext Create(string path = "/api/currencies/7", string method = "GET")
+        public static DefaultHttpContext Create(string path = "/api/v1/currencies/7", string method = "GET")
         {
             var context = new DefaultHttpContext();
             context.Request.Method = method;

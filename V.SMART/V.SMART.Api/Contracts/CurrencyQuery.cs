@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace V.SMART.Api.Contracts
 {
     /// <summary>
-    /// The typed query DTO for <c>GET api/currencies</c> — the reference implementation of the
+    /// The typed query DTO for <c>GET api/v1/currencies</c> — the reference implementation of the
     /// M2-B02 list contract.
     ///
     /// <para>The four filters are exactly the keys <c>CurrencyFilterBuilder</c> understands
