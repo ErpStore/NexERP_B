@@ -168,9 +168,11 @@ collation-dependent SQL comparison. **Confirmed.** Decision **D-1** turns on thi
 
 | Fact | Evidence | Confidence |
 |---|---|---|
-| Exactly **152** `Screens` rows are seeded. | `ApplicationDbContext.cs:1151` `HasData(` — 152 `new Screens` initialisers follow | **Confirmed** |
-| All 152 `ScreenName` values are **unique**, and remain unique under case-insensitive comparison. | Extracted and de-duplicated in this session; zero collisions either way | **Confirmed** |
-| `Id == ScreenCode` for **all 152** rows. | Extracted and compared in this session; zero mismatches | **Confirmed** |
+| ⚠ **CORRECTED 2026-08-21 — 152 rows are seeded, but only **150** survive to a live database.** | `ApplicationDbContext.cs:1151` `HasData(` does contain 152 `new Screens` initialisers — but at least ten later migrations call `DeleteData` against `Screens`, and a database rebuilt from source control ends with **150** rows, as does the live development database. `ScreenCode` runs 1…152 with **114 and 115 absent**. Measured directly by the M0-01-03 rebuild drill against both databases. | **Confirmed (measured, not derived)** |
+| The two rows that do **not** exist in any database are `Bill Paid List` and `Bill Pending List`. | Catalogue-vs-database name diff, zero differences in the other direction | **Confirmed** |
+| 🚩 `ScreenCatalogue.cs` still lists all **152** names, so `[RequireScreen("Bill Paid List")]` **passes startup validation and then denies every request forever.** | This is the silent lockout warned about at `:130` of this document. Tracked as **R-65**; owner Vivek; lands on `M2-A02`. | **Confirmed** |
+| All `ScreenName` values are **unique**, and remain unique under case-insensitive comparison. | Extracted and de-duplicated in this session; zero collisions either way. Re-checked against the 150 real rows 2026-08-21: still holds. | **Confirmed** |
+| `Id == ScreenCode` for **all** rows. | Extracted and compared in this session; zero mismatches. Re-checked against the 150 real rows 2026-08-21 (`SELECT COUNT(*) … WHERE Id <> ScreenCode` → 0): still holds. | **Confirmed** |
 | No `ScreenName` carries leading or trailing whitespace. | Checked in this session; none found | **Confirmed** |
 | **No code path anywhere writes a `Screens` row.** The catalogue is seed-only at runtime. | Grepped `Screens.CreateAsync\|CreateRangeAsync\|UpdateAsync\|DeleteAsync` and `new Screens`/`Screens.Add` across `V.SMART/` excluding migrations and the seed — the only hit, `CommonService.cs:1388`, is a `Select` projection, not an insert | **Confirmed (negative result)** |
 | A "Screen Management" screen exists in the catalogue (`Id = 17`) but no writer backs it. | Row present at `ApplicationDbContext.cs:1168`; see the negative result above | **Confirmed** |

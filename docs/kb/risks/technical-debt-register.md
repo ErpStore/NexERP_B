@@ -378,6 +378,21 @@ for procedure changes.
 `db/stored-procedures/`, one file each, and add a deployment step. **Do this before any
 other work** — it is cheap and it is currently a single-point-of-failure for the product.
 
+> ✅ **The "add a deployment step" half is now DONE and, as of 2026-08-21, EXECUTED.**
+> `db/deploy-stored-procedures.ps1` (M0-01-03) was written blind, with no database access, and
+> carried an `UNVERIFIED` banner for eight days. The M0-01-03 rebuild drill ran it for the
+> first time against a database freshly rebuilt from this repository's EF migrations:
+> **91 applied / 0 skipped / 0 failed in 2.16 s**, completeness check passing with 0
+> undocumented gaps, and a second consecutive run reporting the same 91 with the target's
+> procedure count unchanged — so the `CREATE OR ALTER` idempotency claim holds in practice.
+> The script's **ordering** assumption (deferred name resolution ⇒ order does not matter),
+> previously *Inferred*, is now **Confirmed** for this procedure set. Evidence:
+> `db/REBUILD-DRILL-LOG.md` §6.
+>
+> **The 4 genuinely-absent procedures below are unchanged by this** — they have no DDL to
+> deploy, and the drill confirmed they are correctly absent from the rebuilt database (count
+> = 0). R-04 stays open on that gap alone; the deployment-step half of it is closed.
+
 > **Updated 2026-08-13 (M0-01-02 half B/C, Confirmed) — the gap is now 4, not 82, but read
 > the caveats before downgrading this to non-Critical.**
 >
@@ -1239,6 +1254,63 @@ only the API host, is missing.
 host; the comment in `Program.cs` says so at the site. `ValidateScopes` was deliberately left
 at the framework default, so captive-dependency detection is unaffected.
 
+### R-65 — `ScreenCatalogue` names two screens that exist in no database, and the startup validator accepts them
+**Confirmed by direct measurement against two databases, 2026-08-21 (M0-01-03 rebuild drill).**
+*(Id `R-65` is the next free one after **R-64**, held by the unmerged
+`migration/M0-10-candelete-guard-audit` branch — checked with `git branch --no-merged master`
+per KB-093's id-allocation note.)*
+
+`V.SMART/V.SMART.Api/Authorization/ScreenCatalogue.cs` holds a compile-time set of **152**
+`ScreenName` values. Real databases hold **150**:
+
+| Source | `Screens` rows |
+|---|---|
+| Database rebuilt from source control (the drill) | **150** |
+| Live development database `NexGenErpDb` (read-only query) | **150** |
+| `ScreenCatalogue.cs` | **152** |
+
+`ScreenCode` runs 1…152 with exactly **two gaps, 114 and 115** — the same two in both
+databases. At least ten migrations call `DeleteData` against `Screens`; the compile-time
+catalogue was copied from the `HasData` seed list **without the subsequent deletes**. Diffing
+the catalogue against the rebuilt database gives the two phantoms and nothing else in either
+direction:
+
+> **`Bill Paid List`** and **`Bill Pending List`**
+
+**The exposure.** `ScreenRightStartupValidator` refuses to start when a controller declares
+`[RequireScreen("…")]` for a name *"which is not one of the 152 seeded"* names. Both phantoms
+**are** in that set, so `[RequireScreen("Bill Paid List")]` **passes startup validation** — and
+then denies every request forever, because `IUserRightsProvider` can never return a right for a
+screen with no row in any tenant database. Startup is silent; every user is locked out of that
+endpoint, in every tenant.
+
+This is precisely the failure
+[KB-105](../architecture/server-side-authorization-spec.md) warns about in its own words at
+`:130` — *"either a silent bypass (R-03 reopened) or a silent lockout across 152 screens."* The
+guard works; its input data is wrong by two entries. Note also that KB-105 `:171-173` records
+*"Exactly 152 `Screens` rows are seeded"*, *"All 152 `ScreenName` values are unique"* and
+*"`Id == ScreenCode` for all 152 rows"* as **Confirmed**. The first is false. The second and
+third hold for the 150 real rows (zero name collisions, zero `Id`/`ScreenCode` mismatches) —
+the *count* in each is what is wrong.
+
+**Why the original claim looked Confirmed.** It was derived from the `HasData` block in
+`ApplicationDbContext.cs` — a correct reading of the seed, and the wrong question. The seeded
+state is not the migrated state whenever a later migration deletes seed rows, which is exactly
+what happened here. **Reading a seed block is not the same as reading a database**, and this is
+the second time in this project that a source-derived claim entered the KB as `Confirmed`
+without a check against reality (see `task-tracker.md` footnote ²¹ for the first).
+
+**Action — owner Vivek, lands on `M2-A02`.** That task annotates the first controller and must
+not start against a catalogue with two unusable names. Fix: drop the two names, correct the
+count to **150**, and re-derive the constant from the **post-delete** state rather than the
+`HasData` block — ideally by querying a rebuilt database, which is now a ~1-minute operation
+(`db/RUNBOOK-rebuild-tenant-database.md`). **Not fixed by M0-01-03**, which is forbidden to
+touch anything under `V.SMART/`. Also correct KB-105 `:171-173`, `:320`, `:593`, `:966`,
+[KB-012](../architecture/database-architecture.md)`:113` and
+[KB-013](../architecture/auth-and-permissions.md)`:36`, `:118`, all of which state 152.
+
+---
+
 ### R-41 — The API's screen-rights cache has no entry cap
 **Confirmed (M2-A01-03, 2026-08-20)** for the code; **Inferred** for the exposure.
 `V.SMART/V.SMART.Api/Program.cs` registers the shared `IMemoryCache` via `AddMemoryCache()`
@@ -1306,7 +1378,7 @@ them.
 |---|---|---|
 | R-28 | Folder/namespace typos: `Data/Maintanence`, `Estimaton`, `Fesibility`, `ProuctionCompRepo`, `EstiamateId`, `Advaceadjustment`, `Sub-Contrect GRN`, `/hr-masterr` | throughout |
 | R-29 | Empty folders declared in `V.SMART.Shared.csproj` (~30 `<Folder Include=…>` entries) | `.csproj` |
-| R-30 | 219 migrations, ~2.5M LOC, ~90% of repo size | `Migrations/` |
+| R-30 | **109** migrations (~2.5M LOC, ~90% of repo size) — **corrected 2026-08-21**: "219" counted *files*, and each migration is a `.cs` plus a `.Designer.cs`. Only **108** are applicable; `20260324053747_AddnewTemperveryTable` has no `.Designer.cs` and has never been applied to any database (**Q-65**). The LOC and repo-share figures are unaffected. | `Migrations/`, `db/REBUILD-DRILL-LOG.md` F3 |
 | R-31 | Dead role `"ERPAdmin"` in `AuthorizeView` but absent from `UserRole` | `NavMenu.razor` vs `Data/Enum/UserRole.cs` |
 | R-32 | Large blocks of commented-out code (e.g. `ReportExecutor.cs:47-80`) | multiple files |
 | R-33 | `Underconstruction.razor` shipped in the component set | `Components/` |

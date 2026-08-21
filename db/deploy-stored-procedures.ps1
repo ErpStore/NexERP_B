@@ -3,13 +3,20 @@
  db/deploy-stored-procedures.ps1
 ================================================================================
 
- STATUS: UNVERIFIED. Written by an AI session with no database credentials and
- no network path to any SQL Server instance (task M0-01-03 / R-01, R-02 --
- docs/kb/risks/technical-debt-register.md). It has NEVER been executed against
- a real database by anyone as of this writing. Do not treat a clean read of
- this file as proof it works -- the first person to run it (the rebuild drill,
- db/RUNBOOK-rebuild-tenant-database.md) must record what actually happened in
- db/REBUILD-DRILL-LOG.md, including every failure, before this status changes.
+ STATUS: VERIFIED 2026-08-21, against SQL Server 2019 Express, on a database
+ freshly rebuilt from this repository's EF migrations. First real execution:
+ 91 applied / 0 skipped / 0 FAILED in 2.16 s, completeness check passing with
+ 0 undocumented gaps and the 4 documented exceptions warned as designed. Run a
+ second time immediately afterwards it reported the same 91 applied with the
+ target's procedure count unchanged at 91, so the CREATE OR ALTER idempotency
+ claim below holds in practice and not merely on paper. No file failed to
+ apply; nothing in this script had to be corrected afterwards.
+
+ Written originally by an AI session with no database access at all (task
+ M0-01-03 / R-01, R-02 -- docs/kb/risks/technical-debt-register.md), which is
+ why it carried an UNVERIFIED banner until now. Evidence for the change of
+ status, including the one failure the surrounding drill did hit (in the EF
+ step, not here): db/REBUILD-DRILL-LOG.md sections 6 and 10.
 
  What this script does:
    1. Enumerates every db/stored-procedures/**/*.sql file (recursive -- this
@@ -68,14 +75,19 @@
    CREATE OR ALTER PROCEDURE A, whose body references object B, succeeds even
    if B does not exist yet at the moment A is created -- name resolution for
    the body's references happens at EXECUTE time, not CREATE time. This is
-   documented SQL Server behaviour -- Inferred for this specific procedure
-   set, NOT verified against a real deployment in this session (no database
-   access -- see STATUS above). If the rebuild drill (item 7 in
-   db/RUNBOOK-rebuild-tenant-database.md) finds an ordering dependency --
-   some procedure's CREATE fails because of something order-sensitive this
-   comment did not anticipate -- record that finding in
-   db/REBUILD-DRILL-LOG.md and in docs/kb/risks/technical-debt-register.md
-   (R-04), then add an explicit order file here. Nothing has forced that yet.
+   documented SQL Server behaviour -- and, as of 2026-08-21, CONFIRMED for
+   this specific procedure set rather than merely Inferred: all 91 files
+   applied in this stable sorted order against a freshly migrated database
+   with zero failures. No ordering dependency exists in the current set, so
+   no explicit order file is needed and none was added.
+
+   That is evidence about THIS set at THIS moment, not a theorem. If a future
+   procedure is added whose CREATE genuinely is order-sensitive -- something
+   deferred name resolution does not cover, such as a reference to a user
+   defined type or a schema that does not yet exist -- the failure will be
+   loud (this script aborts non-zero and names the file). Record it in
+   db/REBUILD-DRILL-LOG.md and docs/kb/risks/technical-debt-register.md
+   (R-04), then add an explicit order file here.
 
  Known findings carried into this deployment, not resolved here (see
  docs/kb/execution/tasks/M0-01-03.md for the escalation to a human):

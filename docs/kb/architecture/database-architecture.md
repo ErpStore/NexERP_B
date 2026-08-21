@@ -110,7 +110,7 @@ things:
 
 | Entity | Rows | Note |
 |---|---|---|
-| `Screens` | **152** | The permission catalogue — `ScreenCode` 1…152, `ScreenName` e.g. `"Sales Order"`, `"Purchase Order"`, `"Stock-Add"`. **This is the authoritative permission vocabulary.** |
+| `Screens` | **150** | The permission catalogue — `ScreenCode` runs 1…152 **with 114 and 115 absent**, `ScreenName` e.g. `"Sales Order"`, `"Purchase Order"`, `"Stock-Add"`. **This is the authoritative permission vocabulary.** **Corrected 2026-08-21 from "152" by direct measurement** (M0-01-03 rebuild drill): a database rebuilt from source control holds 150 rows and so does the live development database. 152 rows are seeded by `HasData`, and later migrations `DeleteData` two of them. ⚠ `V.SMART.Api/Authorization/ScreenCatalogue.cs` still carries all **152** names — the two phantoms are `Bill Paid List` and `Bill Pending List`, and the startup validator accepts them. See **R-65**. |
 | `User` | 1 | `UserName = "Administrator"`, `Role = Administrator`, with a **committed PBKDF2 hash** — a known default credential (risk R-09) |
 | `ScreenManagement`, `InspectionSettings`, `Category` | several | reference data |
 
@@ -130,8 +130,24 @@ carries a full snapshot copy.
 - First migration: `20260217110637_InitialCreate`
 - Latest observed: `20260723064009_jobtrack`
 - 1 additional migration under `Migrations/MasterDb/` applies `MasterDbContext`'s single
-  `Tenants` table (`20260308101245_AddMasterDbContect`) — 219 migrations total, matching
-  the figure cited elsewhere in the KB.
+  `Tenants` table (`20260308101245_AddMasterDbContect`).
+- **Corrected 2026-08-21 (M0-01-03 rebuild drill): "219 migrations" was a *file* count, not a
+  migration count**, and it propagated from here into six places in `tasks/M0-01-03.md` and
+  into R-30. Each migration is a `.cs` **plus** a `.Designer.cs`:
+
+  | Measure | Count |
+  |---|---|
+  | `.cs` files under `Migrations/` (excluding `MasterDb/`) | 218 |
+  | …that are migration classes (excluding `.Designer.cs` and `ModelSnapshot`) | **109** |
+  | …that EF actually applies (see below) | **108** |
+  | `MasterDb/` migration classes | **1** |
+  | **Migrations applied across both databases in a full rebuild** | **109** |
+
+  Verified against a rebuilt database: `__EFMigrationsHistory` holds exactly **108** rows for
+  the tenant context. The missing one is `20260324053747_AddnewTemperveryTable`, the only
+  migration file with **no `.Designer.cs`** — so EF does not recognise it as a migration and
+  has never applied it to any database, rebuilt or live. That is **Q-65**, an owner decision;
+  do not resolve it by generating the Designer, because its `Up()` would rename ~100 tables.
 - Q-02 (how migrations are rolled out to a tenant database in production) remains
   **Unknown**. `db/RUNBOOK-rebuild-tenant-database.md` §5 (M0-01-03) records one candidate
   `dotnet ef database update --connection <explicit>` command for a single directly-reached
