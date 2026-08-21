@@ -13,7 +13,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-19
+last_verified: 2026-08-21
 dependencies: [KB-001, KB-002, KB-003, KB-005, KB-020, KB-030, KB-040, KB-041, KB-050, KB-051, KB-052, KB-053, KB-060, KB-070, KB-071, KB-081, KB-082, KB-083, KB-084]
 ---
 
@@ -314,7 +314,7 @@ None. M0 starts immediately.
 | M0-12-02 | — characterisation tests for `CalculationService` | Testing | P0 | M0-12-01 | 2.5 d | [↗](tasks/M0-12-02.md) |
 | **M0-13** | `IStockManagerService` characterisation tests | Testing | P0 | M0-12-01 | 3 d | [↗](tasks/M0-13.md) |
 | **M0-09** | Fix the two unreachable delete guards (R-08) | Backend | P1 | M0-12-01 | 0.5 d | [↗](tasks/M0-09.md) |
-| **M0-10** | Audit all `CanDelete…Async` guards (INV-025) | Investigation | P1 | M0-09 | 2 d | [↗](tasks/M0-10.md) |
+| **M0-10** | Audit all `CanDelete…` guards (INV-025) — **delivered 2026-08-21, output [KB-061](../risks/delete-guard-audit.md)**; the "`…Async`" in this name is a trap, see §7 note | Investigation | P1 | M0-09 | 2 d | [↗](tasks/M0-10.md) |
 | **M0-06** | Remove the seeded default Administrator credential | Security | P1 | M0-12-01 | 1 d | [↗](tasks/M0-06.md) |
 | **M0-14** | Gate `DetailedErrors` on `IsDevelopment()` | Security | P2 | M0-03-01 | 0.5 d | [↗](tasks/M0-14.md) |
 | **M0-11** | Product decision — silent FIFO under-issue (Q-01) | Product Decision | P0 | M0-13 | decision | [↗](tasks/M0-11.md) |
@@ -354,6 +354,21 @@ None. M0 starts immediately.
   **M0-10's reference pattern therefore exists**: a `CanDelete…` guard that computes one
   boolean and tests another, proven unreachable by a test that seeds *only* the document the
   guard is supposed to catch. Task status is recorded in KB-081, not here.
+  **2026-08-21 — M0-10 delivered** on `migration/M0-10-candelete-guard-audit`. Output:
+  **[KB-061](../risks/delete-guard-audit.md)**, a 79-row inventory of every
+  `(bool CanDelete, string Message)` guard, including every one judged correct. **The
+  sequencing paid off and the premise did not survive it:** using M0-09's fix as the
+  reference pattern, the audit found the defect class **eradicated** — one surviving
+  instance across 93 guards, and it was already recorded in KB-060. The population is **79
+  across 61 files**, not the "~40" or "63"/"64" published; scope guard work by **return
+  shape**, because both the `Async` suffix *and* the `CanDelete` prefix miss real guards.
+  Five follow-ups are **proposed, not created** — `M0-10a` (fix the surviving instance,
+  0.5 d, P1), `M0-10b` (14 uncalled guards, 1 d, P2), `M0-10c` (null-handling convention,
+  1 d, P2), `M0-10d` (29 unguarded delete paths — analysis first, 3–5 d, P1), `M0-10e`
+  (three commented-out Cash Flow guards, 0.5 d, P2). New risks **R-60…R-64**; new questions
+  **Q-60…Q-64**. **One acceptance criterion is NOT MET** — no defect was verified
+  empirically, because no test was run; see KB-061 §7. Task status remains KB-081's to
+  record, and only the owner sets `Completed`.
 
 **Must NOT be parallelised despite appearing unrelated:**
 - `M0-14` and `M0-03-01` both edit `V.SMART.Web/appsettings.json`.
