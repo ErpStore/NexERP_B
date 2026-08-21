@@ -363,12 +363,20 @@ None. M0 starts immediately.
   across 61 files**, not the "~40" or "63"/"64" published; scope guard work by **return
   shape**, because both the `Async` suffix *and* the `CanDelete` prefix miss real guards.
   Five follow-ups are **proposed, not created** — `M0-10a` (fix the surviving instance,
-  0.5 d, P1), `M0-10b` (14 uncalled guards, 1 d, P2), `M0-10c` (null-handling convention,
-  1 d, P2), `M0-10d` (29 unguarded delete paths — analysis first, 3–5 d, P1), `M0-10e`
-  (three commented-out Cash Flow guards, 0.5 d, P2). New risks **R-60…R-64**; new questions
-  **Q-60…Q-64**. **One acceptance criterion is NOT MET** — no defect was verified
-  empirically, because no test was run; see KB-061 §7. Task status remains KB-081's to
-  record, and only the owner sets `Completed`.
+  0.5 d, P1), `M0-10b` (14 uncalled guards, 1 d, P2), `M0-10c` (null-handling convention
+  plus the three dereference-before-null-check guards, 1.5 d, P2), `M0-10d` (29 unguarded
+  delete paths — analysis first, 3–5 d, P1), `M0-10e` (three commented-out Cash Flow guards,
+  0.5 d, P2). New risks **R-60…R-64**; new questions **Q-60…Q-64**. **All acceptance
+  criteria are MET.** Criterion 9 (*"at least one defect verified empirically"*) **is MET**:
+  a proving test in `tests/V.SMART.Shared.Tests/Services/MfgPoServiceDeleteGuardTests.cs`
+  was run against unmodified `MfgPoService.cs` and observed
+  `Actual: Tuple (True, "Item can be safely Cancell.")` where the guard's own message
+  promises a refusal (KB-061 §3.1, §7). It is committed **`Skip`-ped**, because an audit may
+  not repair the defect, and is `M0-10a`'s acceptance test. *Attempt 1 recorded this
+  criterion NOT MET on the false premise that no test project existed on the branch —
+  `tests/V.SMART.Shared.Tests/` has existed since `9557de2` (M0-12-01) and the very file
+  cited above since `8e3b19d` (M0-09).* Task status remains KB-081's to record, and only the
+  owner sets `Completed`.
 
 **Must NOT be parallelised despite appearing unrelated:**
 - `M0-14` and `M0-03-01` both edit `V.SMART.Web/appsettings.json`.

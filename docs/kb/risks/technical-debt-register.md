@@ -127,7 +127,7 @@ Encrypt the `Tenants` connection-string column. Use least-privilege SQL logins, 
 > occupied before this task, were:
 >
 > | File | Lines (pre-M0-03-02) | What was there |
-> |---|---|---|
+|---|---|---|
 > | `V.SMART/V.SMART.Shared/Data/MigrationData/ApplicationDbContextFactory.cs` | `:13` active, `:14` commented | SA literal; commented production host `154.61.76.112,1533` / `bspl` |
 > | `V.SMART/V.SMART.Shared/Data/MigrationData/MasterDbContextFactory.cs` | `:11` commented, `:12` active | commented production host; active SA literal |
 > | `V.SMART/V.SMART/MauiProgram.cs` | `:228` commented, `:231` active, `:235` commented | production host; active SA literal; third host `VK-7-HP\SQLEXPRESS` |
@@ -629,8 +629,9 @@ deletion that would have orphaned documents.
 eradicated**; that single known instance is now carried separately as **R-60**.
 
 The audit's substantive output is four *different* defect classes, none of which R-08
-anticipated — carried as **R-61** (14 guards nobody calls), **R-62** (4 guards that can never
-refuse), **R-63** (29 service files with an unguarded delete, plus an upstream-only integrity
+anticipated — carried as **R-61** (14 guards nobody calls, Medium), **R-62** (3 guards that
+can never refuse and a fourth inert after one check; plus 3 that throw on a missing row),
+**R-63** (29 service files with an unguarded delete, plus an upstream-only integrity
 model) and **R-64** (77 of 79 guards run outside the delete transaction). Each matters more
 to the API than R-08 did. [KB-061](delete-guard-audit.md) carries the full 79-row inventory
 **including every guard judged `Correct`** — do not re-read the methods.
@@ -696,7 +697,7 @@ shape, not by name** — see [KB-061](delete-guard-audit.md) §1.2.
 > `M0-10a`.
 
 ### R-60 — The one surviving R-08 instance: `CanSalesOrderItemCancelCheckAsync`
-**Confirmed by reading; Inferred as to runtime effect.** `MfgPoService.cs:613` computes
+**Confirmed — by reading *and* by an executed test.** `MfgPoService.cs:613` computes
 `hasCR` from `ContractReviews`; `:614` tests `hasRc`, the Route Card boolean from `:608`. By
 `:614` `hasRc` is necessarily `false`, so the Contract Review refusal at `:615` is
 unreachable.
@@ -705,40 +706,57 @@ cancelled.
 **Why it has its own row.** R-08 is closed as a *class* — this is the **only** surviving
 instance across the whole 93-method guard family ([KB-061](delete-guard-audit.md) §1.3, §3.1),
 and it needs a row that does not read as "an audit is still outstanding".
-**Not empirically proven.** No test was run; the identical shape two lines away was proven by
-M0-09, which makes the inference strong but not an observation.
-**Action.** One identifier — `hasRc` → `hasCR` — plus a proving test in M0-09's shape.
-Proposed as `M0-10a`, 0.5 d.
+**Empirically proven 2026-08-21 (M0-10).**
+`tests/V.SMART.Shared.Tests/Services/MfgPoServiceDeleteGuardTests.cs` →
+`CanSalesOrderItemCancel_WithOnlyContractReview_IsRefused`, run against **unmodified**
+`MfgPoService.cs`, observed `Actual: Tuple (True, "Item can be safely Cancell.")` where the
+guard's own `Message` promises a refusal. Full output:
+[KB-061](delete-guard-audit.md) §3.1 and §7. The test is committed **`Skip`-ped** — M0-10 is
+an audit and may not repair the defect — and is the acceptance test for `M0-10a`.
+**Action.** One identifier — `hasRc` → `hasCR` — plus removal of that test's `Skip`, which
+must then go green. Proposed as `M0-10a`, 0.5 d.
 
-### R-61 — Fourteen delete guards have no caller at all
-**Confirmed.** Nine guard names have **zero** call sites anywhere in `V.SMART/`, `tests/`,
-`frontend/` or `docs/`; three further implementations are unreachable because the call site
-injects a different interface. Full list and evidence:
-[KB-061](delete-guard-audit.md) §3.2.
-**Impact.** No delete is wrongly permitted today — the guards are simply never consulted. The
-risk is **future**: an endpoint author greps for a guard, finds one of these, and promotes
-never-exercised logic straight to production enforcement.
-**Note.** Two of the fourteen are dead clones of a reachable guard, differing only in message
-wording (`"Prouction SCN"` vs `"Prouction SCN Assembly"`, spelling as in source) — duplication
-rot, not divergent logic.
-**Action.** Wire or delete, per guard. Proposed as `M0-10b`, 1 d, P2.
+> **R-61 is filed under `## Medium`, not here.** It was briefly filed in this `High` section
+> while [KB-061](delete-guard-audit.md) §3.2 rated it *Medium*; the contradiction was
+> corrected 2026-08-21 (M0-10, attempt 2) in favour of **Medium**, because no delete is
+> wrongly permitted today — the risk is entirely prospective. R-61 sits between R-15 and R-16
+> in the Medium section.
 
-### R-62 — Four guards can never refuse; three of them are wired to live delete buttons
+### R-62 — Three guards can never refuse, a fourth is inert after one check; three are wired to live delete buttons
 **Confirmed.** `StoreInterTransService.cs:211` (body is a single `return (true, …)`),
-`GroupingService.cs:136`, `EstimateService.cs:735` and
-`AppointmentLetterService.cs:43` contain no `(false, …)` return outside their `catch` — with
-the partial exception of the last, which refuses only on a `Staff`-name match. Detected as
-*"no refusal path outside `catch`"*; evidence [KB-061](delete-guard-audit.md) §3.3.
-**Impact.** The Grouping, Estimation and Appointment Letter list pages show the user an
-eligibility check that **always says yes**. `GroupingList.razor:549`,
-`EstimationList.razor:411`, `AppointmentLetterList.razor:485`.
-**Second defect, same class.** `AppointmentLetterService.cs:52` dereferences `po.CandidateID`
-**before** the null check at `:62`, so a missing row throws rather than returning the
-`(true, …)` the null check intended — and the method returns *"Sales Order can be safely
-deleted."* for an Appointment Letter, which is product-visible text for the wrong document
-(BR-SO-001 migration note).
+`GroupingService.cs:136` and `EstimateService.cs:735` contain **no** `(false, …)` return
+outside their `catch`. `AppointmentLetterService.cs:43` is the fourth member of the group but
+**does** refuse, on a `Staff`-name match at `:58-61`; everything after that is inert. Detected
+as *"no refusal path outside `catch`"* (which yields the first three) plus the liveness
+detector (which caught the fourth as a dead computation); evidence
+[KB-061](delete-guard-audit.md) §3.3.
+**Impact.** The Grouping and Estimation list pages show the user an eligibility check that
+**always says yes**; the Appointment Letter page shows one that says yes to everything except
+a duplicate `Staff` name. `GroupingList.razor:549`, `EstimationList.razor:411`,
+`AppointmentLetterList.razor:485`.
+**Second defect class, same row: dereference before null check — three members, not one
+(Confirmed 2026-08-21, M0-10 attempt 2).** Each loads a header row and dereferences it with no
+null test anywhere in the body, so a row that does not exist throws
+`NullReferenceException`, is caught, and is rethrown — surfacing as HTTP **500** from a future
+delete endpoint rather than as a decision:
+
+| Guard | Loads | Dereferences unchecked at |
+|---|---|---|
+| `AppointmentLetterService.cs:43 CanDeleteAppointmentletterAsync` | `po` at `:47-50` | `:52` (`po.CandidateID`) — which also makes the null check at `:62-63` unreachable |
+| `OutSourcingService/Purchase_Invoice_Service/PurchaseInvoiceService.cs:1283 CanDeletePurchaseInvAsync` | `invoice` at `:1287-1290` | `:1292`, `:1295` |
+| `PlanningService/RcReleaseService.cs:803 CanDeleteRcReleaseAsync` | `rcRelease` at `:807` | `:818` |
+
+The other two header-loading guards in the same "no `== null` test" bucket —
+`LabourSCNService.cs:229` and `PurchaseSCNService.cs:1690` — are **null-safe**; they use
+positive-form `!= null` tests, which is why the scanner missed them. Census and scope limit:
+[KB-061](delete-guard-audit.md) §5.3a.
+
+**Also product-visible text for the wrong document.** `AppointmentLetterService.cs:63` and
+`:71` return *"Sales Order can be safely deleted."* for an Appointment Letter (BR-SO-001
+migration note: `Message` strings are product UX).
 **Whether the permissiveness is correct cannot be determined from the code** — see **Q-64**.
-**Action.** Rule discovery before code. Folded into `M0-10d`.
+**Action.** Rule discovery before code. Folded into `M0-10d`; the null-safety half into
+`M0-10c`.
 
 ### R-63 — 29 service files expose a delete with no guard of any shape, and the integrity model only guards upstream
 **Confirmed.** 163 public `Delete*` methods across 89 files; 61 files carry a tuple guard;
@@ -957,6 +975,23 @@ now tracked (commits `2c224b6`, M0-00), the `.sln` disposition remains M0-00's r
 ---
 
 ## Medium
+
+### R-61 — Fourteen delete guards have no caller at all
+**Confirmed.** Nine guard names have **zero** call sites anywhere in `V.SMART/`, `tests/`,
+`frontend/` or `docs/`; three further implementations are unreachable because the call site
+injects a different interface. Full list and evidence:
+[KB-061](delete-guard-audit.md) §3.2.
+**Impact.** No delete is wrongly permitted today — the guards are simply never consulted. The
+risk is **future**: an endpoint author greps for a guard, finds one of these, and promotes
+never-exercised logic straight to production enforcement.
+**Severity note (2026-08-21, M0-10 attempt 2).** Filed **Medium**, matching
+[KB-061](delete-guard-audit.md) §3.2. Attempt 1 filed the row physically inside the `High`
+section while its own text and KB-061 both said Medium; the placement was the error, not the
+rating — nothing is presently mis-permitted, so *"schedule"* is the right disposition.
+**Note.** Two of the fourteen are dead clones of a reachable guard, differing only in message
+wording (`"Prouction SCN"` vs `"Prouction SCN Assembly"`, spelling as in source) — duplication
+rot, not divergent logic.
+**Action.** Wire or delete, per guard. Proposed as `M0-10b`, 1 d, P2.
 
 ### R-15 — Invalid GST rate silently coerced to zero
 **Confirmed.** `CommonConstants.GetIGST/GetGST` use `FirstOrDefault(r => r == rate)`,
