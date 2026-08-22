@@ -144,7 +144,12 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C00 | M2 | Rewrite KB-050 frontend architecture for Angular | Documentation | **Completed**²⁶˒³⁸ *(merged to `master` `0da6a35` on owner instruction 2026-08-21)* | P0 | G0 | 2 d | G2 |
 | M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Completed**²⁶˒⁴⁰ *(merged to `master` `2dd4e53` on owner instruction 2026-08-21)* | P0 | M2-C00 | 3 d | G2 |
 | M2-C11 | M2 | **Adopt** the Angular pilot as the app baseline | DevOps | Blocked²⁶˒³⁸ *(dependency cleared — `M2-C00` merged `0da6a35` 2026-08-21; now gated on **Q-38**, what `M2-C11` is for under ADR-007)* | P2 | M2-C00 | 0.5 d | G2 |
-| M2-C12 | M2 | **Re-specify the superseded M2-C / M2-D tree for Angular** | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 4 d | G2 |
+| M2-C12 | M2 | **Re-specify the superseded M2-C / M2-D tree for Angular** *(parent)* | Documentation | Not Started⁴¹ *(parent — never worked directly; attempt 1 as a single task failed, see footnote)* | P0 | M2-C00, M2-C01 | 4 d | G2 |
+| M2-C12-01 | M2 | — re-spec the design-system tree (M2-C04*) | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 1 d | G2 |
+| M2-C12-02 | M2 | — re-spec auth, routing, decimal, pilot-adoption | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 1 d | G2 |
+| M2-C12-03 | M2 | — re-spec the list / CRUD shell (M2-C05*, M2-C06) | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 1 d | G2 |
+| M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 1 d | G2 |
+| M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | Blocked⁴¹ *(runs last — owns the whole-tree restatement)* | P0 | M2-C12-01…04 | 1 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | Blocked²⁶ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; still **⛔ superseded**: `tasks/M2-C10.md` specifies React and must be re-specified for Angular before it can be selected)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started *(parent — never worked directly)* | P0 | M2-C01 | 2 wks | G2 |
@@ -2066,3 +2071,23 @@ an acceptance criterion that proves the diff is confined to `docs/kb/`.
 unanswered **Q-38** — what it is *for*, now that `M2-C01` has already created the Angular
 workspace it existed to adopt. `M2-C12` replaces its supersession banner with a statement of
 Q-38 and leaves it `Blocked` on **Vivek**, rather than inferring an answer.
+
+**Split into five sub-tasks 2026-08-22, after attempt 1 failed as a single task.** One
+implementer was given all 25 files and ~2,100 stack references. It removed the ⛔ banner from 24
+of them and added the re-specification note — then **did not re-derive the bodies**, and went
+silent mid-run having committed nothing. `M2-C04-01` was left specifying *"a Mantine 7 theme"*
+and *"a bare `MantineProvider`"* with its guard removed; `M2-C02` still named Zustand, Axios and
+`PermissionGate.tsx`. Measured across the tree: **2 files properly re-specified, 23
+banner-removed-but-React-bearing.** The working tree was discarded (0 commits, nothing durable
+lost) and all 25 banners restored.
+
+**That near-miss produced the rule the sub-tasks are built around.** The banner is the only thing
+stopping a runner from implementing these files; the React content is what makes implementing
+them wrong. Removing the first without fixing the second turns a dormant file into a live
+instruction to build the wrong stack — strictly worse than leaving it alone. So: **a file's
+banner may only be removed in the same change that removes its React instructions**, and a batch
+that cannot finish a file leaves that file's banner in place and reports it as not done.
+
+`M2-C12-05` runs last and owns the whole-tree restatement — the 25 tracker rows and
+`dependency-graph.md` — so the tree is described consistently once rather than five times.
+`M2-C11` is still not re-specified by any batch: it is gated on **Q-38** and routed to **Vivek**.

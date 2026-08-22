@@ -3299,3 +3299,46 @@ and explained in place. (b) The Execution Record's attempt-1 narrative is recons
 committed diff and the validation verdict, not from the implementing session's own notes.
 (c) Line-number citations remain inherently fragile: eight in KB-050 and six in `M2-C01.md` point
 into a file that any future edit will shift.
+
+### M2-C12 · attempt 1 · 2026-08-21
+
+| Field | Value |
+|---|---|
+| Runner state | STOPPED (run `wf_7c68c87d-cc9`, task paused mid-implement) |
+| Model in use | opus (implementation, dispatched) |
+| Validator verdict | none — never reached Validate |
+| Failure category | implementation-error (scope overrun) |
+
+**What failed.** Select chose `M2-C12` and Investigate returned normally. The implementer then
+started, wrote **26 files**, committed **nothing**, and went silent. Its transcript's last write
+was 23:21; the run was found paused over two hours later with a dirty tree and zero commits.
+
+**Why it is a scope overrun, not a transient.** The task handed one agent 25 task files carrying
+~2,100 React-era references. It completed the cheap, uniform half of the work — deleting the
+byte-identical ⛔ banner from 24 files and adding a re-specification note — and did not do the
+expensive, per-file half: re-deriving the bodies. Measured on the abandoned tree: **2 files
+properly re-specified, 23 banner-removed-but-React-bearing.**
+
+**Why the abandoned state was worse than no attempt.** The banner is the sole mechanism stopping
+a runner from selecting these files; the React content is what makes building them wrong. The
+tree was left with the guard removed and the wrong instructions intact — `M2-C04-01` specifying
+*"a Mantine 7 theme"* and *"a bare `MantineProvider` mounted in `providers.tsx`"*, `M2-C02`
+specifying Zustand, Axios, MSW and `PermissionGate.tsx`. Merging it would have invited the next
+runner to build Mantine into an Angular app.
+
+**Resolution.** Owner chose discard-and-re-run-in-batches. `git checkout -- .` (0 commits, so
+nothing durable was lost), all 25 banners verified restored, branch deleted. `M2-C12` became a
+parent with five sub-tasks of 4–6 files each, every one carrying an **atomicity rule**: a file's
+banner may only be removed in the same change that removes its React content, and an unfinished
+file keeps its banner.
+
+**Two defects in the original spec, both fixed in the children.** (1) Acceptance criterion 1
+required *zero* occurrences of the banner string under `docs/kb/execution/tasks/`, which the
+`M2-C12` file itself trips by quoting the banner it removes — the children scope the grep with
+`--exclude='M2-C12*'`. (2) No criterion forbade the banner-removed-but-React-bearing state, which
+is precisely the state that occurred; it is now criterion 2 in every child, and it requires the
+grep output to be **quoted per file** rather than counted.
+
+**Third occurrence of the uncommitted-work failure mode** (after `M2-B06` and the killed run
+before it). An implementer that writes files before committing anything leaves no record of its
+own existence, and the only evidence it ran is filesystem mtimes.
