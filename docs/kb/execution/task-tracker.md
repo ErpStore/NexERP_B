@@ -145,7 +145,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Completed**²⁶˒⁴⁰ *(merged to `master` `2dd4e53` on owner instruction 2026-08-21)* | P0 | M2-C00 | 3 d | G2 |
 | M2-C11 | M2 | **Adopt** the Angular pilot as the app baseline | DevOps | Blocked²⁶˒³⁸ *(dependency cleared — `M2-C00` merged `0da6a35` 2026-08-21; now gated on **Q-38**, what `M2-C11` is for under ADR-007)* | P2 | M2-C00 | 0.5 d | G2 |
 | M2-C12 | M2 | **Re-specify the superseded M2-C / M2-D tree for Angular** *(parent)* | Documentation | Not Started⁴¹ *(parent — never worked directly; attempt 1 as a single task failed, see footnote)* | P0 | M2-C00, M2-C01 | 4 d | G2 |
-| M2-C12-01 | M2 | — re-spec the design-system tree (M2-C04*) | Documentation | **Blocked**⁴² *(branch `migration/M2-C12-01-respec` unmerged; validation `FAIL` ×3, escalation budget exhausted; blocked on owner ruling on Q-70, not on a task)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
+| M2-C12-01 | M2 | — re-spec the design-system tree (M2-C04*) | Documentation | **Completed**⁴²˒⁴³ *(merged to `master` 2026-08-22 on owner instruction; the `FAIL` was a defect in criterion 7, not in the work — see footnote ⁴³)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-02 | M2 | — re-spec auth, routing, decimal, pilot-adoption | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-03 | M2 | — re-spec the list / CRUD shell (M2-C05*, M2-C06) | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 1 d | G2 |
@@ -2110,3 +2110,28 @@ attempts 2 and 3 satisfied criterion 2 and failed criterion 7. Escalated per
 must rule on Q-70 before a fourth attempt** — retrying without a ruling would only reproduce the
 same contradiction, and the same wording is duplicated verbatim across `M2-C12-02`..`-05`, so
 every remaining batch will fail the identical way until Q-70 is answered. Not merged, not pushed.
+
+⁴³ **M2-C12-01: `Blocked` → `Completed` 2026-08-22 — the validator was right, the criterion was
+wrong, and the work was always sound.** Attempt 3 returned `FAIL`, category `architecture`, with
+the escalation budget spent, on this reasoning: criterion 7 demanded the branch diff list *"nothing
+else"* than the four `M2-C04*` files, while criterion 2 required the greps be quoted **in the
+Execution Record** (which lives in `tasks/M2-C12-01.md`), the Documentation Updates table required
+a `KB-081` row, and [KB-088 §4](workflow.md) makes `tasks/<TASK-ID>.md` an *Always* update. The
+minimum compliant diff is therefore six paths and criterion 7 permitted four. **Unsatisfiable by
+construction — a defect in the specification, which this session wrote.** The runner refusing to
+declare `PASS` on a criterion it could not meet, and raising **Q-70** instead of quietly ignoring
+it, is the behaviour the escalation budget exists to produce.
+
+**Every substantive criterion was independently re-verified at merge, per file, not taken on
+trust** — the same checks that caught attempt 1 of the unsplit parent: the **atomicity rule holds**
+(zero live React instructions across all four files; the single `grep` hit in `M2-C04-01` is
+historical prose); `depends_on`, `business_rules`, `priority` and `estimate` **byte-unchanged** in
+all four; the Blazor `file:line` citation **sets identical** (only repetition counts differ, as
+rewritten prose will); and Angular content positively present — 17, 103, 45 and 50 stack lines
+respectively, so React was *replaced*, not merely deleted. Merged `--no-ff`; tag
+`pre-merge-M2-C12-01` marks the prior tip.
+
+**Criterion 7 was rewritten in all five sub-tasks** to state the real footprint — the batch files,
+the task file, the tracker row, and the KB bookkeeping files the work may touch — with the actual
+guard being `git diff --name-only master...HEAD | grep -v '^docs/kb/'` returning empty. **Q-70 is
+answered by that change**, and the answer is recorded against it rather than left open.
