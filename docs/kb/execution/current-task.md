@@ -21,70 +21,59 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## ▶ M2-C12-01 — Blocked, not resumable without an owner ruling
+## ▶ None — no task is dependency-ready
 
-**Task file:** [`tasks/M2-C12-01.md`](tasks/M2-C12-01.md) — re-specify the design-system tree
-(`M2-C04.md`, `M2-C04-01.md`, `M2-C04-02.md`, `M2-C04-03.md`) for Angular/ADR-007.
+**`M2-C12-04` closed `Needs Review` 2026-08-22, independently validated `PASS`.** It
+re-specified the documents/reports batch (`M2-C07`, `M2-C08`, `M2-C08-01`, `M2-C08-02`,
+`M2-C08-03`, `M2-C09`) for Angular/ADR-007 on `migration/M2-C12-04-respec` (tip `9d0ccdd`, cut
+from `master` at `f8b4dad`). All 8 acceptance criteria independently re-checked and `MET`; the
+atomicity rule held for all six files; `dotnet build V.SMART.Api` re-run as a regression check —
+0 errors / 6695 warnings, exact baseline. **Not merged, not pushed** — only the repository owner
+sets `Completed`. Full record:
+[`tasks/M2-C12-04.md` § Execution Record (Close-out)](tasks/M2-C12-04.md#execution-record-2026-08-22--close-out),
+[`task-tracker.md`](task-tracker.md) footnote ⁴⁵, [`runner-state.md`](runner-state.md).
 
-**Status: `Blocked`, owner Vivek, question Q-70.** This is a close-out, not an in-progress task —
-do not resume it without the owner's ruling below. It is left as the pointer so a human or a
-later run finds the full record instead of restarting from Select.
+One advisory, non-blocking finding carried forward: `M2-C07.md:55` cites **Q-71**, which exists
+only on the unmerged sibling `migration/M2-C12-03-respec` (`open-questions.md:72` there), not yet
+on `master` — it resolves once that branch merges. No acceptance criterion depends on it.
 
-### Run State
+**Context: `M2-C12-01` (the design-system tree) is `Completed` and merged.** The owner answered
+[**Q-70**](../open-questions.md) — the criterion-7 contradiction that blocked it — by rewriting
+criterion 7 across all five `M2-C12-*` sub-task files (`f8b4dad`) to state the real footprint
+(batch files, the task file itself, the tracker row, and the KB bookkeeping files the work may
+touch) with the guard `git diff --name-only master...HEAD | grep -v '^docs/kb/'` returning empty.
+`M2-C12-01` was then merged `--no-ff` as `Completed`. See `task-tracker.md` footnote ⁴³.
 
-- **Branch:** `migration/M2-C12-01-respec`, tip `09001a3`. Not merged, not pushed.
-- **Attempts:** 3 of 4 used. **Escalations: 1 of 1 used** (KB-091 §6.3).
-- **Last validator verdict:** `FAIL`, category `architecture`, `scopeOk: false`. 7 of 8
-  acceptance criteria `MET`; criterion 7 `NOT MET`.
-- **What failed:** Acceptance criterion 7 (`tasks/M2-C12-01.md:83-84`) requires
-  `git diff --name-only master...HEAD` to list **only** the four `M2-C04*` files. It never can:
-  criterion 2 (`:70-74`) requires the greps be quoted in this task's own Execution Record, the
-  Documentation Updates table (`:99-101`) requires this task's own `task-tracker.md` row and
-  authorises `open-questions.md`, and [KB-088 §4](workflow.md#4-which-documents-to-update) makes
-  `tasks/<TASK-ID>.md` an unconditional update — so a compliant diff is six or seven paths, never
-  four. Observed on `09001a3`: 7 paths (`failure-log.md`, the four batch files, `M2-C12-01.md`
-  itself, `open-questions.md`).
-- **Why this stopped rather than retried a 4th time:** the contradiction is between the task's
-  own acceptance criteria, not a mistake in execution — attempt 1 satisfied criterion 7 and
-  failed criterion 2; attempts 2 and 3 satisfied criterion 2 and failed criterion 7. No 4th
-  attempt can satisfy both. The fix is a wording change to criterion 7, spanning
-  `M2-C12-01`..`-05` (all five sub-tasks carry the identical clause) — a specification decision,
-  not a patch, and out of scope for an execution session to make unilaterally.
-- **Substance is sound, independently re-verified:** every PrimeNG selector named in the batch
-  exists in `primeng@22.1.0`; every `V.SMART/*.cs` citation is byte-unchanged from `master`; the
-  axe accessibility criterion (weakened in attempt 2) was caught and restored in attempt 3;
-  `git diff --stat master...HEAD -- . ':(exclude)docs'` is empty — no `V.SMART/`, no `frontend/`,
-  no schema, no TypeScript touched.
-- **Open question raised:** [**Q-70**](../open-questions.md) (`open-questions.md:42`) — how
-  should criterion 7 be reworded, with a proposed (not applied) wording and the three-attempt
-  history as evidence. **Owner: Vivek.**
-- **Full record:** [`tasks/M2-C12-01.md` § Execution Record
-  (2026-08-22)](tasks/M2-C12-01.md#execution-record-2026-08-22-session-close-out),
-  [`task-tracker.md`](task-tracker.md) footnote ⁴², [`failure-log.md`](failure-log.md)
-  (`M2-C12-01 · attempt 3 · independent validation · 2026-08-22 · FAIL (architecture)`),
-  [`runner-state.md`](runner-state.md).
+### Why nothing is dependency-ready
 
-### To resume this task
+Every `Ready` row in [`task-tracker.md`](task-tracker.md) was checked against CLAUDE.md's
+five-part "can actually be done" test:
 
-1. Get the owner's ruling on **Q-70** (reword criterion 7, or accept the six/seven-path diff as
-   compliant).
-2. Apply that ruling to `M2-C12-01.md` **and** `M2-C12-02`..`-05` — the same clause is duplicated
-   verbatim across all five sub-task files, so all of them fail identically until this is fixed.
-3. Re-validate `M2-C12-01` against the corrected criterion 7. Do not attempt a 4th
-   implementation pass before step 1 — three attempts already proved the criterion unsatisfiable
-   as written.
+| Task | `Ready`? | Why excluded |
+|---|---|---|
+| `M0-06` | Yes | Sibling branch `migration/M0-06-remove-default-admin` already exists |
+| `M0-11` | Yes | `Product Decision` — owner-only, never self-selectable |
+| `M2-A02` | Yes (gated) | Gated on unanswered **Q-28** |
+| `M2-C12-02` | Yes | Sibling branch `migration/M2-C12-02-respec` already exists |
+| `M2-C12-03` | Yes | Sibling branch `migration/M2-C12-03-respec` already exists |
+| `M2-C12-05` | No — `Blocked` | Runs last, behind all four `M2-C12-0{1..4}`; `M2-C12-04` itself is unmerged |
 
-### What this leaves selectable
+Confirmed via `git branch --no-merged master` (both `migration/M2-C12-02-respec` and
+`migration/M2-C12-03-respec` are present) and by reading each row's `depends_on` against
+`task-tracker.md`. Nothing else in the tracker carries status `Ready`.
 
-`M2-C12-02`, `M2-C12-03`, `M2-C12-04` remain `Ready` in the tracker (same `depends_on`, same
-priority) but carry the identical unsatisfiable criterion 7 — **not worth dispatching** until
-Q-70 is answered, since each would fail validation the same way. `M2-C12-05` stays `Blocked`
-behind all four by design (it owns the whole-tree tracker/`dependency-graph.md` restatement and
-must run last).
+### What would unblock work
 
-Everything else in the tracker not touched by this close-out — `M2-A02` (Q-28, R-65), `M2-A04`
-(unrecorded block, needs owner ruling), `M0-06` (branch already exists), `M0-11` (Product
-Decision, owner-only), `M2-B05` (Blocked, awaiting re-specification onto R-66), `M2-B12-01`
-(Blocked, escalation budget exhausted), `M0-01-03` (merged, `Needs Review`, awaiting a named
-operator for runbook §7) — is unchanged by this session; see
-[`task-tracker.md`](task-tracker.md) for current status on each.
+- **Merging any of `M2-C12-04`, `M2-C12-02`'s branch, or `M2-C12-03`'s branch** (once reviewed)
+  clears its own sibling-branch exclusion for a future attempt at that same task, and moves
+  `M2-C12-05` one step closer to dependency-ready (it needs all four `M2-C12-0{1..4}` `Completed`
+  *and* merged).
+- **An owner answer to Q-28** (does an API-only-authenticated user ever acquire `UserRight` rows)
+  releases `M2-A02`.
+- **An owner decision on `M0-11`** (the silent FIFO under-issue product question) releases that
+  task directly, being a `Product Decision`.
+- `M0-06`'s existing branch (`migration/M0-06-remove-default-admin`) needs review/merge or
+  disposal before that task is selectable again.
+
+Nothing here needs execution right now — the blockers are review/merge and owner rulings, not
+investigation or implementation.

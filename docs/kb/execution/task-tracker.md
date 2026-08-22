@@ -2156,5 +2156,13 @@ vaguer *"correlation id"* with the field name the middleware actually ships (`tr
 stable branch key (`type`); both were verified against source on 2026-08-22. No pre-existing
 `V.SMART/` citation was altered or removed in any of the six files.
 
+**Independently validated 2026-08-22, verdict `PASS`.** All 8 acceptance criteria re-checked
+directly against `9d0ccdd`, matching the Execution Record's own greps and diffs; `dotnet build
+V.SMART.Api` re-run as a regression check, 0 errors / 6695 warnings, exact baseline. One advisory
+(non-blocking) finding: `M2-C07.md:55` cites **Q-71**, which exists only on the unmerged sibling
+`migration/M2-C12-03-respec`, not yet in this branch's or `master`'s `open-questions.md` — resolves
+once that branch merges. Status stays `Needs Review`; only the owner sets `Completed`. Full record:
+`tasks/M2-C12-04.md` § Execution Record (Close-out).
+
 **Footnote id.** `⁴⁴` is taken by the unmerged `migration/M2-C12-03-respec`; this note therefore
 claims `⁴⁵`. If both branches merge, confirm the numbering rather than assuming it.
