@@ -3941,3 +3941,201 @@ updated to reflect the closure; `current-task.md` rewritten to point at `M2-C12-
 (Blocked, owner Vivek, Q-70) rather than the pre-`M2-C12` framing it still carried. `nextTaskId`
 returned empty — `M2-C12-02`..`-04` are `Ready` in the tracker but carry the identical
 unsatisfiable criterion 7 and are not worth dispatching until Q-70 is answered.
+
+---
+
+### M2-C12-03 · attempt 1 · independent validation · 2026-08-22 · **FAIL** (`regression`)
+
+Branch `migration/M2-C12-03-respec`, tip `f2ed0b3`, cut from `master` at `f8b4dad`. Validated by
+an independent pass that re-ran every grep itself rather than reading the Execution Record.
+
+**What is genuinely met.** Seven of the eight acceptance criteria hold under re-run:
+
+- **AC1** — the banner grep returns 16 files, **none** of them `M2-C05`, `M2-C05-01`,
+  `M2-C05-02`, `M2-C05-03`, `M2-C06`.
+- **AC2** — the atomicity grep returns **exit 1, zero output, on all five files**. Re-run verbatim.
+  A wider `grep -niE 'react|redux|jest|storybook'` finds only the literal filename
+  `frontend-new/react-architecture.md` (KB-050 keeps that name) and the re-spec notes' own
+  description of the banner they removed.
+- **AC3** — all five carry a note in `M2-C01.md:27-36`'s shape naming `M2-C12-03` and `2026-08-22`.
+- **AC4** — the only `frontend/` prefixes are `frontend/nexgen-web/` and six *must-not-change*
+  references to the real `frontend/vsmart-erp/` pilot. Every fenced command is one of
+  `npm ci`, `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm run test:ci`,
+  `npm run build` (KB-083 § Verified frontend commands) plus `git status --porcelain` (KB-083
+  § Verified repository commands, the anchor AC4 actually links to). `M2-C06.md:180`'s
+  `git grep` helper is labelled inline as an investigation aid, not a verification command.
+- **AC5** — `diff` of `depends_on|business_rules|priority|estimate` and of the
+  `Gate|Priority|Estimate|Milestone|Type` table rows produced **no output** for all five. The only
+  frontmatter change anywhere is `last_verified: 2026-08-12` to `2026-08-22`.
+- **AC6** — the `sort -u` citation set into `V.SMART/` is identical for four files; the single
+  difference, `ExcelExportService.cs:113` in `M2-C05-03`, was at `master:603`, i.e. inside the
+  deleted `Fresh-Session Execution Prompt` block (that heading starts at `master:452`), and the
+  same evidence survives at `M2-C05-03.md:114,192,475`. BR-SO-001 re-verified independently:
+  `MfgPoService.cs:488` and `:598` still carry both sentences word for word. The whole
+  *Existing Behavior to Preserve* table diffs to React-to-Angular wording only in every file.
+- **AC7** — `git diff --name-only master...HEAD | grep -v '^docs/kb/'` is **empty** (exit 1).
+  Eight paths, all inside the declared footprint.
+- **AC8** — all 13 KB-090 headings present in all five (`grep -n '^## '` per file). Deleting the
+  `Fresh-Session Execution Prompt` block is directed, not creep: `task-template.md:194,205-209`.
+
+**Why it fails: the `axe` acceptance criterion was dropped from all five files — the identical
+defect that failed `M2-C12-01` attempts 1-2, and it is already answered.**
+
+`M2-C12.md:140-142`, which `M2-C12-03.md:54-55` inherits in terms ("Read M2-C12 first ... This
+file does not repeat them; it narrows them"), forbids changing "acceptance-criteria *semantics*
+... This task changes *how*, never *what* or *whether*." `axe-core` is stack-independent, so
+removing a runtime a11y scan is not React removal.
+
+Observed, `git show master:<f> | grep -ni axe` versus `grep -ni axe <f>`:
+
+| File | On `master` | On `f2ed0b3` |
+|---|---|---|
+| `M2-C05.md` | `:156` "`axe` reports no critical violations against the grid's test harness page." | none (only prose deferring to M5-09, `:222`) |
+| `M2-C05-01.md` | test 13 `:401`; dep row `:126` | none — test 13 is now "Focus returns to the same cell coordinates after a refetch" |
+| `M2-C05-02.md` | test 15 `:414`; AC `:441` | none — test 15 is now a focus-trap test |
+| `M2-C05-03.md` | test 16 `:360`; AC `:380`; dep row `:127` | none — test 16 is now "exposes its announcement role" |
+| `M2-C06.md` | test 16 `:375`; AC `:400` "All 16 tests pass; axe reports no critical violations." | AC `:430` is now "All 16 tests pass." |
+
+**This is settled, not open.** `open-questions.md:41` records **Q-69** as "Answered in the
+conservative direction by `M2-C12-01`'s attempt 3 (2026-08-22): **option (b) — the criterion is
+restored**", and states explicitly that "`M2-C12-02`..`-05` inherit the same question wherever
+they meet an `axe` criterion." The merged `M2-C12-01` output on `master` proves the pattern:
+`M2-C04-02.md:391,408` keep the `axe` scan, translated only in *how* (`a11y.test.tsx` to
+`a11y.spec.ts` driven from `@testing-library/angular`), with **`M2-C04-01` installing `axe-core`
+as a dev dependency** (`M2-C04-01.md:388`). Commit `8443a8d` is literally
+"M2-C12-01: Restore the axe accessibility criterion across the M2-C04 batch."
+
+`grep -rn 'Q-69'` over the five batch files and `M2-C12-03.md` returns **nothing** — Q-69 was
+never consulted. The justification the files do give is factually true but incomplete: verified
+independently, `frontend/nexgen-web/package.json` has no `axe-core`, `@axe-core/*` or `jest-axe`
+today — but `M2-C05-01` `depends_on: [M2-C04-02, M2-B02]` **Hard**, and `M2-C04-02` to
+`M2-C04-01` installs it before any of this batch can run. "Not installed today" does not survive
+the dependency chain.
+
+**Category — `regression`, deliberately, and it is retryable.** Unlike `M2-C12-01` attempt 2, this
+is **not** an unresolved specification decision: Q-69 is answered and the answer is on `master`
+with a worked example. The repair is mechanical — restore the `axe` criterion and test row in all
+five files, translated only in *how*, keeping the added `angular-eslint`, keyboard and
+manual-pass coverage **alongside** rather than instead (exactly what `M2-C04-02.md:391-392` does).
+Do **not** escalate; do **not** re-raise Q-69.
+
+**Secondary, non-blocking — imprecise `ADR-007` line citations introduced by this diff.** Not
+covered by AC6 (scoped to `V.SMART/`), recorded so the next pass fixes them in the same edit:
+`M2-C05-01.md:186` cites `(:152)` for the quote "PrimeNG's table covers `DataGrid`", which is at
+`ADR-007-angular-stack.md:149`; `:152` is "ADR's to pre-empt." The range `:151-158`, used in
+`M2-C05.md:73,94`, `M2-C05-01.md:33,43` and in **Q-71** (`open-questions.md:70`), covers the last
+two lines of the PrimeNG-over-headless paragraph (which runs `:144-152`) plus six unrelated lines
+about Karma and i18n; the AG Grid fallback it claims the range "names" is at `:150`, outside it.
+Q-71's underlying observation is nonetheless verified: `grep -n LineItemGrid` on ADR-007 returns
+only `:98` and `:206`. Verified-correct ADR-007 citations in the batch: `:95`, `:98`, `:134-138`,
+`:140-142`, `:162-164`, `:170-173`; and `eslint.config.js:97-103` is correct.
+
+**Not checkable / not applicable.** No build or test command was run and none applies — the diff
+is `docs/kb/` Markdown only, proven by AC7's empty filtered output. `dotnet test` was **not** run;
+it would have proved nothing about this diff. What would verify the `axe` question beyond doubt is
+an owner ruling on Q-69 different from the one already recorded — there is none.
+
+**Regressions elsewhere: none observed.** `git status --porcelain` shows only the pre-existing
+uncommitted `docs/kb/execution/runner-state.md`. Nothing under `V.SMART/`, `frontend/`, `tests/`,
+`db/` or `.github/` is touched; Blazor Server is untouched; no schema change; no ERP logic moved
+into TypeScript — `M2-C05-01.md:402-417` and `M2-C06.md:208-209` state the opposite rule
+explicitly, and the load-bearing legacy rule (`DetailsModal.razor:150-154` insertion-ordered
+selection, re-verified at source) is preserved verbatim and testable at
+`M2-C06.md:241,263-264,416`.
+
+**Not merged, not pushed. The validator modified no file except this log.**
+
+---
+
+### M2-C12-03 · attempt 1 · **diagnosis** · 2026-08-22 · `implementation-error` → **fixed on branch**
+
+**Reproduced, not taken on trust.** On `migration/M2-C12-03-respec` at `f2ed0b3`:
+
+```
+$ for f in M2-C05 M2-C05-01 M2-C05-02 M2-C05-03 M2-C06; do \
+    echo "=== $f master:"; git show master:docs/kb/execution/tasks/$f.md | grep -ni axe; \
+    echo "=== $f HEAD:";   grep -ni axe docs/kb/execution/tasks/$f.md; done
+=== M2-C05 master:    156:- [ ] `axe` reports no critical violations against the grid's test harness page.
+=== M2-C05 HEAD:      222: … Automated axe coverage is **M5-09's** to add.
+=== M2-C05-01 master: 126, 401, 875      === M2-C05-01 HEAD: (none)
+=== M2-C05-02 master: 414, 441, 925, 956 === M2-C05-02 HEAD: (none)
+=== M2-C05-03 master: 127, 360, 380, 829, 852 === M2-C05-03 HEAD: (none)
+=== M2-C06 master:    122, 375, 400, 921, 947  === M2-C06 HEAD: (none)
+```
+
+The validator's finding is exactly right and I confirmed each half independently:
+`M2-C12.md:140-142` forbids changing "acceptance-criteria *semantics* … This task changes *how*,
+never *what* or *whether*"; `M2-C12-03.md:54-55` inherits it in terms; `open-questions.md`
+records **Q-69** as already answered — *"option (b) — the criterion is restored"* — and says in
+terms that "`M2-C12-02`..`-05` inherit the same question wherever they meet an `axe` criterion".
+The merged worked example is on `master`: `M2-C04-02.md:391-392,408`, with `M2-C04-01.md:388`
+installing `axe-core` as a **dev** dependency.
+
+**Root cause — simple implementation error, not a specification question.** The implementer
+verified a true fact (`frontend/nexgen-web/package.json` has no `axe-core`, `@axe-core/*` or
+`jest-axe` today — re-verified 2026-08-22) and drew a conclusion that does not survive the
+dependency chain: `M2-C05`/`M2-C05-01` are Hard-dependent on `M2-C04-02` → `M2-C04-01`, and
+`M2-C05-02`/`M2-C05-03`/`M2-C06` on `M2-C05-01` → the same chain, so the scanner is installed
+before any file in this batch can run. Q-69 was never consulted (`grep -rn 'Q-69'` over the six
+files returned nothing).
+
+**Not a loop.** `failure-log.md` holds exactly one prior M2-C12-03 entry — the attempt-1
+validation itself. "Restore the `axe` criterion" is recorded as *tried* only for **M2-C12-01**,
+where it was attempt 3's fix and is now merged (`8443a8d`). Applying the same, already-validated
+pattern to a sibling batch is a first attempt here, not a repeat.
+
+**Fix applied — restore, translated only in *how*, kept alongside not instead.**
+
+| File | Restored |
+|---|---|
+| `M2-C05.md` | AC after the npm-commands row; *Testing Requirements* a11y paragraph rewritten from "axe is M5-09's to add" to the carried-over runtime scan |
+| `M2-C05-01.md` | Test **15** (`a11y.spec.ts`, populated + empty grid); AC "All 14 tests" → "All 15 tests … including test 15"; M5-09 dependency row restored to "axe-in-CI" |
+| `M2-C05-02.md` | Test **16** (manager open); AC "axe reports no critical violations with the manager open (test 16)" |
+| `M2-C05-03.md` | Test **17** (each of the five states); AC row; M5-09 dependency row restored to "axe in CI + manual keyboard pass" |
+| `M2-C06.md` | Test **17** (open-and-empty, open-and-populated); AC "All 16 tests pass" → "All 17 tests pass; `axe` reports no critical violations"; M5-09 dependency row restored |
+
+Each file states the carry-over reason, cites Q-69 as answered, cites `M2-C04-01.md:388` for the
+dev dependency, and specifies the scan runs from `a11y.spec.ts` under the **existing**
+`npm run test:ci` — **no new npm script and no new dependency is invented here**, so AC4 is
+unaffected. The `angular-eslint` template-a11y, keyboard and manual-pass coverage attempt 1 added
+is kept **in addition**, matching `M2-C04-02.md:391-392`. `M2-C12-03.md`'s Execution Record was
+corrected in the same change so it no longer asserts the removal.
+
+**Secondary fix, as the validator directed — the imprecise ADR-007 citations.** The
+PrimeNG-over-headless paragraph runs `ADR-007-angular-stack.md:144-152`; verified at source,
+*"PrimeNG's table covers `DataGrid`"* is at `:149` and the AG Grid fallback at `:150`. Every
+`:151-158` was corrected to `:144-152` (`M2-C05.md:36,73,94`, `M2-C05-01.md:33,43`,
+`M2-C12-03.md:139,378,379`, and inside Q-71 at `open-questions.md:72`), and `M2-C05-01.md:186`'s
+`(:152)` to `(:149)`. Q-71's underlying observation is untouched and still stands.
+
+**Re-validated — every criterion re-run, output observed.**
+
+```
+$ for f in …; do grep -niE 'mantine|tanstack|zustand|react hook form|\bzod\b|\.tsx|jsx|axios|\bmsw\b|vite' …; done
+   all five: exit 1, zero output                                      (AC2 holds)
+$ grep -rl '⛔ STOP — this specification is superseded' docs/kb/execution/tasks/ --exclude='M2-C12*'
+   16 files, none of this batch                                       (AC1 holds)
+$ diff <(git show master:<f> | grep -E '^(depends_on|business_rules|priority|estimate):') <(grep … <f>)
+   no output for all five                                             (AC5 holds)
+$ diff <(git show f2ed0b3:<f> | grep -ohE 'V\.SMART/…' | sort -u) <(grep … | sort -u)
+   no output for all five — the fix adds and removes no V.SMART citation   (AC6 holds)
+$ grep -ohE 'frontend/[A-Za-z0-9_.*{}/-]+' … | sort -u   →  frontend/nexgen-web, frontend/vsmart-erp only  (AC4 holds)
+$ grep -c '^## ' per file  →  16 / 21 / 21 / 21 / 21                  (AC8 holds)
+$ git diff --name-only master...HEAD | grep -v '^docs/kb/'
+   (exit 1 — empty)                                                   (AC7 holds)
+```
+
+No build or test command was run and none applies: the diff is `docs/kb/` Markdown only.
+`dotnet test` was **not** run — no test project exists until M0-12-01 and it would prove nothing
+about this diff.
+
+**Residual risk.** (1) If the owner later answers Q-69 differently — (a) rely on M5-09, or (c)
+make the coverage an explicit M5-09 criterion — all five files change again; that is the owner's
+call and it is still recorded as theirs, not taken here. (2) The `axe` scan is specified but its
+runner is not proven: `axe-core` is a dev dependency `M2-C04-01` *promises*, and if `M2-C04-01`
+lands without it these files name a tool that is not installed. That is the same exposure
+`M2-C04-02` already carries on `master`, not a new one. (3) The test-number renumbering (15/16/17)
+must stay in step with the AC prose in each file; verified by grep here, but it is the kind of
+thing a later edit can desynchronise.
+
+Not merged, not pushed. `runner-state.md` was left untouched — the orchestrator owns it.
