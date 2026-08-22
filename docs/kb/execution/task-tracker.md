@@ -148,7 +148,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-01 | M2 | — re-spec the design-system tree (M2-C04*) | Documentation | **Completed**⁴²˒⁴³ *(merged to `master` 2026-08-22 on owner instruction; the `FAIL` was a defect in criterion 7, not in the work — see footnote ⁴³)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-02 | M2 | — re-spec auth, routing, decimal, pilot-adoption | Documentation | **Needs Review**⁴¹ *(branch `migration/M2-C12-02-respec`; `M2-C02`, `M2-C03`, `M2-C10` re-specified for Angular and their ⛔ banners removed atomically; `M2-C11` left **Blocked on Q-38** with its banner replaced by a statement of the question, per `M2-C12.md:159-166` — not re-specified, and not to be inferred)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-03 | M2 | — re-spec the list / CRUD shell (M2-C05*, M2-C06) | Documentation | **Needs Review**⁴⁴ *(implemented on `migration/M2-C12-03-respec`, tip `1c412ba`, 2026-08-22 — all five files re-specified, banners removed atomically; independently validated `PASS` on attempt 2 of 4; unmerged — see footnote)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
-| M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 1 d | G2 |
+| M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Needs Review**⁴⁵ *(implemented on `migration/M2-C12-04-respec` 2026-08-22 — all six files re-specified, banners removed atomically; unmerged — see footnote)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | Blocked⁴¹ *(runs last — owns the whole-tree restatement)* | P0 | M2-C12-01…04 | 1 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | Blocked²⁶ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; still **⛔ superseded**: `tasks/M2-C10.md` specifies React and must be re-specified for Angular before it can be selected)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
@@ -2169,3 +2169,34 @@ Full record: `tasks/M2-C12-03.md` § Execution Record (2026-08-22) and § Execut
 (`M2-C12-03 · attempt 1 · independent validation · 2026-08-22 · FAIL (regression)` and
 `M2-C12-03 · attempt 1 · diagnosis · 2026-08-22 · implementation-error → fixed on branch`).
 **Not merged, not pushed.** Only the repository owner may set `Completed` ([KB-088](workflow.md#who-may-set-completed)).
+⁴⁵ **M2-C12-04: `Needs Review` 2026-08-22 — implemented on `migration/M2-C12-04-respec`, unmerged.**
+Branch cut from `master` at `f8b4dad`. `M2-C07.md`, `M2-C08.md`, `M2-C08-01.md`, `M2-C08-02.md`,
+`M2-C08-03.md` and `M2-C09.md` were re-specified for Angular/ADR-007, each `⛔` banner removed **in
+the same change that removed its React content** — the atomicity rule held for all six, with the
+per-file grep output quoted in `tasks/M2-C12-04.md`'s Execution Record. The obsolete trailing
+*Fresh-Session Execution Prompt* blocks were dropped as [KB-090](task-template.md) §*Existing task
+files* directs for a regenerated file, and each file was restructured onto KB-090's section set,
+the same shape `M2-C12-03` used.
+
+**Two substantive judgement calls, recorded rather than buried.** (1) **Q-71** — `ADR-007`'s
+tables row promises *"`LineItemGrid` re-evaluated, see below"* (`ADR-007-angular-stack.md:98`) with
+no resolving section under it. `M2-C07` is the task that names `LineItemGrid`, so the re-specified
+file cites `:144-152` **directly** (PrimeNG's table covers `DataGrid`; AG Grid is the fallback and
+*"that evaluation is `M2-C07`'s to make and record"*), specifies the measurement as a required
+investigation with escalation on a negative result, and does **not** pre-decide a table technology.
+Q-71 stays open and owner-owned; the accepted ADR is untouched. (2) `M2-C08-03` gained two **new**
+`file:line` citations, `ApiProblems.cs:43` and `ProblemTypes.cs:17`, replacing the replaced text's
+vaguer *"correlation id"* with the field name the middleware actually ships (`traceId`) and the
+stable branch key (`type`); both were verified against source on 2026-08-22. No pre-existing
+`V.SMART/` citation was altered or removed in any of the six files.
+
+**Independently validated 2026-08-22, verdict `PASS`.** All 8 acceptance criteria re-checked
+directly against `9d0ccdd`, matching the Execution Record's own greps and diffs; `dotnet build
+V.SMART.Api` re-run as a regression check, 0 errors / 6695 warnings, exact baseline. One advisory
+(non-blocking) finding: `M2-C07.md:55` cites **Q-71**, which exists only on the unmerged sibling
+`migration/M2-C12-03-respec`, not yet in this branch's or `master`'s `open-questions.md` — resolves
+once that branch merges. Status stays `Needs Review`; only the owner sets `Completed`. Full record:
+`tasks/M2-C12-04.md` § Execution Record (Close-out).
+
+**Footnote id.** `⁴⁴` is taken by the unmerged `migration/M2-C12-03-respec`; this note therefore
+claims `⁴⁵`. If both branches merge, confirm the numbering rather than assuming it.
