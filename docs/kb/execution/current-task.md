@@ -21,69 +21,74 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## ▶ M2-C12-03 — Re-specify for Angular: the list and CRUD shell
+## ▶ M2-C04-01 — Design tokens, theme, light/dark
 
-**Task file:** [`tasks/M2-C12-03.md`](tasks/M2-C12-03.md) — re-specify `M2-C05.md`,
-`M2-C05-01.md`, `M2-C05-02.md`, `M2-C05-03.md` and `M2-C06.md` for Angular/ADR-007, removing
-each file's `⛔ STOP — this specification is superseded` banner in the same change that removes
-its React content (the atomicity rule — see below).
+**Task file:** [`tasks/M2-C04-01.md`](tasks/M2-C04-01.md) — the token layer of
+[KB-051](../frontend-new/design-system.md) as CSS custom properties (semantic colour,
+typography, spacing, radius, elevation, motion, breakpoints, density), authored as **two
+first-class palettes** (light and dark, not one filtered into the other), plus a root
+`ThemeService` (Angular signals, `light | dark | system` preference), a theme-toggle
+component, the PrimeNG theme-preset reconciliation, and an automated contrast test over every
+token pair used for text or UI boundaries.
 
-**Why this one.** `M2-C12-02` (auth, app shell, decimal handling, pilot-adoption) closed
-`Needs Review` 2026-08-22 on `migration/M2-C12-02-respec`, independently validated `PASS`
-(all 8 acceptance criteria `MET`, `scopeOk: true`). `M2-C12-03` and `M2-C12-04` are the two
-remaining `Ready`, `P0`, 1 d siblings — same `depends_on: [M2-C00, M2-C01]` (both `Completed`
-and merged), disjoint `source_files` from each other and from `M2-C12-02`'s batch, and from the
-three other live worktrees (`wt-M0-10`, `wt-M2-A08`, `wt-M2-B01` — none touch
-`docs/kb/execution/tasks/M2-C0{5,6,7,8,9}*.md`, verified via `git worktree list` 2026-08-22).
-Tied on every ranking signal; `M2-C12-03` picked as the next sequential batch after `-02`,
-consistent with the pattern the prior two closes used. **`M2-C12-04` is flagged as a tied,
-equally-selectable candidate, not silently dropped** — a session with spare capacity could take
-it too. `M2-C12-05` stays `Blocked` behind all four sub-tasks by design: it owns the whole-tree
-`task-tracker.md`/`dependency-graph.md` restatement and must run last.
-
-**Read [`M2-C12`](tasks/M2-C12.md) first** — it holds the translation table, rationale,
-out-of-scope list and failure history that `M2-C12-03` narrows rather than repeats. Also read
-the **atomicity rule** (`M2-C12-03.md` — *"A file's ⛔ banner may only be removed in the same
-change that removes its React instructions... If you cannot finish a file, leave its banner in
-place and report it as not done."*) and the completed **`M2-C12-01`**/**`M2-C12-02`** Execution
-Records as the worked precedent for exactly which greps, frontmatter diffs and citation checks
-each acceptance criterion expects.
+**Why this one.** `M2-C12-05` closed this session (`Needs Review`, independently validated
+`PASS`) and re-specified the last of the 25 formerly-`⛔`-banner files — the frontend tree is
+reachable again for the first time since ADR-007. `M2-C04-01` and `M2-C10` are the only two
+tasks this newly releases as genuinely selectable: both `depends_on: [M2-C01]` only
+(`Completed`/merged), both carry `status: Ready` in their own re-specified task files, neither
+has a sibling branch, and neither is gated by an unanswered open question that actually blocks
+execution. `M2-C04-01` wins the rank: it unblocks two direct children (`M2-C04-02`,
+`M2-C04-03`) against `M2-C10`'s one (`M2-C07`, itself further gated on `M2-C05-01` and
+**Q-71**), and it sits on the ancestry of the project's stated critical path
+(`M2-C04-01 → M2-C04-02 → M2-C05-01 → M2-C05-03 → M2-D01 → …`,
+[`dependency-graph.md`](dependency-graph.md) § *Project critical path*) while `M2-C10` feeds
+only the off-path `M2-C07`. Full reasoning: `task-tracker.md` footnote ⁴⁷,
+`tasks/M2-C12-05.md` § Execution Record (2026-08-22) — Close-out.
 
 ### Five-part "can actually be done" check
 
-1. Hard prerequisites `M2-C00`, `M2-C01` — both `Completed` and merged. **Met.**
-2. Not a `Product Decision`. **Met** — `task_type: Documentation`.
-3. Not blocked on an unanswered open question. **Met** — nothing in `open-questions.md` names
-   `M2-C05*`/`M2-C06` as gated.
-4. Task file not superseded/stale. **Met** — no ⛔ banner on `M2-C12-03.md` itself, `status:
-   Ready`, `last_verified: 2026-08-22`.
-5. No sibling branch open on the same files. **Met** — checked above.
+1. Hard prerequisite `M2-C01` — `Completed` and merged to `master` (`2dd4e53`, 2026-08-21).
+   **Met.**
+2. Not a `Product Decision`. **Met** — `task_type: Frontend`.
+3. Not blocked on an unanswered open question. **Carries a caveat, judged non-blocking.**
+   `M2-C04-01` carries **Q-68** (whether resetting its status to `Ready` after its earlier
+   React implementation was deleted from disk is what the owner intends). Q-68's own "Impact
+   if unresolved" column reads *"Nothing technically"* — it governs how the tracker row should
+   be worded, not whether the work is gated. The task file itself already carries `status:
+   Ready` as the applied (conservative) answer. If the owner later rules the other way on
+   Q-68, that corrects bookkeeping, not this task's output.
+4. Task file not superseded/stale. **Met** — no ⛔ banner, re-specified for Angular by
+   `M2-C12-01` (merged), `last_verified: 2026-08-22`.
+5. No sibling branch open on the same files. **Met** — `git branch --no-merged master` (checked
+   2026-08-22 during `M2-C12-05`'s close-out) lists no `M2-C04-01` branch; three unrelated
+   sibling worktrees exist (`wt-M0-10`, `wt-M2-A08`, `wt-M2-B01`), none touching
+   `frontend/nexgen-web/`, `M2-C04-01.md` or its `source_files`.
 
-### What `M2-C12-02` leaves for this task to reuse, not rediscover
+### Read before starting
 
-- The **atomicity-rule grep** (`grep -niE 'mantine|tanstack|zustand|react hook form|\bzod\b|
-  \.tsx|jsx|axios|\bmsw\b|vite'`) will very likely hit the literal substring `vite` inside
-  **Vitest** — the current, verified Angular test runner (KB-083). That is not a live
-  wrong-stack instruction; both `M2-C12-01` and `M2-C12-02` recorded the identical false
-  positive and explained why in their Execution Records. Quote the output; don't suppress it.
-- KB-083's verified Angular command table (`prompt-template.md` § Verified repository commands)
-  has **no `npm run coverage` script**. If `M2-C05*`/`M2-C06` specify a numeric coverage
-  criterion the way `M2-C10` did, `M2-C12-02` restated it as an enumerated per-export test
-  obligation rather than inventing a coverage gate that doesn't exist — the same move is
-  available here if the same gap appears.
-- `frontend/vsmart-erp/` (the old pilot) may legitimately appear in "files that must not
-  change" or as a citation source — it is the subject of the still-open **Q-38**
-  (`open-questions.md:70`), unrelated to and unaffected by this batch. Do not resolve Q-38 here;
-  it belongs to `M2-C11`, which stays `Blocked` until the owner rules.
-- The KB-090 required-section set, the `re-specification note` shape
-  (`tasks/M2-C01.md:28`), and the criterion-7 footprint guard
-  (`git diff --name-only master...HEAD | grep -v '^docs/kb/'`, expected empty, now the corrected
-  wording after Q-70 was answered) all apply unchanged — see `M2-C12-02.md`'s Execution Record
-  for a worked example of every one.
+- [`tasks/M2-C04-01.md`](tasks/M2-C04-01.md) in full — it is dense: the re-specification note
+  at the top explains what carried over from the discarded React implementation (the eight
+  WCAG contrast corrections and the 12/18 type scale, now recorded as *shipped* values in
+  [KB-051 §Colour](../frontend-new/design-system.md#colour)) and what did not (the file paths —
+  `frontend/nexgen-web/src/styles/tokens.css` and `src/app/core/theme/`, not the deleted React
+  tree's paths).
+- **Q-33** — `UserThemePreference.cs:20` holds a single `bool IsDarkMode` (default `false`) and
+  **cannot represent `system`**, but KB-051 asks for a `system` default. This task must record
+  the schema/spec mismatch, not quietly resolve it either direction.
+- **Q-68** — see check 3 above. Do not treat it as licence to skip the work; it is a
+  bookkeeping question about how the tracker describes what you are about to do.
+- KB-051 §Colour for the already-measured contrast ratios this task must reproduce, not
+  re-litigate.
+- `ADR-007-angular-stack.md` for the PrimeNG-preset-from-CSS-tokens question (**Q-67**, partly
+  answered — the reconciliation mechanism is this task's to establish and record which of the
+  two routes worked).
 
-### Do not start this task in this session
+### Session status
 
-This hand-off is a **close-out and selection record only** — the prior session's instruction was
-close out `M2-C12-02` and select next, **not implement**. A future session picks this up at
-Select/Investigate per [`workflow.md`](workflow.md) (KB-088) and
-[`autonomous-runner.md`](autonomous-runner.md) (KB-091).
+Selected at `M2-C12-05`'s close-out (2026-08-22, Select phase only). **Not yet dispatched.** A
+future session picks this up at Investigate/Implement per [`workflow.md`](workflow.md)
+(KB-088) and [`autonomous-runner.md`](autonomous-runner.md) (KB-091). `M2-C04-01`'s frontmatter
+does not state `complexity`/`risk` explicitly — classify per KB-091 §4 at dispatch
+(`task_type: Frontend` → base MEDIUM; `source_files` cites three `V.SMART/` files read-only for
+behaviour reference, no schema/auth/tenancy/numbering/calculation surface — check the raise/HIGH
+triggers against the actual `Implementation Requirements` section before routing).

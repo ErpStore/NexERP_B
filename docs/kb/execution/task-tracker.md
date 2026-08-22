@@ -150,10 +150,10 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-03 | M2 | — re-spec the list / CRUD shell (M2-C05*, M2-C06) | Documentation | **Completed**⁴⁴ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Completed**⁴⁵ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Needs Review**⁴⁶ *(implemented 2026-08-22 on `migration/M2-C12-05-respec`, unmerged; the last of the five batches)* | P0 | M2-C12-01…04 | 1 d | G2 |
-| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | Blocked²⁶˒⁴⁶ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; **⛔ supersession lifted** — `tasks/M2-C10.md` was re-specified for Angular by `M2-C12-02`, merged 2026-08-22. Remaining blocker: none of its own, so this row becomes selectable once someone confirms the five-part test)* | P0 | M2-C01 | 2 d | G2 |
+| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Ready**²⁶˒⁴⁶˒⁴⁷ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; **⛔ supersession lifted** — `tasks/M2-C10.md` was re-specified for Angular by `M2-C12-02`, merged 2026-08-22. Five-part test confirmed 2026-08-22 during `M2-C12-05`'s close-out — no sibling branch, no open-question gate — but not selected this round; see footnote ⁴⁷)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-01`)* | P0 | M2-C01 | 2 wks | G2 |
-| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | Blocked²⁶˒⁴⁶ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; **⛔ supersession lifted** — `tasks/M2-C04-01.md` was re-specified for Angular by `M2-C12-01`, merged 2026-08-22. Remaining blocker: none of its own)* | P0 | M2-C01 | 3 d | G2 |
+| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Ready**²⁶˒⁴⁶˒⁴⁷ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; **⛔ supersession lifted** — `tasks/M2-C04-01.md` was re-specified for Angular by `M2-C12-01`, merged 2026-08-22. Five-part test confirmed 2026-08-22 during `M2-C12-05`'s close-out and selected as the next task — see footnote ⁴⁷)* | P0 | M2-C01 | 3 d | G2 |
 | M2-C04-02 | M2 | — form controls + validation display | Frontend | Blocked²⁶˒⁴⁶ *(re-specified for Angular by `M2-C12-01`; real blocker is `M2-C04-01`)* | P0 | M2-C04-01 | 4 d | G2 |
 | M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | Blocked²⁶˒⁴⁶ *(re-specified for Angular by `M2-C12-01`; real blocker is `M2-C04-01`)* | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
@@ -2245,3 +2245,29 @@ references in place, since the pilot is genuine Angular prior art under ADR-007 
 discarded React — follows `M2-C12-04`'s precedent exactly. Full record: `tasks/M2-C12-05.md`
 § Execution Record (2026-08-22). **Not merged, not pushed.** Only the repository owner may set
 `Completed` ([KB-088](workflow.md#who-may-set-completed)).
+
+**Independently validated 2026-08-22, verdict `PASS`, attempt 1 of 5, 0 escalations.** All 8
+acceptance criteria and the Testing Requirement re-checked directly against tip `1e940bd`,
+matching the Execution Record's own greps and diffs; `dotnet build V.SMART.Api` re-run as a
+regression check, 0 errors / 6695 warnings, exact `KB-086` baseline. Two cosmetic imprecisions
+found in the Execution Record's own line-count/hit-count claims, neither affecting a criterion.
+One pre-existing staleness finding, explicitly out of this batch's scope: several byte-identical
+`V.SMART/` citations have drifted against current `master` HEAD (`ApplicationDbContext.cs:1156`,
+`CurrencyController.cs`'s line count) because of later, unrelated merges — worth an eventual
+cleanup task, not this one's. Status stays `Needs Review`; only the owner sets `Completed`. Full
+record: `tasks/M2-C12-05.md` § Execution Record (2026-08-22) — Close-out.
+
+⁴⁷ **Next-task selection, 2026-08-22, at `M2-C12-05`'s close-out.** With all 25 formerly-`⛔`
+files re-specified, `M2-C10` and `M2-C04-01` both newly clear the CLAUDE.md five-part
+"can actually be done" test (dependency `M2-C01` `Completed`/merged, no ⛔ banner, not a Product
+Decision, no unresolved gating question, no sibling branch — `git branch --no-merged master`
+checked). **`M2-C04-01` was selected** over `M2-C10` at rank: both `P0`; `M2-C04-01` unblocks two
+direct children (`M2-C04-02`, `M2-C04-03`) against `M2-C10`'s one (`M2-C07`, itself further gated
+on `M2-C05-01` and **Q-71**); and `M2-C04-01` sits on the ancestry of the stated critical path
+(`M2-C04-01 → M2-C04-02 → M2-C05-01 → M2-C05-03 → M2-D01 → …`, `dependency-graph.md` § *Project
+critical path*) while `M2-C10` feeds only the off-path `M2-C07`. `M2-C04-01` carries **Q-68**
+(whether resetting its status to `Ready` after its earlier React implementation was deleted is
+what the owner intends), but `Q-68`'s own "Impact if unresolved" column reads *"Nothing
+technically"* — it governs tracker wording, not whether the work is gated — so it is not a
+rank-3 blocker. `M2-C10` is recorded `Ready` rather than dispatched; it remains the next
+candidate behind `M2-C04-01` if that selection changes.
