@@ -21,70 +21,69 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## ▶ M2-C12-01 — Blocked, not resumable without an owner ruling
+## ▶ M2-C12-03 — Re-specify for Angular: the list and CRUD shell
 
-**Task file:** [`tasks/M2-C12-01.md`](tasks/M2-C12-01.md) — re-specify the design-system tree
-(`M2-C04.md`, `M2-C04-01.md`, `M2-C04-02.md`, `M2-C04-03.md`) for Angular/ADR-007.
+**Task file:** [`tasks/M2-C12-03.md`](tasks/M2-C12-03.md) — re-specify `M2-C05.md`,
+`M2-C05-01.md`, `M2-C05-02.md`, `M2-C05-03.md` and `M2-C06.md` for Angular/ADR-007, removing
+each file's `⛔ STOP — this specification is superseded` banner in the same change that removes
+its React content (the atomicity rule — see below).
 
-**Status: `Blocked`, owner Vivek, question Q-70.** This is a close-out, not an in-progress task —
-do not resume it without the owner's ruling below. It is left as the pointer so a human or a
-later run finds the full record instead of restarting from Select.
+**Why this one.** `M2-C12-02` (auth, app shell, decimal handling, pilot-adoption) closed
+`Needs Review` 2026-08-22 on `migration/M2-C12-02-respec`, independently validated `PASS`
+(all 8 acceptance criteria `MET`, `scopeOk: true`). `M2-C12-03` and `M2-C12-04` are the two
+remaining `Ready`, `P0`, 1 d siblings — same `depends_on: [M2-C00, M2-C01]` (both `Completed`
+and merged), disjoint `source_files` from each other and from `M2-C12-02`'s batch, and from the
+three other live worktrees (`wt-M0-10`, `wt-M2-A08`, `wt-M2-B01` — none touch
+`docs/kb/execution/tasks/M2-C0{5,6,7,8,9}*.md`, verified via `git worktree list` 2026-08-22).
+Tied on every ranking signal; `M2-C12-03` picked as the next sequential batch after `-02`,
+consistent with the pattern the prior two closes used. **`M2-C12-04` is flagged as a tied,
+equally-selectable candidate, not silently dropped** — a session with spare capacity could take
+it too. `M2-C12-05` stays `Blocked` behind all four sub-tasks by design: it owns the whole-tree
+`task-tracker.md`/`dependency-graph.md` restatement and must run last.
 
-### Run State
+**Read [`M2-C12`](tasks/M2-C12.md) first** — it holds the translation table, rationale,
+out-of-scope list and failure history that `M2-C12-03` narrows rather than repeats. Also read
+the **atomicity rule** (`M2-C12-03.md` — *"A file's ⛔ banner may only be removed in the same
+change that removes its React instructions... If you cannot finish a file, leave its banner in
+place and report it as not done."*) and the completed **`M2-C12-01`**/**`M2-C12-02`** Execution
+Records as the worked precedent for exactly which greps, frontmatter diffs and citation checks
+each acceptance criterion expects.
 
-- **Branch:** `migration/M2-C12-01-respec`, tip `09001a3`. Not merged, not pushed.
-- **Attempts:** 3 of 4 used. **Escalations: 1 of 1 used** (KB-091 §6.3).
-- **Last validator verdict:** `FAIL`, category `architecture`, `scopeOk: false`. 7 of 8
-  acceptance criteria `MET`; criterion 7 `NOT MET`.
-- **What failed:** Acceptance criterion 7 (`tasks/M2-C12-01.md:83-84`) requires
-  `git diff --name-only master...HEAD` to list **only** the four `M2-C04*` files. It never can:
-  criterion 2 (`:70-74`) requires the greps be quoted in this task's own Execution Record, the
-  Documentation Updates table (`:99-101`) requires this task's own `task-tracker.md` row and
-  authorises `open-questions.md`, and [KB-088 §4](workflow.md#4-which-documents-to-update) makes
-  `tasks/<TASK-ID>.md` an unconditional update — so a compliant diff is six or seven paths, never
-  four. Observed on `09001a3`: 7 paths (`failure-log.md`, the four batch files, `M2-C12-01.md`
-  itself, `open-questions.md`).
-- **Why this stopped rather than retried a 4th time:** the contradiction is between the task's
-  own acceptance criteria, not a mistake in execution — attempt 1 satisfied criterion 7 and
-  failed criterion 2; attempts 2 and 3 satisfied criterion 2 and failed criterion 7. No 4th
-  attempt can satisfy both. The fix is a wording change to criterion 7, spanning
-  `M2-C12-01`..`-05` (all five sub-tasks carry the identical clause) — a specification decision,
-  not a patch, and out of scope for an execution session to make unilaterally.
-- **Substance is sound, independently re-verified:** every PrimeNG selector named in the batch
-  exists in `primeng@22.1.0`; every `V.SMART/*.cs` citation is byte-unchanged from `master`; the
-  axe accessibility criterion (weakened in attempt 2) was caught and restored in attempt 3;
-  `git diff --stat master...HEAD -- . ':(exclude)docs'` is empty — no `V.SMART/`, no `frontend/`,
-  no schema, no TypeScript touched.
-- **Open question raised:** [**Q-70**](../open-questions.md) (`open-questions.md:42`) — how
-  should criterion 7 be reworded, with a proposed (not applied) wording and the three-attempt
-  history as evidence. **Owner: Vivek.**
-- **Full record:** [`tasks/M2-C12-01.md` § Execution Record
-  (2026-08-22)](tasks/M2-C12-01.md#execution-record-2026-08-22-session-close-out),
-  [`task-tracker.md`](task-tracker.md) footnote ⁴², [`failure-log.md`](failure-log.md)
-  (`M2-C12-01 · attempt 3 · independent validation · 2026-08-22 · FAIL (architecture)`),
-  [`runner-state.md`](runner-state.md).
+### Five-part "can actually be done" check
 
-### To resume this task
+1. Hard prerequisites `M2-C00`, `M2-C01` — both `Completed` and merged. **Met.**
+2. Not a `Product Decision`. **Met** — `task_type: Documentation`.
+3. Not blocked on an unanswered open question. **Met** — nothing in `open-questions.md` names
+   `M2-C05*`/`M2-C06` as gated.
+4. Task file not superseded/stale. **Met** — no ⛔ banner on `M2-C12-03.md` itself, `status:
+   Ready`, `last_verified: 2026-08-22`.
+5. No sibling branch open on the same files. **Met** — checked above.
 
-1. Get the owner's ruling on **Q-70** (reword criterion 7, or accept the six/seven-path diff as
-   compliant).
-2. Apply that ruling to `M2-C12-01.md` **and** `M2-C12-02`..`-05` — the same clause is duplicated
-   verbatim across all five sub-task files, so all of them fail identically until this is fixed.
-3. Re-validate `M2-C12-01` against the corrected criterion 7. Do not attempt a 4th
-   implementation pass before step 1 — three attempts already proved the criterion unsatisfiable
-   as written.
+### What `M2-C12-02` leaves for this task to reuse, not rediscover
 
-### What this leaves selectable
+- The **atomicity-rule grep** (`grep -niE 'mantine|tanstack|zustand|react hook form|\bzod\b|
+  \.tsx|jsx|axios|\bmsw\b|vite'`) will very likely hit the literal substring `vite` inside
+  **Vitest** — the current, verified Angular test runner (KB-083). That is not a live
+  wrong-stack instruction; both `M2-C12-01` and `M2-C12-02` recorded the identical false
+  positive and explained why in their Execution Records. Quote the output; don't suppress it.
+- KB-083's verified Angular command table (`prompt-template.md` § Verified repository commands)
+  has **no `npm run coverage` script**. If `M2-C05*`/`M2-C06` specify a numeric coverage
+  criterion the way `M2-C10` did, `M2-C12-02` restated it as an enumerated per-export test
+  obligation rather than inventing a coverage gate that doesn't exist — the same move is
+  available here if the same gap appears.
+- `frontend/vsmart-erp/` (the old pilot) may legitimately appear in "files that must not
+  change" or as a citation source — it is the subject of the still-open **Q-38**
+  (`open-questions.md:70`), unrelated to and unaffected by this batch. Do not resolve Q-38 here;
+  it belongs to `M2-C11`, which stays `Blocked` until the owner rules.
+- The KB-090 required-section set, the `re-specification note` shape
+  (`tasks/M2-C01.md:28`), and the criterion-7 footprint guard
+  (`git diff --name-only master...HEAD | grep -v '^docs/kb/'`, expected empty, now the corrected
+  wording after Q-70 was answered) all apply unchanged — see `M2-C12-02.md`'s Execution Record
+  for a worked example of every one.
 
-`M2-C12-02`, `M2-C12-03`, `M2-C12-04` remain `Ready` in the tracker (same `depends_on`, same
-priority) but carry the identical unsatisfiable criterion 7 — **not worth dispatching** until
-Q-70 is answered, since each would fail validation the same way. `M2-C12-05` stays `Blocked`
-behind all four by design (it owns the whole-tree tracker/`dependency-graph.md` restatement and
-must run last).
+### Do not start this task in this session
 
-Everything else in the tracker not touched by this close-out — `M2-A02` (Q-28, R-65), `M2-A04`
-(unrecorded block, needs owner ruling), `M0-06` (branch already exists), `M0-11` (Product
-Decision, owner-only), `M2-B05` (Blocked, awaiting re-specification onto R-66), `M2-B12-01`
-(Blocked, escalation budget exhausted), `M0-01-03` (merged, `Needs Review`, awaiting a named
-operator for runbook §7) — is unchanged by this session; see
-[`task-tracker.md`](task-tracker.md) for current status on each.
+This hand-off is a **close-out and selection record only** — the prior session's instruction was
+close out `M2-C12-02` and select next, **not implement**. A future session picks this up at
+Select/Investigate per [`workflow.md`](workflow.md) (KB-088) and
+[`autonomous-runner.md`](autonomous-runner.md) (KB-091).
