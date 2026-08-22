@@ -9,8 +9,8 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-21
-dependencies: [KB-081, KB-082, KB-088, KB-060]
+last_verified: 2026-08-22
+dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 ---
 
 # Current Task
@@ -21,87 +21,70 @@ dependencies: [KB-081, KB-082, KB-088, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## ▶ No active task — the blocker is now the specifications, not the merge queue
+## ▶ M2-C12-01 — Blocked, not resumable without an owner ruling
 
-**`M2-C01` was merged to `master` (`2dd4e53`, `--no-ff`) on owner instruction 2026-08-21 and is
-`Completed`.** It merged with zero conflicts. Re-verified on merged `master`: `npm run typecheck`
-exit 0; `npm run lint` "All files pass linting"; `npm run test:ci` **6 passed / 2 files**
-(Vitest 4.1.11); `npm run build` **436.85 kB raw / 104.20 kB transfer**. No .NET source was
-touched, so every `V.SMART.*` baseline is unaffected. Nothing was pushed.
+**Task file:** [`tasks/M2-C12-01.md`](tasks/M2-C12-01.md) — re-specify the design-system tree
+(`M2-C04.md`, `M2-C04-01.md`, `M2-C04-02.md`, `M2-C04-03.md`) for Angular/ADR-007.
 
-### The finding that matters: 25 superseded specifications
+**Status: `Blocked`, owner Vivek, question Q-70.** This is a close-out, not an in-progress task —
+do not resume it without the owner's ruling below. It is left as the pointer so a human or a
+later run finds the full record instead of restarting from Select.
 
-`M2-C01`'s merge clears the last *dependency* on the frontend tree — and unblocks **nothing**,
-because every task behind it still specifies React:
+### Run State
 
-```
-M2-C02  M2-C03  M2-C04  M2-C04-01  M2-C04-02  M2-C04-03
-M2-C05  M2-C05-01  M2-C05-02  M2-C05-03  M2-C06  M2-C07
-M2-C08  M2-C08-01  M2-C08-02  M2-C08-03  M2-C09  M2-C10  M2-C11
-M2-D01  M2-D02  M2-D02-01  M2-D02-02  M2-D02-03  M2-D03
-```
+- **Branch:** `migration/M2-C12-01-respec`, tip `09001a3`. Not merged, not pushed.
+- **Attempts:** 3 of 4 used. **Escalations: 1 of 1 used** (KB-091 §6.3).
+- **Last validator verdict:** `FAIL`, category `architecture`, `scopeOk: false`. 7 of 8
+  acceptance criteria `MET`; criterion 7 `NOT MET`.
+- **What failed:** Acceptance criterion 7 (`tasks/M2-C12-01.md:83-84`) requires
+  `git diff --name-only master...HEAD` to list **only** the four `M2-C04*` files. It never can:
+  criterion 2 (`:70-74`) requires the greps be quoted in this task's own Execution Record, the
+  Documentation Updates table (`:99-101`) requires this task's own `task-tracker.md` row and
+  authorises `open-questions.md`, and [KB-088 §4](workflow.md#4-which-documents-to-update) makes
+  `tasks/<TASK-ID>.md` an unconditional update — so a compliant diff is six or seven paths, never
+  four. Observed on `09001a3`: 7 paths (`failure-log.md`, the four batch files, `M2-C12-01.md`
+  itself, `open-questions.md`).
+- **Why this stopped rather than retried a 4th time:** the contradiction is between the task's
+  own acceptance criteria, not a mistake in execution — attempt 1 satisfied criterion 7 and
+  failed criterion 2; attempts 2 and 3 satisfied criterion 2 and failed criterion 7. No 4th
+  attempt can satisfy both. The fix is a wording change to criterion 7, spanning
+  `M2-C12-01`..`-05` (all five sub-tasks carry the identical clause) — a specification decision,
+  not a patch, and out of scope for an execution session to make unilaterally.
+- **Substance is sound, independently re-verified:** every PrimeNG selector named in the batch
+  exists in `primeng@22.1.0`; every `V.SMART/*.cs` citation is byte-unchanged from `master`; the
+  axe accessibility criterion (weakened in attempt 2) was caught and restored in attempt 3;
+  `git diff --stat master...HEAD -- . ':(exclude)docs'` is empty — no `V.SMART/`, no `frontend/`,
+  no schema, no TypeScript touched.
+- **Open question raised:** [**Q-70**](../open-questions.md) (`open-questions.md:42`) — how
+  should criterion 7 be reworded, with a proposed (not applied) wording and the three-attempt
+  history as evidence. **Owner: Vivek.**
+- **Full record:** [`tasks/M2-C12-01.md` § Execution Record
+  (2026-08-22)](tasks/M2-C12-01.md#execution-record-2026-08-22-session-close-out),
+  [`task-tracker.md`](task-tracker.md) footnote ⁴², [`failure-log.md`](failure-log.md)
+  (`M2-C12-01 · attempt 3 · independent validation · 2026-08-22 · FAIL (architecture)`),
+  [`runner-state.md`](runner-state.md).
 
-Each carries `⛔ STOP — this specification is superseded. Do not implement it as written.`
-[`CLAUDE.md`](../../../CLAUDE.md) makes that a **stop-and-report**, never a licence to infer the
-missing specification. So the dependency graph now says these are ready and the task files say
-they are not — and the task files win.
+### To resume this task
 
-**`M2-C00` is the precedent for how this gets fixed.** It rewrote KB-050 for Angular *and*
-re-specified `M2-C01` in the same change, which is the only reason `M2-C01` was selectable. The
-equivalent work for the remaining 25 **does not exist as a task** and needs the owner to
-authorise it — as one re-specification task, or several.
+1. Get the owner's ruling on **Q-70** (reword criterion 7, or accept the six/seven-path diff as
+   compliant).
+2. Apply that ruling to `M2-C12-01.md` **and** `M2-C12-02`..`-05` — the same clause is duplicated
+   verbatim across all five sub-task files, so all of them fail identically until this is fixed.
+3. Re-validate `M2-C12-01` against the corrected criterion 7. Do not attempt a 4th
+   implementation pass before step 1 — three attempts already proved the criterion unsatisfiable
+   as written.
 
-### Everything else, and why it is excluded
+### What this leaves selectable
 
-- **`M2-A02`** — P0, dependency-clear, gated on the unanswered **Q-28** *and* on **R-65**, whose
-  two phantom screen names would silently deny every request forever if either were annotated.
-- **`M2-A04`** — reads `Blocked` although its only listed prerequisite `M2-A01-02` is `Completed`
-  and merged. **The blocking reason is recorded nowhere.** Needs an owner ruling. It also gates
-  `M2-C02`, so it matters more than its row suggests.
-- **`M0-06`** — `Ready`, P1, but `migration/M0-06-remove-default-admin` already exists (part 5).
-- **`M0-11`** — a **`Product Decision`**: owner-only, never self-selectable.
-- **`M2-B05`** — `Blocked`; premise falsified at Investigate, awaiting re-specification onto **R-66**.
-- **`M2-B12-01`** — `Blocked`, verdict `FAIL`, escalation budget exhausted.
-- **`M0-01-03`** — merged, still `Needs Review`, awaiting a **named operator** for runbook §7.
+`M2-C12-02`, `M2-C12-03`, `M2-C12-04` remain `Ready` in the tracker (same `depends_on`, same
+priority) but carry the identical unsatisfiable criterion 7 — **not worth dispatching** until
+Q-70 is answered, since each would fail validation the same way. `M2-C12-05` stays `Blocked`
+behind all four by design (it owns the whole-tree tracker/`dependency-graph.md` restatement and
+must run last).
 
-### Branches deliberately left unmerged
-
-- **`migration/M2-A08-row-level-scoping`** — duplicate of the merged `M2-A08`; functionally
-  identical `UserRepository.cs` change, no validated `PASS`. Safe to delete.
-- **`migration/M2-B12-01-inv-012-numbering`** — `Blocked`, `FAIL`, budget exhausted.
-
----
-## Standing blockers worth reading before picking anything up
-
-- **R-65** (`ScreenCatalogue.cs` — two phantom screen names) blocks `M2-A02`. Owner **Vivek**.
-  [`technical-debt-register.md`](../risks/technical-debt-register.md).
-- **Q-28** (API-only administrators hold zero `UserRight` rows) also blocks `M2-A02`.
-  [`open-questions.md`](../open-questions.md).
-- **`M0-01-03`** needs a **named operator** to run runbook §7 (start `V.SMART.Web`, log in, run
-  one report, print one document) and sign the drill log — an accountability requirement, not a
-  technical one. The two throwaway drill databases are left in place for this. See
-  [`tasks/M0-01-03.md`](tasks/M0-01-03.md).
-- **`M2-A08`** has two competing branches; the owner needs to pick one before either merges
-  (one, from `migration/M2-A08-row-scope-and-account-gates`, is already merged to `master`).
-- **`M2-C11`** is gated on **Q-38** (what `M2-C11` is for under ADR-007) — unanswered.
-- **`M2-A04`** reads `Blocked` although its only listed prerequisite `M2-A01-02` is `Completed`
-  and merged. The blocking reason is not recorded anywhere; needs an owner ruling.
-- **Three sibling worktrees may still be live** (`wt-M0-10`, `wt-M2-A08`, `wt-M2-B01`) —
-  `git worktree list` belongs in Select alongside the tracker, which cannot see them.
-
-## Also true right now
-
-- **R-51** *(new, M2-C01, 2026-08-21)* — `primeng@22.1.0` ships client-side licence-banner
-  enforcement (`showInvalidLicenseBanner()`, closed-mode shadow root) and no licence key is
-  configured. Owner decision tracked as **Q-66**. Cheapest to resolve now, while only one
-  placeholder Angular screen exists — before the app shell (`M2-C03`) and ~150 later screens
-  build on PrimeNG. [`technical-debt-register.md`](../risks/technical-debt-register.md).
-- **Q-66** *(new, M2-C01)* — does PrimeNG 22 require a paid licence, and has one been bought?
-  [`open-questions.md`](../open-questions.md).
-- **R-67** — `SaveCorresFileAsync` (`WebFileUploadService.cs:100-104`) writes a zero-byte file
-  and reports success; every Blazor correspondence/drawing upload has been landing empty. Found
-  by M2-B06, deliberately left unfixed (out of scope), survivable only because
-  `Correspondence.Image` holds a second copy.
-- **Q-16** now has a storage half (M2-B06) and an observability half (M2-B11): uploaded files
-  and the log sink both currently live on local disk/filesystem with no durability guarantee
-  under an unknown deployment topology.
+Everything else in the tracker not touched by this close-out — `M2-A02` (Q-28, R-65), `M2-A04`
+(unrecorded block, needs owner ruling), `M0-06` (branch already exists), `M0-11` (Product
+Decision, owner-only), `M2-B05` (Blocked, awaiting re-specification onto R-66), `M2-B12-01`
+(Blocked, escalation budget exhausted), `M0-01-03` (merged, `Needs Review`, awaiting a named
+operator for runbook §7) — is unchanged by this session; see
+[`task-tracker.md`](task-tracker.md) for current status on each.

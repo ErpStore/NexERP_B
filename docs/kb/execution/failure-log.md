@@ -3928,3 +3928,16 @@ branch while `task-tracker.md:148` still reads `Ready` — a reader of the track
 wrong state. (c) This pass re-verified the *failure* and the scope, not the whole deliverable;
 AC1–AC6 and AC8 rest on the attempt-3 validator's independent re-run, not on a fourth derivation.
 (d) `M2-C04-01`'s status question (Q-68) is still the owner's.
+
+---
+
+### M2-C12-01 · session close-out · 2026-08-22 · STOPPED (escalation budget exhausted)
+
+No further implementation attempted. This entry records the close-out bookkeeping only — the
+substantive diagnosis is the attempt-3 entry immediately above, unchanged. Frontmatter
+`status: Needs Review` → `Blocked` in `tasks/M2-C12-01.md`; `task-tracker.md:148` corrected to
+`Blocked` with footnote ⁴²; `runner-state.md` `Status`/`Attempt`/`Escalations`/`Last validation`
+updated to reflect the closure; `current-task.md` rewritten to point at `M2-C12-01`'s Run State
+(Blocked, owner Vivek, Q-70) rather than the pre-`M2-C12` framing it still carried. `nextTaskId`
+returned empty — `M2-C12-02`..`-04` are `Ready` in the tracker but carry the identical
+unsatisfiable criterion 7 and are not worth dispatching until Q-70 is answered.

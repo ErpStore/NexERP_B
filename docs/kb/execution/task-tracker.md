@@ -145,7 +145,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Completed**²⁶˒⁴⁰ *(merged to `master` `2dd4e53` on owner instruction 2026-08-21)* | P0 | M2-C00 | 3 d | G2 |
 | M2-C11 | M2 | **Adopt** the Angular pilot as the app baseline | DevOps | Blocked²⁶˒³⁸ *(dependency cleared — `M2-C00` merged `0da6a35` 2026-08-21; now gated on **Q-38**, what `M2-C11` is for under ADR-007)* | P2 | M2-C00 | 0.5 d | G2 |
 | M2-C12 | M2 | **Re-specify the superseded M2-C / M2-D tree for Angular** *(parent)* | Documentation | Not Started⁴¹ *(parent — never worked directly; attempt 1 as a single task failed, see footnote)* | P0 | M2-C00, M2-C01 | 4 d | G2 |
-| M2-C12-01 | M2 | — re-spec the design-system tree (M2-C04*) | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 1 d | G2 |
+| M2-C12-01 | M2 | — re-spec the design-system tree (M2-C04*) | Documentation | **Blocked**⁴² *(branch `migration/M2-C12-01-respec` unmerged; validation `FAIL` ×3, escalation budget exhausted; blocked on owner ruling on Q-70, not on a task)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-02 | M2 | — re-spec auth, routing, decimal, pilot-adoption | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-03 | M2 | — re-spec the list / CRUD shell (M2-C05*, M2-C06) | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 1 d | G2 |
@@ -2091,3 +2091,22 @@ that cannot finish a file leaves that file's banner in place and reports it as n
 `M2-C12-05` runs last and owns the whole-tree restatement — the 25 tracker rows and
 `dependency-graph.md` — so the tree is described consistently once rather than five times.
 `M2-C11` is still not re-specified by any batch: it is gated on **Q-38** and routed to **Vivek**.
+
+⁴² **M2-C12-01: `Blocked` 2026-08-22 after three implementation attempts and one escalation —
+blocked on a human, not a task.** Branch `migration/M2-C12-01-respec` (tip `09001a3`) carries the
+four `M2-C04*` files re-specified for Angular, and the batch's *substance* is verified sound —
+independently re-derived PrimeNG selectors, correct `Companydetails.cs`/`DebitNote.cs`/
+`UserThemePreference.cs` citations, the axe accessibility criterion restored after attempt 2
+weakened it. What fails is **acceptance criterion 7** (`tasks/M2-C12-01.md:83-84`, the diff must
+list "nothing else" than the four batch files): the same task file's criterion 2 (:70-74, quote
+the greps "in the Execution Record"), its own Documentation Updates table (:99-101, requiring its
+KB-081 row and authorising KB-004), and [KB-088 §4](workflow.md#4-which-documents-to-update)'s
+unconditional "Always" update to `tasks/<TASK-ID>.md` each independently force more paths into the
+diff — so a compliant diff is six or seven paths, never four, and criterion 7 fails by
+construction. Attempt 1 satisfied criterion 7 and failed criterion 2's evidence obligation;
+attempts 2 and 3 satisfied criterion 2 and failed criterion 7. Escalated per
+[KB-091 §6.3](autonomous-runner.md#6-3); raised as **Q-70**
+([`open-questions.md:42`](../open-questions.md)), with a proposed (not applied) rewording. **Owner
+must rule on Q-70 before a fourth attempt** — retrying without a ruling would only reproduce the
+same contradiction, and the same wording is duplicated verbatim across `M2-C12-02`..`-05`, so
+every remaining batch will fail the identical way until Q-70 is answered. Not merged, not pushed.
