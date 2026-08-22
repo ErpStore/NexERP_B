@@ -3342,3 +3342,602 @@ grep output to be **quoted per file** rather than counted.
 **Third occurrence of the uncommitted-work failure mode** (after `M2-B06` and the killed run
 before it). An implementer that writes files before committing anything leaves no record of its
 own existence, and the only evidence it ran is filesystem mtimes.
+
+---
+
+### M2-C12-01 · attempt 1 · validation FAIL — the substance is right, the durable record is missing · 2026-08-22
+
+| Field | Value |
+|---|---|
+| Branch / tip | `migration/M2-C12-01-respec` · `3d1ccd3` |
+| Validator verdict | **FAIL** |
+| Failure category | acceptance-criterion |
+| Scope | OK — diff is 5 files, all under `docs/kb/`; `git diff --stat master...HEAD -- . ':(exclude)docs'` empty |
+
+**The atomicity rule holds, and that was checked, not assumed.** Re-run independently:
+`grep -rl '⛔ STOP — this specification is superseded' docs/kb/execution/tasks/ --exclude='M2-C12*'`
+returns 21 files, **none** of them `M2-C04`, `M2-C04-01`, `M2-C04-02`, `M2-C04-03`. The AC2 grep
+returns nothing in `M2-C04.md`; in the other three every hit is either a self-marked historical
+line (`M2-C04-01.md:617,624`) or a substring false positive on `vite` — **Vitest**, the verified
+current runner (KB-083 Angular table: "Runner is Vitest 4.1.11 through `@angular/build:unit-test`"),
+and the word "in**vite**" at `M2-C04-02.md:352`. No live instruction to build the ADR-003 stack
+survives in the batch.
+
+**What the re-specification got right, verified against the installed workspace rather than the
+implementer's word.** Every PrimeNG selector named in `M2-C04-02`/`-03` exists in the installed
+`primeng` **22.1.0** (`p-select`, `p-multiselect, p-multi-select`, `p-autocomplete, p-auto-complete`,
+`p-datepicker, p-date-picker` with `selectionMode() === 'range'`, `p-toggleswitch, p-toggle-switch`,
+`p-inputnumber`, `p-selectbutton`, `p-checkbox`, `p-radiobutton`, `p-fileupload`, `p-drawer`,
+`p-popover`, `p-confirmdialog, p-confirm-dialog`, `p-blockui, p-block-ui`, `p-message`, `p-dialog`,
+`p-toast`, `p-skeleton`, `p-progressbar`, `p-progress-spinner`, `p-contextmenu`, `[pInputText]`,
+`[pTextarea], [pInputTextarea]`, `[pTooltip]`). `definePreset` is declared at
+`@primeuix/themes/dist/index.d.mts:6` and `darkModeSelector?: 'system' | 'none' | (string & {})`
+at `@primeuix/styled/dist/index.d.mts:494`, exactly as cited. `app.config.ts:34` is the bare `Aura`
+preset; `tsconfig.spec.json:6` is the `*.spec.ts` include; no `zone.js` and no `axe` in
+`package.json`. Every quoted command (`npm run typecheck|lint|format:check|test:ci|build`) appears
+verbatim in KB-083's Angular table. Every Blazor `file:line` citation is byte-unchanged and still
+correct on disk (`UserThemePreference.cs:20` = `IsDarkMode … = false`, `Companydetails.cs:208` =
+`DecimalPlaces … = 2`, `DebitNote.cs:95,109,117,146` = the four `…AmtOrPer` booleans).
+`depends_on`, `business_rules`, `priority`, `estimate` and `Gate | G2` are byte-unchanged in all
+four. Q-67/Q-68 are genuinely free — highest id on `master` is Q-66, highest on any branch in
+`git branch --no-merged master` is Q-48.
+
+**What failed: there is no `## Execution Record` anywhere in the repository.** `M2-C12-01.md` is
+byte-unchanged on the branch, and its frontmatter still reads `status: Ready`. AC2 is explicit —
+*"Quote the actual output per file in the Execution Record — a count alone is not evidence"* — and
+the Completion Conditions repeat it (*"All 8 acceptance criteria met, greps quoted"*). KB-088 §3
+step 2 makes it unconditional: *"Record the actual outcome in the task file … This is the durable
+record; the conversation is not."* The greps were reportedly run; their output exists only in a
+transcript that does not survive the session.
+
+**Why the AC7-conflict excuse does not hold.** AC7 says the diff must list nothing but the four
+batch files, which literally forbids editing `M2-C12-01.md`. But the implementer already edited a
+fifth file, `open-questions.md`, on the correct reasoning that the task's own *Documentation
+Updates* table authorises KB-004. The same reasoning authorises the task's own record. It chose
+one horn of the contradiction for KB-004 and the other for the Execution Record.
+
+**Four deviations that exist only in the implementer's chat message and are therefore lost.** Each
+is defensible; none is recorded where the next session will find it. (1) The `axe` acceptance
+criterion was **dropped** from all three child files — "`axe` reports zero critical violations
+across every component in both themes" became a template-a11y-lint criterion. The justification
+(no `axe` installed; M5-09 "Accessibility: axe in CI + keyboard pass" owns it, tracker line 232,
+`depends_on: M2-C04`) is sound and *is* stated inside the files, but it is still a change to
+acceptance-criteria semantics, which `M2-C12` § Out of Scope forbids. (2) `M2-C04-01`'s status
+moved `Needs Review` → `Ready` (raised as Q-68 — correctly). (3) `frontend/vsmart-erp/**` survives
+in three "Files That Must Not Change" entries, against AC4's literal wording; the directory is real
+and tracked (40 files), so the reference is correct, but the reading is not written down. (4) The
+diff is 5 files, not 4.
+
+**Retry is cheap and narrowly scoped.** Append `## Execution Record (2026-08-22)` to
+`docs/kb/execution/tasks/M2-C12-01.md` carrying: the AC1 grep output; the AC2 grep output **per
+file**, with the `Vitest`/`invite` false positives named; the frontmatter-key diff proving AC5; the
+`V.SMART/` citation diff proving AC6; the end-to-end read required by *Testing Requirements* (name
+the file and the outcome); and the four deviations above, stated as deviations. Note in it that
+AC7's "nothing else" is self-contradictory with the file's own *Documentation Updates* table, so a
+future batch does not re-litigate it. Nothing in the four re-specified files needs to change.
+
+---
+
+### M2-C12-01 · attempt 1 · diagnosis + fix · 2026-08-22
+
+*(Diagnosis pass over the validator's `FAIL` above — written by the debugger per
+[KB-091 §7](autonomous-runner.md#7-persistent-state--what-is-written-where). Fix applied; **no
+code file, no schema, no `V.SMART/`, no `frontend/` file touched.** The diff added by this pass is
+two Markdown files under `docs/kb/`, plus this log.)*
+
+| Field | Value |
+|---|---|
+| Runner state | diagnosed, fixed, awaiting re-validation |
+| Model in use | opus (diagnosis) |
+| Validator verdict | FAIL |
+| Failure category | acceptance-criterion → **implementation-error** (confirmed, not re-classified) |
+| Branch / tip at diagnosis | `migration/M2-C12-01-respec` · `3d1ccd3` |
+| Tried before | **no** — the only prior entry for this task is the attempt-1 validation above, which records no fix. Its own closing paragraph recommends exactly this repair |
+
+**Reproduced first-hand before touching anything.** All observed on `3d1ccd3`, not taken on
+report:
+
+```
+$ git diff --name-only master...HEAD
+docs/kb/execution/tasks/M2-C04-01.md
+docs/kb/execution/tasks/M2-C04-02.md
+docs/kb/execution/tasks/M2-C04-03.md
+docs/kb/execution/tasks/M2-C04.md
+docs/kb/open-questions.md                    <- five files; M2-C12-01.md absent
+
+$ git diff --stat master...HEAD -- docs/kb/execution/tasks/M2-C12-01.md
+(empty — the task file was never touched)
+
+$ grep -n "Execution Record" docs/kb/execution/tasks/M2-C04*.md docs/kb/execution/tasks/M2-C12-01.md
+M2-C04-01.md:37    <- its own historical section's TOC link
+M2-C04-01.md:614   <- its own historical section
+M2-C12-01.md:74    <- criterion 2's own text
+
+$ grep -n '^status:' docs/kb/execution/tasks/M2-C12-01.md
+10:status: Ready
+```
+
+And the substance the record was supposed to carry reproduces exactly as the validator quoted it:
+`grep -rl '⛔ STOP — this specification is superseded' docs/kb/execution/tasks/ --exclude='M2-C12*'`
+→ **21 files, none of them `M2-C04*`**; the criterion-2 grep → nothing in `M2-C04.md`, and in the
+other three only `Vitest` / "in**vite**" substring hits plus `M2-C04-01.md:617,624`, which
+self-mark as historical. The frontmatter-key comparison and the `V.SMART/` citation-set diff were
+both re-run and both come back identical.
+
+**Root cause.** The implementing session did the work and did not write the record: KB-088 §3
+step 2 (*"append an `## Execution Record (<date>)` section … This is the durable record; the
+conversation is not"*) and §4's **Always** row for `tasks/<TASK-ID>.md` were simply not executed,
+and criterion 2 of this task states the same obligation explicitly (*"Quote the actual output per
+file in the Execution Record — a count alone is not evidence"*). A required deliverable was
+omitted. **No business rule, no architecture decision and no legacy behaviour is implicated** —
+`git diff --stat master...HEAD -- . ':(exclude)docs'` is empty, and the re-specified files in fact
+tighten the server-authority boundary (BR-SO-003 explicitly *not* implemented client-side at
+`M2-C04-03.md:308-313`; BR-CALC-001 still owns the `…AmtOrPer` flags at `M2-C04-02.md:240,367-368`).
+
+**This is the same defect class as `M2-C00` attempt 1, defect 3** (*"the KB-088 §4 'Always' update
+to the task's own file was simply not done"*), which was repaired the same way by that task's
+diagnosis pass in commit `6d0aebb`. That precedent is the reason this is a fix rather than an
+escalation.
+
+**Why editing `M2-C12-01.md` is in scope, despite criterion 7.** Criterion 7 says the diff must
+list nothing but the four batch files; the same file's *Documentation Updates* table authorises
+KB-004 and this task's own KB-081 row, and its *Objective* defers to "the ones named under 'Also'
+below" — a list that does not exist in the file. The spec is self-contradictory. Attempt 1 took
+the permissive horn for `open-questions.md` (correctly) and the restrictive horn for its own
+record; that inconsistency **is** the failure. Criterion 2 names the Execution Record as the place
+the evidence must live, so writing it cannot be out of scope. The reading is now recorded inside
+the task file so `M2-C12-02`..`-05` do not re-litigate it.
+
+**Fix applied** — commit `19c47b8` on `migration/M2-C12-01-respec`, two Markdown files under
+`docs/kb/`:
+
+| # | Change | Where | Re-validated by |
+|---|---|---|---|
+| 1 | `## Execution Record (2026-08-22)` appended — criterion-by-criterion, with the AC1 grep output in full, the AC2 grep output **quoted per file** and every hit individually accounted for, the AC5 protected-key table, the AC6 citation-set diff, the AC7 five-file diff, and the AC8 heading comparison | `docs/kb/execution/tasks/M2-C12-01.md:117-394` | `grep -n '^## Execution Record'` → `117`; `grep -n '^===== M2-C04'` → `166,169,174,180` (the per-file grep blocks) |
+| 2 | The *Testing Requirements* end-to-end read recorded: **`M2-C04-03.md` read in full (466 lines) by this pass**, outcome *implementable without inventing a detail*, with the two cosmetic observations named (`shared/components/index.ts` filed under *Expected to Change* though only `.gitkeep` exists — `git ls-files frontend/nexgen-web/src/app/shared/` returns five `.gitkeep`s; and the deliberately unresolved `ProblemDetails` field placeholders) | same section | the read was performed this session, not reported |
+| 3 | The four deviations that existed only in a chat message written down as deviations: the `axe` criterion replacement, `M2-C04-01`'s `Needs Review` → `Ready`, the three `frontend/vsmart-erp/**` paths, and the five-file diff | same section | `grep -n '^## Deviations'` |
+| 4 | Frontmatter `status: Ready` → **`Needs Review`**, and the header table row with it — KB-088 §3 step 4; the honest end state is REVIEW, and only the owner may set `Completed` | `M2-C12-01.md:10`, `:34` | `grep -n '^status:'` → `10:status: Needs Review` |
+| 5 | **Q-69 raised** — may a re-specification replace an acceptance criterion whose check is stack-independent, when the tool it names is not installed? Id verified free: highest on `master` is Q-66, highest on any branch in `git branch --no-merged master` is Q-48, and Q-67/Q-68 are this branch's own | `docs/kb/open-questions.md:41` | `grep -c '^| \*\*Q-69\*\*'` → `1` |
+
+**Deliberately NOT done, and why.**
+
+- **The `axe` acceptance criterion was not restored.** On `master` all three child files carried
+  *"`axe` reports zero critical violations … in **both** themes"* (`M2-C04.md:191`,
+  `M2-C04-01.md:388,417`, `M2-C04-02.md:372`, `M2-C04-03.md:347`); on `HEAD` it is a
+  template-a11y-lint criterion. That is a change of *whether* a runtime scan happens, and
+  `M2-C12.md:140-142` forbids changing "acceptance-criteria *semantics* … never *what* or
+  *whether*". **The justification inside the files is factually correct** — no `axe` in
+  `frontend/nexgen-web/package.json`, and M5-09 *"Accessibility: axe in CI + keyboard pass"* is a
+  real tracker row that `depends_on: M2-C04` — but choosing between "keep the lint criterion",
+  "restore `axe` here" and "restore it onto M5-09 explicitly" is a specification decision, not a
+  debugger's. Raised as **Q-69**, owner: repository owner. **A criterion silently weakened is
+  worse than the original failure, so it is named rather than accepted.**
+- **Nothing in the four re-specified files was changed** — `git diff --name-only` over
+  `M2-C04*.md` after this pass returns nothing. Their substance passed validation; re-deriving it
+  would be scope creep and would invalidate the criterion-5/6 diffs.
+- **No build, test or `dotnet` command was run.** `git diff --stat master -- . ':(exclude)docs'`
+  is empty; the diff is Markdown only, which `M2-C12` § Testing Requirements names as sufficient.
+  `dotnet test` would have measured nothing attributable to this task and was not used to
+  "confirm" anything.
+- **Not merged, not pushed.**
+
+**Disposition** — `fixed`. Attempts used: 1 of 3; two remain. No KB-091 §6.3 escalation trigger
+applies to the *failure*: it is neither `business-rule` nor `architecture`, and the corrected
+deliverable is a documentation record backed by commands re-run this session. **One item is
+escalated alongside the fix rather than instead of it: Q-69.**
+
+**Residual risk.** (a) The Execution Record's account of *why* the implementer made each choice is
+reconstructed from the committed text and the validation verdict, not from its notes — the same
+limitation `M2-C00`'s attempt-1 record carries, and it is stated in place. (b) Q-69 is unanswered,
+so the three child files currently specify a weaker a11y check than `master` did; if the owner
+answers (b) or (c), `M2-C04-01`/`-02`/`-03` need one more edit. (c) Criterion 7's wording is still
+self-contradictory in `M2-C12-01`..`-05`; only `M2-C12-01` now carries the reading, and
+`M2-C12-05` should fix the wording when it restates the tree. (d) `M2-C04-01`'s tracker row and
+its task-file status will disagree until `M2-C12-05` restates all 25 rows — deliberate, and
+recorded under Q-68.
+
+**Next attempt routed to** — re-validation of `M2-C12-01` as it now stands. Q-69 and Q-68 go to
+the repository owner and do not block the batch.
+
+---
+
+## M2-C12-01 · attempt 2 · independent validation · 2026-08-22 · `FAIL` (`architecture`)
+
+**Branch / tip validated** — `migration/M2-C12-01-respec` at `03293d2`
+(`3d1ccd3` re-spec → `19c47b8` Execution Record → `03293d2` line-count correction).
+Validator re-ran every acceptance-criterion command itself; nothing below is taken from the
+implementer's report.
+
+**What reproduced exactly.** AC1 (21 banner files, none of the batch), AC2 (per-file atomicity
+grep byte-for-byte as quoted at `M2-C12-01.md:165-184`), AC3 (four re-spec notes at
+`M2-C04.md:27`, `M2-C04-01.md:25`, `M2-C04-02.md:28`, `M2-C04-03.md:27`), AC5 (`depends_on`,
+`business_rules`, `priority`, `estimate`, gate — `KEYS IDENTICAL` / `GATE IDENTICAL` on all four),
+AC6 (`CITATIONS IDENTICAL`, 0/2/4/0), AC8 (heading diff loses no required section; the removed
+`## Fresh-Session Execution Prompt` is directed by `task-template.md:194,200-209`), and the
+corrected `wc -l docs/kb/execution/tasks/M2-C04-03.md` = **465**. The diff is Markdown under
+`docs/kb/` only — `git diff --stat master...HEAD -- . ':(exclude)docs'` is empty, so no
+`V.SMART/`, `frontend/`, schema or Blazor surface is touched.
+
+**Why it still fails.**
+
+1. **Scope — the `axe` acceptance criterion is still weakened in all four files.** Observed:
+   `master` `M2-C04.md:191` *"`axe` runs in CI over every primitive's stories/tests with zero
+   critical violations"*, `M2-C04-01.md:388,417`, `M2-C04-02.md:372`, `M2-C04-03.md:347`; on
+   `HEAD` a static `angular-eslint` template-lint criterion (`M2-C04-01.md:469-472`,
+   `M2-C04-02.md:391`, `M2-C04-03.md:333`) and, in the parent, **no `axe` mention at all**
+   (`grep -ni axe` on `HEAD:M2-C04.md` returns nothing). `axe-core` is stack-agnostic, so this is
+   not React removal — it is a change to *whether* a runtime a11y scan is required, which
+   `M2-C12.md:140-142` forbids in terms. Raising **Q-69** records the problem; it does not make
+   the committed deliverable conform. The conservative action available was to leave the criterion
+   byte-unchanged and ask.
+2. **AC7 not met, literally.** `git diff --name-only master...HEAD` returns six paths, not four:
+   the batch plus `docs/kb/execution/tasks/M2-C12-01.md` and `docs/kb/open-questions.md`. The
+   implementer discloses this. The criterion genuinely contradicts the same file's *Documentation
+   Updates* table and KB-088 §4, so it cannot be satisfied as written — a specification defect,
+   not an implementation bug.
+3. **A required Documentation Update was not made.** The *Documentation Updates* table
+   (`M2-C12-01.md:100`) requires KB-081 *"This sub-task's own row only"*. `task-tracker.md:148`
+   still reads `**Ready**` while `M2-C12-01.md:10,34` read `Needs Review`.
+4. **Minor inaccuracy in the durable record.** `M2-C12-01.md:289-290` claims *"All four:
+   `## React Changes` → `## Frontend Changes`"*. The heading diff for `M2-C04.md` is `5a6,7`
+   only — it never had a `## React Changes` or `## Fresh-Session Execution Prompt` section.
+
+**Category — `architecture`, deliberately.** Neither blocker is a bug a retry can close. (2) is a
+self-contradictory criterion inside the task specification, already diagnosed once; (1) is an
+unresolved specification decision the implementer correctly refused to make alone. Re-running the
+same implementer produces the same two findings. Owner input on **Q-69**, plus a wording fix to
+criterion 7 across `M2-C12-01`..`-05`, is what unblocks this.
+
+**Not checkable / not applicable.** No build or test command was run and none applies — the diff
+is documentation. `dotnet test` still finds no test project (M0-12-01 does not exist), so running
+it would have proved nothing.
+
+**Not merged, not pushed. No file outside this log was modified by the validator.**
+
+---
+
+### M2-C12-01 · attempt 2 · diagnosis · 2026-08-22 · **ESCALATE** (`architecture` — confirmed, not re-classified)
+
+*(Diagnosis pass over the attempt-2 `FAIL` above, written by the debugger per
+[KB-091 §7](autonomous-runner.md#7-persistent-state--what-is-written-where). **No code, no schema,
+no `V.SMART/`, no `frontend/` file touched.** This pass changed exactly one line-block of one
+Markdown file, plus this log — see *Repaired* below. `task-tracker.md` was deliberately **not**
+written: the orchestrator owns it.)*
+
+| Field | Value |
+|---|---|
+| Branch / tip at diagnosis | `migration/M2-C12-01-respec` · `03293d2` |
+| Validator verdict | FAIL · `architecture` · `scopeOk: false` |
+| Attempts used | 2 of 3 (`maxRetries=2`) |
+| Tried before | **YES for both blockers.** Each was identified *and consciously deferred* by the attempt-1 diagnosis pass (see its "Deliberately NOT done, and why"). Re-deciding them here would be a loop, not a retry |
+| Disposition | **escalate** |
+
+**Reproduced first-hand on `03293d2` before touching anything.** Nothing below is taken on report.
+
+```
+$ git log --oneline master..HEAD
+03293d2 / 19c47b8 / 3d1ccd3
+
+$ git diff --name-only master...HEAD
+docs/kb/execution/tasks/M2-C04-01.md   M2-C04-02.md   M2-C04-03.md   M2-C04.md
+docs/kb/execution/tasks/M2-C12-01.md
+docs/kb/open-questions.md                        <- SIX paths; AC7 demands four
+
+$ git diff --stat master...HEAD -- . ':(exclude)docs'
+(empty - documentation only; no V.SMART/, no frontend/, no schema)
+
+$ git show master:<f> | grep -ni axe   vs   git show HEAD:<f> | grep -ni axe
+  M2-C04.md     master 191            ->  HEAD  (nothing at all - the criterion is simply gone)
+  M2-C04-01.md  master 388,417,888,922 -> HEAD 469-472 (prose, not a criterion)
+  M2-C04-02.md  master 353,372,862,899 -> HEAD 391 (angular-eslint template lint)
+  M2-C04-03.md  master 320,347,830,863 -> HEAD 333 (angular-eslint template lint)
+
+$ sed -n '148p' docs/kb/execution/task-tracker.md
+| M2-C12-01 | ... | **Ready**41 | ...        vs   M2-C12-01.md:10  status: Needs Review
+
+$ diff <(git show master:...M2-C04.md | grep '^## ') <(git show HEAD:...M2-C04.md | grep '^## ')
+5a6,7   (+Completion Conditions, +Git Strategy - additions only)
+
+$ grep -n 'Q-69' docs/kb/open-questions.md
+41: ... "Not resolved; deliberately not reversed." ... Owner: repository owner
+```
+
+All four validator findings reproduce exactly. No build or test command was run and none applies:
+the diff is Markdown under `docs/kb/`. `dotnet test` still finds no test project (M0-12-01 does
+not exist) and was **not** used to "confirm" anything.
+
+**Root cause — the task specification is defective in two independent ways, and neither is a bug a
+third implementation attempt can close.**
+
+1. **Acceptance criterion 7 is unsatisfiable as written.** `M2-C12-01.md:87-88` requires
+   `git diff --name-only master...HEAD` to list *"nothing else"* than the four batch files. The
+   same file's *Documentation Updates* table (`:98-102`) **requires** an edit to KB-081 and
+   authorises KB-004, and criterion 2 (`:69-74`) requires the grep output to be quoted *"in the
+   Execution Record"*, which KB-088 §4 makes an unconditional edit to `tasks/M2-C12-01.md`. Every
+   compliant execution therefore produces at least a six-path diff. Attempt 1 satisfied criterion
+   7 and failed for the missing record; attempt 2 wrote the record and fails criterion 7. **The
+   criteria cannot both be met.** The only repair is to reword criterion 7 — editing a failing
+   acceptance criterion is a specification decision, and doing it from a debugging pass in order
+   to make validation pass is exactly the silently-adjusted check CLAUDE.md forbids. It also spans
+   `M2-C12-02`..`-05`, which this task does not authorise.
+2. **The `axe` acceptance criterion is weakened, and the choice is owner-owned (Q-69).** Confirmed
+   above: on `master` all four files required a **runtime** a11y scan (*"zero critical violations
+   in both themes"*); on `HEAD` three carry a **static** `angular-eslint` template-lint criterion
+   and the parent `M2-C04.md` carries **no automated a11y criterion at all**. `axe-core` is
+   stack-agnostic, so this is not React removal — it changes *whether* a runtime scan happens,
+   which `M2-C12.md:140-142` forbids in terms (*"acceptance-criteria semantics ... stay as they
+   are. This task changes how, never what or whether"*). The implementer's justification is
+   factually true (no `axe` in `frontend/nexgen-web/package.json`; **M5-09** *"Accessibility: axe
+   in CI + keyboard pass"* is a real tracker row that `depends_on: M2-C04`) — but Q-69's three
+   options (keep the lint / restore `axe` here / restore it onto M5-09) are a specification choice
+   with no `file:line` answer anywhere in the repository. **Q-69 is unanswered.** Choosing one
+   here would be inventing a requirement.
+
+**Why `architecture`, not `implementation-error`.** Per KB-091 §6.3, escalate when the task's
+approach conflicts with its specification and the resolution is a decision rather than a patch.
+Both blockers are that: (1) is a contradiction *inside* the acceptance criteria; (2) is an open
+question routed to the repository owner. Neither is a wrong condition, a missed null or an
+unimplemented criterion. Decisively: **no edit available to this pass can make validation pass** —
+any change at all keeps the diff at six paths or grows it, so criterion 7 fails regardless.
+
+**Tried before — yes, and that is what settles it.** The attempt-1 diagnosis pass considered both
+blockers explicitly and recorded its reasoning: *"restoring or keeping the criterion is a
+specification decision, not a debugger's"* (axe → Q-69) and *"the spec is self-contradictory ...
+the reading is now recorded inside the task file"* (criterion 7). Attempt 2's validator rejected
+both dispositions. Retrying either — restoring `axe` unilaterally, or rewording criterion 7 —
+would be the debugger overruling an owner-routed question on the second pass. A fix already
+recorded as tried is a loop.
+
+**Repaired anyway, because it is a false statement in the durable record and not a criterion.**
+The Criterion-8 block of `M2-C12-01.md` claimed *"All four: `## React Changes` →
+`## Frontend Changes`"*. Reproduced as wrong: `M2-C04.md`'s heading diff is `5a6,7`, additions
+only — it never had a `## React Changes` or a `## Fresh-Session Execution Prompt` section. The
+block now separates the three child files from the parent and states the parent's diff, with the
+correction dated and attributed. One file, one block; **no acceptance criterion, no grep output
+and no `file:line` citation altered**. Re-verified:
+`diff <(git show master:...M2-C04.md | grep '^## ') <(git show HEAD:...M2-C04.md | grep '^## ')`
+→ `5a6,7`, which the corrected text now states verbatim.
+
+**Deliberately NOT done.**
+
+- **The `axe` criterion was not restored** — Q-69 is the owner's and three defensible outcomes
+  exist. Note also that restoring it *verbatim* is impossible: master's wording names
+  `a11y.test.tsx`, which acceptance criterion 2 forbids. Even the "leave it byte-unchanged"
+  option needs a semantics-preserving translation someone must approve.
+- **Criterion 7 was not reworded** — that is weakening a failing check to pass validation.
+- **`task-tracker.md:148` was not updated** to `Needs Review`. It *is* a genuine unmet
+  *Documentation Updates* obligation (`M2-C12-01.md:100`, KB-081 "this sub-task's own row only")
+  and it should be done — but KB-081 is orchestrator-owned state under KB-091 §7 and a debugging
+  pass does not write it. **Handed to the orchestrator as a one-line edit.**
+- **No build, test or `dotnet` command was run. Not merged, not pushed.**
+
+**What unblocks `M2-C12-01`, for the owner.**
+
+1. Answer **Q-69** (`open-questions.md:41`) — (a) keep the template-lint criterion and rely on
+   M5-09; (b) restore a runtime `axe` criterion across the `M2-C04*` tree, translated to Angular
+   (`a11y.spec.ts`, not `a11y.test.tsx`), and note that the parent `M2-C04.md` currently has none
+   at all; or (c) move it explicitly onto M5-09 so the coverage is not silently deferred.
+   Whichever answer lands, `M2-C12-02`..`-05` inherit it.
+2. **Reword acceptance criterion 7** in `M2-C12-01`..`-05` so it permits the files its own
+   *Documentation Updates* table requires — e.g. *"the diff touches only the batch files, this
+   task's own file, and the documents named under Documentation Updates"*.
+3. Set `task-tracker.md:148` to `Needs Review` (orchestrator).
+
+**Residual risk.** (a) Until Q-69 is answered the four `M2-C04*` files on this branch specify a
+weaker a11y check than `master` did, and the parent specifies none — merged as it stands, that
+regression ships silently. (b) The criterion-7 contradiction is live in `M2-C12-02`..`-05`; each
+will fail validation the same way. (c) `M2-C04-01`'s status and its tracker row still disagree
+(Q-68, deliberate). (d) This pass re-verified the *failure*, not the whole deliverable; AC1-AC6
+and AC8 were confirmed MET by the validator's own re-run and were not re-derived here beyond the
+axe and heading checks above.
+
+---
+
+## M2-C12-01 · attempt 3 · independent validation · 2026-08-22 · `FAIL` (`architecture`)
+
+**Branch / tip validated** — `migration/M2-C12-01-respec` at `8443a8d`
+(`3d1ccd3` re-spec → `19c47b8` record → `03293d2` line count → `65f5c3e` heading correction →
+`8443a8d` axe restoration). Every command below was re-run by this validator on that tip.
+Nothing is taken from the implementer's report.
+
+**The attempt-2 blocker #1 is FIXED — verified, not accepted on report.** The `axe` runtime a11y
+criterion is restored in all four files, and the restorations are byte-identical to `master`
+where the record claims they are:
+
+```
+$ grep -n 'axe' docs/kb/execution/tasks/M2-C04.md
+187:- [ ] `axe` runs in CI over every primitive's stories/tests with **zero critical
+$ git show master:docs/kb/execution/tasks/M2-C04.md | sed -n '191,192p'
+- [ ] `axe` runs in CI over every primitive's stories/tests with **zero critical
+      violations**.
+```
+
+Same for `M2-C04-02.md:408` ≡ `master:372` and `M2-C04-03.md:365` ≡ `master:347`, both
+byte-identical; `M2-C04-01.md:511` carries `master:417`'s semantics with the lint clause appended,
+`:469` the `a11y.spec.ts` test-table row, `:388` the `axe-core` **dev** dependency, and `:403`
+lists `a11y.spec.ts` under *Files Expected to Be Created*. The attempt-1 template-lint criterion is
+kept **alongside**, marked "in addition" — nothing removed. Taking Q-69 option (b) here is judged
+**correct, not an invented requirement**: restoring what `master` already carried is the
+conservative action the attempt-2 validator itself named, and `M2-C12.md:140-142` forbids the
+removal. `master`'s other acceptance-criteria semantics were also re-checked and survive: e.g.
+`M2-C04.md`'s contrast, `prefers-reduced-motion` and 200 %-zoom rows, and `M2-C04-03`'s full
+19-row list, translated in *how* only.
+
+**Criteria re-run, and what they returned.**
+
+| AC | Verdict | Evidence observed by this validator |
+|---|---|---|
+| 1 banner | **MET** | `grep -rl '⛔ STOP…' docs/kb/execution/tasks/ --exclude='M2-C12*'` → 21 files, none of `M2-C04*` |
+| 2 atomicity | **MET** | Per-file grep reproduces `M2-C12-01.md:165-188` byte-for-byte (10 hits: 8 `Vitest`, 1 "in**vite**", 2 self-marked historical). `grep -niE '\breact\b'` adds only the real `KB-050` filename `react-architecture.md` and the historical-section heading |
+| 3 note | **MET** | `M2-C04.md:27`, `M2-C04-01.md:25`, `M2-C04-02.md:28`, `M2-C04-03.md:27`, in `M2-C01.md:28`'s shape |
+| 4 paths/commands | **MET, two disclosed literal deviations** | 3 × `frontend/vsmart-erp/**` survive, all inside *Files That Must Not Change*; `git ls-files frontend/vsmart-erp` → **40** files, so the fence is factually true and rewriting it would make it false. `npx prettier --write` is quoted once (`M2-C04-01.md:654`) as a **prohibition**. Five npm commands, all in KB-083's Angular table (`prompt-template.md:368-373`) |
+| 5 frontmatter | **MET** | `depends_on`/`business_rules`/`priority`/`estimate`/gate byte-identical on all four, `master` vs `HEAD`. Only `last_verified` and `M2-C04-01`'s `status` (`Blocked`+dup `Needs Review` → single `Ready`) move; neither is in the list |
+| 6 `V.SMART/` citations | **MET** | Sorted-unique `file:line` extraction diffs clean: 0 / 2 / 4 / 0 citations, `IDENTICAL` each |
+| 7 diff surface | **NOT MET** | see below |
+| 8 KB-090 sections | **MET** | Heading diff loses no required section. `M2-C04.md` is `5a6,7` (additions only); the three children rename `## React Changes` → `## Frontend Changes`, add `## Completion Conditions`, drop `## Fresh-Session Execution Prompt` per `task-template.md:194,204-209` |
+
+**Why it still fails — AC7, unchanged and unchangeable by a retry.**
+
+```
+$ git diff --name-only master...HEAD
+docs/kb/execution/failure-log.md
+docs/kb/execution/tasks/M2-C04-01.md
+docs/kb/execution/tasks/M2-C04-02.md
+docs/kb/execution/tasks/M2-C04-03.md
+docs/kb/execution/tasks/M2-C04.md
+docs/kb/execution/tasks/M2-C12-01.md
+docs/kb/open-questions.md
+```
+
+Seven paths; AC7 (`M2-C12-01.md:83-84`) demands four and *"nothing else"*. This is now the **only**
+unmet criterion, and it is the same self-contradiction the attempt-2 diagnosis escalated: AC2
+requires the greps be quoted *in the Execution Record*, KB-088 §4 makes `tasks/<TASK-ID>.md` an
+unconditional update, and the *Documentation Updates* table (`:98-102`) requires KB-081 and
+authorises KB-004. Attempt 1 satisfied AC7 and failed AC2; attempts 2-3 satisfy AC2 and fail AC7.
+**No compliant execution can satisfy both**, so a fourth implementation attempt is provably futile.
+
+**Also still unmet, though not an acceptance criterion.** The *Documentation Updates* table
+requires this sub-task's own KB-081 row. `task-tracker.md:148` still reads `**Ready**⁴¹` while
+`M2-C12-01.md:10,34` read `Needs Review`. The implementer handed it back as orchestrator-owned;
+that is a defensible ownership call, but the obligation is open. One-line edit.
+
+**Category — `architecture`, deliberately.** The residual blocker is a contradiction *inside* the
+task specification, not a coding error, and it spans `M2-C12-01`..`-05`. Per KB-091 §6.3 that
+escalates rather than retries. Note the attempt-2 diagnosis's residual risk (a) — the silently
+weaker a11y specification — **is now discharged**; only the wording defect remains.
+
+**Regressions: none observed.** `git diff --stat master...HEAD -- . ':(exclude)docs'` is **empty**
+— no `V.SMART/`, no `frontend/`, no `.csproj`, no EF migration, no schema, no Blazor surface, no
+TypeScript. No ERP business rule is reimplemented; `M2-C04-03`'s BR-SO-003 rows still state the
+rule stays server-side. `docs/kb/execution/runner-state.md` is modified in the worktree but
+uncommitted and outside the branch diff — orchestrator-owned, not this task's.
+
+**Not checkable.** No build or test command applies: the diff is Markdown under `docs/kb/`.
+`dotnet test` still finds no test project (M0-12-01 does not exist); running it would have proved
+nothing and it was **not** run to manufacture a pass.
+
+**What unblocks this, for the owner — one decision, unchanged from attempt 2's list item 2.**
+Reword AC7 in `M2-C12-01`..`-05` to *"the diff touches only the batch files, this task's own file,
+and the documents named under Documentation Updates"*, then re-validate. Q-69 no longer blocks:
+`open-questions.md:41` now records option (b) as taken, with (a)/(c) left as the owner's.
+
+**Not merged, not pushed. This validator modified no file except this log.**
+
+---
+
+### M2-C12-01 · attempt 3 · diagnosis · 2026-08-22 · **ESCALATE** (`architecture` — same defect as attempt 2, now a confirmed loop)
+
+*(Diagnosis pass over the attempt-3 `FAIL` above. **No code, no schema, no `V.SMART/`, no
+`frontend/`, no task-specification file touched.** This pass wrote exactly two files: this log and
+`docs/kb/open-questions.md` (one new row, **Q-70**), the latter authorised by this task's own
+*Documentation Updates* table (`M2-C12-01.md:101`). `task-tracker.md`, `current-task.md` and
+`runner-state.md` were deliberately **not** written — the orchestrator owns them.)*
+
+| Field | Value |
+|---|---|
+| Branch / tip at diagnosis | `migration/M2-C12-01-respec` · `8443a8d` |
+| Validator verdict | FAIL · `architecture` · `scopeOk: false` · AC7 the **only** unmet criterion |
+| Attempts used | 3 of 3 (`maxRetries=2` — budget exhausted) |
+| Tried before | **YES.** The attempt-2 diagnosis escalated on this exact criterion and recorded the only available fix — rewording AC7 — under *"Deliberately NOT done"*. Applying it now would be a loop, not a retry |
+| Disposition | **escalate** |
+
+**Reproduced first-hand on `8443a8d`. Nothing below is taken from the validator's report.**
+
+```
+$ git branch --show-current
+migration/M2-C12-01-respec
+$ git diff --name-only master...HEAD
+docs/kb/execution/failure-log.md
+docs/kb/execution/tasks/M2-C04-01.md
+docs/kb/execution/tasks/M2-C04-02.md
+docs/kb/execution/tasks/M2-C04-03.md
+docs/kb/execution/tasks/M2-C04.md
+docs/kb/execution/tasks/M2-C12-01.md
+docs/kb/open-questions.md          <- SEVEN paths; AC7 demands four and "nothing else"
+
+$ git diff --stat master...HEAD -- . ':(exclude)docs'
+(empty — documentation only; no V.SMART/, no frontend/, no .csproj, no EF migration, no schema)
+```
+
+**Root cause — confirmed at `file:line`, not inferred.** Acceptance criterion 7 contradicts three
+other obligations of the *same* task file, so no compliant execution can satisfy the criteria set:
+
+| Obligation | Where | Paths it forces into the diff |
+|---|---|---|
+| AC7 — *"the diff touches **only** the files named above … must list nothing else"* | `tasks/M2-C12-01.md:83-84` | the 4 `M2-C04*` files, and no others |
+| AC2 — *"Quote the actual output per file **in the Execution Record**"* | `tasks/M2-C12-01.md:70-74` | `tasks/M2-C12-01.md` (5th) |
+| KB-088 §4 — `tasks/<TASK-ID>.md` is an **Always** update (frontmatter status + `## Execution Record`) | `workflow.md:207` | `tasks/M2-C12-01.md` (same 5th) |
+| *Documentation Updates* — KB-081 *"this sub-task's own row only"*, KB-004 authorised | `tasks/M2-C12-01.md:99-101` | `task-tracker.md` (6th), `open-questions.md` (7th) |
+
+Minimum compliant diff is therefore **six** paths, seven once a question is genuinely raised
+(Q-67/Q-68/Q-69 are real findings, so KB-004 was correctly touched). Four is unreachable. The
+history proves it empirically rather than by argument: **attempt 1** satisfied AC7 with a
+four-path diff and failed on AC2's evidence obligation; **attempts 2 and 3** satisfied AC2 and
+failed AC7. The two criteria partition the outcome space.
+
+**The defect is in the specification and it spans the whole `M2-C12` batch**, verified:
+
+```
+$ grep -n "must list nothing else" docs/kb/execution/tasks/M2-C12*.md
+M2-C12-01.md:84   M2-C12-02.md:84   M2-C12-03.md:86   M2-C12-04.md:88   M2-C12-05.md:91
+```
+
+`M2-C12-02`..`-05` will each fail validation identically. Repairing it means editing an acceptance
+criterion in five task files, four of which **this task does not authorise** (`M2-C12-01.md:45`
+names only the four `M2-C04*` files) — and editing a *failing* acceptance criterion from a
+debugging pass is precisely the silently-adjusted check `CLAUDE.md` forbids. It is a
+specification decision for the owner.
+
+**Why `architecture`, not `implementation-error`.** Per KB-091 §6.3 the trigger is *the task's
+approach conflicts with its own specification and the resolution is a decision, not a patch*.
+There is no wrong condition, no missed null and no unimplemented criterion left: AC1–AC6 and AC8
+were re-run and returned MET by the attempt-3 validator, and the attempt-2 blocker (the weakened
+`axe` criterion, Q-69) is discharged — spot-checked here and consistent with `open-questions.md:41`.
+Decisively: **no edit available to any pass can make AC7 pass**, because every edit either leaves
+the diff at seven paths or grows it.
+
+**Fix applied — one row, no criterion touched.** **Q-70** raised at `docs/kb/open-questions.md:42`,
+recording the AC7 contradiction with its `file:line` evidence, the three-attempt history, and the
+proposed wording *"the diff touches only the batch files, this task's own file, and the documents
+named under Documentation Updates"* **as a proposal, explicitly not applied**. Next free id
+verified before claiming it: `git branch --no-merged master` → highest id on any unmerged branch
+is Q-48; highest on this branch was Q-69. This raises the question the escalation depends on; it
+does not resolve it, and it changes no acceptance criterion, no grep output, no `file:line`
+citation and no path in the branch diff (`open-questions.md` was already in it).
+
+**Deliberately NOT done.**
+
+- **AC7 was not reworded** in this or any `M2-C12-*` file — weakening a failing check, out of
+  authorised scope, and already recorded as tried-and-declined at attempt 2.
+- **`task-tracker.md:148` was not set to `Needs Review`.** It is a real open *Documentation
+  Updates* obligation (`M2-C12-01.md:100`) and remains a one-line edit, but KB-081 is
+  orchestrator-owned under KB-091 §7. Handed over for the third time.
+- **No build, test or `dotnet` command was run**, and none applies: the diff is Markdown under
+  `docs/kb/`. `dotnet test` still finds no test project (M0-12-01 does not exist) and was **not**
+  used to manufacture a pass.
+- **Not merged, not pushed. Nothing outside this log and `open-questions.md` was modified.**
+
+**What unblocks `M2-C12-01` — one owner decision, unchanged since attempt 2.** Answer **Q-70**:
+reword AC7 across `M2-C12-01`..`-05`, then re-validate this branch as it stands. Everything else
+about the deliverable has been independently verified `MET`. Q-69 no longer blocks (option (b)
+taken and verified); Q-68 remains open but is non-blocking.
+
+**Residual risk.** (a) The AC7 contradiction is live in `M2-C12-02`..`-05`; each will burn its
+retry budget the same way unless the wording lands first. (b) The batch is `Needs Review` on the
+branch while `task-tracker.md:148` still reads `Ready` — a reader of the tracker alone sees the
+wrong state. (c) This pass re-verified the *failure* and the scope, not the whole deliverable;
+AC1–AC6 and AC8 rest on the attempt-3 validator's independent re-run, not on a fourth derivation.
+(d) `M2-C04-01`'s status question (Q-68) is still the owner's.
+
+---
+
+### M2-C12-01 · session close-out · 2026-08-22 · STOPPED (escalation budget exhausted)
+
+No further implementation attempted. This entry records the close-out bookkeeping only — the
+substantive diagnosis is the attempt-3 entry immediately above, unchanged. Frontmatter
+`status: Needs Review` → `Blocked` in `tasks/M2-C12-01.md`; `task-tracker.md:148` corrected to
+`Blocked` with footnote ⁴²; `runner-state.md` `Status`/`Attempt`/`Escalations`/`Last validation`
+updated to reflect the closure; `current-task.md` rewritten to point at `M2-C12-01`'s Run State
+(Blocked, owner Vivek, Q-70) rather than the pre-`M2-C12` framing it still carried. `nextTaskId`
+returned empty — `M2-C12-02`..`-04` are `Ready` in the tracker but carry the identical
+unsatisfiable criterion 7 and are not worth dispatching until Q-70 is answered.
