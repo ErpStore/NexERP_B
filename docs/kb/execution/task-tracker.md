@@ -147,7 +147,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12 | M2 | **Re-specify the superseded M2-C / M2-D tree for Angular** *(parent)* | Documentation | Not Started⁴¹ *(parent — never worked directly; attempt 1 as a single task failed, see footnote)* | P0 | M2-C00, M2-C01 | 4 d | G2 |
 | M2-C12-01 | M2 | — re-spec the design-system tree (M2-C04*) | Documentation | **Completed**⁴²˒⁴³ *(merged to `master` 2026-08-22 on owner instruction; the `FAIL` was a defect in criterion 7, not in the work — see footnote ⁴³)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-02 | M2 | — re-spec auth, routing, decimal, pilot-adoption | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 1 d | G2 |
-| M2-C12-03 | M2 | — re-spec the list / CRUD shell (M2-C05*, M2-C06) | Documentation | **Needs Review**⁴¹ *(implemented on `migration/M2-C12-03-respec`, 2026-08-22 — all five files re-specified, banners removed atomically, unmerged)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
+| M2-C12-03 | M2 | — re-spec the list / CRUD shell (M2-C05*, M2-C06) | Documentation | **Needs Review**⁴⁴ *(implemented on `migration/M2-C12-03-respec`, tip `1c412ba`, 2026-08-22 — all five files re-specified, banners removed atomically; independently validated `PASS` on attempt 2 of 4; unmerged — see footnote)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Ready**⁴¹ | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | Blocked⁴¹ *(runs last — owns the whole-tree restatement)* | P0 | M2-C12-01…04 | 1 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | Blocked²⁶ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; still **⛔ superseded**: `tasks/M2-C10.md` specifies React and must be re-specified for Angular before it can be selected)* | P0 | M2-C01 | 2 d | G2 |
@@ -2135,3 +2135,37 @@ respectively, so React was *replaced*, not merely deleted. Merged `--no-ff`; tag
 the task file, the tracker row, and the KB bookkeeping files the work may touch — with the actual
 guard being `git diff --name-only master...HEAD | grep -v '^docs/kb/'` returning empty. **Q-70 is
 answered by that change**, and the answer is recorded against it rather than left open.
+
+⁴⁴ **M2-C12-03: `Needs Review` 2026-08-22 — 2 attempts, independently validated `PASS`, unmerged.**
+Branch `migration/M2-C12-03-respec`, tip `1c412ba`, cut from `master` at `f8b4dad`. `M2-C05.md`,
+`M2-C05-01.md`, `M2-C05-02.md`, `M2-C05-03.md` and `M2-C06.md` were re-specified for
+Angular/ADR-007, each `⛔` banner removed in the same change that removed its React content — the
+atomicity rule held throughout, per-file grep output quoted in the Execution Record.
+
+**Attempt 1** (`f2ed0b3`) was independently validated `FAIL`, category `regression`: it correctly
+re-specified all five files but also deleted the stack-independent runtime `axe` accessibility
+acceptance criterion from all five, on the true-but-incomplete premise that no scanner is
+installed today — `M2-C04-01` installs `axe-core` as a dev dependency and every file in this
+batch reaches it through a Hard `depends_on` chain, so the deletion changed acceptance-criteria
+semantics, which `M2-C12.md:140-142` forbids. **Q-69**, already answered in the conservative
+direction by `M2-C12-01`'s own attempt 3, was never consulted. **Attempt 2** (`1c412ba`) restored
+the criterion, translated only in *how* (an `a11y.spec.ts` under the existing `npm run test:ci`,
+no new command or dependency, kept alongside the added `angular-eslint`/keyboard coverage rather
+than instead), and corrected two imprecise `ADR-007` line citations.
+
+**Independent validation of attempt 2: `PASS`.** All 8 acceptance criteria `MET`, re-derived
+directly rather than trusted — banner grep (16 unrelated files, none of this batch), atomicity
+grep (zero matches, all five), re-spec notes present, `frontend/nexgen-web/` paths and every
+quoted command verbatim against KB-083, frontmatter/`Gate`-row byte-diffs empty, `V.SMART/`
+citation set-diff empty except one loss traced to the deleted *Fresh-Session Execution Prompt*
+block and confirmed to survive elsewhere, criterion-7 diff confined to the declared footprint
+(8 paths, all `docs/kb/`), all 13 KB-090 headings present in all five files. `scopeOk: true`,
+`failureCategory: none`, no regressions observed. BR-SO-001 independently re-verified against
+`MfgPoService.cs:488,598` — unchanged. Raised **Q-71** (dangling `ADR-007-angular-stack.md:98`
+"see below" pointer for `LineItemGrid`) — did not block this batch, will bite `M2-C12-04`.
+
+Full record: `tasks/M2-C12-03.md` § Execution Record (2026-08-22) and § Execution Record
+(2026-08-22) — session close-out; `failure-log.md`
+(`M2-C12-03 · attempt 1 · independent validation · 2026-08-22 · FAIL (regression)` and
+`M2-C12-03 · attempt 1 · diagnosis · 2026-08-22 · implementation-error → fixed on branch`).
+**Not merged, not pushed.** Only the repository owner may set `Completed` ([KB-088](workflow.md#who-may-set-completed)).
