@@ -6,7 +6,7 @@ source_files: []
 entities: []
 api_endpoints: []
 database_tables: []
-business_rules: []
+business_rules: [BR-SO-003]
 status: active
 confidence: n/a
 last_verified: 2026-08-23
@@ -21,81 +21,67 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## ▶ M2-C10 — Decimal handling: no float money arithmetic
+## ▶ M2-C04-03 — Feedback: modal, drawer, toast, empty/loading/error states
 
-**Task file:** [`tasks/M2-C10.md`](tasks/M2-C10.md) — the `decimal.js`-backed money/quantity
-module under `frontend/nexgen-web/src/app/shared/utils/decimal/`: `parseUserInput`, `format`,
-comparison helpers and the branded `Money`/`Qty` types, plus the injectable precision policy
-traceable to `Companydetails.DecimalPlaces` (`Companydetails.cs:208`). No screen, no UI
-component — this is the parsing/formatting primitive.
+**Task file:** [`tasks/M2-C04-03.md`](tasks/M2-C04-03.md) — the overlay/feedback layer of
+[KB-051 §Overlays and §Feedback](../../frontend-new/design-system.md#overlays) as standalone
+Angular components over **PrimeNG only**: `Modal`, `Drawer`, `ConfirmDialog` (optional
+required reason), `Popover`, `Tooltip`, `ContextMenu`, `Toast`, `InlineAlert`, `BusyOverlay`,
+`Skeleton`, `ProgressBar`, `EmptyState`, `ErrorState`, `PermissionDeniedState`. Locations
+`frontend/nexgen-web/src/app/shared/components/overlay/` and `.../feedback/` — **to be
+created**. `BR-SO-003` (mandatory cancellation reason on a Sales Order/line) supplies the
+*capability* (`ConfirmDialog`'s reason field); the rule itself stays server-side — this task
+never implements it client-side.
 
-**Why this one.** `M2-C04-02` (form controls + validation display) closed `Needs Review`
-2026-08-23, independently validated `PASS` on `migration/M2-C04-02-form-controls` (tip
-`2eb7d8e`) — unmerged, awaiting owner review. Two `P0` `Ready` candidates remain from
-`M2-C04-01`'s earlier merge, both independent of `M2-C04-02`'s files: `M2-C10` (decimal
-handling, 2 d) and `M2-C04-03` (modal/drawer/toast/states, 3 d). `M2-C10` wins rank 2 (most
-downstream unblocking, [`dependency-graph.md`](dependency-graph.md) § *Ready-task selection
-rule*): it is a named Hard prerequisite of **one** tracker row (`M2-C07`, itself further
-gated on `M2-C05-01` and unanswered **Q-71**), against **none** for `M2-C04-03` (a *Soft*
-dependency only, for `InlineAlert`, with a documented local-placeholder fallback — the exact
-pattern `M2-C04-02` itself used). Neither sits on the stated critical path
-(`M2-C04-01 → M2-C04-02 → M2-C05-01 → M2-C05-03 → M2-D01 → …`). Full reasoning:
-[`runner-state.md`](runner-state.md) Current task, `task-tracker.md` row `M2-C10`.
-
-**Carried forward from `M2-C04-02` — read before starting, do not re-derive:**
-
-- `M2-C04-02`'s three numeric controls (`app-number-input`, `app-currency-input`,
-  `app-amount-or-percent-input`) already hold their values as **opaque branded `Money`/`Qty`
-  types** (`frontend/nexgen-web/src/app/shared/components/form/types.ts`) and parse/format
-  through an injected `DECIMAL_PORT` token that **nothing in application code currently
-  provides** — a documented `TODO(M2-C10)`. This task's job is to provide that port's real
-  implementation, not to redesign the control contract. A fixture
-  (`form/fake-decimal-port.ts`) shows the shape tests expect; it is not exported from
-  `form/index.ts` and must stay a test-only fixture.
-- **Q-74** (open, non-blocking): how the control's `{ value, isAmount }` pair should project
-  onto the server's separate `Amount`/`Percent` columns (`DiscountAmount` vs
-  `DiscountPercent`, etc. — `CalculationService.cs:29-31,38-42`, polarity `true` = fixed
-  amount). Not this task's problem to solve, but relevant context if the decimal module's API
-  shape is questioned.
-- **R-68** (open, non-blocking): a client-side-only party-completeness gate in
-  `CustomerSelection.razor` has no SPA owner. Unrelated to this task; recorded here only so a
-  session skimming `M2-C04-02`'s history does not re-investigate it.
+**Why this one.** This session (2026-08-23) re-selected after finding `current-task.md` still
+pointing at `M2-C10`, which an intervening session had already dispatched and closed
+**`Blocked`** (attempt 1 `FAIL`, category `environment` — its binding criterion needs a
+*measured* wire format from a live `[Authorize]`d endpoint, and this workstation's
+`ConnectionStrings:MasterDb`/`Jwt:Secret` are both empty; not a code defect, owner **Vivek**,
+task-tracker.md footnote 52). `task-tracker.md`'s own "Current state" section (line ~268)
+states outright: **"Only one task is genuinely selectable: `M2-C04-03`"** — the other three
+`Ready` rows all fail the five-part test (`M0-06` already has a branch; `M0-11` is a `Product
+Decision`; `M2-A02` is gated on unanswered **Q-28** and **R-65**). Full reasoning:
+[`runner-state.md`](runner-state.md) Current task / selection_note, `task-tracker.md` rows
+`M2-C10` and `M2-C04-03`.
 
 ### Five-part "can actually be done" check
 
-1. Hard prerequisite `M2-C01` — `Completed` and merged to `master`. **Met.**
+1. Hard prerequisite `M2-C04-01` — `Completed` and merged to `master`. **Met**
+   (task-tracker.md line 158). `M2-C01` (also Hard) — `Completed` and merged. **Met.**
 2. Not a `Product Decision`. **Met** — `task_type: Frontend`.
 3. Not blocked on an unanswered open question. **Met.** No open question gates this task's own
-   scope.
-4. Task file not superseded/stale. **Met** — no ⛔ banner; re-specified for Angular by
-   `M2-C12-02` (merged), `last_verified: 2026-08-22`. `decimal.js` is carried over from
-   ADR-003 **unchanged** by [ADR-007](../decisions/ADR-007-angular-stack.md) and is already
-   installed (`frontend/nexgen-web/package.json`: `"decimal.js": "^10.6.0"`).
+   scope (M2-A06's correlation-id soft dependency has a documented fallback if unmet; see
+   task file § Dependencies).
+4. Task file not superseded/stale. **Met** — no live ⛔ banner; re-specified for Angular by
+   `M2-C12-01` (merged), `last_verified: 2026-08-22`.
 5. No sibling branch open on the same files. **Met** — `git branch --no-merged master`
-   (checked 2026-08-23) lists no branch touching `frontend/nexgen-web/src/app/shared/utils/`
-   or `M2-C10.md`.
+   (checked 2026-08-23, this session) lists no branch touching
+   `frontend/nexgen-web/src/app/shared/components/overlay/`,
+   `frontend/nexgen-web/src/app/shared/components/feedback/`, or `M2-C04-03.md`.
 
 ### Read before starting
 
-- [`tasks/M2-C10.md`](tasks/M2-C10.md) in full. Note the re-specification banner: one
-  acceptance criterion (100% statement/branch coverage) had its *mechanism* changed to an
-  enumerated test list plus review, because this workspace has no verified coverage command
-  — do not invent one and do not quote the superseded criterion literally.
-- [ADR-007](../decisions/ADR-007-angular-stack.md) — `decimal.js`, carried over from ADR-003
-  unchanged.
-- `Companydetails.cs:208` — `DecimalPlaces` default `2`, the source of the precision policy
-  `M2-C04-02`'s numeric controls already inject.
-- `frontend/nexgen-web/src/app/shared/components/form/numeric-base.ts` and `types.ts` — the
-  consumer contract this module must satisfy (the `DECIMAL_PORT` token shape, `Money`/`Qty`
-  branding). Do not change these files; they belong to `M2-C04-02`.
+- [`tasks/M2-C04-03.md`](tasks/M2-C04-03.md) in full, including § Prerequisites and
+  § Dependencies — `M2-C04-02` (form controls) is a **Soft** dependency only: use
+  `app-form-field` + `app-textarea` for `ConfirmDialog`'s reason field if they exist
+  (`M2-C04-02` closed `Needs Review`, unmerged — check whether it has since merged before
+  assuming the real components are available); otherwise use a bare `[pTextarea]` with a
+  `TODO` and replace it later. Do not build a parallel field/error mechanism.
+- [KB-051 §Overlays, §Feedback, §State patterns](../../frontend-new/design-system.md) — the
+  full 14-primitive contract, the seven-state pattern, and Principle 6 ("errors are specific"
+  — server messages shown verbatim).
+- [ADR-007](../../decisions/ADR-007-angular-stack.md) — PrimeNG only.
+- `BsModal.razor` (Confirmed, KB-015 §Shared components) — existing confirm-dialog/reason-box
+  reference; `BR-SO-003` is the rule that requires the mandatory reason on Sales Order
+  cancellation.
 
 ### Run State — not yet dispatched
 
-Selected this Select pass (2026-08-23, at `M2-C04-02`'s close-out). No branch cut, no
-implementer dispatched. Next session should dispatch per [`workflow.md`](workflow.md)
-(KB-088) rather than re-run Select.
+Selected this Select-only pass (2026-08-23, this session). No branch cut, no implementer
+dispatched. Next session should dispatch per [`workflow.md`](workflow.md) (KB-088) rather than
+re-run Select.
 
-`M2-C04-03` (`Ready`, `P0`, 3 d) remains a genuinely selectable, independent candidate for a
-parallel session — see `runner-state.md` § Next ready task. `M2-C05`/`M2-C05-01` do **not**
-become selectable from `M2-C04-02`'s `PASS`: they need it `Completed` and merged, and it is
-`Needs Review`, unmerged, on `migration/M2-C04-02-form-controls`, awaiting owner review.
+`M2-C10` is **not** selectable again until the environment blocker clears (a reachable
+`MasterDb` + `Jwt:Secret`, or a relaxed wire-format criterion) — owner **Vivek**. No other
+`Ready` row passes the five-part test; see `runner-state.md` § Next ready task.
