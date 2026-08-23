@@ -47,6 +47,61 @@ const bannedGeneratedClientImports = {
   ],
 };
 
+/**
+ * R-22: a second visual language appears the moment components start
+ * hardcoding colours. Colour lives in src/styles/tokens.css and is reached
+ * through var(--token) - see src/app/core/theme/README.md.
+ *
+ * ESLint can only police the halves angular.json lintFilePatterns covers
+ * (TypeScript and templates). The .css/.scss half is covered by
+ * src/app/core/theme/no-raw-colour.spec.ts rather than by a second linter.
+ */
+const noRawColour = [
+  {
+    selector: 'Literal[value=/#[0-9a-fA-F]{3,8}/]',
+    message:
+      'No raw colour literal. Use a semantic token from src/styles/tokens.css, e.g. var(--accent) (KB-051, R-22).',
+  },
+  {
+    selector: 'Literal[value=/(rgb|hsl)a?[(]/]',
+    message:
+      'No raw colour literal. Use a semantic token from src/styles/tokens.css, e.g. var(--accent) (KB-051, R-22).',
+  },
+  {
+    selector: 'TemplateElement[value.raw=/#[0-9a-fA-F]{3,8}/]',
+    message:
+      'No raw colour literal. Use a semantic token from src/styles/tokens.css, e.g. var(--accent) (KB-051, R-22).',
+  },
+];
+
+// The same ban expressed against the Angular template AST, which uses its own
+// node types rather than ESTree Literal: a static attribute (style="color: #fff")
+// parses to TextAttribute, an interpolated or bound value to LiteralPrimitive.
+// angular.json lintFilePatterns covers src/**/*.html, so templates are inside the
+// stated scope of the ban (KB-051, R-22).
+const noRawColourTemplate = [
+  {
+    selector: 'TextAttribute[value=/#[0-9a-fA-F]{3,8}/]',
+    message:
+      'No raw colour literal. Use a semantic token from src/styles/tokens.css, e.g. var(--accent) (KB-051, R-22).',
+  },
+  {
+    selector: 'TextAttribute[value=/(rgb|hsl)a?[(]/]',
+    message:
+      'No raw colour literal. Use a semantic token from src/styles/tokens.css, e.g. var(--accent) (KB-051, R-22).',
+  },
+  {
+    selector: 'LiteralPrimitive[value=/#[0-9a-fA-F]{3,8}/]',
+    message:
+      'No raw colour literal. Use a semantic token from src/styles/tokens.css, e.g. var(--accent) (KB-051, R-22).',
+  },
+  {
+    selector: 'LiteralPrimitive[value=/(rgb|hsl)a?[(]/]',
+    message:
+      'No raw colour literal. Use a semantic token from src/styles/tokens.css, e.g. var(--accent) (KB-051, R-22).',
+  },
+];
+
 module.exports = defineConfig([
   {
     ignores: ['dist/**', 'coverage/**', 'playwright-report/**', 'test-results/**', '.angular/**'],
@@ -84,6 +139,17 @@ module.exports = defineConfig([
           ],
         },
       ],
+      'no-restricted-syntax': ['error', ...noRawColour],
+    },
+  },
+  {
+    // The token layer is the one place a colour value may be written. Nothing
+    // in it is a .ts file today - tokens.css holds every value and tokens.ts
+    // holds only names - but the exemption is declared here so that stays a
+    // deliberate choice rather than an accident of file extensions.
+    files: ['src/styles/**/*.ts', 'src/app/core/theme/tokens.ts'],
+    rules: {
+      'no-restricted-syntax': 'off',
     },
   },
   {
@@ -99,6 +165,8 @@ module.exports = defineConfig([
     // Template accessibility rules are errors from commit one: a11y is a
     // build-time gate, not a later pass (KB-051 Accessibility commitments).
     extends: [angular.configs.templateRecommended, angular.configs.templateAccessibility],
-    rules: {},
+    rules: {
+      'no-restricted-syntax': ['error', ...noRawColourTemplate],
+    },
   },
 ]);

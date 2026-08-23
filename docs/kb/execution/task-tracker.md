@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-22
+last_verified: 2026-08-23
 dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
@@ -153,7 +153,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Ready**²⁶˒⁴⁶˒⁴⁷ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; **⛔ supersession lifted** — `tasks/M2-C10.md` was re-specified for Angular by `M2-C12-02`, merged 2026-08-22. Five-part test confirmed 2026-08-22 during `M2-C12-05`'s close-out — no sibling branch, no open-question gate — but not selected this round; see footnote ⁴⁷)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-01`)* | P0 | M2-C01 | 2 wks | G2 |
-| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Ready**²⁶˒⁴⁶˒⁴⁷ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; **⛔ supersession lifted** — `tasks/M2-C04-01.md` was re-specified for Angular by `M2-C12-01`, merged 2026-08-22. Five-part test confirmed 2026-08-22 during `M2-C12-05`'s close-out and selected as the next task — see footnote ⁴⁷)* | P0 | M2-C01 | 3 d | G2 |
+| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Blocked**⁴⁹ *(implemented on `migration/M2-C04-01-design-tokens-angular`, tip `e16693a`, unmerged; independently validated `FAIL` — 14/16 acceptance criteria met, but `npm run format:check` fails repo-wide on a pre-existing CRLF defect (**R-45**) whose one-line fix touches a file outside this task's authorised list. Blocked on **Vivek** to choose (a)/(b)/(c) below — see footnote ⁴⁹)* | P0 | M2-C01 | 3 d | G2 |
 | M2-C04-02 | M2 | — form controls + validation display | Frontend | Blocked²⁶˒⁴⁶ *(re-specified for Angular by `M2-C12-01`; real blocker is `M2-C04-01`)* | P0 | M2-C04-01 | 4 d | G2 |
 | M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | Blocked²⁶˒⁴⁶ *(re-specified for Angular by `M2-C12-01`; real blocker is `M2-C04-01`)* | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
@@ -2271,6 +2271,48 @@ what the owner intends), but `Q-68`'s own "Impact if unresolved" column reads *"
 technically"* — it governs tracker wording, not whether the work is gated — so it is not a
 rank-3 blocker. `M2-C10` is recorded `Ready` rather than dispatched; it remains the next
 candidate behind `M2-C04-01` if that selection changes.
+⁴⁹ **M2-C04-01: `Blocked` — implemented and independently validated `FAIL`, `acceptance-criterion`,
+2026-08-23. This is a close-out, not a completion; the task stays `Blocked` on the repository
+owner, not on further engineering.**
+
+Branch `migration/M2-C04-01-design-tokens-angular`, cut from `master` at `bd51307`, tip `e16693a`
+(34 + 1 files, 2256 + insertions). **Nothing merged, nothing pushed.** Fourteen of sixteen
+acceptance criteria were independently re-derived as `MET` — including a from-scratch WCAG
+contrast recomputation over 110 token pairs finding zero failures, not merely trusting
+`contrast.spec.ts`. Two were not, and one was fixed same-session:
+
+1. **Lint gap over external templates — fixed, commit `e16693a`.** The raw-colour ESLint ban
+   was registered only on the `files: ['**/*.ts']` block; `angular.json` also lints
+   `src/**/*.html` and a raw hex in an external template passed lint. One file
+   (`eslint.config.js`, already on the task's *Files Expected to Change* list) now bans the same
+   literals in the Angular-template AST. Re-verified: probes in both `.ts` and `.html` now fail
+   lint as intended; `typecheck`/`test:ci`/`build` all still pass; no regression.
+2. **`npm run format:check` fails — not fixed, blocked on the owner.** 27 pre-existing scaffold
+   files (none touched by this task) fail Prettier on **line endings alone**:
+   `core.autocrlf=true` + `.gitattributes: * text=auto` write CRLF on every checkout, and
+   `frontend/nexgen-web/.prettierrc` sets no `endOfLine`, so Prettier's `lf` default fails them
+   all. Confirmed EOL-only (stripping `\r` reproduces Prettier's own output byte-for-byte).
+   Recorded as **R-45** in `docs/kb/risks/technical-debt-register.md`. The one-line fix
+   (`"endOfLine": "auto"` in `.prettierrc`) is not on this task's authorised file list, and
+   `prettier --write .` is not a real fix — the blobs are already LF, so the next checkout
+   reproduces the failure, and it would add 27 unrelated files to the diff.
+
+**What the owner must decide** — one of: (a) authorise `frontend/nexgen-web/.prettierrc` as
+in-scope for `M2-C04-01` and let a retry add `"endOfLine": "auto"`; (b) grant an explicit R-45
+exception so the acceptance criterion is judged on the four passing commands plus a clean
+`prettier --check` of the files this task authored; or (c) split R-45 into its own tooling task
+and let `M2-C04-01` close once that lands. Until then the task cannot reach `Completed` from
+inside its own authorised surface. Attempts used: 1 of 3, 0 escalations.
+
+**Not a regression, and correctly scoped.** `git diff --name-only master HEAD | grep -c
+'^V.SMART'` → 0; no schema, no `.cs` change; `UserThemePreference.cs:20` still reads
+`public bool IsDarkMode { get; set; } = false;`; Blazor untouched. KB documentation was already
+updated on the branch as part of the task itself: KB-051's two stale paths corrected, KB-050's
+theme-layer location and byte cost recorded, INV-006 amended (Q-67 answered — PrimeNG's
+`definePreset` passes `var(--…)` through unchanged, no colour duplicated into TypeScript), Q-33
+left open and re-confirmed. Full record: `tasks/M2-C04-01.md` § Execution Record (2026-08-23);
+`failure-log.md` (`M2-C04-01 · attempt 1 · independent validation · FAIL`, and the diagnosis
+entry immediately after it); `runner-state.md`. Owner: **Vivek**.
 ⁴⁸ **M2-A04: `Blocked` — confirmed **correct** 2026-08-23, after three sessions flagged it as
 possibly-stale bookkeeping. It is not stale; the reason was simply never in this table.**
 

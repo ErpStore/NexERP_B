@@ -5,7 +5,7 @@ module: frontend-new
 source_files: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-19
+last_verified: 2026-08-23
 dependencies: [KB-015, KB-050]
 ---
 
@@ -32,11 +32,13 @@ dependencies: [KB-015, KB-050]
 
 ## Tokens
 
-> **Implementation status (M2-C04-01, 2026-08-19).** The token layer is implemented in
-> `frontend/nexgen-web/src/shared/theme/` — `tokens.css` (the values, two independent
-> palettes), `tokens.ts` (the names, as types), `theme.ts` (the PrimeNG theme, expressed
-> entirely over `var(--…)`), plus `ThemeProvider`, `useColorScheme`, `ThemeToggle`,
-> `density.ts` and `breakpoints.ts`. Typography sizes and line-heights, the spacing scale,
+> **Implementation status (M2-C04-01, Angular, 2026-08-23).** The token layer is implemented in
+> `frontend/nexgen-web/src/styles/tokens.css` (the values, two independent palettes) and
+> `frontend/nexgen-web/src/app/core/theme/` — `tokens.ts` (the names, as types),
+> `theme.preset.ts` (the PrimeNG preset, expressed entirely over `var(--…)`),
+> `theme.service.ts` (signals; writes `<html data-theme>`), `density.ts` and
+> `breakpoints.ts`, plus `src/app/shared/components/theme-toggle/`.
+> Typography sizes and line-heights, the spacing scale,
 > the radii, the motion durations and easing, the breakpoints and the two densities shipped
 > **verbatim** as specified below. Two shapes differ without changing a value: font weight is
 > a four-step scale (`--weight-regular|medium|semibold|bold`) rather than a weight per size
@@ -46,16 +48,16 @@ dependencies: [KB-015, KB-050]
 > Eight colour values were
 > corrected to meet this document's own contrast commitment — see
 > [Contrast corrections](#contrast-corrections-m2-c04-01-measured-2026-08-19). Enforcement is
-> mechanical: an ESLint rule and `no-raw-colour.test.ts` reject a colour literal anywhere in
-> `src/**` except `tokens.css`, and `tokens.test.ts` fails if `tokens.css` and `tokens.ts`
-> drift apart. Not implemented here: every component that *consumes* the tokens (M2-C03,
+> mechanical: an ESLint rule and `src/app/core/theme/no-raw-colour.spec.ts` reject a colour
+> literal anywhere in `src/**` except `tokens.css`, and `src/app/core/theme/tokens.spec.ts`
+> fails if `tokens.css` and `tokens.ts` drift apart. Not implemented here: every component that *consumes* the tokens (M2-C03,
 > M2-C04-02, M2-C04-03, M2-C05-01).
 
 ### Colour
 
 Semantic tokens only — components never reference a raw hue.
 
-**Implemented by M2-C04-01** in `frontend/nexgen-web/src/shared/theme/tokens.css`. The
+**Implemented by M2-C04-01** in `frontend/nexgen-web/src/styles/tokens.css`. The
 *Light* and *Dark* columns are what shipped; the eight values that differ from this
 document's original proposal are marked **corrected** and explained immediately below.
 
@@ -84,7 +86,7 @@ Both themes are authored as first-class palettes, not a filter over one another.
 
 This document commits, under *Accessibility commitments*, to **≥ 4.5:1 for text and ≥ 3:1 for
 UI boundaries in both themes**. Its originally proposed palette did not meet that commitment.
-`frontend/nexgen-web/src/shared/theme/contrast.test.ts` computes the WCAG 2.x ratio for every
+`frontend/nexgen-web/src/app/core/theme/contrast.spec.ts` computes the WCAG 2.x ratio for every
 ink × background token pair in both themes; the ratios below are its output, not an estimate.
 
 **The threshold was never lowered.** The failing values were corrected, keeping each token's
@@ -105,6 +107,12 @@ component picks — the worst pair in that matrix is the one the user eventually
 | `--warning` | light | `#B45309` | **4.38:1** | `#B05109` | 4.55:1 |
 | `--focus-ring` | light | `#2563EB` @ 40 % | **1.74:1** composited | `#2563EB` solid | 4.51:1 |
 | `--focus-ring` | dark | `#4C8DFF` @ 45 % | **2.02:1** composited | `#4C8DFF` solid | 4.76:1 |
+
+**Re-measured 2026-08-23** by the Angular reimplementation
+(`src/app/core/theme/contrast.spec.ts`, an independently written WCAG 2.x relative-luminance
+computation over the same five-background × every-ink matrix): **every ratio in this section reproduced
+to two decimal places, and no pair failed.** No value was changed, so nothing in this table is
+re-stated.
 
 Everything not listed shipped **verbatim**: all four background tokens, `--accent-subtle`,
 `--text-primary` (15.58:1 light / 12.88:1 dark at worst), `--text-secondary` (5.18 / 6.15),
