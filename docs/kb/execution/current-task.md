@@ -89,13 +89,40 @@ pattern `M2-C04-02` itself used). Neither sits on the stated critical path
   consumer contract this module must satisfy (the `DECIMAL_PORT` token shape, `Money`/`Qty`
   branding). Do not change these files; they belong to `M2-C04-02`.
 
-### Run State — not yet dispatched
+### Run State — `Blocked` on the repository owner (environment)
 
-Selected this Select pass (2026-08-23, at `M2-C04-02`'s close-out). No branch cut, no
-implementer dispatched. Next session should dispatch per [`workflow.md`](workflow.md)
-(KB-088) rather than re-run Select.
+Dispatched, implemented and independently validated on branch
+`migration/M2-C10-decimal-handling` (tip `2ae6e63`). Verdict: `FAIL`, category
+`acceptance-criterion`, `scopeOk: true`. Fourteen of fifteen acceptance criteria were
+independently re-derived `MET` — see `tasks/M2-C10.md` § Execution Record (2026-08-23) for the
+full list. A same-session diagnosis then resolved one of the two reported failures and could
+not resolve the other:
 
+- **Fixed:** the open-questions row claimed a `git branch --no-merged master` result that was
+  false (asserted no unmerged branch held `Q-72`, when `migration/M2-C04-02-form-controls`
+  already held `Q-72`–`Q-75`). Renumbered to **Q-76**, with an explicit withdrawal of the false
+  claim, per [`open-questions.md`](../open-questions.md).
+- **Not fixable here — `environment`:** the binding criterion "INV-032 recorded with the
+  **measured** wire format" cannot be satisfied on this workstation. The only decimal-bearing
+  endpoint, `GET /api/v1/reference/gst-rates`, is `[Authorize]`d, and
+  `V.SMART/V.SMART.Api/appsettings.json:33-38` has both `ConnectionStrings:MasterDb` and
+  `Jwt:Secret` empty, so no live response can be captured. Raised as **Q-77**
+  ([`open-questions.md`](../open-questions.md)); INV-032 sub-finding 1 and **R-70** retagged
+  from an invented confidence tag to KB-002's `Inferred`, pointing at Q-77.
+
+**Disposition:** `Blocked`, category `environment` (KB-091 §8 item 5). Attempts used: 1 of 4.
+**A human or a later session resumes this, it does not restart it** — re-dispatching an
+implementer against the task as currently specified reproduces the same result. Owner
+**Vivek** must choose one of: (a) accept the Inferred + Q-77 disposition as satisfying the
+criterion, (b) supply a tenant database and a populated `Jwt:Secret` so a session can capture
+the live response and upgrade INV-032 to Confirmed, or (c) authorise a separate backend task
+giving `tests/V.SMART.Api.Tests` an `Mvc.Testing` host (closing **R-43** too) and let `M2-C10`
+close on the other fourteen criteria. Full record: `task-tracker.md` footnote ⁵²,
+`tasks/M2-C10.md` § Execution Record (2026-08-23), `failure-log.md` §§ `M2-C10 · attempt 1 ·
+independent validation · 2026-08-23` and `M2-C10 · attempt 1 · diagnosis · 2026-08-23`.
+
+No next task was selected this close-out, per explicit instruction not to start another task.
 `M2-C04-03` (`Ready`, `P0`, 3 d) remains a genuinely selectable, independent candidate for a
-parallel session — see `runner-state.md` § Next ready task. `M2-C05`/`M2-C05-01` do **not**
+future session — see `runner-state.md` § Next ready task. `M2-C05`/`M2-C05-01` do **not**
 become selectable from `M2-C04-02`'s `PASS`: they need it `Completed` and merged, and it is
 `Needs Review`, unmerged, on `migration/M2-C04-02-form-controls`, awaiting owner review.

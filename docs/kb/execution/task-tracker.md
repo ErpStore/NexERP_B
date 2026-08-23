@@ -150,7 +150,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-03 | M2 | — re-spec the list / CRUD shell (M2-C05*, M2-C06) | Documentation | **Completed**⁴⁴ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Completed**⁴⁵ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Completed**⁴⁶ *(merged to `master` `27dfc5d` on owner instruction 2026-08-23)* | P0 | M2-C12-01…04 | 1 d | G2 |
-| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Ready**²⁶˒⁴⁶˒⁴⁷ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; **⛔ supersession lifted** — `tasks/M2-C10.md` was re-specified for Angular by `M2-C12-02`, merged 2026-08-22. Five-part test confirmed 2026-08-22 during `M2-C12-05`'s close-out — no sibling branch, no open-question gate — but not selected this round; see footnote ⁴⁷)* | P0 | M2-C01 | 2 d | G2 |
+| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Blocked**²⁶˒⁴⁶˒⁴⁷˒⁵² *(implemented and independently validated `FAIL`, `acceptance-criterion`, 2026-08-23, then diagnosed: one failure fixed, one genuinely `environment`-blocked — see footnote ⁵²; owner: **Vivek**, only he can accept/waive the remaining criterion or supply the environment)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-01`)* | P0 | M2-C01 | 2 wks | G2 |
 | M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
@@ -2417,3 +2417,44 @@ rules are not expressible as field validators. **Q-73** and **Q-74** were also r
 (`docs/kb/open-questions.md`), neither blocking. Full record:
 `tasks/M2-C04-02.md` § Execution Record (2026-08-23) — session close-out;
 `failure-log.md`.
+
+⁵² **M2-C10: `Ready` → `Blocked` (environment), 2026-08-23. This is a close-out, not a
+completion; the task stays `Blocked` on the repository owner, not on further engineering.**
+
+Branch `migration/M2-C10-decimal-handling`, tip `2ae6e63`. **Nothing merged, nothing pushed.**
+Fourteen of fifteen acceptance criteria were independently re-derived `MET` — branded
+`Money`/`Qty` types proven uncoercible by `@ts-expect-error`, `decimal.js` imported in exactly
+one file, the float-arithmetic ESLint bans demonstrated live (a deliberate violating fixture
+was caught by lint and by `no-float-money.spec.ts`, then deleted), every exported symbol
+covered by a named test, `fromApi` throwing `DecimalBoundaryError` (naming the field) and never
+returning zero for `null`/`undefined`/`NaN`/`''`, `0.1 + 0.2` formatting as exactly `0.30`, no
+`DecimalPipe`/`CurrencyPipe` anywhere, decimal places traced to `Companydetails.DecimalPlaces`
+(`Companydetails.cs:208`), no ERP calculation/tax/discount/round-off/stock logic in the module,
+and no `V.SMART/` or `frontend/vsmart-erp/` file touched. All five verification commands
+re-run and observed: `typecheck` exit 0; `lint` "All files pass linting."; `format:check` "All
+matched files use Prettier code style!"; `test:ci` "Test Files 13 passed (13) / Tests 107
+passed (107)"; `build` "Application bundle generation complete.", 446.36 kB / 106.63 kB.
+
+**The fifteenth criterion — INV-032's wire format recorded as *measured*, or explicitly Unknown
+plus a KB-004 question — was not met, and is not fixable from a session on this workstation.**
+The only decimal-bearing endpoint, `GET /api/v1/reference/gst-rates`
+(`ReferenceController.cs:53-56`, `[Authorize]` at `:32`), needs a tenant database and a
+populated `Jwt:Secret` to call; `V.SMART/V.SMART.Api/appsettings.json:33-38` has both empty on
+this machine, and `StartupConfigurationValidator.cs:104-108` refuses to start without them.
+The task's own step 1a additionally names the wrong VM (`CurrencyVM.cs` has zero `decimal`
+properties). A **second, independent defect** was found and fixed during diagnosis: the
+open-questions row claimed a `git branch --no-merged master` result that was false —
+`migration/M2-C04-02-form-controls` already held **Q-72** through **Q-75** — corrected by
+renumbering to **Q-76** with an explicit withdrawal, and a fresh **Q-77** raised for the
+wire-format unknown itself (owner: backend). INV-032 sub-finding 1 and **R-70** were retagged
+from an invented fourth confidence tag to KB-002's **Inferred**, pointing at Q-77.
+
+**Disposition: `Blocked`, category `environment` (KB-091 §8 item 5).** Owner: **Vivek** — one
+of three resolutions needed: (a) accept the Inferred + Q-77 disposition as satisfying the
+criterion, (b) supply a tenant database and a populated `Jwt:Secret` so a session can capture
+the live response and upgrade INV-032 to Confirmed, or (c) authorise a separate backend task
+giving `tests/V.SMART.Api.Tests` an `Mvc.Testing` host (closing **R-43** too) and let `M2-C10`
+close on the other fourteen criteria. Re-dispatching an implementer without one of these three
+would reproduce the identical result. Attempts used: 1 of 4; escalations: 0. Full record:
+`tasks/M2-C10.md` § Execution Record (2026-08-23); `failure-log.md` §§ `M2-C10 · attempt 1 ·
+independent validation · 2026-08-23` and `M2-C10 · attempt 1 · diagnosis · 2026-08-23`.

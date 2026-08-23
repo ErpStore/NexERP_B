@@ -42,6 +42,9 @@ answer is an API call.
 
 `V.SMART.Api` configures no custom JSON serialiser, so ASP.NET Core's default
 `System.Text.Json` applies and a C# `decimal` arrives as a **JSON number**.
+**Inferred, not measured** (KB-002): the absence of the serialiser override is Confirmed, the
+wire shape is reasoned from it, and no live response was ever observed — INV-032 sub-finding 1,
+raised as **Q-77**. `fromApi()` accepts either shape, so the client is correct either way.
 
 - `fromApi(value, field)` accepts a JSON number or a JSON string and throws
   `DecimalBoundaryError` — naming the field — for `null`, `undefined`, `NaN` and `''`. It never

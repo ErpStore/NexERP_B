@@ -1710,7 +1710,9 @@ them.
 
 ### R-70 — `decimal` crosses the API as a JSON number, which cannot carry `decimal(18, n)`
 
-**Confirmed-by-absence-of-override, not by an observed response** (INV-032, M2-C10, 2026-08-23).
+**Inferred, not Confirmed** (INV-032, M2-C10, 2026-08-23; KB-002 three-tag vocabulary).
+The *absence* of a serialiser override is Confirmed; the wire shape is reasoned from it and
+**was never observed on a response**. The missing observation is raised as **Q-77**.
 `V.SMART/V.SMART.Api/Program.cs` registers no `AddJsonOptions`, no `JsonSerializerOptions`, no
 custom `JsonConverter` and no `AddNewtonsoftJson`, and `V.SMART.Api.csproj:11-14` references no
 Newtonsoft package. ASP.NET Core's unmodified `System.Text.Json` therefore applies, and its
@@ -1726,8 +1728,8 @@ anywhere. Money columns are `[Precision(18, 2)]` (`Banks.cs:36,39`), quantity `(
 has none, and the only decimal-bearing endpoint is `GET /api/v1/reference/gst-rates`
 (`ReferenceController.cs:54-56`, `List<decimal>`), whose values are small. **The wire format was
 not measured against a live response** — that needs a running tenant-scoped API, a JWT and a
-database, none of which a frontend task stands up. Upgrading this to Confirmed-by-observation is
-one captured response body.
+database, none of which a frontend task stands up. Upgrading this to **Confirmed** is
+one captured response body (**Q-77**).
 
 **Recommendation, owned by M2-B10 (generated client) and M2-A06 (error/serialisation contract),
 deliberately NOT implemented by M2-C10:** serialise `decimal` as a JSON **string**. M2-C10 is a
