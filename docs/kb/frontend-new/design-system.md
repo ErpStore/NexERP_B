@@ -291,6 +291,7 @@ two will otherwise be used interchangeably.
 Runtime `axe` scan over every control in both themes: `form/a11y.spec.ts`, zero critical
 violations observed 2026-08-23. jsdom applies no stylesheet, so `color-contrast` cannot run
 there; contrast is covered by computation in `core/theme/contrast.spec.ts`.
+
 ### Overlays
 `Modal` (sm/md/lg/full) · `Drawer` (right, resizable — for record detail without losing
 list context) · `ConfirmDialog` (with optional **required reason** — BR-SO-003) ·
