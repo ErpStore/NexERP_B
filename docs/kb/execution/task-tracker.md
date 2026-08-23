@@ -111,7 +111,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Completed**²⁷ | P0 | M2-A01-02 | 2 d | G2 |
 | M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Ready** (gated on **Q-28** — see footnote ²⁷) | P0 | M2-A01-03 | 1 d | G2 |
 | M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | Blocked | P0 | M2-A02 | 3 d | G2 |
-| M2-A04 | M2 | Refresh tokens + revocation | Security | **Blocked**⁴⁶ *(correctly — on **M0-04**, not on `M2-A01-02`; ruled 2026-08-23)* | P0 | M2-A01-02, **M0-03/M0-04** | 3–5 d | G2 |
+| M2-A04 | M2 | Refresh tokens + revocation | Security | **Blocked**⁴⁸ *(correctly — on **M0-04**, not on `M2-A01-02`; ruled 2026-08-23)* | P0 | M2-A01-02, **M0-03/M0-04** | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
 | M2-A07 | M2 | `GET /api/v1/me` | Backend | **Completed**³⁷ *(merged to `master` `80c209b` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 2 d | G2 |
@@ -137,48 +137,48 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | Blocked | P0 | M2-B12-01 | 1 d | G2 |
 | M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked | P0 | M2-B12-02 | 3 d | G2 |
 
-### M2-C — React foundation
+### M2-C — Frontend foundation (Angular, per [ADR-007](../decisions/ADR-007-angular-stack.md))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
 | M2-C00 | M2 | Rewrite KB-050 frontend architecture for Angular | Documentation | **Completed**²⁶˒³⁸ *(merged to `master` `0da6a35` on owner instruction 2026-08-21)* | P0 | G0 | 2 d | G2 |
 | M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Completed**²⁶˒⁴⁰ *(merged to `master` `2dd4e53` on owner instruction 2026-08-21)* | P0 | M2-C00 | 3 d | G2 |
 | M2-C11 | M2 | **Adopt** the Angular pilot as the app baseline | DevOps | Blocked²⁶˒³⁸ *(dependency cleared — `M2-C00` merged `0da6a35` 2026-08-21; now gated on **Q-38**, what `M2-C11` is for under ADR-007)* | P2 | M2-C00 | 0.5 d | G2 |
-| M2-C12 | M2 | **Re-specify the superseded M2-C / M2-D tree for Angular** *(parent)* | Documentation | Not Started⁴¹ *(parent — never worked directly; attempt 1 as a single task failed, see footnote)* | P0 | M2-C00, M2-C01 | 4 d | G2 |
+| M2-C12 | M2 | **Re-specify the superseded M2-C / M2-D tree for Angular** *(parent)* | Documentation | Not Started⁴¹˒⁴⁶ *(parent — never worked directly; attempt 1 as a single task failed, see footnote ⁴¹. **All five children are now done**: `01`–`04` merged, `05` on its branch — so the ⛔ banner is gone from all 25 files. The parent's own row closes when `05` merges)* | P0 | M2-C00, M2-C01 | 4 d | G2 |
 | M2-C12-01 | M2 | — re-spec the design-system tree (M2-C04*) | Documentation | **Completed**⁴²˒⁴³ *(merged to `master` 2026-08-22 on owner instruction; the `FAIL` was a defect in criterion 7, not in the work — see footnote ⁴³)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-02 | M2 | — re-spec auth, routing, decimal, pilot-adoption | Documentation | **Completed**⁴¹ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-03 | M2 | — re-spec the list / CRUD shell (M2-C05*, M2-C06) | Documentation | **Completed**⁴⁴ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Completed**⁴⁵ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
-| M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Ready**⁴¹ *(released 2026-08-22 — batches 01–04 all `Completed` and merged; owns the whole-tree restatement)* | P0 | M2-C12-01…04 | 1 d | G2 |
-| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | Blocked²⁶ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; still **⛔ superseded**: `tasks/M2-C10.md` specifies React and must be re-specified for Angular before it can be selected)* | P0 | M2-C01 | 2 d | G2 |
-| M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
-| M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started *(parent — never worked directly)* | P0 | M2-C01 | 2 wks | G2 |
-| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | Blocked²⁶ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; still **⛔ superseded**: `tasks/M2-C04-01.md` specifies React and must be re-specified for Angular before it can be selected)* | P0 | M2-C01 | 3 d | G2 |
-| M2-C04-02 | M2 | — form controls + validation display | Frontend | Blocked²⁶ | P0 | M2-C04-01 | 4 d | G2 |
-| M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | Blocked²⁶ | P0 | M2-C04-01 | 3 d | G2 |
-| M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
-| M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
-| M2-C05-01 | M2 | — server-paged table core | Frontend | Blocked | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
-| M2-C05-02 | M2 | — column preferences + persistence | Frontend | Blocked | P1 | M2-C05-01 | 3 d | G2 |
-| M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | Blocked | P1 | M2-C05-01 | 2 d | G2 |
-| M2-C06 | M2 | `RecordPickerDialog` | Frontend | Blocked | P0 | M2-C05-01 | 1 wk | G2 |
-| M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | Blocked | P0 | M2-C05-01, M2-C10 | 2 wks | G2 |
-| M2-C08 | M2 | `DocumentEditor` shell *(parent)* | Frontend | Blocked | P0 | M2-C07 | 2 wks | G2 |
-| M2-C08-01 | M2 | — layout: header + lines + totals + commands | Frontend | Blocked | P0 | M2-C07 | 4 d | G2 |
-| M2-C08-02 | M2 | — server-authoritative totals wiring | Frontend | Blocked | P0 | M2-C08-01 | 3 d | G2 |
-| M2-C08-03 | M2 | — workflow command pattern | Frontend | Blocked | P0 | M2-C08-01 | 3 d | G2 |
-| M2-C09 | M2 | `ReportPage` framework | Frontend | Blocked | P1 | M2-C05-01, M2-B08 | 1 wk | G2 |
+| M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Needs Review**⁴⁶ *(implemented 2026-08-22 on `migration/M2-C12-05-respec`, unmerged; the last of the five batches)* | P0 | M2-C12-01…04 | 1 d | G2 |
+| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Ready**²⁶˒⁴⁶˒⁴⁷ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; **⛔ supersession lifted** — `tasks/M2-C10.md` was re-specified for Angular by `M2-C12-02`, merged 2026-08-22. Five-part test confirmed 2026-08-22 during `M2-C12-05`'s close-out — no sibling branch, no open-question gate — but not selected this round; see footnote ⁴⁷)* | P0 | M2-C01 | 2 d | G2 |
+| M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
+| M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-01`)* | P0 | M2-C01 | 2 wks | G2 |
+| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Ready**²⁶˒⁴⁶˒⁴⁷ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; **⛔ supersession lifted** — `tasks/M2-C04-01.md` was re-specified for Angular by `M2-C12-01`, merged 2026-08-22. Five-part test confirmed 2026-08-22 during `M2-C12-05`'s close-out and selected as the next task — see footnote ⁴⁷)* | P0 | M2-C01 | 3 d | G2 |
+| M2-C04-02 | M2 | — form controls + validation display | Frontend | Blocked²⁶˒⁴⁶ *(re-specified for Angular by `M2-C12-01`; real blocker is `M2-C04-01`)* | P0 | M2-C04-01 | 4 d | G2 |
+| M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | Blocked²⁶˒⁴⁶ *(re-specified for Angular by `M2-C12-01`; real blocker is `M2-C04-01`)* | P0 | M2-C04-01 | 3 d | G2 |
+| M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
+| M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
+| M2-C05-01 | M2 | — server-paged table core | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blockers are `M2-C04-02`, `M2-B02`)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
+| M2-C05-02 | M2 | — column preferences + persistence | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P1 | M2-C05-01 | 3 d | G2 |
+| M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P1 | M2-C05-01 | 2 d | G2 |
+| M2-C06 | M2 | `RecordPickerDialog` | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P0 | M2-C05-01 | 1 wk | G2 |
+| M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-C10`. Its table-technology evaluation is **Q-71**, owner-owned)* | P0 | M2-C05-01, M2-C10 | 2 wks | G2 |
+| M2-C08 | M2 | `DocumentEditor` shell *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-04`)* | P0 | M2-C07 | 2 wks | G2 |
+| M2-C08-01 | M2 | — layout: header + lines + totals + commands | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C07`)* | P0 | M2-C07 | 4 d | G2 |
+| M2-C08-02 | M2 | — server-authoritative totals wiring | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)* | P0 | M2-C08-01 | 3 d | G2 |
+| M2-C08-03 | M2 | — workflow command pattern | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)* | P0 | M2-C08-01 | 3 d | G2 |
+| M2-C09 | M2 | `ReportPage` framework | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-B08`)* | P1 | M2-C05-01, M2-B08 | 1 wk | G2 |
 
 ### M2-D — Vertical slice
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | Blocked | P0 | M2-C05-03, M2-A02, M2-B10 | 3 d | G2 |
-| M2-D02 | M2 | Customer Master *(parent)* | Migration | Blocked | P0 | M2-D01 | 1.5 wks | G2 |
-| M2-D02-01 | M2 | — `@code` triage + logic extraction | Backend | Blocked | P0 | M2-D01 | 4 d | G2 |
-| M2-D02-02 | M2 | — `CustomersController` + API tests | Backend | Blocked | P0 | M2-D02-01 | 3 d | G2 |
-| M2-D02-03 | M2 | — Angular screens + component tests | Frontend | Blocked | P0 | M2-D02-02 | 4 d | G2 |
-| M2-D03 | M2 | Blazor ↔ Angular parity test | Testing | Blocked | P0 | M2-D02-03 | 3 d | G2 |
+| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-05`; real blockers are `M2-C05-03`, `M2-A02`, `M2-B10`)* | P0 | M2-C05-03, M2-A02, M2-B10 | 3 d | G2 |
+| M2-D02 | M2 | Customer Master *(parent)* | Migration | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-05`; real blocker is `M2-D01`)* | P0 | M2-D01 | 1.5 wks | G2 |
+| M2-D02-01 | M2 | — `@code` triage + logic extraction | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D01`. Allocates the `BR-CUST-*` series)* | P0 | M2-D01 | 4 d | G2 |
+| M2-D02-02 | M2 | — `CustomersController` + API tests | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D02-01`)* | P0 | M2-D02-01 | 3 d | G2 |
+| M2-D02-03 | M2 | — Angular screens + component tests | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-05`; real blocker is `M2-D02-02`)* | P0 | M2-D02-02 | 4 d | G2 |
+| M2-D03 | M2 | Blazor ↔ Angular parity test | Testing | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-05`; real blocker is `M2-D02-03`, plus a non-production tenant database — a day-1 infrastructure escalation)* | P0 | M2-D02-03 | 3 d | G2 |
 
 ## M3 — Core Modules · Gate G3
 
@@ -1463,6 +1463,14 @@ lists `M2-A01-02` as a Hard prerequisite.
 >
 > ### All 26 `M2-C*`/`M2-D*` task files carry a ⛔ STOP banner — they were not rewritten
 >
+> **Superseded 2026-08-22 — the banners are gone.** `M2-C12`'s five sub-batches re-specified all
+> **25** bannered files for Angular, each banner removed in the same change that removed its
+> React content; the twenty-sixth file, `M2-C00`, never carried one. `M2-C12-01`…`-04` are merged;
+> `M2-C12-05` (the `M2-D` tree) is on its branch. See footnote ⁴⁶. **The paragraphs below are kept
+> unedited as the record of why the deferral was taken at the time** — the reasoning was sound and
+> the condition it named (a real KB-050) was met before any file was rewritten. They no longer
+> describe the current state.
+>
 > That is ~25,000 lines of specification with 1,300+ React-specific references. Rewriting it now would mean **writing Angular detail against a KB-050 that does not exist yet**, for tasks months away, which is how specifications go stale — a risk this repository already names: *"A task file's Current Implementation section is a hypothesis, not fact."*
 >
 > Each banner states what survives (acceptance-criteria *intent*, the ERP behaviour being reproduced, `file:line` evidence about the **existing Blazor** code, business rules, dependencies — none of which was ever a React decision) and what must be re-derived (every stack-specific instruction, `frontend/nexgen-web/` path, component API and command). **It also tells a runner to stop and report rather than infer**, because re-specifying is an owner-level documentation change.
@@ -2201,7 +2209,69 @@ once that branch merges. Status stays `Needs Review`; only the owner sets `Compl
 **Footnote id.** `⁴⁴` is taken by the unmerged `migration/M2-C12-03-respec`; this note therefore
 claims `⁴⁵`. If both branches merge, confirm the numbering rather than assuming it.
 
-⁴⁶ **M2-A04: `Blocked` — confirmed **correct** 2026-08-23, after three sessions flagged it as
+⁴⁶ **M2-C12-05: `Needs Review` 2026-08-22 — implemented on `migration/M2-C12-05-respec`, unmerged.**
+Branch cut from `master` at `cb788e5`. `M2-D01.md`, `M2-D02.md`, `M2-D02-01.md`, `M2-D02-02.md`,
+`M2-D02-03.md` and `M2-D03.md` were re-specified for Angular/ADR-007, each `⛔` banner removed **in
+the same change that removed its React content** — the atomicity rule held for all six, with the
+per-file grep output quoted in `tasks/M2-C12-05.md`'s Execution Record. The obsolete trailing
+*Fresh-Session Execution Prompt* blocks were dropped and each file restructured onto
+[KB-090](task-template.md)'s section set, the same shape `M2-C12-03` and `-04` used.
+
+**This closes the batch.** `grep -rl '⛔ STOP — this specification is superseded'
+docs/kb/execution/tasks/` now returns **nothing at all** — not merely "none of this batch". All 25
+files across the `M2-C` and `M2-D` trees are re-specified, and the frontend tree is reachable again
+for the first time since ADR-007 landed on 2026-08-20. Footnote ²⁶'s subsection *"All 26
+`M2-C*`/`M2-D*` task files carry a ⛔ STOP banner"* is annotated as superseded rather than rewritten;
+its reasoning was correct for its date.
+
+**This sub-task also owned the whole-tree restatement**, which is why the diff touches twenty-odd
+rows it did not itself re-specify. Two rows were materially **wrong** and are corrected: `M2-C10`
+and `M2-C04-01` still read *"still ⛔ superseded … must be re-specified for Angular before it can be
+selected"*, which stopped being true when `M2-C12-02` and `M2-C12-01` merged earlier the same day. A
+row that refuses a selectable task is as costly as one that offers an unselectable one. Every other
+`M2-C*`/`M2-D*` row now names **which sub-batch re-specified it and what its real remaining blocker
+is** — dependency or gate, never supersession.
+
+**`dependency-graph.md` (KB-082) was checked and deliberately left unchanged.** The batch's
+*Documentation Updates* table assigns it "de-React the M2-C tree description", but a
+case-insensitive search of all 311 lines for `react|mantine|tanstack|zustand|vite|\.tsx|zod` returns
+**one** hit — `:151`, *"how logic silently lands in TypeScript"*, which is framework-neutral and
+true of Angular. The graph describes edges and ordering, never a stack. **Negative result recorded
+rather than a no-op edit made**, per KB-088 §4's rule that a document is touched only when something
+actually changed.
+
+**No new open question, risk or ADR.** The one judgement call — leaving `frontend/vsmart-erp/`
+references in place, since the pilot is genuine Angular prior art under ADR-007 rather than
+discarded React — follows `M2-C12-04`'s precedent exactly. Full record: `tasks/M2-C12-05.md`
+§ Execution Record (2026-08-22). **Not merged, not pushed.** Only the repository owner may set
+`Completed` ([KB-088](workflow.md#who-may-set-completed)).
+
+**Independently validated 2026-08-22, verdict `PASS`, attempt 1 of 5, 0 escalations.** All 8
+acceptance criteria and the Testing Requirement re-checked directly against tip `1e940bd`,
+matching the Execution Record's own greps and diffs; `dotnet build V.SMART.Api` re-run as a
+regression check, 0 errors / 6695 warnings, exact `KB-086` baseline. Two cosmetic imprecisions
+found in the Execution Record's own line-count/hit-count claims, neither affecting a criterion.
+One pre-existing staleness finding, explicitly out of this batch's scope: several byte-identical
+`V.SMART/` citations have drifted against current `master` HEAD (`ApplicationDbContext.cs:1156`,
+`CurrencyController.cs`'s line count) because of later, unrelated merges — worth an eventual
+cleanup task, not this one's. Status stays `Needs Review`; only the owner sets `Completed`. Full
+record: `tasks/M2-C12-05.md` § Execution Record (2026-08-22) — Close-out.
+
+⁴⁷ **Next-task selection, 2026-08-22, at `M2-C12-05`'s close-out.** With all 25 formerly-`⛔`
+files re-specified, `M2-C10` and `M2-C04-01` both newly clear the CLAUDE.md five-part
+"can actually be done" test (dependency `M2-C01` `Completed`/merged, no ⛔ banner, not a Product
+Decision, no unresolved gating question, no sibling branch — `git branch --no-merged master`
+checked). **`M2-C04-01` was selected** over `M2-C10` at rank: both `P0`; `M2-C04-01` unblocks two
+direct children (`M2-C04-02`, `M2-C04-03`) against `M2-C10`'s one (`M2-C07`, itself further gated
+on `M2-C05-01` and **Q-71**); and `M2-C04-01` sits on the ancestry of the stated critical path
+(`M2-C04-01 → M2-C04-02 → M2-C05-01 → M2-C05-03 → M2-D01 → …`, `dependency-graph.md` § *Project
+critical path*) while `M2-C10` feeds only the off-path `M2-C07`. `M2-C04-01` carries **Q-68**
+(whether resetting its status to `Ready` after its earlier React implementation was deleted is
+what the owner intends), but `Q-68`'s own "Impact if unresolved" column reads *"Nothing
+technically"* — it governs tracker wording, not whether the work is gated — so it is not a
+rank-3 blocker. `M2-C10` is recorded `Ready` rather than dispatched; it remains the next
+candidate behind `M2-C04-01` if that selection changes.
+⁴⁸ **M2-A04: `Blocked` — confirmed **correct** 2026-08-23, after three sessions flagged it as
 possibly-stale bookkeeping. It is not stale; the reason was simply never in this table.**
 
 The row's `depends_on` read `M2-A01-02`, which *is* `Completed` and merged — which is exactly why
