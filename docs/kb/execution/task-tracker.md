@@ -153,7 +153,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Ready**²⁶˒⁴⁶˒⁴⁷ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; **⛔ supersession lifted** — `tasks/M2-C10.md` was re-specified for Angular by `M2-C12-02`, merged 2026-08-22. Five-part test confirmed 2026-08-22 during `M2-C12-05`'s close-out — no sibling branch, no open-question gate — but not selected this round; see footnote ⁴⁷)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-01`)* | P0 | M2-C01 | 2 wks | G2 |
-| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Blocked**⁴⁹ *(implemented on `migration/M2-C04-01-design-tokens-angular`, tip `e16693a`, unmerged; independently validated `FAIL` — 14/16 acceptance criteria met, but `npm run format:check` fails repo-wide on a pre-existing CRLF defect (**R-45**) whose one-line fix touches a file outside this task's authorised list. Blocked on **Vivek** to choose (a)/(b)/(c) below — see footnote ⁴⁹)* | P0 | M2-C01 | 3 d | G2 |
+| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
 | M2-C04-02 | M2 | — form controls + validation display | Frontend | Blocked²⁶˒⁴⁶ *(re-specified for Angular by `M2-C12-01`; real blocker is `M2-C04-01`)* | P0 | M2-C04-01 | 4 d | G2 |
 | M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | Blocked²⁶˒⁴⁶ *(re-specified for Angular by `M2-C12-01`; real blocker is `M2-C04-01`)* | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
@@ -2343,3 +2343,29 @@ auth slice consumes `/refresh` and `/logout`, which do not exist yet.
 decision: it is not a `Product Decision`, carries no ⛔ banner, and has no unanswered question of
 its own. Its file already authorises the single EF migration it may need, recording **Q-02** (the
 per-tenant rollout procedure) as unresolved-but-*Information* rather than blocking.
+
+⁵⁰ **M2-C04-01: `Blocked` → `Completed` 2026-08-23. The `FAIL` was one environment defect, and
+the work behind it was sound.** The validator's verdict rested on `npm run format:check` failing
+across **27 files** — every one of them untouched `M2-C01` scaffold output. Diagnosis blamed
+**R-45**: `core.autocrlf=true` and `.gitattributes` `* text=auto` write CRLF on checkout, while
+`.prettierrc` set no `endOfLine` and Prettier defaults to `lf`. **Verified independently before
+acting rather than accepted**: `prettier src/main.ts` output is *byte-identical to the source once
+`\r` is stripped*, so not one file had a genuine formatting issue. The runner was right to refuse
+— the only real fix touches `.prettierrc`, outside this task's authorised list — and right to
+classify it `environment` rather than retry.
+
+**The owner chose `"endOfLine": "auto"`** (`4af2f4f`, committed to `master` *before* the merge, as
+its own change): Prettier accepts whatever ending a file already carries, so the gate passes on
+Windows and Linux alike, and `.gitattributes` still normalises in git. R-45 is **resolved** in
+[KB-060](../risks/technical-debt-register.md).
+
+**All six gates re-run by this session on merged `master`, not inherited from the branch:**
+`typecheck` exit 0 · `lint` "All files pass linting" (`--max-warnings=0`) · `format:check` "All
+matched files use Prettier code style!" · `test:ci` **47 passed / 8 files** (6/2 → 47/8) ·
+`build` 446.36 kB raw / 106.63 kB transfer. Scope verified clean — only `frontend/` and
+`docs/kb/`, and specifically **none** of the `AuthController.cs` / `.sln` edits left by the
+earlier dead run, which remain quarantined in `stash@{0}`.
+
+**R-45 blocked far more than this task.** `format:check` is in [KB-083's verified command
+table](prompt-template.md#verified-repository-commands) and in the CI frontend job, so every
+frontend task after `M2-C01` would have hit it on any Windows checkout.
