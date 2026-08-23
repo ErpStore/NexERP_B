@@ -111,7 +111,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Completed**²⁷ | P0 | M2-A01-02 | 2 d | G2 |
 | M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Ready** (gated on **Q-28** — see footnote ²⁷) | P0 | M2-A01-03 | 1 d | G2 |
 | M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | Blocked | P0 | M2-A02 | 3 d | G2 |
-| M2-A04 | M2 | Refresh tokens + revocation | Security | Blocked | P0 | M2-A01-02 | 3–5 d | G2 |
+| M2-A04 | M2 | Refresh tokens + revocation | Security | **Blocked**⁴⁶ *(correctly — on **M0-04**, not on `M2-A01-02`; ruled 2026-08-23)* | P0 | M2-A01-02, **M0-03/M0-04** | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
 | M2-A07 | M2 | `GET /api/v1/me` | Backend | **Completed**³⁷ *(merged to `master` `80c209b` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 2 d | G2 |
@@ -2200,3 +2200,34 @@ once that branch merges. Status stays `Needs Review`; only the owner sets `Compl
 
 **Footnote id.** `⁴⁴` is taken by the unmerged `migration/M2-C12-03-respec`; this note therefore
 claims `⁴⁵`. If both branches merge, confirm the numbering rather than assuming it.
+
+⁴⁶ **M2-A04: `Blocked` — confirmed **correct** 2026-08-23, after three sessions flagged it as
+possibly-stale bookkeeping. It is not stale; the reason was simply never in this table.**
+
+The row's `depends_on` read `M2-A01-02`, which *is* `Completed` and merged — which is exactly why
+the status looked orphaned. But [`tasks/M2-A04.md`](tasks/M2-A04.md)'s own Dependencies table
+declares a second prerequisite this tracker never carried: **`M0-03 / M0-04`, Hard** — *"`Jwt:Secret`
+is committed (R-02) and the SA/`bspl` credentials are published. Rotate and externalise first, or
+this task hardens sessions around a published secret."* `depends_on` is corrected above.
+
+**`M0-03` is `Completed`; `M0-04` is not.** `M0-04` is `Blocked`, deferred to the end of the
+milestone by the owner on 2026-08-19 (footnote ⁴), pending production SQL / GST e-Invoice gateway
+access. The Hard dependency is half-met and the unmet half is the one that matters.
+
+**The dependency is substantive, not procedural — which is why the ruling is to leave it blocked.**
+Externalising a secret does not invalidate a secret already in git history; only rotation does.
+`Jwt:Secret` therefore remains valid to anyone with repository access. Refresh tokens and a
+revocation list signed with that key are **forgeable**, which is worse than today's short-lived
+access tokens because it manufactures the appearance of hardened sessions without the substance.
+Revocation is the sharpest case: a forged refresh token appears on no revocation list.
+
+**Consequence worth tracking.** `M2-A04` gates `M2-A05` (Hard — both reshape the token, and
+[KB-080 §9](README.md) forbids parallelising them) and, with `M2-A07`, gates **`M2-C02`**.
+`M2-C12-02` has just made `M2-C02`'s *specification* implementable, so `M2-C02` will now read
+spec-ready while remaining dependency-blocked. That is correct, not a contradiction: the frontend
+auth slice consumes `/refresh` and `/logout`, which do not exist yet.
+
+**`M2-A04` becomes selectable when `M0-04` lands, and not before.** Nothing else about it needs a
+decision: it is not a `Product Decision`, carries no ⛔ banner, and has no unanswered question of
+its own. Its file already authorises the single EF migration it may need, recording **Q-02** (the
+per-tenant rollout procedure) as unresolved-but-*Information* rather than blocking.
