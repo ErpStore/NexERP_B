@@ -154,8 +154,8 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-01`)* | P0 | M2-C01 | 2 wks | G2 |
 | M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
-| M2-C04-02 | M2 | — form controls + validation display | Frontend | Blocked²⁶˒⁴⁶ *(re-specified for Angular by `M2-C12-01`; real blocker is `M2-C04-01`)* | P0 | M2-C04-01 | 4 d | G2 |
-| M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | Blocked²⁶˒⁴⁶ *(re-specified for Angular by `M2-C12-01`; real blocker is `M2-C04-01`)* | P0 | M2-C04-01 | 3 d | G2 |
+| M2-C04-02 | M2 | — form controls + validation display | Frontend | **Ready**²⁶˒⁴⁶ *(released 2026-08-23 — `M2-C04-01` is `Completed` and merged)* | P0 | M2-C04-01 | 4 d | G2 |
+| M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Ready**²⁶˒⁴⁶ *(released 2026-08-23 — `M2-C04-01` is `Completed` and merged)* | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
 | M2-C05-01 | M2 | — server-paged table core | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blockers are `M2-C04-02`, `M2-B02`)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
