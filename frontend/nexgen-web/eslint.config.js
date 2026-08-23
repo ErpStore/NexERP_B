@@ -74,6 +74,34 @@ const noRawColour = [
   },
 ];
 
+// The same ban expressed against the Angular template AST, which uses its own
+// node types rather than ESTree Literal: a static attribute (style="color: #fff")
+// parses to TextAttribute, an interpolated or bound value to LiteralPrimitive.
+// angular.json lintFilePatterns covers src/**/*.html, so templates are inside the
+// stated scope of the ban (KB-051, R-22).
+const noRawColourTemplate = [
+  {
+    selector: 'TextAttribute[value=/#[0-9a-fA-F]{3,8}/]',
+    message:
+      'No raw colour literal. Use a semantic token from src/styles/tokens.css, e.g. var(--accent) (KB-051, R-22).',
+  },
+  {
+    selector: 'TextAttribute[value=/(rgb|hsl)a?[(]/]',
+    message:
+      'No raw colour literal. Use a semantic token from src/styles/tokens.css, e.g. var(--accent) (KB-051, R-22).',
+  },
+  {
+    selector: 'LiteralPrimitive[value=/#[0-9a-fA-F]{3,8}/]',
+    message:
+      'No raw colour literal. Use a semantic token from src/styles/tokens.css, e.g. var(--accent) (KB-051, R-22).',
+  },
+  {
+    selector: 'LiteralPrimitive[value=/(rgb|hsl)a?[(]/]',
+    message:
+      'No raw colour literal. Use a semantic token from src/styles/tokens.css, e.g. var(--accent) (KB-051, R-22).',
+  },
+];
+
 module.exports = defineConfig([
   {
     ignores: ['dist/**', 'coverage/**', 'playwright-report/**', 'test-results/**', '.angular/**'],
@@ -137,6 +165,8 @@ module.exports = defineConfig([
     // Template accessibility rules are errors from commit one: a11y is a
     // build-time gate, not a later pass (KB-051 Accessibility commitments).
     extends: [angular.configs.templateRecommended, angular.configs.templateAccessibility],
-    rules: {},
+    rules: {
+      'no-restricted-syntax': ['error', ...noRawColourTemplate],
+    },
   },
 ]);
