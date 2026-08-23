@@ -37,6 +37,29 @@ describe('app-file-upload', () => {
     expect(screen.getByText('No files attached yet.')).toBeDefined();
   });
 
+  it('renders a loading row when the caller says a transfer is in flight', async () => {
+    const form = new FormGroup({ files: new FormControl<File[] | null>([]) });
+    await render(
+      `<form [formGroup]="form">
+         <app-form-field label="Attachments">
+           <app-file-upload formControlName="files" [loading]="true" />
+         </app-form-field>
+       </form>`,
+      {
+        imports: [ReactiveFormsModule, FormFieldComponent, FileUploadComponent],
+        componentProperties: { form },
+      },
+    );
+
+    // The triad is complete: loading here, empty and error in the other tests.
+    // The trigger is the caller's because this control starts no request.
+    // `app-form-field`'s own error slot is also role="status", so match the
+    // row by its text and then assert the role on that element.
+    const row = screen.getByText('Uploading…');
+    expect(row.getAttribute('role')).toBe('status');
+    expect(screen.queryByText('No files attached yet.')).toBeNull();
+  });
+
   it('collects File objects and performs no transport', async () => {
     const { form, control } = await setup();
 

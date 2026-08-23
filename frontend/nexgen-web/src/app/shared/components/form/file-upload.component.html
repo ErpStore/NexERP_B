@@ -14,7 +14,7 @@
       [accept]="accept()"
       [maxFileSize]="maxFileSize()"
       [chooseLabel]="chooseLabel()"
-      [disabled]="isDisabled()"
+      [disabled]="isDisabled() || loading()"
       (onSelect)="onSelect($event)"
       (onError)="onError()"
     />
@@ -28,7 +28,16 @@
     <p class="app-error-row" role="alert">{{ message }}</p>
   }
 
-  @if (files().length === 0) {
+  <!--
+    Caller-driven: the control starts no request, so `loading` is set by the
+    screen that owns the M2-B06 transfer. The row is rendered here so the
+    triad - loading, empty, error - is complete on this control too.
+  -->
+  @if (loading()) {
+    <p class="app-loading-row" role="status">Uploading…</p>
+  }
+
+  @if (files().length === 0 && !loading()) {
     <p class="app-empty-row">No files attached yet.</p>
   } @else {
     <ul class="app-file-upload__list">

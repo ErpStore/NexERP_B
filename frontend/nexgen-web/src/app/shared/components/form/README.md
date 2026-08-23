@@ -88,12 +88,12 @@ a blocking overlay on a typeahead steals the keyboard. `app-combobox` additional
 previous list while refetching, and its error row carries a **Retry**. `app-file-upload` with no
 files shows its drop target and the accepted types, not blank space.
 
-**`app-file-upload` renders empty and error but no loading state, deliberately.** It performs no
-transport — `customUpload` is on and no `url` is set (M2-B06 owns the endpoints) — so there is
-no asynchronous phase for a loading row to describe, and inventing one would mean inventing the
-transport with it. A screen that wires the M2-B06 endpoints owns the in-flight indicator for its
-own request. This is a documented deviation from the task's "the triad is present, not deferred"
-wording, not an omission: it is listed under _Known gaps_ below and in KB-051 §Forms.
+**`app-file-upload` renders all three too, but its loading row is caller-driven.** The control
+performs no transport — `customUpload` is on and no `url` is set, because M2-B06 owns the
+endpoints — so it cannot know when a transfer is in flight. The screen that wires those endpoints
+sets `[loading]` while its own request runs and the control renders `Uploading…`, suppressing the
+empty row and disabling the chooser. That is the same shape as `app-select`, whose `loading` is
+also set by whoever loads the options. Asserted in `file-upload.component.spec.ts`.
 
 ## Keyboard model
 
@@ -206,7 +206,7 @@ property names while control names are camelCase. That is **Inferred** from the 
 | Date format defaults to ISO; no endpoint exposes the tenant's.               | Q-75, `DATE_FORMAT` in `types.ts`               |
 | `TrimmedInputText`'s whitespace-only quirk is reproduced, not fixed.         | Q-73, `text-input.component.ts`                 |
 | `ProblemDetails` key casing is inferred, not observed.                       | Q-72, `server-validation.ts`                    |
-| `app-file-upload` has no loading state — it performs no transport.           | M2-B06, `file-upload.component.html`            |
+| `app-file-upload`'s loading row must be driven by the caller — no transport. | M2-B06, `file-upload.component.html`            |
 
 ## Testing
 

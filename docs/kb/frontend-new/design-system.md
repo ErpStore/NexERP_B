@@ -258,11 +258,11 @@ Deviations, each with its reason:
   replaced by the shared `InlineAlert` rather than duplicated.
 - **Date format defaults to ISO** through an injectable `DATE_FORMAT` token — no endpoint
   exposes the tenant's format and `Companydetails` carries no such column (Q-75).
-- **`app-file-upload` renders empty and error but no loading state.** The control performs no
-  transport — `customUpload` is on and no `url` is set, because M2-B06 owns the upload endpoints
-  — so there is no asynchronous phase for a loading row to describe. A screen that wires those
-  endpoints owns its own in-flight indicator. Recorded here as a deviation from the task's
-  "the triad is present, not deferred" wording rather than left in a handoff note.
+- **`app-file-upload`'s loading row is caller-driven.** The control performs no transport —
+  `customUpload` is on and no `url` is set, because M2-B06 owns the upload endpoints — so it
+  cannot know when a transfer is in flight. The screen that wires those endpoints sets
+  `[loading]`; the control then renders `Uploading…`, suppresses the empty row and disables the
+  chooser. The same shape as `app-select`, whose `loading` is likewise set by its caller.
 
 Keyboard model, split by what is **asserted** and what the review pass carries — the split is
 the honest part, and `form/README.md` § Keyboard model holds the per-control detail and the

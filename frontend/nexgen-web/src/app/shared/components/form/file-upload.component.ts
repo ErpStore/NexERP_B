@@ -21,6 +21,12 @@ import { BaseFormControl } from './base-control';
  *
  * Empty state is the drop target plus the accepted types - never blank space,
  * because "what am I allowed to attach" is the question a user actually has.
+ *
+ * The loading state is **caller-driven**, for the same reason: a control that
+ * starts no request cannot know when one is in flight. A screen that wires the
+ * M2-B06 endpoints sets `[loading]` while its own transfer runs and the control
+ * renders the row - exactly as `app-select` renders a caller-supplied option
+ * load. The state is present; only its trigger belongs to the caller.
  */
 @Component({
   selector: 'app-file-upload',
@@ -39,6 +45,11 @@ export class FileUploadComponent extends BaseFormControl<File[]> {
   readonly maxFileSize = input<number | undefined>(undefined);
   readonly multiple = input(true);
   readonly chooseLabel = input('Choose files');
+  /**
+   * Set by the caller while it is transferring the collected files. The
+   * control never sets this itself - it performs no transport.
+   */
+  readonly loading = input(false);
 
   readonly rejected = signal<string | null>(null);
 
