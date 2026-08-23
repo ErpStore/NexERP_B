@@ -21,76 +21,81 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## ▶ M2-C04-02 — Form controls + validation display
+## ▶ M2-C10 — Decimal handling: no float money arithmetic
 
-**Task file:** [`tasks/M2-C04-02.md`](tasks/M2-C04-02.md) — the form layer of
-[KB-051 §Forms](../frontend-new/design-system.md#forms): `form-layout`, `form-section`,
-`form-field`, and the input set, as standalone Angular components over PrimeNG and typed
-Reactive Forms, plus **one** validation-display mechanism used by every control.
+**Task file:** [`tasks/M2-C10.md`](tasks/M2-C10.md) — the `decimal.js`-backed money/quantity
+module under `frontend/nexgen-web/src/app/shared/utils/decimal/`: `parseUserInput`, `format`,
+comparison helpers and the branded `Money`/`Qty` types, plus the injectable precision policy
+traceable to `Companydetails.DecimalPlaces` (`Companydetails.cs:208`). No screen, no UI
+component — this is the parsing/formatting primitive.
 
-**Why this one.** `M2-C04-01` closed `Completed` and merged to `master` on 2026-08-23
-(`a4150e0`, merge `4d4b0c3`) after the owner resolved **R-45** (`endOfLine: "auto"`,
-`4af2f4f`); a follow-up commit (`5250328`) released `M2-C04-02` and `M2-C04-03` as `Ready` in
-`task-tracker.md`. **`current-task.md` itself was not updated by that commit** — it still
-named `M2-C04-01` `Blocked` until this Select pass corrected it; that was a stale pointer, not
-a live attempt in progress (confirmed against `task-tracker.md` and `runner-state.md`'s own
-Status history before treating `M2-C04-01` as finished).
-
-Three `P0` `Ready` candidates were released by `M2-C04-01`'s merge: `M2-C10` (decimal
-handling, 2 d), `M2-C04-02` (4 d) and `M2-C04-03` (3 d). `M2-C04-02` wins rank 2 (most
+**Why this one.** `M2-C04-02` (form controls + validation display) closed `Needs Review`
+2026-08-23, independently validated `PASS` on `migration/M2-C04-02-form-controls` (tip
+`2eb7d8e`) — unmerged, awaiting owner review. Two `P0` `Ready` candidates remain from
+`M2-C04-01`'s earlier merge, both independent of `M2-C04-02`'s files: `M2-C10` (decimal
+handling, 2 d) and `M2-C04-03` (modal/drawer/toast/states, 3 d). `M2-C10` wins rank 2 (most
 downstream unblocking, [`dependency-graph.md`](dependency-graph.md) § *Ready-task selection
-rule*): it is a named Hard prerequisite of **two** tracker rows (`M2-C05`, `M2-C05-01`),
-against **one** for `M2-C10` (`M2-C07`, itself further gated on `M2-C05-01` and unanswered
-**Q-71**) and **none** for `M2-C04-03` (a *Soft* dependency only, for `InlineAlert`, with a
-documented local-placeholder fallback in `M2-C04-02`'s own task file if `-03` has not landed).
-`M2-C04-02` also sits directly on the project's stated critical path
-(`M2-C04-01 → M2-C04-02 → M2-C05-01 → M2-C05-03 → M2-D01 → …`), which neither sibling does —
-the same tie-break already used to rank `M2-C04-01` over `M2-C10` at the previous Select pass.
-Full reasoning: [`runner-state.md`](runner-state.md) Current task, `task-tracker.md` row
-`M2-C04-02`.
+rule*): it is a named Hard prerequisite of **one** tracker row (`M2-C07`, itself further
+gated on `M2-C05-01` and unanswered **Q-71**), against **none** for `M2-C04-03` (a *Soft*
+dependency only, for `InlineAlert`, with a documented local-placeholder fallback — the exact
+pattern `M2-C04-02` itself used). Neither sits on the stated critical path
+(`M2-C04-01 → M2-C04-02 → M2-C05-01 → M2-C05-03 → M2-D01 → …`). Full reasoning:
+[`runner-state.md`](runner-state.md) Current task, `task-tracker.md` row `M2-C10`.
+
+**Carried forward from `M2-C04-02` — read before starting, do not re-derive:**
+
+- `M2-C04-02`'s three numeric controls (`app-number-input`, `app-currency-input`,
+  `app-amount-or-percent-input`) already hold their values as **opaque branded `Money`/`Qty`
+  types** (`frontend/nexgen-web/src/app/shared/components/form/types.ts`) and parse/format
+  through an injected `DECIMAL_PORT` token that **nothing in application code currently
+  provides** — a documented `TODO(M2-C10)`. This task's job is to provide that port's real
+  implementation, not to redesign the control contract. A fixture
+  (`form/fake-decimal-port.ts`) shows the shape tests expect; it is not exported from
+  `form/index.ts` and must stay a test-only fixture.
+- **Q-74** (open, non-blocking): how the control's `{ value, isAmount }` pair should project
+  onto the server's separate `Amount`/`Percent` columns (`DiscountAmount` vs
+  `DiscountPercent`, etc. — `CalculationService.cs:29-31,38-42`, polarity `true` = fixed
+  amount). Not this task's problem to solve, but relevant context if the decimal module's API
+  shape is questioned.
+- **R-68** (open, non-blocking): a client-side-only party-completeness gate in
+  `CustomerSelection.razor` has no SPA owner. Unrelated to this task; recorded here only so a
+  session skimming `M2-C04-02`'s history does not re-investigate it.
 
 ### Five-part "can actually be done" check
 
-1. Hard prerequisite `M2-C04-01` — `Completed` and merged to `master` (`4d4b0c3`,
-   2026-08-23). **Met.**
+1. Hard prerequisite `M2-C01` — `Completed` and merged to `master`. **Met.**
 2. Not a `Product Decision`. **Met** — `task_type: Frontend`.
-3. Not blocked on an unanswered open question. **Met.** **Q-69** (whether a re-specification
-   may swap an `axe` a11y criterion for a static template lint) is answered and explicitly
-   recorded as *not* blocking. `M2-C10` — the decimal module — is a Hard dependency only for
-   3 of the task's ~10 controls (`number-input`, `currency-input`,
-   `amount-or-percent-input`); the task file itself specifies a non-local fallback if
-   `M2-C10` has not merged first (Implementation Steps, step 8), so `M2-C10` being merely
-   `Ready` rather than `Completed` does not gate this task.
-4. Task file not superseded/stale. **Met** — no ⛔ banner, re-specified for Angular by
-   `M2-C12-01` (merged), `last_verified: 2026-08-22`.
+3. Not blocked on an unanswered open question. **Met.** No open question gates this task's own
+   scope.
+4. Task file not superseded/stale. **Met** — no ⛔ banner; re-specified for Angular by
+   `M2-C12-02` (merged), `last_verified: 2026-08-22`. `decimal.js` is carried over from
+   ADR-003 **unchanged** by [ADR-007](../decisions/ADR-007-angular-stack.md) and is already
+   installed (`frontend/nexgen-web/package.json`: `"decimal.js": "^10.6.0"`).
 5. No sibling branch open on the same files. **Met** — `git branch --no-merged master`
-   (checked 2026-08-23) lists no branch touching `frontend/nexgen-web/` or `M2-C04-02.md`;
-   unrelated worktrees exist (`M0-03-*`, `M0-04`, `M0-06`, `M2-A08`, `M2-B12-01`), none
-   touching this task's files.
+   (checked 2026-08-23) lists no branch touching `frontend/nexgen-web/src/app/shared/utils/`
+   or `M2-C10.md`.
 
 ### Read before starting
 
-- [`tasks/M2-C04-02.md`](tasks/M2-C04-02.md) in full — dense: scope (`form-layout`,
-  `form-section`, `form-field`, the input set), what is explicitly out of scope (`DataGrid`
-  M2-C05, `LineItemGrid` M2-C07, overlays/toasts M2-C04-03, the shell M2-C03, dialogs
-  M2-C06), and the zoneless/`OnPush` change-detection constraint (no `zone.js` in this
-  workspace — every control must be `ChangeDetectionStrategy.OnPush`).
-- **Money must not be re-solved here.** `number-input` and `currency-input` delegate to
-  `M2-C10`'s decimal module rather than parsing numbers locally — do not invent numeric
-  parsing to route around `M2-C10` still being `Ready` rather than merged.
-- KB-051 §Forms, §State patterns, §Accessibility commitments — the specification.
-- `ADR-007-angular-stack.md` — typed Reactive Forms, validator shapes generated from OpenAPI
-  (consumed as hand-written validators in tests only for now — no hand-written schema for a
-  real ERP entity), PrimeNG only.
-- KB-015 §Forms and validation — what the existing Blazor implementation does today
-  (`DataAnnotations` + `EditForm` + `DataAnnotationsValidator`), the behaviour this layer
-  must preserve the *intent* of, not translate literally.
+- [`tasks/M2-C10.md`](tasks/M2-C10.md) in full. Note the re-specification banner: one
+  acceptance criterion (100% statement/branch coverage) had its *mechanism* changed to an
+  enumerated test list plus review, because this workspace has no verified coverage command
+  — do not invent one and do not quote the superseded criterion literally.
+- [ADR-007](../decisions/ADR-007-angular-stack.md) — `decimal.js`, carried over from ADR-003
+  unchanged.
+- `Companydetails.cs:208` — `DecimalPlaces` default `2`, the source of the precision policy
+  `M2-C04-02`'s numeric controls already inject.
+- `frontend/nexgen-web/src/app/shared/components/form/numeric-base.ts` and `types.ts` — the
+  consumer contract this module must satisfy (the `DECIMAL_PORT` token shape, `Money`/`Qty`
+  branding). Do not change these files; they belong to `M2-C04-02`.
 
 ### Run State — not yet dispatched
 
-Selected this Select pass (2026-08-23). No branch cut, no implementer dispatched. Next
-session should dispatch per [`workflow.md`](workflow.md) (KB-088) rather than re-run Select.
+Selected this Select pass (2026-08-23, at `M2-C04-02`'s close-out). No branch cut, no
+implementer dispatched. Next session should dispatch per [`workflow.md`](workflow.md)
+(KB-088) rather than re-run Select.
 
-`M2-C10` (`Ready`, `P0`, 2 d) and `M2-C04-03` (`Ready`, `P0`, 3 d) remain genuinely
-selectable, independent candidates — neither touches `M2-C04-02`'s files — for a parallel
-session; see `runner-state.md` § Next ready task.
+`M2-C04-03` (`Ready`, `P0`, 3 d) remains a genuinely selectable, independent candidate for a
+parallel session — see `runner-state.md` § Next ready task. `M2-C05`/`M2-C05-01` do **not**
+become selectable from `M2-C04-02`'s `PASS`: they need it `Completed` and merged, and it is
+`Needs Review`, unmerged, on `migration/M2-C04-02-form-controls`, awaiting owner review.

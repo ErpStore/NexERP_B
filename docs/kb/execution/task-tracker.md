@@ -154,7 +154,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-01`)* | P0 | M2-C01 | 2 wks | G2 |
 | M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
-| M2-C04-02 | M2 | — form controls + validation display | Frontend | **Ready**²⁶˒⁴⁶ *(released 2026-08-23 — `M2-C04-01` is `Completed` and merged)* | P0 | M2-C04-01 | 4 d | G2 |
+| M2-C04-02 | M2 | — form controls + validation display | Frontend | **Needs Review**⁵¹ *(implemented on `migration/M2-C04-02-form-controls`, independently validated `PASS` 2026-08-23; unmerged, no code review yet)* | P0 | M2-C04-01 | 4 d | G2 |
 | M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Ready**²⁶˒⁴⁶ *(released 2026-08-23 — `M2-C04-01` is `Completed` and merged)* | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
@@ -2369,3 +2369,51 @@ earlier dead run, which remain quarantined in `stash@{0}`.
 **R-45 blocked far more than this task.** `format:check` is in [KB-083's verified command
 table](prompt-template.md#verified-repository-commands) and in the CI frontend job, so every
 frontend task after `M2-C01` would have hit it on any Windows checkout.
+
+⁵¹ **M2-C04-02: `Ready` → `Needs Review` 2026-08-23.** Implemented on
+`migration/M2-C04-02-form-controls` (branch tip `2eb7d8e`, 8 commits ahead of `master` from
+merge-base `ba9e5a2`, 79 files, +6,969/-4). Built the form layer: `app-form-layout`,
+`app-form-section`, `app-form-field` and all 14 inputs from KB-051 §Forms, every one
+standalone, `OnPush`, a `ControlValueAccessor` over the named PrimeNG surface, and every one
+rendering its validation through the single `app-form-field` mechanism. Also
+`server-validation.ts` (`applyServerErrors`), `types.ts`, `base-control.ts`, `numeric-base.ts`,
+and the form `README.md`.
+
+Two attempts were needed before an independent validator returned `PASS`: attempt 1 `FAIL`
+because nine controls expressed `readonly()` as PrimeNG's `[disabled]`, which (per
+`primeng-select.mjs`'s `tabindex = !$disabled() ? tabindex() : -1`) dropped the value out of
+the tab order entirely — the opposite of the criterion; fixed at `802af10` using each PrimeNG
+surface's own `readonly`/`readonlyInput` input, with a new `readonly.spec.ts` (12 tests).
+Attempt 2 `FAIL` because `app-file-upload` had no loading row, completing only two of the
+three mandated states; fixed at `b6b3738` with a caller-driven `[loading]` input, matching the
+shape `app-select` already uses. **Attempt 3, independently validated `PASS`, `scopeOk: true`,
+`failureCategory: none`** — all 17 acceptance criteria re-derived `MET` directly against the
+branch tip, including a from-scratch re-read of every cited legacy line
+(`Companydetails.cs:208`, `DebitNote.cs:95,109,117,146`, `CalculationService.cs:29-31`,
+`TrimmedInputText.razor`, `CustomerSelection.razor`) and a re-measurement of the PrimeNG
+`readonly`/`tabindex` behaviour in `node_modules` rather than trusting the implementer's
+citations. All five verification commands re-run and observed: `typecheck` exit 0; `lint`
+"All files pass linting."; `format:check` "All matched files use Prettier code style!";
+`test:ci` "Test Files 29 passed (29) / Tests 215 passed (215)"; `build` "Application bundle
+generation complete.", 446.36 kB / 106.63 kB. No regression: `git diff --stat master...HEAD --
+V.SMART frontend/vsmart-erp` empty; the 8 pre-existing `M2-C01`/`M2-C04-01` spec files still
+pass inside the 29/215 total.
+
+**Two items are openly still owed, neither blocking `PASS` and neither a retry item:** (1) *"A
+human has completed a keyboard-only pass through a composed sample form"* — a Completion
+Condition, not an acceptance criterion, and by definition not something an automated session
+can satisfy; `a11y.spec.ts`'s composed-form TEMPLATE (`:55-116`) is the starting point, and
+three keys are named as genuinely blocked from `userEvent`/jsdom automation (radio-group arrow
+movement, the date-picker calendar grid, masked `p-inputnumber` typing), each with its
+measured PrimeNG cause recorded in `form/README.md:103-131`. (2) This tracker row itself —
+the implementer correctly left it to the runner/orchestrator to avoid racing this file; this
+footnote is that correction. **Only the repository owner may set `Completed`** (KB-088 §Who
+may set Completed). Two real discoveries were recorded during implementation, not invented at
+close-out: **R-68** (`docs/kb/risks/technical-debt-register.md`) — `CustomerSelection.razor`'s
+~12-check party-completeness gate, including a 15-character GST rule, is client-side-only and
+has no owner in the SPA plan — and the INV-006 amendment (`docs/kb/investigation-registry.md`)
+recording the `DataAnnotations` → Angular `Validators` mapping surface and that cross-field
+rules are not expressible as field validators. **Q-73** and **Q-74** were also raised
+(`docs/kb/open-questions.md`), neither blocking. Full record:
+`tasks/M2-C04-02.md` § Execution Record (2026-08-23) — session close-out;
+`failure-log.md`.
