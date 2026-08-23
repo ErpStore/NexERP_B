@@ -21,105 +21,76 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## ▶ M2-C04-01 — Design tokens, theme, light/dark
+## ▶ M2-C04-02 — Form controls + validation display
 
-**Task file:** [`tasks/M2-C04-01.md`](tasks/M2-C04-01.md) — the token layer of
-[KB-051](../frontend-new/design-system.md) as CSS custom properties (semantic colour,
-typography, spacing, radius, elevation, motion, breakpoints, density), authored as **two
-first-class palettes** (light and dark, not one filtered into the other), plus a root
-`ThemeService` (Angular signals, `light | dark | system` preference), a theme-toggle
-component, the PrimeNG theme-preset reconciliation, and an automated contrast test over every
-token pair used for text or UI boundaries.
+**Task file:** [`tasks/M2-C04-02.md`](tasks/M2-C04-02.md) — the form layer of
+[KB-051 §Forms](../frontend-new/design-system.md#forms): `form-layout`, `form-section`,
+`form-field`, and the input set, as standalone Angular components over PrimeNG and typed
+Reactive Forms, plus **one** validation-display mechanism used by every control.
 
-**Why this one.** `M2-C12-05` closed this session (`Needs Review`, independently validated
-`PASS`) and re-specified the last of the 25 formerly-`⛔`-banner files — the frontend tree is
-reachable again for the first time since ADR-007. `M2-C04-01` and `M2-C10` are the only two
-tasks this newly releases as genuinely selectable: both `depends_on: [M2-C01]` only
-(`Completed`/merged), both carry `status: Ready` in their own re-specified task files, neither
-has a sibling branch, and neither is gated by an unanswered open question that actually blocks
-execution. `M2-C04-01` wins the rank: it unblocks two direct children (`M2-C04-02`,
-`M2-C04-03`) against `M2-C10`'s one (`M2-C07`, itself further gated on `M2-C05-01` and
-**Q-71**), and it sits on the ancestry of the project's stated critical path
-(`M2-C04-01 → M2-C04-02 → M2-C05-01 → M2-C05-03 → M2-D01 → …`,
-[`dependency-graph.md`](dependency-graph.md) § *Project critical path*) while `M2-C10` feeds
-only the off-path `M2-C07`. Full reasoning: `task-tracker.md` footnote ⁴⁷,
-`tasks/M2-C12-05.md` § Execution Record (2026-08-22) — Close-out.
+**Why this one.** `M2-C04-01` closed `Completed` and merged to `master` on 2026-08-23
+(`a4150e0`, merge `4d4b0c3`) after the owner resolved **R-45** (`endOfLine: "auto"`,
+`4af2f4f`); a follow-up commit (`5250328`) released `M2-C04-02` and `M2-C04-03` as `Ready` in
+`task-tracker.md`. **`current-task.md` itself was not updated by that commit** — it still
+named `M2-C04-01` `Blocked` until this Select pass corrected it; that was a stale pointer, not
+a live attempt in progress (confirmed against `task-tracker.md` and `runner-state.md`'s own
+Status history before treating `M2-C04-01` as finished).
+
+Three `P0` `Ready` candidates were released by `M2-C04-01`'s merge: `M2-C10` (decimal
+handling, 2 d), `M2-C04-02` (4 d) and `M2-C04-03` (3 d). `M2-C04-02` wins rank 2 (most
+downstream unblocking, [`dependency-graph.md`](dependency-graph.md) § *Ready-task selection
+rule*): it is a named Hard prerequisite of **two** tracker rows (`M2-C05`, `M2-C05-01`),
+against **one** for `M2-C10` (`M2-C07`, itself further gated on `M2-C05-01` and unanswered
+**Q-71**) and **none** for `M2-C04-03` (a *Soft* dependency only, for `InlineAlert`, with a
+documented local-placeholder fallback in `M2-C04-02`'s own task file if `-03` has not landed).
+`M2-C04-02` also sits directly on the project's stated critical path
+(`M2-C04-01 → M2-C04-02 → M2-C05-01 → M2-C05-03 → M2-D01 → …`), which neither sibling does —
+the same tie-break already used to rank `M2-C04-01` over `M2-C10` at the previous Select pass.
+Full reasoning: [`runner-state.md`](runner-state.md) Current task, `task-tracker.md` row
+`M2-C04-02`.
 
 ### Five-part "can actually be done" check
 
-1. Hard prerequisite `M2-C01` — `Completed` and merged to `master` (`2dd4e53`, 2026-08-21).
-   **Met.**
+1. Hard prerequisite `M2-C04-01` — `Completed` and merged to `master` (`4d4b0c3`,
+   2026-08-23). **Met.**
 2. Not a `Product Decision`. **Met** — `task_type: Frontend`.
-3. Not blocked on an unanswered open question. **Carries a caveat, judged non-blocking.**
-   `M2-C04-01` carries **Q-68** (whether resetting its status to `Ready` after its earlier
-   React implementation was deleted from disk is what the owner intends). Q-68's own "Impact
-   if unresolved" column reads *"Nothing technically"* — it governs how the tracker row should
-   be worded, not whether the work is gated. The task file itself already carries `status:
-   Ready` as the applied (conservative) answer. If the owner later rules the other way on
-   Q-68, that corrects bookkeeping, not this task's output.
+3. Not blocked on an unanswered open question. **Met.** **Q-69** (whether a re-specification
+   may swap an `axe` a11y criterion for a static template lint) is answered and explicitly
+   recorded as *not* blocking. `M2-C10` — the decimal module — is a Hard dependency only for
+   3 of the task's ~10 controls (`number-input`, `currency-input`,
+   `amount-or-percent-input`); the task file itself specifies a non-local fallback if
+   `M2-C10` has not merged first (Implementation Steps, step 8), so `M2-C10` being merely
+   `Ready` rather than `Completed` does not gate this task.
 4. Task file not superseded/stale. **Met** — no ⛔ banner, re-specified for Angular by
    `M2-C12-01` (merged), `last_verified: 2026-08-22`.
-5. No sibling branch open on the same files. **Met** — `git branch --no-merged master` (checked
-   2026-08-22 during `M2-C12-05`'s close-out) lists no `M2-C04-01` branch; three unrelated
-   sibling worktrees exist (`wt-M0-10`, `wt-M2-A08`, `wt-M2-B01`), none touching
-   `frontend/nexgen-web/`, `M2-C04-01.md` or its `source_files`.
+5. No sibling branch open on the same files. **Met** — `git branch --no-merged master`
+   (checked 2026-08-23) lists no branch touching `frontend/nexgen-web/` or `M2-C04-02.md`;
+   unrelated worktrees exist (`M0-03-*`, `M0-04`, `M0-06`, `M2-A08`, `M2-B12-01`), none
+   touching this task's files.
 
 ### Read before starting
 
-- [`tasks/M2-C04-01.md`](tasks/M2-C04-01.md) in full — it is dense: the re-specification note
-  at the top explains what carried over from the discarded React implementation (the eight
-  WCAG contrast corrections and the 12/18 type scale, now recorded as *shipped* values in
-  [KB-051 §Colour](../frontend-new/design-system.md#colour)) and what did not (the file paths —
-  `frontend/nexgen-web/src/styles/tokens.css` and `src/app/core/theme/`, not the deleted React
-  tree's paths).
-- **Q-33** — `UserThemePreference.cs:20` holds a single `bool IsDarkMode` (default `false`) and
-  **cannot represent `system`**, but KB-051 asks for a `system` default. This task must record
-  the schema/spec mismatch, not quietly resolve it either direction.
-- **Q-68** — see check 3 above. Do not treat it as licence to skip the work; it is a
-  bookkeeping question about how the tracker describes what you are about to do.
-- KB-051 §Colour for the already-measured contrast ratios this task must reproduce, not
-  re-litigate.
-- `ADR-007-angular-stack.md` for the PrimeNG-preset-from-CSS-tokens question (**Q-67**, partly
-  answered — the reconciliation mechanism is this task's to establish and record which of the
-  two routes worked).
+- [`tasks/M2-C04-02.md`](tasks/M2-C04-02.md) in full — dense: scope (`form-layout`,
+  `form-section`, `form-field`, the input set), what is explicitly out of scope (`DataGrid`
+  M2-C05, `LineItemGrid` M2-C07, overlays/toasts M2-C04-03, the shell M2-C03, dialogs
+  M2-C06), and the zoneless/`OnPush` change-detection constraint (no `zone.js` in this
+  workspace — every control must be `ChangeDetectionStrategy.OnPush`).
+- **Money must not be re-solved here.** `number-input` and `currency-input` delegate to
+  `M2-C10`'s decimal module rather than parsing numbers locally — do not invent numeric
+  parsing to route around `M2-C10` still being `Ready` rather than merged.
+- KB-051 §Forms, §State patterns, §Accessibility commitments — the specification.
+- `ADR-007-angular-stack.md` — typed Reactive Forms, validator shapes generated from OpenAPI
+  (consumed as hand-written validators in tests only for now — no hand-written schema for a
+  real ERP entity), PrimeNG only.
+- KB-015 §Forms and validation — what the existing Blazor implementation does today
+  (`DataAnnotations` + `EditForm` + `DataAnnotationsValidator`), the behaviour this layer
+  must preserve the *intent* of, not translate literally.
 
-### Run State — `Blocked`, awaiting an owner decision (2026-08-23)
+### Run State — not yet dispatched
 
-**Implemented and independently validated. Not `Ready` any more — do not re-dispatch as if
-starting fresh.** Branch `migration/M2-C04-01-design-tokens-angular` (cut from `master` at
-`bd51307`), tip `e16693a`. **Nothing merged, nothing pushed.** Attempts used: 1 of 3, 0
-escalations. Full record: [`tasks/M2-C04-01.md`](tasks/M2-C04-01.md) § Execution Record
-(2026-08-23); [`failure-log.md`](failure-log.md) (independent-validation `FAIL` entry and the
-diagnosis entry immediately after it); [`task-tracker.md`](task-tracker.md) footnote ⁴⁹;
-[`runner-state.md`](runner-state.md) Status.
+Selected this Select pass (2026-08-23). No branch cut, no implementer dispatched. Next
+session should dispatch per [`workflow.md`](workflow.md) (KB-088) rather than re-run Select.
 
-**What happened.** 14 of 16 acceptance criteria were independently re-derived as `MET`. Two were
-not:
-
-1. A raw-colour ESLint gap over external `.html` templates — **already fixed**, commit
-   `e16693a`, one file (`eslint.config.js`, on the task's own *Files Expected to Change*).
-2. `npm run format:check` fails on 27 pre-existing scaffold files on **CRLF line endings alone**
-   (`core.autocrlf=true` + `.gitattributes: * text=auto` + no `endOfLine` override in
-   `.prettierrc`) — **not fixed.** Recorded as **R-45**
-   ([`risks/technical-debt-register.md`](../risks/technical-debt-register.md)). The one-line fix
-   (`"endOfLine": "auto"` in `.prettierrc`) touches a file outside this task's authorised list.
-
-**What resumes this task, and what does not.** This is a KB-091 §8 item 5 safety stop
-(environment), not a retry candidate — re-dispatching an implementer against the unfixed failure
-would reproduce the same block. **A human (Vivek) must choose one of:**
-
-- (a) authorise `frontend/nexgen-web/.prettierrc` as in-scope for `M2-C04-01` and let a retry add
-  `"endOfLine": "auto"`;
-- (b) grant an explicit R-45 exception judging the criterion on the four passing commands plus a
-  clean `prettier --check` of the files this task authored;
-- (c) split R-45 into its own tooling task and let `M2-C04-01` close once that lands.
-
-Once the owner rules, a session resumes on the existing branch (attempt 2 of 3) rather than
-re-implementing from scratch — the token layer, PrimeNG preset, theme service, toggle component
-and all documentation updates (KB-051, KB-050, INV-006, Q-67 answered, Q-33 re-confirmed) are
-already done and validated. The Completion Conditions' manual browser pass (both themes, 200%
-zoom, `prefers-reduced-motion`) also remains outstanding regardless of the R-45 ruling.
-
-**No other task was selected or started this session**, per explicit instruction. The next
-Select pass should re-run the five-part test fresh rather than assume `M2-C10` is still the
-right pick (see `runner-state.md` § Next ready task).
+`M2-C10` (`Ready`, `P0`, 2 d) and `M2-C04-03` (`Ready`, `P0`, 3 d) remain genuinely
+selectable, independent candidates — neither touches `M2-C04-02`'s files — for a parallel
+session; see `runner-state.md` § Next ready task.
