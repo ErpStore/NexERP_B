@@ -47,6 +47,33 @@ const bannedGeneratedClientImports = {
   ],
 };
 
+/**
+ * R-22: a second visual language appears the moment components start
+ * hardcoding colours. Colour lives in src/styles/tokens.css and is reached
+ * through var(--token) - see src/app/core/theme/README.md.
+ *
+ * ESLint can only police the halves angular.json lintFilePatterns covers
+ * (TypeScript and templates). The .css/.scss half is covered by
+ * src/app/core/theme/no-raw-colour.spec.ts rather than by a second linter.
+ */
+const noRawColour = [
+  {
+    selector: 'Literal[value=/#[0-9a-fA-F]{3,8}/]',
+    message:
+      'No raw colour literal. Use a semantic token from src/styles/tokens.css, e.g. var(--accent) (KB-051, R-22).',
+  },
+  {
+    selector: 'Literal[value=/(rgb|hsl)a?[(]/]',
+    message:
+      'No raw colour literal. Use a semantic token from src/styles/tokens.css, e.g. var(--accent) (KB-051, R-22).',
+  },
+  {
+    selector: 'TemplateElement[value.raw=/#[0-9a-fA-F]{3,8}/]',
+    message:
+      'No raw colour literal. Use a semantic token from src/styles/tokens.css, e.g. var(--accent) (KB-051, R-22).',
+  },
+];
+
 module.exports = defineConfig([
   {
     ignores: ['dist/**', 'coverage/**', 'playwright-report/**', 'test-results/**', '.angular/**'],
@@ -84,6 +111,17 @@ module.exports = defineConfig([
           ],
         },
       ],
+      'no-restricted-syntax': ['error', ...noRawColour],
+    },
+  },
+  {
+    // The token layer is the one place a colour value may be written. Nothing
+    // in it is a .ts file today - tokens.css holds every value and tokens.ts
+    // holds only names - but the exemption is declared here so that stays a
+    // deliberate choice rather than an accident of file extensions.
+    files: ['src/styles/**/*.ts', 'src/app/core/theme/tokens.ts'],
+    rules: {
+      'no-restricted-syntax': 'off',
     },
   },
   {

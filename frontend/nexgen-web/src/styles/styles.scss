@@ -1,1 +1,176 @@
-/* You can add global styles to this file, and also import other style files */
+/*
+ * Global stylesheet. The token layer first, then a minimal base layer built
+ * only from tokens - no colour literal may appear below the import, and
+ * `no-raw-colour.spec.ts` enforces that.
+ *
+ * Specification: docs/kb/frontend-new/design-system.md (KB-051).
+ */
+@use './tokens.css';
+
+/* --- Self-hosted faces. No CDN: a network dependency on first paint is a
+ * latency and privacy cost an internal tool should not pay, so there is no
+ * fonts.googleapis.com / fonts.gstatic.com request anywhere in the build.
+ * Variable fonts, one file per family per subset; the browser fetches a
+ * subset only when a glyph in its unicode-range is used.
+ * Both faces are SIL Open Font License 1.1 - licence text sits beside the
+ * files in public/fonts/.
+ */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('/fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('/fonts/inter-latin-ext-wght-normal.woff2') format('woff2-variations');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url('/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* --- Minimal reset ----------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-regular);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+blockquote,
+dl,
+dd {
+  margin: 0;
+}
+
+/* --- Base typography (KB-051 Typography) -------------------------------- */
+h1 {
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: var(--weight-semibold);
+}
+
+h2 {
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: var(--weight-semibold);
+}
+
+h3 {
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-semibold);
+}
+
+small {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-medium);
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+a {
+  color: var(--accent);
+}
+
+/*
+ * Numbers. KB-051: "All numeric columns use tabular figures and are
+ * right-aligned." Applied to the elements that carry numbers by default, and
+ * available as a utility for anything else.
+ */
+.numeric,
+td.numeric,
+th.numeric,
+input[type='number'] {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Document numbers and item codes use the mono face. */
+.code,
+.doc-no {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Focus (KB-051 Accessibility commitments) --------------------------- */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Never remove the indicator; only replace it with the token ring above. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* --- Motion ------------------------------------------------------------- */
+/*
+ * Every transition in the app is expected to use these tokens, so zeroing
+ * them here neutralises the app's motion in one place. The blanket rule after
+ * it catches anything that did not.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -4,7 +4,7 @@ title: Investigation Registry
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-21
+last_verified: 2026-08-23
 ---
 
 # Investigation Registry
@@ -24,7 +24,7 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-003 | Data model, DbContexts, entities, migrations, seed data | Complete | `Data/ApplicationDbContext.cs` (196 DbSets), `Data/MasterDbContext.cs`, `Data/**`, `Migrations/` | [KB-012](architecture/database-architecture.md) | 2026-08-12 |
 | INV-004 | Authentication, screen rights, approval authority | Complete | `Authentication/Custom AuthenticationStateProvider.cs`, `Repository/MasterRepository/Admins/UserRepository.cs`, `Shared/BaseUserRightsComponent.cs`, `Shared/RightsHelper.cs`, `Data/Master/Admin_Module/*`, `V.SMART.Api/Auth/*` | [KB-013](architecture/auth-and-permissions.md); server-side reproduction spec'd in [KB-105](architecture/server-side-authorization-spec.md) *(M2-A01-01, 2026-08-18 — re-verified against current code, **no contradiction with KB-013 found**; status and Verified date deliberately unchanged)* | 2026-08-12 |
 | INV-005 | Multi-tenancy resolution and isolation | Complete | `Services/MultiCompanyService/*`, `Data/TenantInfo.cs`, `wwwroot/config/tenant.json` | [KB-014](architecture/multi-tenancy.md) | 2026-08-12 |
-| INV-006 | Existing UI: routing, layout, components, `@code` density | Complete *(amended 2026-08-19 by M2-C04-01 — theme persistence, see below)* | `Routes.razor`, `Layout/NavMenu.razor` (888 LOC), `Components/` (22), `Pages/` (333 files, 440 routes), measured `@code` share | [KB-015](architecture/frontend-architecture-existing.md) | 2026-08-12 |
+| INV-006 | Existing UI: routing, layout, components, `@code` density | Complete *(amended 2026-08-19 by M2-C04-01 — theme persistence; amended again 2026-08-23 by M2-C04-01 — how PrimeNG 22 consumes the token layer, the answer to Q-67; see below)* | `Routes.razor`, `Layout/NavMenu.razor` (888 LOC), `Components/` (22), `Pages/` (333 files, 440 routes), measured `@code` share | [KB-015](architecture/frontend-architecture-existing.md) | 2026-08-12 |
 | INV-007 | Module inventory and inter-module dependency graph | Complete | `NavMenu.razor`, `Data/` folders, `BusinessLayer/` folders, `Ref*SubId` FK scan | [KB-020](modules/module-inventory.md) | 2026-08-12 |
 | INV-008 | Existing API surface | Complete *(re-verified 2026-08-21 by M2-B01 — **route surface changed**, see the amendment below)* | `V.SMART.Api/**` (2 controllers, 6 endpoints) | [KB-040](api/api-overview.md) | 2026-08-21 |
 | INV-009 | Reporting: FastReport + stored procedures | Complete *(amended 2026-08-12)* | `Services/ReportViewer/ReportService.cs`, `ReportExecutor.cs`, `wwwroot/templates/` (104 `.frx`), `Existing Store Procedures/` (13 `.sql`, of which only **12** are called → gap is **82**, not 81). **Scoped** name-extraction command, since the unscoped one now returns 111 by matching this KB's own prose: `grep -rhoE "Sp_[A-Za-z0-9_]+" --include=*.cs --include=*.razor --exclude-dir=obj --exclude-dir=bin V.SMART \| sort -u` | [KB-011](architecture/backend-architecture.md#reporting-subsystem), [ADR-005](decisions/ADR-005-reporting-and-printing.md), R-04 | 2026-08-12 |
@@ -187,8 +187,10 @@ Finding:        UserThemePreference stores a single bool IsDarkMode (default fal
                 no tri-state.
                 NEGATIVE RESULT: IUserThemePreferenceService has NO HTTP surface anywhere.
                 Grepping V.SMART.Api for "theme" (case-insensitive) returns exactly one hit,
-                and it is a COMMENT. V.SMART.Api/Controllers/ holds two controllers,
-                AuthController and CurrencyController. No theme endpoint, DTO or route exists.
+                and it is a COMMENT. No theme endpoint, DTO or route exists. (Controller
+                count corrected 2026-08-23: V.SMART.Api/Controllers/ held two when this was
+                written and holds six now — Auth, Currency, CurrencyExcel, Files, Me,
+                Reference. The negative result is unchanged: still one comment, still no code.)
                 React therefore persists the preference locally (localStorage, key
                 "nexgen.theme") until a settings endpoint exists — M3-3.
                 ThemeStateService is 26 lines: one bool IsDarkMode with a private setter, one
@@ -210,7 +212,8 @@ Evidence:       V.SMART/V.SMART.Shared/Data/Master/MasterScreeenManagement_Modul
                 V.SMART/V.SMART.Shared/Layout/MainLayout.razor:8 ;
                 V.SMART/V.SMART.Shared/DependencyInjection/ServiceCollectionExtensions.cs:238,348 ;
                 V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs:128 ;
-                V.SMART/V.SMART.Api/Program.cs:117 (the single "theme" hit — a comment) ;
+                V.SMART/V.SMART.Api/Program.cs:221 (the single "theme" hit — a comment; it was :117
+                when this amendment was written) ;
                 git grep -ni "theme" -- V.SMART/V.SMART.Api  → 1 line, no code
 Business rule:  n/a — this is presentation state, not ERP behaviour
 Confidence:     Confirmed
@@ -219,8 +222,70 @@ Last verified:  2026-08-19
 
 **Consequence recorded for the strangler period:** the React and Blazor theme preferences are
 independent. A user switching theme in React sees no change in Blazor, and vice versa. That is
-documented in `frontend/nexgen-web/README.md` and in `src/shared/theme/README.md` so it is read
-as expected behaviour rather than discovered as a bug.
+documented in `frontend/nexgen-web/README.md` and in
+`frontend/nexgen-web/src/app/core/theme/README.md` so it is read as expected behaviour rather
+than discovered as a bug. (Path corrected 2026-08-23: the React `src/shared/theme/` tree was
+deleted by `M2-C01`; the Angular layer lives in `src/app/core/theme/`.)
+
+### INV-006 amendment (2026-08-23, M2-C04-01) — how PrimeNG 22 consumes the token layer
+
+Added by **M2-C04-01** while implementing the **Angular** token layer, and it is the answer to
+**Q-67**. Every claim was verified against the installed packages and against observed output on
+2026-08-23, not carried from the task file.
+
+```yaml
+Finding:        PrimeNG 22's preset system consumes the CSS-variable token layer DIRECTLY:
+                a semantic token whose value is the string "var(--accent)" is emitted verbatim
+                into the generated --p-* custom property. The preset is therefore a pure
+                mapping onto src/styles/tokens.css with NO colour value duplicated into
+                TypeScript. This is route A of the two the task offered; the documented
+                fallback (overriding --p-* from styles.scss) was not needed.
+                MECHANISM: @primeuix/styled's value emitter (getVariableValue) rewrites only
+                brace references — {a.b} becomes var(--p-a-b) — and returns any other string
+                unchanged. The same bundle exports VAR_REGEX = /var\([^)]+\)/g and uses it to
+                blank out var(...) before testing for calc(), i.e. var() inside a token value
+                is anticipated by the library, not accidental.
+                OBSERVED, not inferred:
+                  toVariables({primary:{color:'var(--accent)'}},{prefix:'p'}).declarations
+                    === '--p-primary-color:var(--accent);'
+                TRAP 1: Aura 3.0.0 has NO colorScheme.dark block. Its semantic values use the
+                CSS light-dark() function, which is selected by the color-scheme PROPERTY, not
+                by a selector — e.g. text.color is "light-dark({surface.700}, {surface.0})".
+                Setting darkModeSelector alone would leave the two mechanisms out of step.
+                RESOLUTION TAKEN: tokens.css sets color-scheme:light on :root and
+                color-scheme:dark under [data-theme='dark'], and darkModeSelector is
+                '[data-theme="dark"]'. Both mechanisms then hang off the ONE attribute
+                ThemeService writes, so an un-overridden Aura token flips at the same moment
+                as an overridden one.
+                TRAP 2: PrimeNG's palette helpers hard-require a hex literal. mix() guards on
+                /^#([0-9a-f]{3}|[0-9a-f]{6})$/i and returns its input unchanged otherwise, and
+                palette(), shade() and tint() are built on it — so updatePrimaryPalette() and
+                a generated 50..950 ramp CANNOT be driven from a CSS variable. Override the
+                semantic LEAVES instead.
+                TRAP 3: toUnit() appends px to a bare number except for opacity, z-index,
+                line-height, font-weight, flex and order keys. Pass unit-bearing strings.
+                CONFIRMED SHAPES: definePreset(base, ...extensions) is exported by
+                @primeuix/themes 3.0.0; darkModeSelector is typed
+                'system' | 'none' | (string & {}) and an attribute form resolves to
+                :root[data-theme="dark"],:host[data-theme="dark"] — so the attribute MUST be
+                on <html>, which is what the pre-paint script in index.html does.
+Evidence:       frontend/nexgen-web/src/app/core/theme/theme.preset.ts ;
+                frontend/nexgen-web/src/app/core/theme/tokens.spec.ts (the emitter assertion) ;
+                frontend/nexgen-web/src/app/app.config.ts ;
+                node_modules/@primeuix/themes/dist/index.d.mts:6 (definePreset) ;
+                node_modules/@primeuix/styled/dist/index.d.mts:494 (darkModeSelector) ;
+                node_modules/@primeuix/styled/dist/index.mjs:1 (getVariableValue, toVariables,
+                  mix, ThemeUtils.getCommon — single-line bundle) ;
+                node_modules/@primeuix/themes/dist/aura/base/index.mjs:1 (light-dark values) ;
+                observed: npm run test:ci → 8 files, 47 tests passed, 2026-08-23
+Business rule:  n/a — presentation only
+Confidence:     Confirmed
+Last verified:  2026-08-23
+```
+
+**Also re-confirmed on 2026-08-23, unchanged:** `UserThemePreference.cs:20` still reads
+`public bool IsDarkMode { get; set; } = false;`. The entity was **not** modified. Q-33 stays
+open.
 
 ### INV-042 — `role` in `GET /api/v1/me`, and what else belongs in the bootstrap response
 

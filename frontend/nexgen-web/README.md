@@ -75,7 +75,33 @@ The mechanism here:
    not a host. Deployments that serve the API from another origin overwrite this one file; nothing
    is rebuilt. `public/config/app-config.example.json` documents the shape.
 
-## Bundle baseline (`npm run build`, 2026-08-21)
+## Bundle baseline (`npm run build`, 2026-08-23, after M2-C04-01)
+
+| Chunk                                    | Raw           | Estimated transfer (gzip) |
+| ---------------------------------------- | ------------- | ------------------------- |
+| `chunk-*.js` (Angular + PrimeNG runtime) | 223.11 kB     | 66.75 kB                  |
+| `main-*.js`                              | 218.60 kB     | 38.49 kB                  |
+| `styles-*.css` (tokens + base layer)     | 4.65 kB       | 1.39 kB                   |
+| **Initial total**                        | **446.36 kB** | **106.63 kB**             |
+| Lazy `placeholder-component` chunk       | 17.68 kB      | 5.04 kB                   |
+
+M2-C04-01 added **9.51 kB raw / 2.43 kB gzip** in total: **4.65 kB raw / 1.39 kB gzip** of CSS
+(the token layer, the `@font-face` block and the global base layer, where `styles-*.css` was 0
+bytes before), plus **4.86 kB raw / 1.04 kB gzip** of JavaScript — the token-driven PrimeNG
+preset and `ThemeService`. Initial total moved from 436.85 kB / 104.20 kB to
+446.36 kB / 106.63 kB, i.e. **43 % of KB-050 budget**.
+
+**Fonts are assets, not part of the initial bundle**, and the browser fetches a subset only when
+a glyph in its `unicode-range` is used. `public/fonts/` totals **173.7 kB** on disk —
+`inter-latin-wght-normal.woff2` 48,256 B, `inter-latin-ext-wght-normal.woff2` 85,068 B,
+`jetbrains-mono-latin-wght-normal.woff2` 40,404 B. A typical Latin-1 page therefore fetches
+**88.7 kB** of font (Inter latin + JetBrains Mono latin); the 85 kB latin-ext file is fetched only
+when an extended-Latin glyph appears. woff2 is already Brotli-compressed, so gzip does not shrink
+it further. Angular's `initial` budget does not count assets, and neither does KB-050's
+`< 250 KB gzip` initial-bundle target — but the bytes are real on a cold load, so they are
+recorded here rather than left to be discovered.
+
+### Baseline before M2-C04-01 (`npm run build`, 2026-08-21)
 
 | Chunk                                    | Raw           | Estimated transfer (gzip) |
 | ---------------------------------------- | ------------- | ------------------------- |
@@ -112,6 +138,38 @@ incoherent — it loads MudBlazor 8.11 **and** Bootstrap 5 (R-22). Enforcement i
 > `providePrimeNG` accepts a `license` option). No key is configured here. This was not known when
 > ADR-007 chose PrimeNG — it is recorded as a risk and an open question for the owner, not
 > silently worked around.
+
+## Theming and tokens
+
+Every colour, size, radius, shadow, duration and breakpoint in the app comes from
+`src/styles/tokens.css`. **A colour literal may appear in that file and nowhere else** — not in
+a component stylesheet, not in a template, not in TypeScript, not in the PrimeNG preset. ESLint
+enforces it for `.ts` and `.html`; `src/app/core/theme/no-raw-colour.spec.ts` covers
+`.css`/`.scss` too, which `angular.json`'s `lintFilePatterns` cannot reach.
+
+Light and dark are two hand-authored palettes, not one filtered into the other, and
+`src/app/core/theme/contrast.spec.ts` computes the WCAG 2.2 ratio of every ink × background
+token pair in **both** themes (≥ 4.5:1 text, ≥ 3:1 UI boundaries). If a value fails, change the
+value — the threshold is never lowered.
+
+How to add a token, and how PrimeNG is driven from the same layer:
+[`src/app/core/theme/README.md`](src/app/core/theme/README.md).
+
+`ThemeService` (root-provided, signals) holds a `light | dark | system` preference defaulting
+to `system`, follows `prefers-color-scheme` live, and writes `<html data-theme>` and
+`<html data-density>`. A short inline script in `src/index.html` sets `data-theme` **before
+first paint** so a dark-mode user never sees a white flash; it cannot live in Angular because it
+must run before the bundle is parsed.
+
+Fonts are **self-hosted** (`public/fonts/`, SIL OFL 1.1, licence text alongside) with
+`font-display: swap`. There is no `fonts.googleapis.com` or `fonts.gstatic.com` request
+anywhere in the build.
+
+> **The SPA's theme preference and Blazor's are independent during the strangler period.**
+> Blazor uses `ThemeStateService` plus the `UserThemePreference` entity; the SPA stores its
+> preference in `localStorage` under `nexgen.theme`. Switching theme in one does not change
+> the other. Server-side persistence needs a settings endpoint **and** a decision on the entity,
+> which is a single `bool IsDarkMode` and cannot represent `system` — Q-33, due with M3-3.
 
 ## Structure
 

@@ -8,12 +8,12 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideTranslateLoader, provideTranslateService } from '@ngx-translate/core';
 import { providePrimeNG } from 'primeng/config';
-import Aura from '@primeuix/themes/aura';
 
 import { routes } from './app.routes';
 import { loadAppConfig } from './core/config/app-config';
 import { GlobalErrorHandler } from './core/errors/global-error-handler';
 import { InMemoryTranslateLoader } from './core/i18n/in-memory-translate-loader';
+import { NexGenThemeOptions } from './core/theme/theme.preset';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -30,8 +30,10 @@ export const appConfig: ApplicationConfig = {
     // API base URL aborts bootstrap rather than defaulting to someone's laptop.
     provideAppInitializer(loadAppConfig),
 
-    // Bare PrimeNG preset. No custom token layer here - M2-C04-01 owns tokens.
-    providePrimeNG({ theme: { preset: Aura } }),
+    // PrimeNG themed from src/styles/tokens.css: every preset value is a
+    // var(--token) reference, and darkModeSelector is the same
+    // [data-theme="dark"] attribute ThemeService writes (M2-C04-01, Q-67).
+    providePrimeNG({ theme: NexGenThemeOptions }),
 
     provideTranslateService({
       lang: 'en',

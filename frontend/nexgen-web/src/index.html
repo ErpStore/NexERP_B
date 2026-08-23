@@ -6,6 +6,30 @@
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <!--
+      Pre-paint theme resolution. This cannot live in Angular: it must run
+      before the bundle is parsed, or a dark-mode user sees a white flash
+      (KB-051 / M2-C04-01). Keep it in sync with ThemeService - same
+      localStorage keys, same attribute names.
+    -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('nexgen.theme');
+          var d = localStorage.getItem('nexgen.density');
+          if (t !== 'light' && t !== 'dark') {
+            t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          document.documentElement.setAttribute('data-theme', t);
+          document.documentElement.setAttribute(
+            'data-density',
+            d === 'compact' ? 'compact' : 'default',
+          );
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
   </head>
   <body>
     <app-root></app-root>

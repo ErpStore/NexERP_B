@@ -18,7 +18,7 @@ database_tables: []
 business_rules: [BR-CALC-001, BR-STK-001, BR-SO-001, BR-SO-003, BR-AUTH-002]
 status: proposal
 confidence: n/a
-last_verified: 2026-08-21
+last_verified: 2026-08-23
 dependencies: [KB-013, KB-015, KB-040, KB-041, KB-051, KB-105, ADR-002, ADR-004, ADR-007]
 ---
 
@@ -200,9 +200,17 @@ Rules, each of which the pilot either already honours or is the counter-example 
 > The CLI also generates `src/styles.scss` as a file; it was moved to `src/styles/styles.scss` to
 > match the `styles/` directory above, with `angular.json` updated.
 >
+> **`core/theme/`, realised by `M2-C04-01` (2026-08-23), is not in the block above** — it is a
+> subfolder this project adds under the "anything that must be a singleton lives in `core/`" rule:
+> `tokens.ts`, `theme.preset.ts`, `theme.service.ts`, `density.ts`, `breakpoints.ts` and
+> its own `README.md`, with the values themselves in `src/styles/tokens.css` (the `styles/`
+> entry the block already names). `shared/components/theme-toggle/` is the first realised
+> `shared/components/*` primitive.
+>
 > **Not yet realised:** every `features/<module>/` folder, `core/api/generated/` (`M2-B10`),
 > `core/auth/` (`M2-C02`), `core/http/` (`M2-C02`), `layout/*` (`M2-C03`) and every
-> `shared/components/*` primitive (`M2-C04-*`) are empty directories carrying a `.gitkeep`.
+> other `shared/components/*` primitive (`M2-C04-02`, `M2-C04-03`, `M2-C05-01`) are empty
+> directories carrying a `.gitkeep`.
 
 ## Authentication flow
 
@@ -468,6 +476,19 @@ chunk 222.23 kB / 66.56 kB, `main` 214.62 kB / 37.64 kB, styles 0 bytes — agai
 `< 250 KB gzip` target above, i.e. **42 % of budget**. The single lazy route chunk is 17.68 kB /
 5.05 kB. This is a **placeholder app**: no shell, no auth, no grid, no design tokens. It is the
 baseline `M2-C03` is measured against, not evidence the budget is safe.
+
+**Design-token layer cost, measured 2026-08-23 by `M2-C04-01`:** initial total
+**446.36 kB raw / 106.63 kB gzip**, up from 436.85 kB / 104.20 kB — **+9.51 kB raw /
++2.43 kB gzip**. Of that, the styles bundle went from 0 bytes to **4.65 kB raw / 1.39 kB gzip**
+(the token layer, the `@font-face` block and the global base layer); the JavaScript grew
+**4.86 kB raw / 1.04 kB gzip** (the token-driven PrimeNG preset and `ThemeService`). Still
+**43 % of budget**. The self-hosted fonts in `public/fonts/` are **assets, not
+part of the initial bundle**: 173.7 kB on disk in three variable-font `woff2` subsets, of which
+a typical Latin-1 page fetches **88.7 kB** (Inter latin 48,256 B + JetBrains Mono latin 40,404 B);
+the 85,068 B Inter latin-ext subset is fetched only when an extended-Latin glyph appears. woff2 is
+already Brotli-compressed, so gzip does not reduce it. Neither the `< 250 KB gzip` target above
+nor Angular's `initial` budget counts assets — but the bytes are real on a cold load, so they
+are recorded rather than left to be discovered.
 
 `angular.json`'s production budgets are necessarily expressed in **raw** bytes — Angular budgets
 cannot be set on transfer size — so the initial budget is 600 kB warning / 800 kB error, the raw
