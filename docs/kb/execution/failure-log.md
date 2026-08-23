@@ -4349,3 +4349,250 @@ task's authorised surface.
 **Attempt budget** — this diagnosis fixes one of the two failures; the remaining one is a
 KB-091 §8 item 5 safety stop (environment), not a retry candidate. Re-dispatching an implementer
 against it would produce the same answer.
+
+---
+
+## M2-C04-02 · attempt 1 · independent validation · 2026-08-23 · `FAIL` (`regression`)
+
+Branch `migration/M2-C04-02-form-controls`, commit `e4e3fe7` (77 files, 6,043 insertions).
+Not merged, not pushed. Validated against the *Acceptance Criteria* section of
+`docs/kb/execution/tasks/M2-C04-02.md`, not against the implementer's account.
+
+**Most of this task is right, and the parts that are right are right for good reasons.** All 17
+components exist, 17/17 are `OnPush`, 14/14 provide `NG_VALUE_ACCESSOR`, every PrimeNG surface
+matches the table at `M2-C04-02.md:210-225`, no arithmetic reached the numeric controls, the
+`…AmtOrPer` polarity is correct against `CalculationService.cs:29`, the `TrimmedInputText.razor:23`
+whitespace-only quirk is reproduced rather than silently "fixed", `render-count.spec.ts` carries
+two negative controls, and all five npm commands pass when re-run by the validator. Three things
+fail.
+
+### Failure 1 — `regression`: KB-050 is corrupted by this branch
+
+`docs/kb/frontend-new/react-architecture.md` went from **578 lines on `master` to 1,054 lines on
+the branch**. The intended §Error handling note is truncated mid-sentence at line 461 —
+
+```
+returns** everything that matched no control — plus `''`/`---
+doc_id: KB-050
+```
+
+— and an entire second copy of the document (its YAML frontmatter, its `# Proposed Frontend
+Architecture` H1 and its whole body) is pasted in from line 462 to EOF.
+
+```
+$ grep -n "^doc_id: KB-050" docs/kb/frontend-new/react-architecture.md
+2:doc_id: KB-050
+463:doc_id: KB-050
+$ grep -n "^# Proposed Frontend Architecture" docs/kb/frontend-new/react-architecture.md
+25:# Proposed Frontend Architecture
+486:# Proposed Frontend Architecture
+```
+
+The repository is the persistent memory of this migration. The task required a KB-050 update
+(`M2-C04-02.md:474`); what landed is a broken document with two frontmatter blocks and a required
+sentence that stops mid-word. No other KB file is affected — `design-system.md`,
+`investigation-registry.md`, `open-questions.md` and `technical-debt-register.md` each still have
+exactly one `doc_id:`.
+
+### Failure 2 — `acceptance-criterion`: the keyboard model is not asserted
+
+> *"Every control's documented keyboard model is asserted by a `userEvent` test; the whole form
+> set is operable without a mouse."* (`M2-C04-02.md:406-407`)
+
+Observed over `src/app/shared/components/form/*.spec.ts`:
+
+```
+$ grep -rn "{Home}\|{End}" *.spec.ts   -> no matches (exit 1)
+$ grep -rn "ArrowUp"       *.spec.ts   -> no matches
+$ grep -rn "PageUp\|PageDown" *.spec.ts -> no matches
+$ grep -rn "Backspace"     .            -> 3 hits, all prose (multi-select.component.ts:11, README.md:69,96)
+```
+
+So of the model the task documents at `:356` and the README repeats at `README.md:93-101`:
+`Home`/`End` (select, multi-select, combobox), `ArrowUp`, `PageUp`/`PageDown` (date pickers) and
+`Backspace`-removes-last-chip (multi-select) are asserted **nowhere**, and `Backspace` has no
+implementation either. Radio-group arrow movement is explicitly deferred —
+`radio-group.component.spec.ts:76-78`: *"Arrow-key movement between them is the user agent's own
+behaviour, which jsdom does not synthesise — it is covered by the keyboard pass required at
+review."* Combobox `Enter`-selects and `Esc`-closes are driven by calling
+`combobox.onSelect(...)` / `onClear()` directly (`combobox.component.spec.ts:160,169-170`), not
+through the keyboard. `date-picker.component.spec.ts` asserts typed entry and one `Tab`, and none
+of the calendar keys.
+
+The implementer's handoff disclosed only the `p-inputnumber` jsdom masking limitation. The four
+gaps above were not disclosed.
+
+### Failure 3 — documentation that contradicts the code
+
+`docs/kb/frontend-new/design-system.md` now states, in the block this task added:
+
+> *"Confirmed keyboard model, **asserted by `userEvent` specs**: … select, multi-select and
+> combobox … jump with `Home`/`End`, select with `Enter`, close with `Esc`, and multi-select
+> removes the last chip with `Backspace`; radio group moves and selects with arrows …"*
+
+Per Failure 2 none of those is asserted, and `Backspace` chip removal is not implemented. That is
+an **Inferred** claim written as **Confirmed**, which `CLAUDE.md` §*Authority order* forbids. The
+same overstatement is in `form/README.md:96`.
+
+### Also noted, not counted as a failure
+
+- **`app-file-upload` has no loading state.** Criterion `:410-411` asks all four of select /
+  multi-select / combobox / file-upload for the empty-loading-error triad; `file-upload.component.html`
+  has empty (`:24`) and error (`:20`) only. Defensible — the control performs no transport by
+  design (M2-B06 owns the endpoints) — and the task body's own *Empty state* row asks only for the
+  drop target and accepted types. Recorded so a retry can decide, not fix blindly.
+- **KB-081 was not updated**, so `task-tracker.md:157` still reads `Ready` while
+  `M2-C04-02.md:10` reads `Needs Review`. The task's *Files Expected to Change* lists KB-081; the
+  implementer left it to the orchestrator. Orchestrator's call, not a retry item.
+- **The correction to *Existing Behavior to Preserve* row 2 is right**, and I verified it
+  independently: `CustomerSelection.razor:1` is `@page "/Customer/Select"`, `:119-141` eagerly
+  loads the whole active-customer list in `OnInitializedAsync`, and `:150-160` filters it
+  synchronously through `Task.FromResult`. It is not a debounced async typeahead. **R-68** is also
+  real — the 15-character GST gate is at `CustomerSelection.razor:215`.
+
+### Commands re-run by the validator, output observed
+
+```
+$ npm run typecheck   -> exit 0, no output beyond the three tsc invocations
+$ npm run lint        -> "All files pass linting."                       exit 0
+$ npm run format:check-> "All matched files use Prettier code style!"    exit 0
+$ npm run test:ci     -> Test Files 28 passed (28) / Tests 193 passed (193)  exit 0
+$ npm run build       -> Application bundle generation complete. 446.36 kB raw / 106.63 kB transfer  exit 0
+$ git grep -n "parseFloat\|toFixed\|Math.round" -- .../form
+      4 hits, all prose: README.md:116, numeric-base.ts:10, types.ts:39,
+      amount-or-percent-input.component.spec.ts:129
+$ git grep -nE "#[0-9a-fA-F]{3,8}\b" -- .../form   -> no matches (exit 1)
+```
+
+`dotnet` was not run: no `.NET` project is in the diff. `V.SMART/**`, `core/theme/**`,
+`src/styles/tokens.css`, `core/auth/**` and `frontend/vsmart-erp/**` are all untouched
+(`git diff --name-status master...HEAD`) — Blazor Server is intact, no schema change, no ERP
+logic in TypeScript.
+
+**Not checkable:** the completion condition *"a human has completed a keyboard-only pass through
+a composed sample form"*. Nothing in an automated session can satisfy it; the composed form
+exists as `a11y.spec.ts`'s template. Note that this human pass is currently carrying four
+keyboard behaviours that Failure 2 should have covered with tests, which is more weight than the
+condition was designed to bear.
+
+**Retry guidance.** Failure 1 is a mechanical repair — restore
+`docs/kb/frontend-new/react-architecture.md` from `master` and re-apply the §Error handling note
+as a complete paragraph. Failures 2 and 3 are the same defect seen from two sides: either add the
+missing `userEvent` assertions, or narrow the documented model in `form/README.md` and KB-051 to
+what is actually asserted and say plainly which keys the review pass owns. Do not close the gap by
+deleting the criterion. Neither failure is `business-rule` or `architecture`; no escalation.
+
+---
+
+## M2-C04-02 · attempt 1 · diagnosis · 2026-08-23 · `implementation-error` → **fixed** (`980056e`)
+
+Diagnosis of the `FAIL` recorded immediately above. Branch
+`migration/M2-C04-02-form-controls`, fix commit `980056e` on top of `e4e3fe7`. Not merged, not
+pushed.
+
+**Provenance, stated first because it changes how the rest should be read.** This session opened
+on a **dirty working tree it did not create**: 11 files modified, mtimes 17:48–18:03 IST against a
+session start of 18:23, no `node` process alive, no sibling worktree on these files
+(`git worktree list` shows only the three known `wt-M0-10` / `wt-M2-A08` / `wt-M2-B01`), and **no
+diagnosis entry in this log** — the signature of a diagnosis pass killed before it could run the
+gates or commit, exactly the orphan described in `runner-state.md` § *Process note — an orphaned
+working tree*. The work was **verified rather than trusted** before adoption (below), and it was
+**incomplete**: `npm run lint` and `npm run format:check` both failed on it as found.
+
+### Reproduced, at the committed tip `e4e3fe7`, not from the report
+
+```
+$ git show e4e3fe7:docs/kb/frontend-new/react-architecture.md | wc -l   -> 1054
+$ git show e4e3fe7:... | grep -n "^doc_id: KB-050"                      -> 2, 463
+$ git show e4e3fe7:... | sed -n '460,463p'
+      ... and **returns** everything that matched no control — plus ''/
+      doc_id: KB-050
+$ git grep -n "{Home}|{End}|ArrowUp|Backspace" e4e3fe7 -- .../form/
+      3 hits, all prose: README.md:69, README.md:96, multi-select.component.ts:11
+```
+
+Both failures are the branch's, and both are mechanical. Failure 3 is Failure 2 seen from the
+documentation side.
+
+### Root cause
+
+A **write that was never completed**, in two places, plus documentation written from the intent
+rather than from the code:
+
+1. **KB-050** — the KB-050 edit was applied as a whole-file rewrite that was truncated mid-sentence
+   and then re-appended the entire original document instead of replacing it. Nothing about the
+   *content* was wrong; the *write* was. No other KB document is affected (`design-system.md`,
+   `investigation-registry.md`, `open-questions.md` each still carry exactly one `doc_id`, checked
+   again this pass).
+2. **The keyboard model** — `Home`/`End`, `ArrowUp`, `Backspace` and the combobox `Enter`/`Esc`
+   path were documented in `README.md:96` and KB-051 as *"asserted by `userEvent` specs"* while no
+   spec asserted them, and `Backspace` chip removal had **no implementation at all**. That is an
+   **Inferred** claim written as **Confirmed**, which `CLAUDE.md` § *Authority order* forbids.
+
+Neither is a business rule, an architecture conflict, or a misread of legacy behaviour. Classified
+`implementation-error`, fixable inside the task's authorised file list (KB-050 and KB-051 are both
+named in *Documentation Updates*, `M2-C04-02.md:473-478`; the form directory is this task's own).
+
+### Fix — `980056e`
+
+| Failure | What changed |
+|---|---|
+| 1 | `react-architecture.md` restored to master's 578 lines plus a single **complete** 20-line addition under § Error handling. `git diff master -- <file>` is now exactly that one hunk; one `doc_id`, one H1, 598 lines. |
+| 2 | New `userEvent` assertions: `Home`/`End` on `app-select`; `End`/`Home`/`ArrowDown`/`ArrowUp` on `app-multi-select`; `Enter`-selects and `Esc`-closes on `app-combobox` **through the keyboard** rather than by calling `onSelect()`/`onClear()`; `Home`/`End` caret movement on the combobox; `Space` on `app-radio-group`; `Enter` and `Space` on the file-upload chooser; focus-opens-the-calendar on `app-date-picker`. |
+| 2 | `Backspace` removes the most recent chip is now **implemented** (`multi-select.component.ts` `onKeyDown`, bound in the template, with `display="chip"` so the chips it acts on are visible), guarded so a `Backspace` inside the filter box still edits the filter text. PrimeNG 22.1.0's `MultiSelect` has no `Backspace` case of its own. |
+| 3 | KB-051 and `form/README.md` rewritten to split **asserted** from **carried by the review keyboard pass**, per row, naming the spec file that proves each row. Three behaviours are named as not asserted, each with a measured reason. |
+
+**The three deferrals, and why they are environment rather than effort:**
+
+- **Radio-group arrow movement** — roving focus is the user agent's, and jsdom does not implement
+  it. There is nothing to assert against.
+- **The date-picker calendar grid** (arrows by day, `PageUp`/`PageDown` by month, `Esc`) —
+  PrimeNG's `DatePicker` reads the legacy `event.which` / `event.keyCode`, which
+  `@testing-library/user-event` v14 sends as `0` under jsdom. **Verified this pass, not taken from
+  the comment:** `grep -o "event.which|event.keyCode" node_modules/primeng/fesm2022/primeng-datepicker.mjs`
+  → **10 hits** (4 `keyCode`, 6 `which`); the same grep over `primeng-select.mjs` → **none**, which
+  is precisely why the `app-select` and `app-multi-select` key tests can pass and the date grid's
+  cannot.
+- **Masked typing in `p-inputnumber`** — already disclosed by the implementer.
+
+### Re-validated, output observed
+
+```
+$ npm run typecheck    -> exit 0
+$ npm run lint         -> exit 0, "All files pass linting."
+$ npm run format:check -> exit 0, "All matched files use Prettier code style!"
+$ npm run test:ci      -> exit 0, Test Files 28 passed (28) / Tests 202 passed (202)   [193 before]
+$ npm run build        -> exit 0, bundle complete, placeholder chunk 17.68 kB / 5.04 kB
+```
+
+`lint` and `format:check` **failed on the adopted tree** before this pass finished it — one
+`@typescript-eslint/no-unnecessary-type-assertion` error at `multi-select.component.spec.ts:120`
+(replaced with the file-wide convention `screen.getByRole<HTMLInputElement>(...)`) and an
+unformatted `form/README.md` (`prettier --write`). That is the evidence that the orphan was
+mid-flight, and the reason every gate was re-run rather than believed.
+
+**Negative control on the one new behaviour:** removing `(keydown)="onKeyDown($event)"` from
+`multi-select.component.html` and re-running `test:ci` gives `1 failed | 201 passed`, the failure
+being *"removes the most recent chip with Backspace"* and nothing else. The binding was restored
+and the suite is green again. The test proves the feature, not the harness.
+
+`dotnet` was not run: no `.NET` project is in the diff. `git diff --name-only master...HEAD`
+touches nothing under `V.SMART/**`, `core/theme/**`, `src/styles/tokens.css` or
+`frontend/vsmart-erp/**` — no schema change, no ERP logic in TypeScript, no business rule altered.
+
+### Left alone, deliberately
+
+- **`app-file-upload` has no loading state.** The validator did not count it as a failure and it is
+  not one to fix blindly: the control performs no transport by design (M2-B06 owns the endpoints),
+  so a loading state here would be an invented behaviour with nothing to drive it.
+- **KB-081 (`task-tracker.md:157`) still reads `Ready`.** Orchestrator-owned; a diagnosis pass does
+  not write it.
+
+### Residual risk
+
+The task file's own model at `M2-C04-02.md:356` still names the date-picker calendar keys, radio
+arrow movement, and a combobox `Home`/`End` that jumps the *list* rather than the caret. The code,
+the documentation and the test suite now agree with each other, and every divergence is written
+down — but a reviewer holding criterion `:406-407` to the spec's wider wording will find three keys
+asserted only by the human keyboard pass that the *Completion Conditions* already require. That
+pass is carrying more than it was designed to; it is now told exactly what.
