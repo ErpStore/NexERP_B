@@ -258,6 +258,11 @@ Deviations, each with its reason:
   replaced by the shared `InlineAlert` rather than duplicated.
 - **Date format defaults to ISO** through an injectable `DATE_FORMAT` token — no endpoint
   exposes the tenant's format and `Companydetails` carries no such column (Q-75).
+- **`app-file-upload` renders empty and error but no loading state.** The control performs no
+  transport — `customUpload` is on and no `url` is set, because M2-B06 owns the upload endpoints
+  — so there is no asynchronous phase for a loading row to describe. A screen that wires those
+  endpoints owns its own in-flight indicator. Recorded here as a deviation from the task's
+  "the triad is present, not deferred" wording rather than left in a handoff note.
 
 Keyboard model, split by what is **asserted** and what the review pass carries — the split is
 the honest part, and `form/README.md` § Keyboard model holds the per-control detail and the
@@ -287,6 +292,19 @@ jsdom does not synthesise); the date-picker **calendar grid** keys — arrows by
 **`app-switch` is for immediate-effect toggles only; a field saved on submit uses
 `app-checkbox`.** Stated here as well as in the component docs, because across ~140 screens the
 two will otherwise be used interchangeably.
+
+**`disabled` ≠ `readonly`, and it is asserted control by control** in `form/readonly.spec.ts`
+(2026-08-23). A readonly control keeps its value focusable, in the tab order and copyable; only
+the editing affordance goes. Where PrimeNG 22 offers `readonly` / `readonlyInput` the wrapper
+uses it; where the surface has none the distinction is drawn explicitly — the radio group keeps
+its buttons enabled under `aria-readonly` and cancels the click, the amount-or-percent **mode**
+renders as a label instead of a `p-selectbutton`, and `app-file-upload` drops the chooser and
+the per-file Remove while keeping the attachment list as selectable text. Routing `readonly`
+into `[disabled]` is the trap this replaced: `primeng-select.mjs` computes
+`tabindex = !$disabled() ? tabindex() : -1`, so a "readonly" select left the tab order entirely.
+One measured PrimeNG gap is worked around rather than accepted — `MultiSelect.onKeyDown` and
+`onOptionSelect` consult `$disabled()` but not `readonly`, so `app-multi-select` cancels
+keystrokes in the capture phase while readonly, letting `Tab` and clipboard chords through.
 
 Runtime `axe` scan over every control in both themes: `form/a11y.spec.ts`, zero critical
 violations observed 2026-08-23. jsdom applies no stylesheet, so `color-contrast` cannot run

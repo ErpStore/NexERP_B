@@ -86,6 +86,7 @@ export class AmountOrPercentInputComponent extends BaseFormControl<AmountOrPerce
 
   /** Defaults to true, matching the server default on every ...AmtOrPer column. */
   readonly isAmount = computed(() => this.value()?.isAmount ?? true);
+  readonly modeLabel = computed(() => (this.isAmount() ? this.amountLabel() : this.percentLabel()));
   readonly amount = computed(() => this.value()?.value ?? null);
   readonly scale = computed(() => this.decimalPlaces() ?? this.precision.currencyScale);
   readonly decimalUnavailable = computed(() => this.decimal === null);

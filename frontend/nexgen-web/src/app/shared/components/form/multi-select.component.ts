@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, forwardRef, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  forwardRef,
+  inject,
+  input,
+} from '@angular/core';
 import { FormsModule, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { MultiSelect } from 'primeng/multiselect';
 
@@ -46,6 +54,35 @@ export class MultiSelectComponent<TValue = unknown> extends BaseFormControl<TVal
     // PrimeNG renders the combobox on a span, which a native label cannot
     // name; the field label is wired with aria-labelledby instead.
     this.field?.useGroupLabel();
+    this.blockKeyboardEditingWhenReadonly();
+  }
+
+  /**
+   * PrimeNG 22.1 consults `readonly` for pointer input on the MultiSelect
+   * (`onContainerClick`, primeng-multiselect.mjs:1442) but **not** for the
+   * keyboard: `onKeyDown` (:1237) and `onOptionSelect` (:1075) test
+   * `$disabled()` alone, so a readonly multi-select would still open with
+   * ArrowDown and change with Enter. `Select` guards both (:1284) and needs
+   * nothing. The listener is on the host in the **capture** phase so it runs
+   * before PrimeNG's own listener on the inner input; `Tab` and clipboard
+   * chords are let through, because a readonly control stays reachable and
+   * copyable.
+   */
+  private blockKeyboardEditingWhenReadonly(): void {
+    const host = this.host.nativeElement;
+    const guard = (event: Event): void => {
+      const key = (event as KeyboardEvent).key;
+      const copying = (event as KeyboardEvent).ctrlKey || (event as KeyboardEvent).metaKey;
+      if (!this.readonly() || key === 'Tab' || copying) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    host.addEventListener('keydown', guard, true);
+    inject(DestroyRef).onDestroy(() => {
+      host.removeEventListener('keydown', guard, true);
+    });
   }
 
   protected override usesAriaLabelledBy(): boolean {

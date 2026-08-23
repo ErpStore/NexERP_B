@@ -88,6 +88,13 @@ a blocking overlay on a typeahead steals the keyboard. `app-combobox` additional
 previous list while refetching, and its error row carries a **Retry**. `app-file-upload` with no
 files shows its drop target and the accepted types, not blank space.
 
+**`app-file-upload` renders empty and error but no loading state, deliberately.** It performs no
+transport — `customUpload` is on and no `url` is set (M2-B06 owns the endpoints) — so there is
+no asynchronous phase for a loading row to describe, and inventing one would mean inventing the
+transport with it. A screen that wires the M2-B06 endpoints owns the in-flight indicator for its
+own request. This is a documented deviation from the task's "the triad is present, not deferred"
+wording, not an omission: it is listed under _Known gaps_ below and in KB-051 §Forms.
+
 ## Keyboard model
 
 Each row says what the control does **and where that is proved**. Where a key is not asserted
@@ -123,8 +130,32 @@ coverage.
    `number-input.component.spec.ts:12-20`: the mask rebuilds its value from key events and
    selection ranges that jsdom does not implement faithfully.
 
-`readonly` is **not** `disabled`: a readonly control keeps its value selectable, copyable and in
-the tab order.
+## `readonly` is not `disabled`
+
+A **disabled** control is inert and leaves the tab order. A **readonly** control keeps its value
+on screen, focusable, in the tab order and copyable; only the editing affordance goes. Routing
+`readonly` into a PrimeNG `[disabled]` breaks that silently — `primeng-select.mjs` computes
+`tabindex = !$disabled() ? tabindex() : -1`, so the value stops being reachable at all.
+`readonly.spec.ts` asserts the distinction for every control that has one, with a disabled
+counter-case beside it so the assertions cannot pass vacuously.
+
+| Control                                          | How readonly is expressed                                                                                                                                                                                        |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| text, textarea                                   | Native `readOnly` on the input.                                                                                                                                                                                  |
+| number, currency, amount-or-percent (the number) | `p-inputnumber` `[readonly]`.                                                                                                                                                                                    |
+| select, multi-select, combobox                   | PrimeNG's own `[readonly]`.                                                                                                                                                                                      |
+| date picker, date range picker                   | `[readonlyInput]`, plus `showIcon` and `showOnFocus` off so the calendar has no trigger. Typed entry stays the primary path when the control is editable.                                                        |
+| checkbox, switch                                 | PrimeNG's own `[readonly]`.                                                                                                                                                                                      |
+| radio group                                      | A radio has no native `readonly`. The buttons stay enabled — disabling them would drop the chosen value out of the tab order — the group carries `aria-readonly`, and the click is cancelled so nothing changes. |
+| amount-or-percent (the mode)                     | `p-selectbutton` has no `readonly` and is JS-driven, so a cancelled click cannot hold it still. The mode renders as its own label instead: on screen, selectable, copyable, with no control to operate.          |
+| file upload                                      | HTML has no `readonly` for `input[type=file]`. The chooser and the per-file Remove are not rendered; the attachment list stays as selectable text. Disabled keeps the chooser visible and inert.                 |
+
+**One PrimeNG gap, measured and worked around.** `MultiSelect` consults `readonly` for pointer
+input (`onContainerClick`, `primeng-multiselect.mjs:1442`) but not for the keyboard:
+`onKeyDown` (:1237) and `onOptionSelect` (:1075) test `$disabled()` alone, so a readonly
+multi-select would still open with `ArrowDown` and change with `Enter`. `app-multi-select`
+therefore cancels keystrokes in the capture phase while readonly, letting `Tab` and clipboard
+chords through. `Select` guards both paths itself (:1284) and needs nothing.
 
 ## Money — what is deliberately missing
 
@@ -175,6 +206,7 @@ property names while control names are camelCase. That is **Inferred** from the 
 | Date format defaults to ISO; no endpoint exposes the tenant's.               | Q-75, `DATE_FORMAT` in `types.ts`               |
 | `TrimmedInputText`'s whitespace-only quirk is reproduced, not fixed.         | Q-73, `text-input.component.ts`                 |
 | `ProblemDetails` key casing is inferred, not observed.                       | Q-72, `server-validation.ts`                    |
+| `app-file-upload` has no loading state — it performs no transport.           | M2-B06, `file-upload.component.html`            |
 
 ## Testing
 
@@ -185,6 +217,9 @@ so a differently named test file is silently not run.
   inside a 50-control layout re-checks **zero** siblings, counted by a probe bound in each
   sibling's own template. Two negative controls sit beside it, so the probe cannot pass while
   inert.
+- `readonly.spec.ts` asserts, control by control, that readonly keeps the value focusable and
+  unchangeable while disabled leaves the tab order. Two disabled counter-cases sit beside the
+  readonly ones so a passing run means something.
 - `a11y.spec.ts` runs `axe` over every control in both themes. jsdom applies no stylesheet, so
   `color-contrast` cannot run there — contrast is covered by computation in
   `src/app/core/theme/contrast.spec.ts` (M2-C04-01). The repository-wide axe-in-CI pass is M5-09.

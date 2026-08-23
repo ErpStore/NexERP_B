@@ -1184,6 +1184,7 @@ calculation depends on it.
 2026-08-23) must extract this validation into the same server-side service and re-express it as
 a 400/409 from the API. Until then, treat "the SPA can select a customer Blazor would refuse" as
 a known behavioural gap, not a bug report.
+
 ---
 
 ## Medium

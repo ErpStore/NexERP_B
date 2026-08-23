@@ -46,7 +46,24 @@ export class RadioGroupComponent<TValue = unknown> extends BaseFormControl<TValu
     return `${this.groupName}-${index}`;
   }
 
+  /**
+   * A radio has no native `readonly`. Disabling the buttons would be wrong -
+   * PrimeNG drops a disabled radio out of the tab order, so the chosen value
+   * would stop being reachable, focusable or copyable, which is exactly the
+   * distinction the design system draws. Cancelling the click instead keeps
+   * every option focusable and announced (`aria-readonly` on the group says
+   * why) while the user agent undoes the pre-click check.
+   */
+  onOptionClick(event: Event): void {
+    if (this.readonly()) {
+      event.preventDefault();
+    }
+  }
+
   onModelChange(value: TValue): void {
+    if (this.readonly()) {
+      return;
+    }
     this.emitValue(value);
     this.markTouched();
   }

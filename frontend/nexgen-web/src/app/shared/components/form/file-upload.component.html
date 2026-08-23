@@ -1,19 +1,27 @@
 <div class="app-file-upload">
-  <p-fileupload
-    mode="basic"
-    [customUpload]="true"
-    [auto]="false"
-    [multiple]="multiple()"
-    [accept]="accept()"
-    [maxFileSize]="maxFileSize()"
-    [chooseLabel]="chooseLabel()"
-    [disabled]="isDisabled() || readonly()"
-    (onSelect)="onSelect($event)"
-    (onError)="onError()"
-  />
+  <!--
+    HTML has no `readonly` for `input[type=file]`, so the distinction has to be
+    drawn at the affordance: readonly renders the attachment list as a record
+    with nothing to change, while disabled keeps the chooser visible but inert.
+    Disabling the chooser for readonly would make the two states identical.
+  -->
+  @if (!readonly()) {
+    <p-fileupload
+      mode="basic"
+      [customUpload]="true"
+      [auto]="false"
+      [multiple]="multiple()"
+      [accept]="accept()"
+      [maxFileSize]="maxFileSize()"
+      [chooseLabel]="chooseLabel()"
+      [disabled]="isDisabled()"
+      (onSelect)="onSelect($event)"
+      (onError)="onError()"
+    />
 
-  @if (accept()) {
-    <p class="app-file-upload__accepts">Accepted types: {{ accept() }}</p>
+    @if (accept()) {
+      <p class="app-file-upload__accepts">Accepted types: {{ accept() }}</p>
+    }
   }
 
   @if (rejected(); as message) {
@@ -27,15 +35,17 @@
       @for (file of files(); track file.name + file.size; let i = $index) {
         <li class="app-file-upload__item">
           <span class="app-file-upload__name">{{ file.name }}</span>
-          <button
-            type="button"
-            class="app-retry"
-            [disabled]="isDisabled() || readonly()"
-            [attr.aria-label]="'Remove ' + file.name"
-            (click)="remove(i)"
-          >
-            Remove
-          </button>
+          @if (!readonly()) {
+            <button
+              type="button"
+              class="app-retry"
+              [disabled]="isDisabled()"
+              [attr.aria-label]="'Remove ' + file.name"
+              (click)="remove(i)"
+            >
+              Remove
+            </button>
+          }
         </li>
       }
     </ul>
