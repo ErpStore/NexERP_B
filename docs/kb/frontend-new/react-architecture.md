@@ -454,6 +454,26 @@ Layers that implement the table:
 | Component | Grids and editors render an inline error surface rather than unmounting |
 | Global | An `ErrorHandler` override for unhandled *client-side* exceptions — distinct from server problems, and never presented as one |
 
+**The mapping function exists — `applyServerErrors`, M2-C04-02 (2026-08-23).** It lives at
+`frontend/nexgen-web/src/app/shared/components/form/server-validation.ts` and is a **pure
+function, not a service**: it takes a `FormGroup` and a `ProblemDetails`, sets a `server` error
+on each matching control, marks those controls touched (an error the user never triggered is
+otherwise invisible), and **returns** everything that matched no control — plus `''`/`$`-keyed
+`ModelState` entries, plus a 409's `title` — for the form-level alert, **verbatim**. That
+matches the 400 and 409 rows of the table above; it adds no policy of its own.
+
+One caveat it carries, and the reason it does more than a dictionary lookup: `errors` keys come
+from `ModelState`, so they are **PascalCase C# property names**, while Angular control names are
+camelCase. No `DictionaryKeyPolicy` is configured anywhere in `V.SMART.Api` (grepped 2026-08-23,
+negative result) and `JsonSerializerDefaults.Web` does not rewrite dictionary keys. The function
+therefore matches the exact path first and falls back to a case-insensitive walk. That is
+**Inferred from the absence of a naming policy, not observed on the wire** — Q-72.
+
+Client-side validators mirror `DataAnnotations` **for UX only**; the server stays authoritative.
+Cross-field and cross-row rules are **not expressible as field validators** — they live in Razor
+`@code` and in 29 `IValidatableObject` ViewModels today, and each wave's `-03` step extracts them
+server-side. See the INV-006 amendment of 2026-08-23 in [KB-003](../investigation-registry.md).
+
 ## Performance targets
 
 *Unchanged — framework-agnostic budgets.*

@@ -1,0 +1,47 @@
+<div class="app-amount-or-percent">
+  <p-inputnumber
+    class="app-control"
+    inputStyleClass="app-control app-control--numeric"
+    [inputId]="inputId()"
+    [placeholder]="placeholder()"
+    [ariaLabel]="ariaLabel()"
+    [minFractionDigits]="scale()"
+    [maxFractionDigits]="scale()"
+    [disabled]="isDisabled() || decimalUnavailable()"
+    [readonly]="readonly()"
+    [invalid]="field?.invalid() ?? false"
+    [ngModel]="displayNumber()"
+    [ngModelOptions]="{ standalone: true }"
+    (ngModelChange)="onNumberChange($event)"
+    (onBlur)="markTouched()"
+  />
+
+  <!--
+    PrimeNG's SelectButton has no `readonly` and it is JS-driven, so a
+    cancelled click cannot hold it still. A readonly mode is therefore rendered
+    as its own label: still on screen, still selectable and copyable, with no
+    control to operate. Disabled keeps the buttons, greyed.
+  -->
+  @if (readonly()) {
+    <span class="app-amount-or-percent__mode-readonly">{{ modeLabel() }}</span>
+  } @else {
+    <p-selectbutton
+      class="app-amount-or-percent__mode"
+      [options]="modeOptions()"
+      optionLabel="label"
+      optionValue="value"
+      [allowEmpty]="false"
+      [disabled]="isDisabled()"
+      [ariaLabelledBy]="field?.labelId()"
+      [ngModel]="isAmount()"
+      [ngModelOptions]="{ standalone: true }"
+      (ngModelChange)="onModeChange($event)"
+    />
+  }
+</div>
+
+@if (decimalUnavailable()) {
+  <p class="app-control-notice" role="status">
+    Numeric entry is unavailable until the decimal module (M2-C10) is provided.
+  </p>
+}

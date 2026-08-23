@@ -233,6 +233,83 @@ Rules: label **above** the field (scannable in dense forms), errors inline below
 marked with `*` plus `aria-required`, disabled ≠ readonly (readonly stays copyable),
 autofocus the first field on create.
 
+
+#### Built — M2-C04-02 (2026-08-23)
+
+All 17 are implemented in `frontend/nexgen-web/src/app/shared/components/form/` as standalone
+`OnPush` components over PrimeNG 22, each a `ControlValueAccessor`, each rendering its
+validation through **`app-form-field`** — the single display mechanism. Selector prefix `app-`,
+kebab-case; `FormLayout` → `app-form-layout`, and so on. Two names were added to the inventory
+above and are not deviations from it, only from its brevity: `app-form-layout` also owns the
+loading skeleton, the form-level error alert and the sticky footer slot.
+
+Deviations, each with its reason:
+
+- **`app-form-layout` does not render the `<form [formGroup]>` element.** The screen does, and
+  puts the layout inside it. Angular resolves a projected `formControlName` through the
+  *declaration* injector tree, so a `FormGroupDirective` inside the layout would be invisible to
+  the projected fields and every one of them would throw `NG01050`. The typed group is still an
+  input; the layout reads its state.
+- **The numeric trio ships behind a `TODO(M2-C10)`.** `app-number-input`, `app-currency-input`
+  and `app-amount-or-percent-input` hold branded `Money`/`Qty` values and parse only through an
+  injected `DECIMAL_PORT`, which **M2-C10 has not yet implemented**. No local parsing was added:
+  a `parseFloat` there is the defect M2-C10 exists to prevent.
+- **The form-level alert is a minimal local placeholder**, marked `TODO(M2-C04-03)`, to be
+  replaced by the shared `InlineAlert` rather than duplicated.
+- **Date format defaults to ISO** through an injectable `DATE_FORMAT` token — no endpoint
+  exposes the tenant's format and `Companydetails` carries no such column (Q-75).
+- **`app-file-upload`'s loading row is caller-driven.** The control performs no transport —
+  `customUpload` is on and no `url` is set, because M2-B06 owns the upload endpoints — so it
+  cannot know when a transfer is in flight. The screen that wires those endpoints sets
+  `[loading]`; the control then renders `Uploading…`, suppresses the empty row and disables the
+  chooser. The same shape as `app-select`, whose `loading` is likewise set by its caller.
+
+Keyboard model, split by what is **asserted** and what the review pass carries — the split is
+the honest part, and `form/README.md` § Keyboard model holds the per-control detail and the
+spec file that proves each row.
+
+**Asserted by `userEvent` specs (2026-08-23):** text and textarea are native, with trim on
+commit; `app-select` opens on `ArrowDown`, moves with the arrows, jumps with `Home`/`End`,
+selects with `Enter` and restores the previous value on `Esc`; `app-multi-select` adds
+`Enter`-toggles-and-stays-open and `Backspace`-removes-the-most-recent-chip (PrimeNG 22.1.0's
+`MultiSelect` has no `Backspace` case, so the control adds one, guarded so the filter box keeps
+its own `Backspace`); `app-combobox` moves with the arrows, selects with `Enter` and closes with
+`Esc`, while `Home`/`End` move the **caret** — it is a text entry, and PrimeNG's `AutoComplete`
+treats them that way; `app-radio-group` is a single tab stop and `Space` selects the focused
+option; `app-checkbox` and `app-switch` toggle with `Space`; both date controls accept typed
+input and open the calendar on focus — the calendar is never the only entry path; the
+file-upload choose control is a real button that both `Enter` and `Space` open, and every file
+row's remove is keyboard-reachable.
+
+**Not asserted, and carried by the keyboard pass required at review** — three, each with a
+measured reason rather than an excuse: radio-group **arrow movement** (user-agent behaviour that
+jsdom does not synthesise); the date-picker **calendar grid** keys — arrows by day,
+`PageUp`/`PageDown` by month, `Esc` — because PrimeNG 22.1.0 reads the legacy `event.which` /
+`event.keyCode` while `@testing-library/user-event` v14 sends `which === 0` under jsdom (probed
+2026-08-23), so every handler falls through whatever key is sent; and **masked typing** in
+`p-inputnumber`.
+
+**`app-switch` is for immediate-effect toggles only; a field saved on submit uses
+`app-checkbox`.** Stated here as well as in the component docs, because across ~140 screens the
+two will otherwise be used interchangeably.
+
+**`disabled` ≠ `readonly`, and it is asserted control by control** in `form/readonly.spec.ts`
+(2026-08-23). A readonly control keeps its value focusable, in the tab order and copyable; only
+the editing affordance goes. Where PrimeNG 22 offers `readonly` / `readonlyInput` the wrapper
+uses it; where the surface has none the distinction is drawn explicitly — the radio group keeps
+its buttons enabled under `aria-readonly` and cancels the click, the amount-or-percent **mode**
+renders as a label instead of a `p-selectbutton`, and `app-file-upload` drops the chooser and
+the per-file Remove while keeping the attachment list as selectable text. Routing `readonly`
+into `[disabled]` is the trap this replaced: `primeng-select.mjs` computes
+`tabindex = !$disabled() ? tabindex() : -1`, so a "readonly" select left the tab order entirely.
+One measured PrimeNG gap is worked around rather than accepted — `MultiSelect.onKeyDown` and
+`onOptionSelect` consult `$disabled()` but not `readonly`, so `app-multi-select` cancels
+keystrokes in the capture phase while readonly, letting `Tab` and clipboard chords through.
+
+Runtime `axe` scan over every control in both themes: `form/a11y.spec.ts`, zero critical
+violations observed 2026-08-23. jsdom applies no stylesheet, so `color-contrast` cannot run
+there; contrast is covered by computation in `core/theme/contrast.spec.ts`.
+
 ### Overlays
 `Modal` (sm/md/lg/full) · `Drawer` (right, resizable — for record detail without losing
 list context) · `ConfirmDialog` (with optional **required reason** — BR-SO-003) ·

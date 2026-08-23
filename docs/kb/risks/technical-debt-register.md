@@ -1160,6 +1160,31 @@ observable behaviour of the live application — files stop being empty — so i
 and its own regression check, not a quiet edit. Until then, treat the on-disk correspondence tree
 as unreliable and the `Image` column as the source of truth.
 
+
+### R-68 — a client-side-only party-completeness gate, including a 15-character GST rule, has no owner in the SPA plan
+**Confirmed, 2026-08-23 (M2-C04-02).** `V.SMART/V.SMART.Shared/Components/CustomerSelection.razor:168-289`
+(`Proceed()`) refuses to hand a selected customer back to the calling document unless roughly
+twelve fields are populated — `CustName`, `CustAddr`, `SupTyp`, `BusiType`, `CurrId`,
+`StateName`, `StateId`, `PinCode`, `Distance`, `Location`. When `BusiType` is `Local` or
+`InterState` it additionally requires `GSTNo` to be **exactly 15 characters** (`:215`) and to
+match an Indian GST regex (`:222`); for export customers it instead requires a currency rate to
+exist for today, redirecting to `/currency_today` when there is none (`:239-246`,
+`GetLatestCurrencyValueAsync`).
+
+**Impact.** These are ERP data-integrity rules with no BR id found in the catalogue, and they
+exist **only in the Blazor page**. Nothing in the `M2-C0x` control/screen chain carries them:
+`M2-C04-02` deliberately keeps them out of `app-combobox` (a control must not hold a business
+rule), and `M2-C06`'s `RecordPickerDialog` inherits the *navigation* pattern, not the gate. The
+first SPA screen that picks a customer will silently accept parties the Blazor app rejects, and
+the resulting documents will be missing GST or currency data at exactly the point tax
+calculation depends on it.
+
+**Action.** Do not reimplement the gate in the client. Whichever wave extracts the party cascade
+(`ApplyCustomerSelectionAsync`, duplicated across 23 pages — see the INV-006 amendment of
+2026-08-23) must extract this validation into the same server-side service and re-express it as
+a 400/409 from the API. Until then, treat "the SPA can select a customer Blazor would refuse" as
+a known behavioural gap, not a bug report.
+
 ---
 
 ## Medium

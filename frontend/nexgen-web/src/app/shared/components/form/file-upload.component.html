@@ -1,0 +1,62 @@
+<div class="app-file-upload">
+  <!--
+    HTML has no `readonly` for `input[type=file]`, so the distinction has to be
+    drawn at the affordance: readonly renders the attachment list as a record
+    with nothing to change, while disabled keeps the chooser visible but inert.
+    Disabling the chooser for readonly would make the two states identical.
+  -->
+  @if (!readonly()) {
+    <p-fileupload
+      mode="basic"
+      [customUpload]="true"
+      [auto]="false"
+      [multiple]="multiple()"
+      [accept]="accept()"
+      [maxFileSize]="maxFileSize()"
+      [chooseLabel]="chooseLabel()"
+      [disabled]="isDisabled() || loading()"
+      (onSelect)="onSelect($event)"
+      (onError)="onError()"
+    />
+
+    @if (accept()) {
+      <p class="app-file-upload__accepts">Accepted types: {{ accept() }}</p>
+    }
+  }
+
+  @if (rejected(); as message) {
+    <p class="app-error-row" role="alert">{{ message }}</p>
+  }
+
+  <!--
+    Caller-driven: the control starts no request, so `loading` is set by the
+    screen that owns the M2-B06 transfer. The row is rendered here so the
+    triad - loading, empty, error - is complete on this control too.
+  -->
+  @if (loading()) {
+    <p class="app-loading-row" role="status">Uploading…</p>
+  }
+
+  @if (files().length === 0 && !loading()) {
+    <p class="app-empty-row">No files attached yet.</p>
+  } @else {
+    <ul class="app-file-upload__list">
+      @for (file of files(); track file.name + file.size; let i = $index) {
+        <li class="app-file-upload__item">
+          <span class="app-file-upload__name">{{ file.name }}</span>
+          @if (!readonly()) {
+            <button
+              type="button"
+              class="app-retry"
+              [disabled]="isDisabled()"
+              [attr.aria-label]="'Remove ' + file.name"
+              (click)="remove(i)"
+            >
+              Remove
+            </button>
+          }
+        </li>
+      }
+    </ul>
+  }
+</div>
