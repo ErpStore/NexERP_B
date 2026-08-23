@@ -65,6 +65,32 @@ describe('app-date-picker', () => {
     expect(screen.getByRole('button')).toBeDefined();
   });
 
+  it('opens the calendar from the keyboard alone', async () => {
+    const { view } = await setup(new Date(2026, 7, 23));
+
+    await userEvent.tab();
+    view.fixture.detectChanges();
+
+    // Tabbing in is enough - PrimeNG's showOnFocus opens the panel, so a
+    // keyboard user never needs the trigger button.
+    expect(document.querySelector('.p-datepicker-panel')).not.toBeNull();
+    expect(document.querySelector('span[data-date="2026-7-23"]')).not.toBeNull();
+  });
+
+  /*
+   * The calendar GRID keys - ArrowLeft/Right/Up/Down by day, PageUp/PageDown
+   * by month, Home/End within the month, Esc to close - are deliberately not
+   * asserted here, and the reason is measurable rather than a matter of
+   * effort. PrimeNG 22.1.0 reads the legacy 'event.which' /'event.keyCode'
+   * in DatePicker.onDateCellKeydown and DatePicker.onInputKeydown, while
+   * @testing-library/user-event v14 dispatches keydown with which === 0 and
+   * keyCode === 0 under jsdom (probed 2026-08-23). Every one of those
+   * handlers therefore falls through no matter which key is sent, so a test
+   * written against them would assert the harness, not the control. They are
+   * carried by the keyboard pass required at review, and both this file and
+   * form/README.md say so rather than implying coverage that does not exist.
+   */
+
   it('is reachable with a single Tab', async () => {
     const { input } = await setup();
 

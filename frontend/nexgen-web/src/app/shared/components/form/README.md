@@ -66,7 +66,7 @@ throw `NG01050`. The typed group is handed in as an input instead.
 | `app-currency-input`          | `p-inputnumber`                        | `Money`                                       | As above, currency scale.                                                |
 | `app-amount-or-percent-input` | `p-inputnumber` + `p-selectbutton`     | `{ value: Money \| null; isAmount: boolean }` | Toggling the mode does **not** convert the number.                       |
 | `app-select`                  | `p-select`                             | one option value                              | Loading / empty / error rows inside the dropdown.                        |
-| `app-multi-select`            | `p-multiselect`                        | array of option values                        | As above; `Backspace` removes the last chip.                             |
+| `app-multi-select`            | `p-multiselect`                        | array of option values                        | As above; chips display, and `Backspace` removes the most recent chip.   |
 | `app-combobox`                | `p-autocomplete`                       | one option value                              | Debounced async search through a caller-supplied loader.                 |
 | `app-date-picker`             | `p-datepicker`                         | `Date`                                        | Typed entry always available.                                            |
 | `app-date-range-picker`       | `p-datepicker` `selectionMode="range"` | `[Date, Date]`                                | As above.                                                                |
@@ -90,15 +90,38 @@ files shows its drop target and the accepted types, not blank space.
 
 ## Keyboard model
 
-| Control                             | Keys                                                                                                                                                                                                      |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| text, textarea                      | Native. Tab order follows visual order.                                                                                                                                                                   |
-| select, multi-select, combobox      | `ArrowDown` opens; `ArrowUp`/`ArrowDown` move; `Home`/`End` jump; `Enter` selects; `Esc` closes; `Backspace` removes the last chip (multi-select). `aria-activedescendant` tracks the highlighted option. |
-| radio group                         | Arrows move and select; `Tab` enters and leaves the group.                                                                                                                                                |
-| checkbox, switch                    | `Space` toggles.                                                                                                                                                                                          |
-| date pickers                        | Typing is always available; `ArrowDown` opens the calendar, arrows move by day, `PageUp`/`PageDown` by month, `Esc` closes. **The calendar is never the only entry path** — typists are faster.           |
-| file upload                         | The choose control is a real button (`Enter`/`Space`); every file row's Remove is focusable.                                                                                                              |
-| number, currency, amount-or-percent | Native numeric input plus PrimeNG's spinner keys; the mode toggle is arrow-navigable.                                                                                                                     |
+Each row says what the control does **and where that is proved**. Where a key is not asserted
+the row says so, with the reason, instead of implying coverage.
+
+| Control                             | Keys                                                                                                                                                                                                                                                                    | Asserted by                                                            |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| text, textarea                      | Native. Tab order follows visual order; trim happens on commit.                                                                                                                                                                                                         | `text-input.component.spec.ts`, `textarea.component.spec.ts`           |
+| select                              | `ArrowDown` opens; arrows move; `Home`/`End` jump to the first/last option; `Enter` selects; `Esc` closes and keeps the previous value.                                                                                                                                 | `select.component.spec.ts`                                             |
+| multi-select                        | As select, and `Enter` toggles each option with the panel staying open; `Backspace` removes the most recent chip, and is ignored while the filter box holds text.                                                                                                       | `multi-select.component.spec.ts`                                       |
+| combobox                            | Arrows move through the results, `Enter` selects the highlighted one, `Esc` closes. `Home`/`End` move the **caret**, not the list — this one is a text entry, and PrimeNG's `AutoComplete` treats them that way. `aria-activedescendant` tracks the highlighted option. | `combobox.component.spec.ts`                                           |
+| radio group                         | `Tab` enters and leaves the group as one stop; `Space` selects the focused option. **Arrow movement between options is not asserted** — see below.                                                                                                                      | `radio-group.component.spec.ts`                                        |
+| checkbox, switch                    | `Space` toggles.                                                                                                                                                                                                                                                        | `checkbox.component.spec.ts`, `switch.component.spec.ts`               |
+| date pickers                        | Typing is always available and focusing the field opens the calendar. **The calendar grid keys — arrows by day, `PageUp`/`PageDown` by month, `Esc` to close — are not asserted**; see below. **The calendar is never the only entry path** — typists are faster.       | `date-picker.component.spec.ts`, `date-range-picker.component.spec.ts` |
+| file upload                         | The choose control is a real button: `Enter` and `Space` both open the picker, and every file row's Remove is focusable.                                                                                                                                                | `file-upload.component.spec.ts`                                        |
+| number, currency, amount-or-percent | Native numeric entry plus PrimeNG's spinner keys; the mode toggle is arrow-navigable. **Masked entry is not asserted** — `p-inputnumber` is a masked input and `userEvent.type` cannot drive it under jsdom (stated in `number-input.component.spec.ts:12-20`).         | `number-input.component.spec.ts` for the value contract                |
+
+### What the keyboard pass at review owns, and why
+
+Three behaviours cannot be asserted in this test environment. Each is recorded here so that the
+manual pass knows exactly what it is carrying, and so that no reader mistakes silence for
+coverage.
+
+1. **Radio-group arrow movement.** Native radios get roving focus from the user agent. jsdom
+   does not implement it and `userEvent` does not synthesise it, so there is nothing to assert
+   against.
+2. **The date-picker calendar grid.** PrimeNG 22.1.0 reads the legacy `event.which` /
+   `event.keyCode` in `DatePicker.onDateCellKeydown` and `DatePicker.onInputKeydown`, while
+   `@testing-library/user-event` v14 dispatches keydown with `which === 0` and `keyCode === 0`
+   under jsdom (probed 2026-08-23). Every handler therefore falls through whatever key is sent,
+   so a test written against them would assert the harness rather than the control.
+3. **Masked numeric typing** in `p-inputnumber` — the reason is in
+   `number-input.component.spec.ts:12-20`: the mask rebuilds its value from key events and
+   selection ranges that jsdom does not implement faithfully.
 
 `readonly` is **not** `disabled`: a readonly control keeps its value selectable, copyable and in
 the tab order.

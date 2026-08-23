@@ -82,6 +82,29 @@ describe('app-select', () => {
     expect(form.value.currId).toBe(1);
   });
 
+  it('jumps to the last option with End and to the first with Home', async () => {
+    const { form, trigger, fixture } = await setup();
+
+    // End and Home open the panel and move the focused option (PrimeNG
+    // Select.onEndKey / onHomeKey); Enter commits the focused one, so the
+    // whole first-to-last jump is provable without a mouse.
+    trigger.focus();
+    await userEvent.keyboard('{End}');
+    fixture.detectChanges();
+    await userEvent.keyboard('{Enter}');
+    fixture.detectChanges();
+
+    expect(form.value.currId).toBe(OPTIONS[OPTIONS.length - 1]!.value);
+
+    screen.getByRole('combobox').focus();
+    await userEvent.keyboard('{Home}');
+    fixture.detectChanges();
+    await userEvent.keyboard('{Enter}');
+    fixture.detectChanges();
+
+    expect(form.value.currId).toBe(OPTIONS[0]!.value);
+  });
+
   it('leaves the value untouched when the user escapes out of the panel', async () => {
     const { form, trigger, fixture } = await setup();
 

@@ -70,6 +70,62 @@ describe('app-multi-select', () => {
     }
   });
 
+  it('jumps with End and Home and steps with ArrowDown, choosing every option by keyboard', async () => {
+    const { form, trigger, fixture } = await setup();
+
+    // End -> last option, Home -> first, ArrowDown -> the next one after it.
+    // Enter toggles the focused option and the panel stays open, so the three
+    // keys are asserted one after another on the same open list.
+    trigger.focus();
+    await userEvent.keyboard('{End}{Enter}');
+    fixture.detectChanges();
+
+    expect(form.value.status).toEqual(['closed']);
+
+    await userEvent.keyboard('{Home}{Enter}');
+    fixture.detectChanges();
+
+    expect(form.value.status).toContain('draft');
+
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+    fixture.detectChanges();
+
+    expect(new Set(form.value.status ?? [])).toEqual(new Set(['draft', 'approved', 'closed']));
+
+    // ArrowUp walks back to the option Home reached and Enter clears it,
+    // which is the only assertion that proves ArrowUp moved at all.
+    await userEvent.keyboard('{ArrowUp}{Enter}');
+    fixture.detectChanges();
+
+    expect(form.value.status).not.toContain('draft');
+  });
+
+  it('removes the most recent chip with Backspace, and leaves filter text alone', async () => {
+    const { form, trigger, fixture } = await setup();
+
+    trigger.focus();
+    await userEvent.keyboard('{Home}{Enter}{ArrowDown}{Enter}');
+    fixture.detectChanges();
+
+    expect(form.value.status).toEqual(['draft', 'approved']);
+
+    await userEvent.keyboard('{Backspace}');
+    fixture.detectChanges();
+
+    expect(form.value.status).toEqual(['draft']);
+
+    // Inside the filter box the key belongs to the text, not to the chips.
+    // PrimeNG gives that box role="searchbox" (primeng 22.1.0 multiselect
+    // template); the trigger itself is the combobox.
+    const filter = screen.getByRole<HTMLInputElement>('searchbox', { hidden: true });
+    await userEvent.type(filter, 'dr');
+    await userEvent.keyboard('{Backspace}');
+    fixture.detectChanges();
+
+    expect(filter.value).toBe('d');
+    expect(form.value.status).toEqual(['draft']);
+  });
+
   it('lists its options with the option role and their labels', async () => {
     const { trigger, fixture } = await setup();
 

@@ -71,6 +71,23 @@ describe('app-file-upload', () => {
     expect(form.value.files?.[0]?.name).toBe('po.pdf');
   });
 
+  it('opens the picker with Enter and with Space - the choose control is a real button', async () => {
+    await setup();
+
+    const picker = document.querySelector<HTMLInputElement>('input[type="file"]');
+    const chooser = screen.getByRole('button');
+    let opened = 0;
+    picker?.addEventListener('click', () => {
+      opened += 1;
+    });
+
+    chooser.focus();
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard(' ');
+
+    expect(opened).toBe(2);
+  });
+
   it('shows a clear error state when a file is rejected, rather than dropping it silently', async () => {
     const { view, control } = await setup();
 

@@ -79,6 +79,19 @@ describe('app-radio-group', () => {
     expect(screen.getAllByRole('radio')).toContain(document.activeElement);
   });
 
+  it('selects the focused option with Space', async () => {
+    const { form } = await setup();
+
+    await userEvent.tab();
+    await userEvent.keyboard(' ');
+
+    // Tab lands on the first radio and Space commits it, so the group can be
+    // answered without a mouse. Moving BETWEEN the options with the arrows is
+    // the user agent's own behaviour - jsdom does not synthesise it - and is
+    // covered by the keyboard pass required at review.
+    expect(form.value.busiType).toBe(OPTIONS[0]!.value);
+  });
+
   it('carries aria-required and aria-invalid on the group when the field errors', async () => {
     const { form, fixture, group } = await setup(true);
 

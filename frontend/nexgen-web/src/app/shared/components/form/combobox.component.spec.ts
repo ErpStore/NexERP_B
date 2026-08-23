@@ -180,6 +180,56 @@ describe('app-combobox', () => {
     expect(document.activeElement).toBe(input);
   });
 
+  it('selects the highlighted option with Enter, without a mouse', async () => {
+    const { form, view, combobox, input } = await setup(() => Promise.resolve(CUSTOMERS), 0);
+
+    await type(input, 'Ac');
+    await vi.waitFor(() => expect(combobox.suggestions()).toHaveLength(2));
+    view.fixture.detectChanges();
+    // autoOptionFocus already highlights the first result, so ArrowDown moves
+    // to the second - which is what makes this an assertion that the arrow
+    // key moved, rather than that Enter fired.
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+    view.fixture.detectChanges();
+
+    expect(form.value.customer).toEqual(CUSTOMERS[1]);
+  });
+
+  it('closes the panel with Escape and leaves the value as it was', async () => {
+    const { form, view, combobox, input } = await setup(() => Promise.resolve(CUSTOMERS), 0);
+
+    await type(input, 'Ac');
+    await vi.waitFor(() => expect(combobox.suggestions()).toHaveLength(2));
+    view.fixture.detectChanges();
+    await userEvent.keyboard('{ArrowDown}');
+    view.fixture.detectChanges();
+
+    expect(input.getAttribute('aria-expanded')).toBe('true');
+
+    await userEvent.keyboard('{Escape}');
+    view.fixture.detectChanges();
+
+    expect(input.getAttribute('aria-expanded')).toBe('false');
+    expect(form.value.customer).toBeNull();
+  });
+
+  it('moves the caret with Home and End - this one is a text entry, not a list', async () => {
+    const { input } = await setup(() => Promise.resolve(CUSTOMERS), 0);
+
+    // Deviation, recorded rather than glossed: in app-select and
+    // app-multi-select Home/End jump the option list, but PrimeNG's
+    // AutoComplete (22.1.0, onHomeKey/onEndKey) gives them to the caret,
+    // which is the right answer for something the user types into.
+    await type(input, 'Acme');
+    await userEvent.keyboard('{Home}');
+
+    expect(input.selectionStart).toBe(0);
+
+    await userEvent.keyboard('{End}');
+
+    expect(input.selectionStart).toBe('Acme'.length);
+  });
+
   it('tracks the highlighted option with aria-activedescendant', async () => {
     const { view, combobox, input } = await setup(() => Promise.resolve(CUSTOMERS), 0);
 
