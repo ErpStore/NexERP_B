@@ -14,6 +14,8 @@ import { loadAppConfig } from './core/config/app-config';
 import { GlobalErrorHandler } from './core/errors/global-error-handler';
 import { InMemoryTranslateLoader } from './core/i18n/in-memory-translate-loader';
 import { NexGenThemeOptions } from './core/theme/theme.preset';
+import { provideConfirmDialog } from './shared/components/overlay/confirm-dialog.service';
+import { provideToast } from './shared/components/feedback/toast.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -34,6 +36,14 @@ export const appConfig: ApplicationConfig = {
     // var(--token) reference, and darkModeSelector is the same
     // [data-theme="dark"] attribute ThemeService writes (M2-C04-01, Q-67).
     providePrimeNG({ theme: NexGenThemeOptions }),
+
+    // One toast host and one confirm-dialog host for the whole application
+    // (both live in app.component.html). Screens reach the toast layer
+    // through shared/components/feedback/toast.service.ts, which is the only
+    // file that imports PrimeNG's message service, and confirmation through
+    // shared/components/overlay/confirm-dialog.service.ts (M2-C04-03).
+    provideToast(),
+    provideConfirmDialog(),
 
     provideTranslateService({
       lang: 'en',
