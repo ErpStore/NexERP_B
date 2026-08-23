@@ -150,11 +150,11 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-03 | M2 | — re-spec the list / CRUD shell (M2-C05*, M2-C06) | Documentation | **Completed**⁴⁴ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Completed**⁴⁵ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Completed**⁴⁶ *(merged to `master` `27dfc5d` on owner instruction 2026-08-23)* | P0 | M2-C12-01…04 | 1 d | G2 |
-| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Ready**²⁶˒⁴⁶˒⁴⁷ *(dependency cleared — `M2-C01` merged `2dd4e53` 2026-08-21; **⛔ supersession lifted** — `tasks/M2-C10.md` was re-specified for Angular by `M2-C12-02`, merged 2026-08-22. Five-part test confirmed 2026-08-22 during `M2-C12-05`'s close-out — no sibling branch, no open-question gate — but not selected this round; see footnote ⁴⁷)* | P0 | M2-C01 | 2 d | G2 |
+| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Blocked**²⁶˒⁴⁶˒⁴⁷˒⁵² *(attempt 1 `FAIL`, category `environment` — its binding criterion needs a MEASURED wire format from a live `[Authorize]`d endpoint, and this workstation has empty `ConnectionStrings:MasterDb` and `Jwt:Secret`. Not a code defect. See footnote ⁵²)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-01`)* | P0 | M2-C01 | 2 wks | G2 |
 | M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
-| M2-C04-02 | M2 | — form controls + validation display | Frontend | **Needs Review**⁵¹ *(implemented on `migration/M2-C04-02-form-controls`, independently validated `PASS` 2026-08-23; unmerged, no code review yet)* | P0 | M2-C04-01 | 4 d | G2 |
+| M2-C04-02 | M2 | — form controls + validation display | Frontend | **Completed**⁵¹˒⁵² *(merged to `master` on owner instruction 2026-08-23; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 4 d | G2 |
 | M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Ready**²⁶˒⁴⁶ *(released 2026-08-23 — `M2-C04-01` is `Completed` and merged)* | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
@@ -2417,3 +2417,39 @@ rules are not expressible as field validators. **Q-73** and **Q-74** were also r
 (`docs/kb/open-questions.md`), neither blocking. Full record:
 `tasks/M2-C04-02.md` § Execution Record (2026-08-23) — session close-out;
 `failure-log.md`.
+
+⁵² **M2-C04-02 `Completed`; M2-C10 `Blocked` on the environment — 2026-08-23.**
+
+**`M2-C04-02` took 3 attempts and 1 escalation to reach `PASS`, and the retries earned their
+keep.** Attempt 1 and attempt 2 each failed independent validation and each produced a real
+repair, both recorded in [`failure-log.md`](failure-log.md): attempt 1's fix repaired KB-050,
+asserted the keyboard model and narrowed the documentation to what was actually proved; attempt
+2's made **`readonly` visually distinct from `disabled` on every control** and completed the
+loading/empty/error triad on `app-file-upload`. Neither is cosmetic — a `readonly` field that
+renders as `disabled` is a data-entry defect.
+
+**Verified on the merged result, not inherited from the branch.** All six gates: `typecheck`
+exit 0 · `lint` "All files pass linting" (`--max-warnings=0`) · `format:check` clean · `test:ci`
+**215 passed / 29 files** (47/8 → 215/29) · `build` 446.36 kB raw / 106.63 kB transfer. Scope
+confined to `frontend/` and `docs/kb/`.
+
+**The token-consumption check specific to this task passed.** `M2-C04-01` landed `tokens.css` and
+an ESLint raw-colour ban whose original registration covered only `**/*.ts`, missing HTML
+templates — a hole that task fixed. This was the first real test of it: **zero raw hex or `rgb()`
+values** in any stylesheet or template this task added, against **116 `var(--…)` token references**
+across `control.scss` (52), `form-section` (23), `form-layout` (21) and `form-field` (20).
+
+**`M2-C10` is `Blocked`, category `environment`, and the distinction matters.** Its binding
+acceptance criterion requires **INV-032 recorded with the MEASURED wire format** of a decimal over
+HTTP. The only decimal-bearing endpoint is `[Authorize]`d, and this workstation has
+`ConnectionStrings:MasterDb` and `Jwt:Secret` both **empty**, so no live response can be captured.
+No amount of retrying fixes that, and no code change would either — which is why the runner
+classified it `environment` and stopped rather than spending its budget. It needs either a
+reachable database with a credential, or the owner relaxing that criterion to a static-analysis
+proof.
+
+**A near-miss on id allocation, caught by the runner's own diagnosis.** Attempt 1 claimed a
+duplicate **Q-72** on the strength of an id-allocation check its report described as run but which
+had not been. `Q-72…Q-75` are held by `migration/M2-C04-02-form-controls`; the true next free id
+is **Q-76** — confirmed against `open-questions.md` at merge. This is the sixth id collision in
+this run and the second caught before it reached `master`.
