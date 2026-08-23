@@ -170,13 +170,46 @@ absent or contradicted → record negative results too.
 
 | ID | Milestone | Est. | Gate | Status |
 |---|---|---|---|---|
-| **M0** | Stabilise | 2–3 wks | G0 | ⚠️ **PASSED WITH EXCEPTIONS** 2026-08-19 — criteria 1, 2, 3 deferred by owner. Review: [KB-107](M0-milestone-review.md) |
+| **M0** | Stabilise | 2–3 wks | G0 | ⚠️ **PASSED WITH EXCEPTIONS** 2026-08-19 — criteria 1, 2, 3 deferred by owner; **2 and 3 remain unsatisfied**. **17 of 24** tasks `Completed`. Review: [KB-107](M0-milestone-review.md) |
 | **M1** | Repository Understanding | — | G1 | ✅ Complete (rolling) |
-| **M2** | Foundation | 6–8 wks | G2 | **OPEN** 2026-08-19 |
+| **M2** | Foundation | 6–8 wks | G2 | **OPEN** — **23 of 59** `Completed` (39%) as of 2026-08-23. Backend API and the Angular frontend both live; **1** task selectable, the rest await owner decisions |
 | **M3** | Core Modules | 12–16 wks | G3 | Blocked by G2 |
 | **M4** | Advanced Modules | 16–22 wks | G4 | Blocked by G3 |
 | **M5** | Hardening | 6–8 wks (overlapped) | G5 | Runs from M2 |
 | **M6** | Production Migration | 4–6 wks | G6 | Blocked by G4 |
+
+### M2 progress snapshot — 2026-08-23
+
+**23 of 59 tasks `Completed`.** [KB-081](task-tracker.md) is the authority for every row; this is
+a summary and goes stale, so trust the tracker where they differ.
+
+**Done — the backend API slice.** `M2-A01-01/02/03` (auth, JWT, screen rights), `M2-A06` (error
+contract / `problem+json`), `M2-A07` (`GET /api/v1/me`), `M2-A08` (row scope + account gates),
+`M2-B01` (versioning, `/api/v1`), `M2-B02` (sort/filter/paging), `M2-B04` (`Pages` decoupling),
+`M2-B06` (file upload/download), `M2-B07` (DI composition), `M2-B09` (reference endpoints +
+caching), `M2-B11` (health checks + structured logging).
+
+**Done — the frontend, which went from nothing usable to a real app in three days.** `M2-C00`
+rewrote KB-050 for Angular; `M2-C01` replaced the React scaffold with an Angular 22 + PrimeNG
+workspace; `M2-C12` and its five sub-tasks re-specified **all 25** superseded `M2-C`/`M2-D` task
+files, leaving **zero ⛔ banners repo-wide**; `M2-C04-01` landed design tokens, theming and
+light/dark; `M2-C04-02` landed form layout, controls and validation display. Frontend tests over
+that window: **6 → 215**, across **2 → 29** files.
+
+**Blocked, and none of it on execution capacity.** The `M2-A` chain stops at `M2-A04` (refresh
+tokens), which is Hard-blocked on **`M0-04`** — `Jwt:Secret` is committed and unrotated, so
+refresh tokens signed with it would be forgeable (tracker footnote ⁴⁸). That propagates to
+`M2-A05` and `M2-C02`. `M2-A02` is gated on **Q-28** and **R-65**. `M2-C10` is blocked on the
+*environment*: its binding criterion needs a measured wire format from an `[Authorize]`d endpoint,
+and this workstation has no database credential. `M2-C11` is gated on **Q-38**.
+
+**Selectable right now: `M2-C04-03`** (modal, drawer, toast, states) — and nothing else.
+
+> **G2 is a long way off and the reason is worth stating plainly.** What remains in M2 is
+> dominated by the `M2-C` UI tree and the `M2-D` vertical slice, and both now have *implementable*
+> specifications for the first time since ADR-007 — that was `M2-C12`'s whole purpose. The
+> constraint has shifted from "the specs are stale" to "five owner decisions are outstanding",
+> listed in [KB-081 § Current state](task-tracker.md#current-state--2026-08-23).
 
 Order is unchanged from [KB-071](../migration/milestones.md). Existing task ids are
 preserved; new work is added as new ids or as children (`M0-03-02`), never by renumbering.
@@ -707,6 +740,24 @@ must complete inside M2 or M3-5 stalls.
 | `DocumentEditor` under-specified because no document module has migrated yet | Accept: build the shell in M2, harden it in M3-5 against a real document |
 
 ### Exit Gate — G2
+
+**Assessed 2026-08-23 against evidence. No box is ticked — every one still has real work behind
+it — but three have partial, verifiable progress and one is already satisfied and merely
+unconfirmable as "final" until the milestone closes.**
+
+| # | Criterion | State on 2026-08-23 |
+|---|---|---|
+| 1 | Currency + Customer Master working in Angular | **Not met.** The app renders one placeholder route. The *foundations* landed — workspace (`M2-C01`), tokens/theming (`M2-C04-01`), form controls (`M2-C04-02`) — but no ERP screen exists. `M2-D01`/`M2-D02*` own Customer Master and are `Blocked`. |
+| 2 | Blazor untouched and still live | **Satisfied on the evidence.** `git diff 52060dc..HEAD -- V.SMART.Web/** V.SMART.Shared/Pages/**` is **empty** across the whole 2026-08-21→23 run. Left unticked only because "still live" is a runtime claim no session has observed. |
+| 3 | No-rights user refused by the **API**, proven by a CI permission-matrix harness | **Half met.** Enforcement exists and is tested — `M2-A01-03`, `M2-A08` (`ScreenRightAuthorizationFilterTests`, `RowScope*Tests`). The **harness does not**: `grep` for `permission-matrix` finds only a comment in `MeEndpointTests.cs:396` noting `M2-A03` has not landed. `M2-A03` is `Blocked` behind `M2-A02`. |
+| 4 | TypeScript client generated from OpenAPI in CI | **Not met.** No `openapi`/`nswag`/`swagger-typescript` reference exists in `.github/workflows/`. No task currently owns this — **worth an owner decision**: it is a G2 criterion with no task behind it. |
+| 5 | Parity test `M2-D03` passes | **Not met.** `M2-D03` is `Blocked`; its spec was only made implementable on 2026-08-23 by `M2-C12-05`. |
+| 6 | Controller template + error contract documented and adopted | **Half met.** The error contract landed and is adopted by every controller (`M2-A06`, `problem+json`). The **controller template** has no dedicated task, and its own Definition of Done requires "two independent users" before it counts. |
+
+> **The honest summary: 2 of 6 criteria have no owning task.** Criterion 4 (OpenAPI → TS client)
+> and the template half of criterion 6 are not blocked — they are *unassigned*. Everything else is
+> blocked behind `M2-A02`/`M2-A04` or behind the `M2-C`/`M2-D` build-out, which is now
+> specification-ready for the first time since ADR-007.
 - [ ] Currency **and** Customer Master fully working in Angular: login, tenant resolution,
       permission-gated CRUD, server paging, validation, error contract, Excel export.
 - [ ] The Blazor app is untouched and still live against the same database.

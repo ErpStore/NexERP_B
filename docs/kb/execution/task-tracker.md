@@ -251,13 +251,46 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 | Milestone | Tasks | Completed | Gate | Gate status |
 |---|---|---|---|---|
-| M0 | 24 | 12 | G0 | ⬜ Not met |
+| M0 | 24 | **17** | G0 | ⚠️ **Passed with exceptions** 2026-08-19 — criteria **2 and 3 are not satisfied**, deferred by owner decision; `M0-04`/`M0-05` stay `Blocked`. See [KB-080 § G0 deferral](README.md#g0-deferral--criteria-2-and-3-decided-by-the-repository-owner-2026-08-19) |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | 53 | **6** *(`M2-A01-01`¹⁸ — under a deliberate G0 gate exception, `M2-A01-02`²⁵, `M2-A01-03`²⁷, `M2-A06`²³, `M2-B07`²⁰, `M2-B02`²⁴ — **all six are backend**. Was 7 until 2026-08-20: `M2-C01`¹⁹ and `M2-C04-01`²² were `Completed` in React and are **superseded** by [ADR-007](../decisions/ADR-007-angular-stack.md), footnote ²⁶. Total rises 52 → 53 with the new `M2-C00`. Recount is by `grep` over the M2 rows, never by adjusting the previous number)* | G2 | ⬜ Not met |
+| M2 | **59** | **23** | G2 | **OPEN** — 23 of 59 done (39%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
 | M6 | 8 | 0 | G6 | ⬜ Not met |
+
+### Current state — 2026-08-23
+
+**45 tasks `Completed`, 1 `Needs Review`, 4 `Ready`, 36 `Blocked`, 2 `In Progress`, 34 `Not Started`.**
+Counts are derived from the rows above, which are the authority; the rollup totals for M3/M4 are
+task *estimates*, not rows.
+
+**Only one task is genuinely selectable: `M2-C04-03`** (modal, drawer, toast, states). The other
+three `Ready` rows all fail the five-part test — `M0-06` already has a branch, `M0-11` is a
+`Product Decision`, and `M2-A02` is gated on the unanswered **Q-28** and on **R-65**.
+
+**Everything now waiting is waiting on a person, not on execution capacity.** Five decisions, in
+rough order of how much they unblock:
+
+| # | Decision | Unblocks |
+|---|---|---|
+| 1 | **`M0-04`** — rotate the exposed credentials (deferred to end-of-milestone 2026-08-19) | `M2-A04` → `M2-A05` → `M2-C02`, and G0 criteria 2/3 |
+| 2 | **`M2-C10`'s environment** — a reachable DB + credential, or relax its "MEASURED wire format" criterion to static analysis | `M2-C10`, then `M2-C07` |
+| 3 | **Q-28 + R-65** | `M2-A02` → `M2-A03`, `M2-B03` → `M2-B10` |
+| 4 | **Q-38** — what `M2-C11` is *for*, now `M2-C01` has built the workspace it existed to adopt | `M2-C11` |
+| 5 | **`stash@{0}`** — orphaned work from a dead run, carrying out-of-scope `AuthController.cs` and `.sln` edits | nothing; recommend discard |
+
+**What changed between 2026-08-21 and 2026-08-23**, which is why M2 moved from 6 completed to 23:
+the owner cleared an eight-branch merge queue, then `M2-C12` re-specified all **25** superseded
+`M2-C`/`M2-D` task files for Angular — **zero ⛔ banners remain repo-wide** — and the frontend
+went from a React scaffold to an Angular workspace with design tokens and form controls
+(`M2-C01`, `M2-C04-01`, `M2-C04-02`). Frontend test count over that window: **6 → 215**, across
+**2 → 29** files.
+
+**Unmerged branches still carrying work:** none awaiting review. Two exist and neither should be
+merged — `migration/M2-A08-row-level-scoping` (duplicate of the merged `M2-A08`, functionally
+identical `UserRepository.cs` change, no validated `PASS`; safe to delete) and
+`migration/M2-B12-01-inv-012-numbering` (`Blocked`, verdict `FAIL`, escalation budget exhausted).
 
 **M0-03-01: `Completed` 2026-08-17.** Reviewed, signed off by the repository owner, and
 merged to `master` (`f55db52`). See note ³ above and
