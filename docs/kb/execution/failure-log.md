@@ -4139,3 +4139,213 @@ must stay in step with the AC prose in each file; verified by grep here, but it 
 thing a later edit can desynchronise.
 
 Not merged, not pushed. `runner-state.md` was left untouched — the orchestrator owns it.
+
+---
+
+## M2-C04-01 · attempt 1 (Angular) · independent validation · 2026-08-23 · `FAIL` (`acceptance-criterion`)
+
+Branch `migration/M2-C04-01-design-tokens-angular`, tip `a8f38f7`, cut from `bd51307`.
+34 files changed, 2256 insertions. **Nothing merged, nothing pushed.** Validated against
+`docs/kb/execution/tasks/M2-C04-01.md` § Acceptance Criteria, not against the implementer's
+summary. Every command below was re-run by the validator and its output observed.
+
+**Fourteen of the sixteen acceptance criteria are objectively met.** This is a good
+implementation; the failure is narrow and both parts are named precisely so a retry is cheap.
+
+**Failure 1 — the last acceptance criterion, verbatim: "`npm run typecheck`, `npm run lint`,
+`npm run format:check`, `npm run test:ci` and `npm run build` all pass." `format:check` does
+not pass.**
+
+```
+$ npm run format:check          (frontend/nexgen-web, branch working tree)
+  Code style issues found in 27 files. Run Prettier with --write to fix.
+```
+
+Root cause confirmed as **pre-existing and end-of-line only**, exactly as the implementer
+disclosed and as now recorded as **R-45** in KB-060:
+
+```
+$ git worktree add /tmp/…-master master && prettier --check .   (frontend/nexgen-web)
+  Code style issues found in 34 files.        ← the same gate already fails on master
+$ git worktree add --detach /tmp/…-branch a8f38f7 && prettier --check .
+  Code style issues found in 50 files.        ← on a CLEAN checkout of the branch tip
+$ diff <(tr -d '\r' < src/app/core/theme/tokens.ts) <(tr -d '\r' < prettier-output)
+  (empty)  — likewise for src/styles/tokens.css and src/index.html
+```
+
+Note the third line: the implementer's statement that *"every file this task created or modified
+passes `npx prettier --check`"* is true **only of its own working tree**, where the files were
+authored with LF. On a checkout — which is what CI does — `core.autocrlf=true` writes CRLF and
+**all 30 new/modified frontend files fail too**. The 27-vs-34 improvement is an artefact of file
+provenance, not a real narrowing. The defect is still EOL-only and still not caused by this task.
+
+**Failure 2 — criterion "`npm run lint` fails on a raw hex literal added outside the token
+layer" is met for `.ts` but not for external `.html` templates.** Probed directly, both probe
+files removed afterwards and the tree verified clean:
+
+```
+$ echo "export const probe = '#ff0000'; …" > src/app/features/validator-probe.ts && npm run lint
+  1:22  error  No raw colour literal … no-restricted-syntax
+  2:23  error  No raw colour literal … no-restricted-syntax
+  ✖ 2 problems (2 errors, 0 warnings)                          ← rule works for .ts
+
+$ printf '<div style="color: #ff0000">probe</div>' > src/app/features/probe-template.html && npm run lint
+  All files pass linting.                                      ← NOT caught
+```
+
+`eslint.config.js:114` registers `no-restricted-syntax` only on the `files: ['**/*.ts']` block;
+the `files: ['**/*.html']` block at `:136-141` carries `rules: {}`. `angular.json:113-116` does
+lint `src/**/*.html`, and the task's § Enforcement explicitly scopes the ESLint ban to what
+`lintFilePatterns` covers — i.e. templates were meant to be in. In practice the tree is still
+protected, because `no-raw-colour.spec.ts:15` scans `.html` as well and runs under `test:ci`; the
+gap is in the *lint* half of the criterion, and the fix is a one-line rule on the `.html` block.
+
+**Everything else was checked and holds. Observed output:**
+
+```
+$ npm run typecheck   → no output, exit 0
+$ npm run lint        → All files pass linting.
+$ npm run test:ci     → Test Files 8 passed (8) · Tests 47 passed (47)
+                        (no-raw-colour 3, contrast 6, theme.service 11, tokens 10,
+                         app.component 5, placeholder 1, a11y 2, theme-toggle 9)
+$ npm run build       → Initial total 446.36 kB raw / 106.63 kB transfer;
+                        styles-J53GPHIA.css 4.65 kB / 1.39 kB. Complete.
+$ git grep -nE "#[0-9a-fA-F]{3,8}\b" -- frontend/nexgen-web/src ':!*tokens.css'   → exit 1, no output
+$ grep -rn "fonts.googleapis.com\|fonts.gstatic.com" dist/                        → exit 1, no output
+```
+
+Contrast was **recomputed from scratch by the validator**, not taken from `contrast.spec.ts`: an
+independent script parsing `tokens.css` and applying the sRGB relative-luminance formula
+(0.04045 knee) over the full 5 backgrounds × (8 text + 3 boundary) × 2 themes matrix returned
+**110 pairs, 0 failures**, and all 16 semantic tokens are present in both palettes. The values in
+`src/styles/tokens.css:25-40,128-143` are byte-for-byte the *shipped* column of KB-051 § Colour,
+including all eight contrast corrections.
+
+Also verified: two hand-authored palettes with no `filter`/`invert` derivation; the preset at
+`theme.preset.ts` restates no colour value and is `definePreset(Aura, …)` with
+`darkModeSelector: '[data-theme="dark"]'`; the pre-paint script survives into
+`dist/…/index.html`; the three `woff2` files carry the real `wOF2` magic and SIL OFL text;
+`:focus-visible` is a 2 px ring at 2 px offset (`styles.scss:145-148`); `prefers-reduced-motion`
+zeroes the motion tokens and every transition (`:161-176`); byte cost is recorded in
+`frontend/nexgen-web/README.md` and KB-050; KB-051's two stale `src/shared/theme/` paths are
+gone (`grep` returns nothing); Q-67 is answered route A, Q-33 left open; INV-006 amended.
+
+**No regression, and the diff is in scope.** `git diff --name-only master HEAD | grep -c '^V.SMART'`
+→ **0**. No `.cs`, no EF migration, no schema change; `UserThemePreference.cs:20` still reads
+`public bool IsDarkMode { get; set; } = false;`. Blazor Server is untouched, so no .NET build was
+run and none was needed. `dotnet test` was **not** run — no test project exists until M0-12-01 and
+it would have proved nothing about a frontend diff. No ERP business logic appears in TypeScript:
+the diff is presentation tokens, a colour-scheme signal and a toggle. `docs/kb/execution/task-tracker.md`
+was deliberately not touched (orchestrator-owned).
+
+**Not checkable here, and named so it is not mistaken for a pass:** the Completion Condition
+*"manual pass in both themes at 200 % zoom and with `prefers-reduced-motion` enabled"* — jsdom
+computes no layout, so only a human in a real browser can verify it. Same for `Enter`/`Space`
+activation, asserted structurally (native `<button type="button">`) rather than replayed, and for
+"no layout shift on theme switch", asserted as "only attribute *values* change on `<html>`".
+One further item a browser pass should confirm: the `@font-face` rules use
+`format('woff2-variations')` (`styles.scss:23,34,46`), the legacy variable-font format string —
+it is what the upstream `@fontsource-variable` distributions ship, but it has not been observed
+rendering here.
+
+**Category `acceptance-criterion`, chosen deliberately.** Failure 2 is fixable inside this task's
+authorised surface in one line, so this is a retry, not an escalation — it is not `architecture`
+(the PrimeNG/token reconciliation is sound and answers Q-67 with observed evidence) and not
+`business-rule` (the task implements none, correctly). Failure 1 is environment-rooted and its
+one-line fix — `"endOfLine": "auto"` in `frontend/nexgen-web/.prettierrc` — touches a frontend
+tooling-gate file the task file does not list under *Files Expected to Change*, so a retry should
+either obtain that authorisation or have the owner grant an explicit exception for R-45;
+it must not be silently absorbed, and the criterion must not be reworded to make it pass.
+
+---
+
+## M2-C04-01 · attempt 1 (Angular) · diagnosis · 2026-08-23 · `fixed` (failure 2) + `blocked` (failure 1)
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED (owner authorisation needed for failure 1) |
+| Model in use | opus (debugger) |
+| Validator verdict | FAIL — `acceptance-criterion` |
+| Branch | `migration/M2-C04-01-design-tokens-angular`, tip moved `a8f38f7` → `e16693a` |
+
+**Both failures reproduced before anything was touched.** Commands run from
+`frontend/nexgen-web`, output observed:
+
+```
+$ npm run format:check
+  Code style issues found in 27 files.        FMT_EXIT=1        <- failure 1
+$ printf '<div style="color: #ff0000">probe</div>' > src/app/features/zz-probe-template.html
+$ npm run lint
+  All files pass linting.                     LINT_EXIT=0       <- failure 2 (should have failed)
+```
+
+### Failure 2 — `implementation-error`, **fixed**
+
+**Root cause** — `eslint.config.js` registered `'no-restricted-syntax': ['error', ...noRawColour]`
+only inside the `files: ['**/*.ts']` block (`:114`); the `files: ['**/*.html']` block (`:136-141`)
+carried `rules: {}`. `angular.json:108-116` lints `src/**/*.html`, and the task's § Enforcement
+scopes the ban to what `lintFilePatterns` covers, so external templates were in scope and simply
+were not wired up. A second contributing detail the original implementation would have hit even
+if the rule had been copied verbatim: the Angular template parser does **not** produce ESTree
+`Literal` nodes, so `Literal[value=…]` matches nothing in a template.
+
+**Fix** — commit `e16693a`, one file, `frontend/nexgen-web/eslint.config.js` (listed under
+*Files Expected to Change*). Adds `noRawColourTemplate`, the same ban expressed against the
+template AST — `TextAttribute[value=…]` for a static attribute and `LiteralPrimitive[value=…]`
+for an interpolated/bound value, hex and `rgb()`/`hsl()` each — and registers it on the
+`**/*.html` block. No existing rule, threshold or spec was weakened, and the `.ts` block is
+untouched.
+
+**Re-validated, output observed:**
+
+```
+$ npm run lint   (probe: style="color: #ff0000")                 -> 1 error, exit 1
+$ npm run lint   (probe: [style.color]="'#ff0000'", rgb(), hsl()) -> 3 errors, exit 1
+$ npm run lint   (probe: raw hex + rgb() in a .ts file)           -> 2 errors, exit 1  (no regression)
+$ npm run lint   (clean tree)      -> All files pass linting.        exit 0
+$ npm run typecheck                -> exit 0
+$ npm run test:ci                  -> Test Files 8 passed (8) · Tests 47 passed (47)
+$ npm run build                    -> Application bundle generation complete. exit 0
+$ npx prettier --check eslint.config.js -> All matched files use Prettier code style!
+```
+
+All probe files deleted; `git status --porcelain` shows only the two orchestrator-owned docs
+files that were already modified before this session started.
+
+### Failure 1 — `environment` (R-45), **not fixed, blocked on the owner**
+
+**Root cause confirmed, not merely accepted from the validator.** `core.autocrlf` is `true`
+and `.gitattributes:4` is `* text=auto`, so a checkout writes CRLF; `frontend/nexgen-web/.prettierrc`
+has no `endOfLine` key and `frontend/nexgen-web/.editorconfig` has no `end_of_line` key (both
+re-read this session), so Prettier's default `lf` applies and every checked-out file fails.
+Verified EOL-only on three of the 27 by my own diff, e.g.
+
+```
+$ npx prettier src/main.ts > /tmp/p.out ; diff <(tr -d '\r' < src/main.ts) <(tr -d '\r' < /tmp/p.out)  -> empty
+   ... likewise angular.json and src/app/app.routes.ts
+$ file src/main.ts -> ASCII text, with CRLF line terminators
+```
+
+None of the 27 failing files is in this task's diff (`git diff --name-only master HEAD` compared
+against the list — zero overlap); they are all M2-C01/M2-C12 scaffold files. Git itself
+restated the mechanism when I committed: *"LF will be replaced by CRLF the next time Git
+touches it."*
+
+**Why it was not fixed here.** The only real fixes are `"endOfLine": "auto"` in `.prettierrc`,
+an `eol` rule in `.gitattributes`, or changing `core.autocrlf` — none of those files is in the
+task's *Files Expected to Change*, and R-45 in KB-060 explicitly assigns the fix to whichever
+task owns the frontend tooling gate. `prettier --write .` is **not** a fix: the blobs are already
+LF, so the next checkout reproduces the failure, and it would add 27 unrelated files to the diff.
+Rewording criterion 17 or dropping `format:check` would be weakening a check to hide an
+environment defect and was not done.
+
+**What the owner has to decide** — one of: (a) authorise `frontend/nexgen-web/.prettierrc` as an
+in-scope file for this task and let the retry add `"endOfLine": "auto"`; (b) grant an explicit
+R-45 exception so criterion 17 is judged on the four commands that do pass plus a clean
+`prettier --check` of the files this task authored; or (c) split R-45 into its own tooling task
+and let M2-C04-01 close after it lands. Until then criterion 17 cannot be met from inside this
+task's authorised surface.
+
+**Attempt budget** — this diagnosis fixes one of the two failures; the remaining one is a
+KB-091 §8 item 5 safety stop (environment), not a retry candidate. Re-dispatching an implementer
+against it would produce the same answer.

@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-22
+last_verified: 2026-08-23
 dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 ---
 
@@ -83,12 +83,43 @@ only the off-path `M2-C07`. Full reasoning: `task-tracker.md` footnote ⁴⁷,
   answered — the reconciliation mechanism is this task's to establish and record which of the
   two routes worked).
 
-### Session status
+### Run State — `Blocked`, awaiting an owner decision (2026-08-23)
 
-Selected at `M2-C12-05`'s close-out (2026-08-22, Select phase only). **Not yet dispatched.** A
-future session picks this up at Investigate/Implement per [`workflow.md`](workflow.md)
-(KB-088) and [`autonomous-runner.md`](autonomous-runner.md) (KB-091). `M2-C04-01`'s frontmatter
-does not state `complexity`/`risk` explicitly — classify per KB-091 §4 at dispatch
-(`task_type: Frontend` → base MEDIUM; `source_files` cites three `V.SMART/` files read-only for
-behaviour reference, no schema/auth/tenancy/numbering/calculation surface — check the raise/HIGH
-triggers against the actual `Implementation Requirements` section before routing).
+**Implemented and independently validated. Not `Ready` any more — do not re-dispatch as if
+starting fresh.** Branch `migration/M2-C04-01-design-tokens-angular` (cut from `master` at
+`bd51307`), tip `e16693a`. **Nothing merged, nothing pushed.** Attempts used: 1 of 3, 0
+escalations. Full record: [`tasks/M2-C04-01.md`](tasks/M2-C04-01.md) § Execution Record
+(2026-08-23); [`failure-log.md`](failure-log.md) (independent-validation `FAIL` entry and the
+diagnosis entry immediately after it); [`task-tracker.md`](task-tracker.md) footnote ⁴⁹;
+[`runner-state.md`](runner-state.md) Status.
+
+**What happened.** 14 of 16 acceptance criteria were independently re-derived as `MET`. Two were
+not:
+
+1. A raw-colour ESLint gap over external `.html` templates — **already fixed**, commit
+   `e16693a`, one file (`eslint.config.js`, on the task's own *Files Expected to Change*).
+2. `npm run format:check` fails on 27 pre-existing scaffold files on **CRLF line endings alone**
+   (`core.autocrlf=true` + `.gitattributes: * text=auto` + no `endOfLine` override in
+   `.prettierrc`) — **not fixed.** Recorded as **R-45**
+   ([`risks/technical-debt-register.md`](../risks/technical-debt-register.md)). The one-line fix
+   (`"endOfLine": "auto"` in `.prettierrc`) touches a file outside this task's authorised list.
+
+**What resumes this task, and what does not.** This is a KB-091 §8 item 5 safety stop
+(environment), not a retry candidate — re-dispatching an implementer against the unfixed failure
+would reproduce the same block. **A human (Vivek) must choose one of:**
+
+- (a) authorise `frontend/nexgen-web/.prettierrc` as in-scope for `M2-C04-01` and let a retry add
+  `"endOfLine": "auto"`;
+- (b) grant an explicit R-45 exception judging the criterion on the four passing commands plus a
+  clean `prettier --check` of the files this task authored;
+- (c) split R-45 into its own tooling task and let `M2-C04-01` close once that lands.
+
+Once the owner rules, a session resumes on the existing branch (attempt 2 of 3) rather than
+re-implementing from scratch — the token layer, PrimeNG preset, theme service, toggle component
+and all documentation updates (KB-051, KB-050, INV-006, Q-67 answered, Q-33 re-confirmed) are
+already done and validated. The Completion Conditions' manual browser pass (both themes, 200%
+zoom, `prefers-reduced-motion`) also remains outstanding regardless of the R-45 ruling.
+
+**No other task was selected or started this session**, per explicit instruction. The next
+Select pass should re-run the five-part test fresh rather than assume `M2-C10` is still the
+right pick (see `runner-state.md` § Next ready task).
