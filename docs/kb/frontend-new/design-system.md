@@ -233,6 +233,47 @@ Rules: label **above** the field (scannable in dense forms), errors inline below
 marked with `*` plus `aria-required`, disabled ≠ readonly (readonly stays copyable),
 autofocus the first field on create.
 
+
+#### Built — M2-C04-02 (2026-08-23)
+
+All 17 are implemented in `frontend/nexgen-web/src/app/shared/components/form/` as standalone
+`OnPush` components over PrimeNG 22, each a `ControlValueAccessor`, each rendering its
+validation through **`app-form-field`** — the single display mechanism. Selector prefix `app-`,
+kebab-case; `FormLayout` → `app-form-layout`, and so on. Two names were added to the inventory
+above and are not deviations from it, only from its brevity: `app-form-layout` also owns the
+loading skeleton, the form-level error alert and the sticky footer slot.
+
+Deviations, each with its reason:
+
+- **`app-form-layout` does not render the `<form [formGroup]>` element.** The screen does, and
+  puts the layout inside it. Angular resolves a projected `formControlName` through the
+  *declaration* injector tree, so a `FormGroupDirective` inside the layout would be invisible to
+  the projected fields and every one of them would throw `NG01050`. The typed group is still an
+  input; the layout reads its state.
+- **The numeric trio ships behind a `TODO(M2-C10)`.** `app-number-input`, `app-currency-input`
+  and `app-amount-or-percent-input` hold branded `Money`/`Qty` values and parse only through an
+  injected `DECIMAL_PORT`, which **M2-C10 has not yet implemented**. No local parsing was added:
+  a `parseFloat` there is the defect M2-C10 exists to prevent.
+- **The form-level alert is a minimal local placeholder**, marked `TODO(M2-C04-03)`, to be
+  replaced by the shared `InlineAlert` rather than duplicated.
+- **Date format defaults to ISO** through an injectable `DATE_FORMAT` token — no endpoint
+  exposes the tenant's format and `Companydetails` carries no such column (Q-75).
+
+Confirmed keyboard model, asserted by `userEvent` specs: text/textarea native; select,
+multi-select and combobox open on `ArrowDown`, move with arrows, jump with `Home`/`End`, select
+with `Enter`, close with `Esc`, and multi-select removes the last chip with `Backspace`; radio
+group moves and selects with arrows and is a single tab stop; checkbox and switch toggle with
+`Space`; both date controls accept typed input and open the calendar with `ArrowDown` — the
+calendar is never the only entry path; the file-upload choose control is a real button and every
+file row's remove is keyboard-reachable.
+
+**`app-switch` is for immediate-effect toggles only; a field saved on submit uses
+`app-checkbox`.** Stated here as well as in the component docs, because across ~140 screens the
+two will otherwise be used interchangeably.
+
+Runtime `axe` scan over every control in both themes: `form/a11y.spec.ts`, zero critical
+violations observed 2026-08-23. jsdom applies no stylesheet, so `color-contrast` cannot run
+there; contrast is covered by computation in `core/theme/contrast.spec.ts`.
 ### Overlays
 `Modal` (sm/md/lg/full) · `Drawer` (right, resizable — for record detail without losing
 list context) · `ConfirmDialog` (with optional **required reason** — BR-SO-003) ·

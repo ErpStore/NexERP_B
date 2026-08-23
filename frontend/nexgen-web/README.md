@@ -171,6 +171,45 @@ anywhere in the build.
 > the other. Server-side persistence needs a settings endpoint **and** a decision on the entity,
 > which is a single `bool IsDarkMode` and cannot represent `system` — Q-33, due with M3-3.
 
+## Forms
+
+The form layer lives in `src/app/shared/components/form/` and is exported through
+`src/app/shared/components/index.ts`. It is built by **M2-C04-02** against
+[KB-051 §Forms](../../docs/kb/frontend-new/design-system.md#forms).
+
+| Control                                     | PrimeNG surface                    | Use it for                                                                                                                                |
+| ------------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `app-form-layout`                           | —                                  | The page-level form. 3 columns at ≥1440, 2 at 1024–1439, 1 at ≤1023. Owns the skeleton, the sticky footer and the form-level error alert. |
+| `app-form-section`                          | —                                  | A titled, optionally collapsible group of fields.                                                                                         |
+| `app-form-field`                            | —                                  | **The one validation-display mechanism.** Every control renders through it.                                                               |
+| `app-text-input`                            | `[pInputText]`                     | Single-line text. Trims on commit.                                                                                                        |
+| `app-textarea`                              | `[pTextarea]`                      | Multi-line text.                                                                                                                          |
+| `app-number-input`                          | `p-inputnumber`                    | Quantities. Holds a `Qty`, never a `number`.                                                                                              |
+| `app-currency-input`                        | `p-inputnumber`                    | Money. Holds a `Money`, never a `number`.                                                                                                 |
+| `app-amount-or-percent-input`               | `p-inputnumber` + `p-selectbutton` | The recurring `…AmtOrPer` pair. Captures `{ value, isAmount }` and computes nothing.                                                      |
+| `app-select`                                | `p-select`                         | One value from a known list.                                                                                                              |
+| `app-multi-select`                          | `p-multiselect`                    | Several values from a known list.                                                                                                         |
+| `app-combobox`                              | `p-autocomplete`                   | Search-and-select over a list too large to render — takes a caller-supplied async loader.                                                 |
+| `app-date-picker` / `app-date-range-picker` | `p-datepicker`                     | Dates. Typing is always available; the calendar is never the only entry path.                                                             |
+| `app-checkbox`                              | `p-checkbox`                       | A boolean **saved on submit**.                                                                                                            |
+| `app-radio-group`                           | `p-radiobutton`                    | One of a few mutually exclusive values.                                                                                                   |
+| `app-switch`                                | `p-toggleswitch`                   | A boolean with **immediate effect**.                                                                                                      |
+| `app-file-upload`                           | `p-fileupload`                     | Collecting `File` objects. It performs no transport.                                                                                      |
+
+**Switch versus checkbox.** `app-switch` is for a toggle that takes effect the moment it is
+flipped. A field that is saved when the form is submitted uses `app-checkbox`. Across ~140
+screens the two will otherwise be used interchangeably and mean nothing.
+
+**No business logic in a control.** A control captures, formats and _displays_ validation. It
+never applies a party cascade, a duplicate-line check, a quantity balance, a tax rule or an
+`…AmtOrPer` calculation. The server stays authoritative for validation, calculation,
+permissions and document numbering; client validators mirror `DataAnnotations` for UX only.
+Cross-field and cross-row rules are **not** expressible as field validators and are extracted
+server-side by each wave's `-03` step.
+
+Per-control usage, the keyboard model and the loading/empty/error triad each control owns are in
+[`src/app/shared/components/form/README.md`](src/app/shared/components/form/README.md).
+
 ## Structure
 
 `src/` follows [KB-050 §Project structure](../../docs/kb/frontend-new/react-architecture.md#project-structure):

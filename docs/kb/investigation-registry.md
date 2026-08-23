@@ -24,7 +24,7 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-003 | Data model, DbContexts, entities, migrations, seed data | Complete | `Data/ApplicationDbContext.cs` (196 DbSets), `Data/MasterDbContext.cs`, `Data/**`, `Migrations/` | [KB-012](architecture/database-architecture.md) | 2026-08-12 |
 | INV-004 | Authentication, screen rights, approval authority | Complete | `Authentication/Custom AuthenticationStateProvider.cs`, `Repository/MasterRepository/Admins/UserRepository.cs`, `Shared/BaseUserRightsComponent.cs`, `Shared/RightsHelper.cs`, `Data/Master/Admin_Module/*`, `V.SMART.Api/Auth/*` | [KB-013](architecture/auth-and-permissions.md); server-side reproduction spec'd in [KB-105](architecture/server-side-authorization-spec.md) *(M2-A01-01, 2026-08-18 — re-verified against current code, **no contradiction with KB-013 found**; status and Verified date deliberately unchanged)* | 2026-08-12 |
 | INV-005 | Multi-tenancy resolution and isolation | Complete | `Services/MultiCompanyService/*`, `Data/TenantInfo.cs`, `wwwroot/config/tenant.json` | [KB-014](architecture/multi-tenancy.md) | 2026-08-12 |
-| INV-006 | Existing UI: routing, layout, components, `@code` density | Complete *(amended 2026-08-19 by M2-C04-01 — theme persistence; amended again 2026-08-23 by M2-C04-01 — how PrimeNG 22 consumes the token layer, the answer to Q-67; see below)* | `Routes.razor`, `Layout/NavMenu.razor` (888 LOC), `Components/` (22), `Pages/` (333 files, 440 routes), measured `@code` share | [KB-015](architecture/frontend-architecture-existing.md) | 2026-08-12 |
+| INV-006 | Existing UI: routing, layout, components, `@code` density | Complete *(amended 2026-08-19 by M2-C04-01 — theme persistence; amended again 2026-08-23 by M2-C04-01 — how PrimeNG 22 consumes the token layer, the answer to Q-67; amended 2026-08-23 by M2-C04-02 — the DataAnnotations to Angular validator mapping surface, and the cross-field caveat; see below)* | `Routes.razor`, `Layout/NavMenu.razor` (888 LOC), `Components/` (22), `Pages/` (333 files, 440 routes), measured `@code` share | [KB-015](architecture/frontend-architecture-existing.md) | 2026-08-12 |
 | INV-007 | Module inventory and inter-module dependency graph | Complete | `NavMenu.razor`, `Data/` folders, `BusinessLayer/` folders, `Ref*SubId` FK scan | [KB-020](modules/module-inventory.md) | 2026-08-12 |
 | INV-008 | Existing API surface | Complete *(re-verified 2026-08-21 by M2-B01 — **route surface changed**, see the amendment below)* | `V.SMART.Api/**` (2 controllers, 6 endpoints) | [KB-040](api/api-overview.md) | 2026-08-21 |
 | INV-009 | Reporting: FastReport + stored procedures | Complete *(amended 2026-08-12)* | `Services/ReportViewer/ReportService.cs`, `ReportExecutor.cs`, `wwwroot/templates/` (104 `.frx`), `Existing Store Procedures/` (13 `.sql`, of which only **12** are called → gap is **82**, not 81). **Scoped** name-extraction command, since the unscoped one now returns 111 by matching this KB's own prose: `grep -rhoE "Sp_[A-Za-z0-9_]+" --include=*.cs --include=*.razor --exclude-dir=obj --exclude-dir=bin V.SMART \| sort -u` | [KB-011](architecture/backend-architecture.md#reporting-subsystem), [ADR-005](decisions/ADR-005-reporting-and-printing.md), R-04 | 2026-08-12 |
@@ -286,6 +286,106 @@ Last verified:  2026-08-23
 **Also re-confirmed on 2026-08-23, unchanged:** `UserThemePreference.cs:20` still reads
 `public bool IsDarkMode { get; set; } = false;`. The entity was **not** modified. Q-33 stays
 open.
+
+
+### INV-006 amendment (2026-08-23, M2-C04-02) — the `DataAnnotations` → Angular validator mapping surface
+
+Added by **M2-C04-02** while building the form layer. The attribute counts below were measured
+with `git grep --untracked` over `V.SMART/V.SMART.Shared/ViewModels/` on 2026-08-23, not
+carried from a task file.
+
+```yaml
+Finding:        ViewModel validation uses DataAnnotations, and the surface is WIDER than the
+                five attributes KB-015 names. Measured across the 274 ViewModel files (150 of
+                them carry at least one validation attribute):
+                  [Required] 615, [StringLength] 506, [Range] 496, [MaxLength] 95,
+                  [Display] 58, [MinLength] 43, [RegularExpression] 31, [DataType] 16,
+                  [Phone] 12, [Key] 9, [EmailAddress] 9, [Column] 7, [NotMapped] 2,
+                  [DisplayFormat] 2.
+                KB-015 lists only [Required], [StringLength], [RegularExpression],
+                [EmailAddress], [Phone] — it omits [Range], the THIRD most common.
+
+                MAPPING (UX mirror only; the server stays authoritative):
+                  [Required]            -> Validators.required, plus aria-required and the
+                                           "*" marker rendered by app-form-field
+                  [StringLength(n)]     -> Validators.maxLength(n)
+                  [MaxLength(n)]        -> Validators.maxLength(n)
+                  [MinLength(n)]        -> Validators.minLength(n)
+                  [RegularExpression(p)]-> Validators.pattern(p) — CAVEAT: .NET anchors the
+                                           pattern implicitly for IsMatch-style validation and
+                                           JS RegExp does not, so the generated shape needs an
+                                           explicit ^...$
+                  [EmailAddress]        -> Validators.email — a DIFFERENT regex from .NET's;
+                                           the divergence is acceptable for UX because the
+                                           server re-validates
+                  [Phone]               -> Validators.pattern; Angular has no built-in
+                  [Range(min,max)]      -> Validators.min / Validators.max, EXCEPT on money and
+                                           quantity fields, whose SPA value is the branded
+                                           Money/Qty of M2-C10, not a number. Validators.min
+                                           and .max coerce with Number() and cannot be used
+                                           there; a decimal-aware comparator is needed and NO
+                                           TASK OWNS IT YET.
+                  [DataType(Date)]      -> presentational: selects app-date-picker. Not a
+                                           validator.
+                  [Display] [Key] [Column] [NotMapped] [DisplayFormat] -> not validators.
+
+                ErrorMessage strings are per-attribute product UX copy and must be carried into
+                the generated shapes, or the SPA shows generic messages where Blazor shows
+                specific ones.
+
+                CROSS-FIELD RULES ARE NOT EXPRESSIBLE AS FIELD VALIDATORS, and they live in TWO
+                places, not one: (a) Razor @code — ValidateRowAsync, IsItemAlreadySelected,
+                quantity-balance checks (KB-015); and (b) 29 ViewModels implementing
+                IValidatableObject, i.e. cross-field validation on the ViewModel itself. Both
+                are extracted server-side by each wave's -03 step. M2-C04-02 implements
+                neither.
+Evidence:       V.SMART/V.SMART.Shared/ViewModels/MasterViewModel/AccountsViewModel/CurrencyVM.cs:14
+                  ("Please Enter Currency Name"), :23-24 (the currency-symbol
+                  RegularExpression with its enumerated allowed symbols) ;
+                V.SMART/V.SMART.Shared/ViewModels/MasterViewModel/AdminViewmodel/UserVM.cs:123
+                  Validate(...), :126-139 — password required only when UserId == 0 ||
+                  ChangePassword, length >= 6, plus a complexity regex ;
+                further IValidatableObject implementations: MaterialIssNoteVM.cs:11,
+                  SCNGenVM.cs:12, ToolCribReturnSubVM.cs:15, UserAuthorityVM.cs:10,
+                  AssemblyDefVM.cs:11, ItemVM.cs:10, ExpInvSubVM.cs:12 ;
+                KB-015 §Forms and validation (the incomplete five-attribute list)
+Business rule:  n/a — no rule is created here; the mapping is a presentation contract
+Confidence:     Confirmed (counts and file:line re-verified 2026-08-23)
+Last verified:  2026-08-23
+```
+
+**Three further findings from the same pass, recorded because they contradict or extend what
+`M2-C04-02.md` assumes.**
+
+1. **`CustomerSelection.razor` is not a debounced async typeahead.** The task file
+   (`M2-C04-02.md:177`) describes it as one. The source does not do that:
+   `V.SMART/V.SMART.Shared/Components/CustomerSelection.razor:119-148` eagerly loads the entire
+   active-customer list into an in-memory `List<CustomerVM>` on init, and `:150-160`
+   `SearchCustomers` filters that list synchronously via `Task.FromResult`, ignoring the
+   `CancellationToken`. `VendorSelection.razor` has the same shape
+   (`GetAllActiveVendorsAsync` ~`:108`, `Task.FromResult` ~`:126`/`:138`). `app-combobox`'s
+   debounced async loader is therefore a **new capability**, which is fine — but it must not be
+   justified as preserving existing behaviour.
+2. **`CustomerSelection.razor` is a routable page, not a control** — `@page "/Customer/Select"`
+   and `"/Customer/Select/{IsExport:bool}/{IsMfgInv:bool}"` at `:1-2`, returning via a
+   `ReturnUrl` query parameter with an `{id}` token substitution at `:282`, and choosing its
+   loader by route flag at `:124-139`. That is a screen-navigation pattern for
+   **M2-C06**'s `RecordPickerDialog`, not for a form control.
+3. **A party-completeness gate lives in that page and has no owner.**
+   `CustomerSelection.razor:168-289` `Proceed()` blocks the selection unless ~12 fields are
+   present, and at `:207-229` requires a GST number of **exactly 15 characters** (`:215`)
+   matching an Indian GST regex (`:222`) when `BusiType` is `Local` or `InterState`; otherwise,
+   for exports, `:239-246` requires a currency rate for today or redirects to
+   `/currency_today`. These are ERP rules, they are **client-side only** today, and nothing in
+   the `M2-C0x` chain is assigned to carry them. Recorded as a risk in
+   [KB-060](risks/technical-debt-register.md).
+
+**Negative result, same pass:** the customer→currency/terms/consignee/cost-centre cascade is
+**not** defined in `CustomerSelection.razor`. It is copy-pasted as a private
+`ApplyCustomerSelectionAsync` in **23** files under `V.SMART/V.SMART.Shared/Pages/` (e.g.
+`SubContractDCOutUpsert.razor:1471`, `SubConGRNUpsert.razor:2146`, `SubConSCNUpsert.razor:961`,
+`EstimationUpsert.razor:1125`). Correctly out of scope for M2-C04-02; a sizing signal for the
+`-03` extraction steps.
 
 ### INV-042 — `role` in `GET /api/v1/me`, and what else belongs in the bootstrap response
 
