@@ -1708,6 +1708,42 @@ them.
 
 ---
 
+### R-70 — `decimal` crosses the API as a JSON number, which cannot carry `decimal(18, n)`
+
+**Confirmed-by-absence-of-override, not by an observed response** (INV-032, M2-C10, 2026-08-23).
+`V.SMART/V.SMART.Api/Program.cs` registers no `AddJsonOptions`, no `JsonSerializerOptions`, no
+custom `JsonConverter` and no `AddNewtonsoftJson`, and `V.SMART.Api.csproj:11-14` references no
+Newtonsoft package. ASP.NET Core's unmodified `System.Text.Json` therefore applies, and its
+documented default serialises a C# `decimal` as a **JSON number**.
+
+**Why that is a hazard.** A JSON number is read by every JavaScript client as an IEEE-754 double,
+which carries ~15 significant digits. Storage is `decimal(18, n)` — up to 18. A `decimal` with
+more than 15 significant digits therefore loses precision *silently, in the client*, with no error
+anywhere. Money columns are `[Precision(18, 2)]` (`Banks.cs:36,39`), quantity `(18, 3)` and rate
+`(18, 4)` (`StockAdd.cs:36,39,44`), so the headroom is real rather than theoretical.
+
+**Why it has not bitten yet.** No shipped controller returns a `decimal`-bearing VM: `CurrencyVM`
+has none, and the only decimal-bearing endpoint is `GET /api/v1/reference/gst-rates`
+(`ReferenceController.cs:54-56`, `List<decimal>`), whose values are small. **The wire format was
+not measured against a live response** — that needs a running tenant-scoped API, a JWT and a
+database, none of which a frontend task stands up. Upgrading this to Confirmed-by-observation is
+one captured response body.
+
+**Recommendation, owned by M2-B10 (generated client) and M2-A06 (error/serialisation contract),
+deliberately NOT implemented by M2-C10:** serialise `decimal` as a JSON **string**. M2-C10 is a
+frontend task and may not change API serialisation; doing so would also change every existing
+response shape.
+
+**What the SPA does in the meantime.** `frontend/nexgen-web/src/app/shared/utils/decimal/money.ts`
+— `fromApi()` accepts a JSON number *or* a JSON string (forward-compatible with the
+recommendation) and throws `DecimalBoundaryError` rather than coercing; `toApi()` returns a number
+when the value round-trips through IEEE-754 exactly and the exact decimal **string** when it would
+not. The current API would reject that string, which is the point: loud beats a silently truncated
+amount.
+
+*(R-68 belongs to the unmerged `migration/M2-C04-02-form-controls`; R-69 was left unclaimed to
+avoid colliding with another open branch.)*
+
 ## Low
 
 | # | Item | Evidence |

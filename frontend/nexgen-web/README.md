@@ -171,6 +171,37 @@ anywhere in the build.
 > the other. Server-side persistence needs a settings endpoint **and** a decision on the entity,
 > which is a single `bool IsDarkMode` and cannot represent `system` — Q-33, due with M3-3.
 
+## Money and quantities
+
+**The server owns every calculated result. The client never does.** Document totals, tax,
+discount, freight, TCS and round-off come from `CalculationService.UpdateTotalsAsync`
+(BR-CALC-001); stock allocation comes from `StockManagerService` (BR-STK-001). A screen may show
+a **provisional** local preview for responsiveness — it must be visually marked as provisional,
+and it is **overwritten by the server's result before save**. There is no line-total, tax or
+allocation function in this codebase, and adding one is a defect, not a feature.
+
+Every money, quantity, rate, percentage and tax value goes through
+[`src/app/shared/utils/decimal/`](src/app/shared/utils/decimal/README.md) (M2-C10) and is
+displayed with the `money` pipe in `src/app/shared/pipes/`. JavaScript's `number` is IEEE-754
+binary floating point (`0.1 + 0.2 !== 0.3`), the server-side model is C# `decimal`, and a
+one-paisa disagreement is an invoice that will not reconcile.
+
+Consequently, **outside that one folder**:
+
+- `decimal.js` may not be imported — use the module's `index.ts`.
+- `parseFloat`, `Number.parseFloat` and unary `+` coercion are banned; use `parseUserInput()`.
+- `.toFixed()` is banned; use `format()` or the `money` pipe.
+- `Math.round`, `Math.floor` and `Math.ceil` are banned; use `round()`.
+- Angular's `DecimalPipe` and `CurrencyPipe` must not be used on a money value — both coerce to
+  `number`.
+- An **absent** amount renders as an em dash, never `0.00`.
+
+`eslint.config.js` enforces all of it, and
+`src/app/shared/utils/decimal/no-float-money.spec.ts` scans `src/**` for the same patterns so an
+inline `eslint-disable` cannot slip one through. The one exemption,
+`src/app/core/theme/contrast.spec.ts`, computes WCAG contrast ratios and carries no ERP value; it
+is listed with that reason in both places.
+
 ## Structure
 
 `src/` follows [KB-050 §Project structure](../../docs/kb/frontend-new/react-architecture.md#project-structure):

@@ -48,6 +48,59 @@ const bannedGeneratedClientImports = {
 };
 
 /**
+ * M2-C10: `decimal.js` is the only money representation (ADR-007, carried over
+ * from ADR-003 unchanged) and it is imported in exactly one file, so that the
+ * wire boundary, the rounding mode and the precision policy have one home.
+ */
+const bannedDecimalLibrary = {
+  patterns: [
+    {
+      group: ['decimal.js', 'decimal.js/*', '**/utils/decimal/decimal', '**/utils/decimal/money'],
+      message:
+        'Import money helpers from src/app/shared/utils/decimal (its index.ts). Only that module may import decimal.js - M2-C10.',
+    },
+  ],
+};
+
+/**
+ * M2-C10: JavaScript `number` is IEEE-754 binary floating point, so every one of
+ * these silently converts an exact server `decimal` into an approximation.
+ * `src/app/shared/utils/decimal/**` is exempt - it is where the conversion is
+ * done deliberately and tested.
+ */
+const noFloatMoney = [
+  {
+    selector: "CallExpression[callee.name='parseFloat']",
+    message:
+      'parseFloat yields an IEEE-754 double. Use parseUserInput() from shared/utils/decimal - M2-C10.',
+  },
+  {
+    selector: "MemberExpression[object.name='Number'][property.name='parseFloat']",
+    message:
+      'Number.parseFloat yields an IEEE-754 double. Use parseUserInput() from shared/utils/decimal - M2-C10.',
+  },
+  {
+    selector: "UnaryExpression[operator='+']",
+    message:
+      'Unary + coerces to an IEEE-754 double. Use money()/qty() from shared/utils/decimal - M2-C10.',
+  },
+  {
+    selector: "MemberExpression[object.name='Math'][property.name=/^(round|floor|ceil)$/]",
+    message:
+      'Math.round/floor/ceil round a double. Use round() from shared/utils/decimal - M2-C10.',
+  },
+];
+
+/** M2-C10: formatting goes through format() or the `money` pipe, never toFixed. */
+const noToFixed = [
+  {
+    property: 'toFixed',
+    message:
+      'toFixed() formats a double. Use format() or the `money` pipe from shared/utils/decimal - M2-C10.',
+  },
+];
+
+/**
  * R-22: a second visual language appears the moment components start
  * hardcoding colours. Colour lives in src/styles/tokens.css and is reached
  * through var(--token) - see src/app/core/theme/README.md.
@@ -136,10 +189,12 @@ module.exports = defineConfig([
           patterns: [
             ...bannedComponentLibraries.patterns,
             ...bannedGeneratedClientImports.patterns,
+            ...bannedDecimalLibrary.patterns,
           ],
         },
       ],
-      'no-restricted-syntax': ['error', ...noRawColour],
+      'no-restricted-syntax': ['error', ...noRawColour, ...noFloatMoney],
+      'no-restricted-properties': ['error', ...noToFixed],
     },
   },
   {
@@ -149,7 +204,8 @@ module.exports = defineConfig([
     // deliberate choice rather than an accident of file extensions.
     files: ['src/styles/**/*.ts', 'src/app/core/theme/tokens.ts'],
     rules: {
-      'no-restricted-syntax': 'off',
+      // Only the colour half is lifted here; the M2-C10 numeric bans still apply.
+      'no-restricted-syntax': ['error', ...noFloatMoney],
     },
   },
   {
@@ -157,7 +213,40 @@ module.exports = defineConfig([
     // reach into core/api/generated/**.
     files: ['src/app/core/api/**/*.ts'],
     rules: {
-      'no-restricted-imports': ['error', bannedComponentLibraries],
+      'no-restricted-imports': [
+        'error',
+        { patterns: [...bannedComponentLibraries.patterns, ...bannedDecimalLibrary.patterns] },
+      ],
+    },
+  },
+  {
+    // M2-C10: the money module is where decimal.js, explicit rounding and
+    // fixed-point formatting are done deliberately - the same shape of override
+    // the generated-client ban uses above. The colour ban still applies.
+    files: ['src/app/shared/utils/decimal/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            ...bannedComponentLibraries.patterns,
+            ...bannedGeneratedClientImports.patterns,
+          ],
+        },
+      ],
+      'no-restricted-syntax': ['error', ...noRawColour],
+      'no-restricted-properties': 'off',
+    },
+  },
+  {
+    // M2-C04-01's WCAG contrast check computes colour-contrast ratios, not
+    // money: no ERP value passes through it, so Math.round and toFixed there are
+    // not the hazard M2-C10 removes. Listed - with the same reason - in the
+    // EXEMPT map of shared/utils/decimal/no-float-money.spec.ts.
+    files: ['src/app/core/theme/contrast.spec.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', ...noRawColour],
+      'no-restricted-properties': 'off',
     },
   },
   {
