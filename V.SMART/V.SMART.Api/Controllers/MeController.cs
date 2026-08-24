@@ -33,6 +33,7 @@ namespace V.SMART.Api.Controllers
     /// </summary>
     [ApiController]
     [Route("api/v1/me")]
+    [Tags("Me")]
     [Authorize]
     [NoScreenRight(
         "M2-A07 — a caller's own identity is not a screen. Gating /api/v1/me on a screen right " +
@@ -135,8 +136,12 @@ namespace V.SMART.Api.Controllers
         /// nothing is written on failure either.
         /// </para>
         /// </summary>
-        [HttpGet]
+        [HttpGet(Name = "getMe")]
         [ProducesResponseType(typeof(MeResponse), StatusCodes.Status200OK)]
+        // M2-B10 - 401 is reachable two ways: the authentication middleware, and InvalidTokenProblem
+        // below. No 403: the controller is [NoScreenRight], so the screen-right filter never denies
+        // it, and declaring one would put a dead branch in the generated client (KB-114 s11).
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<MeResponse>> Get(CancellationToken cancellationToken)
         {
             // Claims are read directly, exactly as ScreenRightAuthorizationFilter reads them, and

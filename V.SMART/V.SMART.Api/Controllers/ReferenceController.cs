@@ -32,6 +32,7 @@ namespace V.SMART.Api.Controllers
     [Authorize]
     [NoScreenRight("Reference data is a precondition for rendering any screen, so no single screen owns it; gating it on a screen right would deadlock the UI exactly as it would for GET /api/v1/me (KB-105 §2.4). Authentication and tenant scoping still apply.")]
     [OutputCache(PolicyName = ReferenceCachePolicy.PolicyName)]
+    [Tags("Reference")]
     public class ReferenceController : ControllerBase
     {
         private readonly ICommonService _commonService;
@@ -50,14 +51,18 @@ namespace V.SMART.Api.Controllers
         /// would buy a marginal cache-entry saving in exchange for two policies to reason about,
         /// and the failure mode of getting that wrong is a cross-tenant leak. Uniform is safer.
         /// </remarks>
-        [HttpGet("gst-rates")]
+        [HttpGet("gst-rates", Name = "getGstRates")]
         [ProducesResponseType(typeof(GstRatesResponse), StatusCodes.Status200OK)]
+        // M2-B10 - 401 only. The controller is [NoScreenRight], so the screen-right filter never
+        // produces a 403 here (KB-114 s11: never declare a status the action cannot return).
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
         public ActionResult<GstRatesResponse> GetGstRates()
             => Ok(new GstRatesResponse(CommonConstants.IGSTRates, CommonConstants.GSTRates));
 
         /// <summary>Units of measure. <c>UnitCode</c> is the key; this table has no integer id.</summary>
-        [HttpGet("uoms")]
+        [HttpGet("uoms", Name = "getUoms")]
         [ProducesResponseType(typeof(IEnumerable<UomDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<IEnumerable<UomDto>>> GetUoms()
         {
             var uoms = await _commonService.GetUOMsAsync();
@@ -66,8 +71,9 @@ namespace V.SMART.Api.Controllers
         }
 
         /// <summary>States.</summary>
-        [HttpGet("states")]
+        [HttpGet("states", Name = "getStates")]
         [ProducesResponseType(typeof(IEnumerable<StateDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<IEnumerable<StateDto>>> GetStates()
         {
             var states = await _commonService.GetStatesAsync();
@@ -80,8 +86,9 @@ namespace V.SMART.Api.Controllers
         /// <c>GetAllActiveTermsAsync</c> and does not re-filter, so the API cannot disagree with
         /// the Blazor screens about what "active" means.
         /// </summary>
-        [HttpGet("terms")]
+        [HttpGet("terms", Name = "getTerms")]
         [ProducesResponseType(typeof(IEnumerable<TermsDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<IEnumerable<TermsDto>>> GetTerms()
         {
             var terms = await _commonService.GetAllActiveTermsAsync();
@@ -106,8 +113,9 @@ namespace V.SMART.Api.Controllers
         /// <c>UserRights</c> navigation — returning the entity would put the tenant's entire
         /// permission matrix on the wire behind a dropdown feed.</para>
         /// </remarks>
-        [HttpGet("screens")]
+        [HttpGet("screens", Name = "getScreens")]
         [ProducesResponseType(typeof(IEnumerable<ScreenDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<IEnumerable<ScreenDto>>> GetScreens()
         {
             var screens = await _commonService.GetAllScreenAsync();
@@ -128,8 +136,9 @@ namespace V.SMART.Api.Controllers
         /// daily rate feed changes on a different clock and is what makes the entity unsafe to
         /// cache.
         /// </remarks>
-        [HttpGet("currencies")]
+        [HttpGet("currencies", Name = "getReferenceCurrencies")]
         [ProducesResponseType(typeof(IEnumerable<CurrencyDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<IEnumerable<CurrencyDto>>> GetCurrencies()
         {
             var currencies = await _commonService.GetCurrenciesAsync();

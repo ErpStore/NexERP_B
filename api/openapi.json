@@ -1,0 +1,2231 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "V.SMART API",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Exchanges a username and password for a JWT bearer token. Every other endpoint requires\r\nthe token this returns, sent as `Authorization: Bearer <token>`.",
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/currencies": {
+      "get": {
+        "tags": [
+          "Currency"
+        ],
+        "summary": "M2-B02 — the reference implementation of the paged list contract (ADR-002 §2 and its\r\nM2-B02 addendum). Every future list endpoint copies this shape: one\r\n`[FromQuery]` typed query record in, one V.SMART.Api.Contracts.PagedResult`1 out, the\r\nservice's filter dictionary produced by V.SMART.Api.Contracts.FilterDictionaryAdapter and\r\nnever seen on the wire.\r\n            \r\n\r\nThe controller-local paged-response record it replaces is deleted: 60–80copies of it would become 60–80 interfaces in the generated TypeScript client. TheJSON is unchanged — the four property names were already ADR-002's.\r\n<b>Behaviour change to note:</b> the default `pageSize` is now thecontract-wide 20, where this endpoint alone previously defaulted to 10. Callers thatsend `pageSize` explicitly are unaffected.\r\nValidation is declarative on V.SMART.Api.Contracts.CurrencyQuery, so an invalid`pageNumber`/`pageSize`/`sort`/date range is rejected by M2-A06's`InvalidModelStateResponseFactory` before this method runs. The explicit`ModelState` guard below is the belt-and-braces path for a caller that invokes theaction directly (unit tests), and matches `Create`/`Update`.",
+        "operationId": "getCurrencies",
+        "parameters": [
+          {
+            "name": "currName",
+            "in": "query",
+            "description": "Case-insensitive contains match on the currency name. Wire name `currName`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdBy",
+            "in": "query",
+            "description": "Case-insensitive contains match on the creating user. Wire name `createdBy`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "description": "Inclusive lower bound on `CreatedDate`, applied at the start of the day.\r\n            Wire name `fromDate`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "description": "Inclusive upper bound on `CreatedDate`, applied at the end of the day.\r\n            Wire name `toDate`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "pageNumber",
+            "in": "query",
+            "description": "1-based page index. Default 1. Wire name `pageNumber`.",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Rows per page. Default 20, maximum 100. Wire name `pageSize`.",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Comma-separated sort fields, `-` prefix for descending — e.g.\r\n`-createdDate,currName`. Omit it to keep the resource's existing default ordering.\r\nValidated against V.SMART.Api.Contracts.PagedQuery.SortableFields; an unknown field is a 400 that lists\r\nthe permitted values. Wire name `sort`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyVMPagedResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyVMPagedResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyVMPagedResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Currency"
+        ],
+        "summary": "Creates a currency. A duplicate name is the service's refusal, surfaced as 409 with the\r\nservice's message verbatim in `title` (ADR-002 §4); a malformed body is 400 with the\r\nper-field `errors` dictionary.",
+        "operationId": "createCurrency",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CurrencyVM"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CurrencyVM"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CurrencyVM"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyVM"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyVM"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyVM"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/currencies/{id}": {
+      "get": {
+        "tags": [
+          "Currency"
+        ],
+        "summary": "One currency by id. Answers 404 in the canonical problem shape when the row does not\r\nexist.",
+        "operationId": "getCurrencyById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyVM"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyVM"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyVM"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Currency"
+        ],
+        "summary": "Updates the currency identified by the route id. The route id is what the service acts\r\non; any `currId` in the body is ignored.",
+        "operationId": "updateCurrency",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CurrencyVM"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CurrencyVM"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CurrencyVM"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyVM"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyVM"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyVM"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Currency"
+        ],
+        "summary": "Deletes a currency. A delete guard's refusal is 409 carrying the service's message\r\nverbatim (BR-SO-001), not 400.",
+        "operationId": "deleteCurrency",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/currencies/export": {
+      "get": {
+        "tags": [
+          "Currency"
+        ],
+        "summary": "<b>GET api/v1/currencies/export?format=xlsx</b> — the filtered set as a workbook.\r\n            \r\n             \r\nIt takes the same V.SMART.Api.Contracts.CurrencyQuery the list endpoint does, so the same             query string produces the same rows; only `pageNumber`/`pageSize` are ignored,             because an export is the whole filtered set rather than a page of it.",
+        "operationId": "exportCurrencies",
+        "parameters": [
+          {
+            "name": "currName",
+            "in": "query",
+            "description": "Case-insensitive contains match on the currency name. Wire name `currName`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdBy",
+            "in": "query",
+            "description": "Case-insensitive contains match on the creating user. Wire name `createdBy`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "description": "Inclusive lower bound on `CreatedDate`, applied at the start of the day.\r\n            Wire name `fromDate`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "description": "Inclusive upper bound on `CreatedDate`, applied at the end of the day.\r\n            Wire name `toDate`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "pageNumber",
+            "in": "query",
+            "description": "1-based page index. Default 1. Wire name `pageNumber`.",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Rows per page. Default 20, maximum 100. Wire name `pageSize`.",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Comma-separated sort fields, `-` prefix for descending — e.g.\r\n`-createdDate,currName`. Omit it to keep the resource's existing default ordering.\r\nValidated against V.SMART.Api.Contracts.PagedQuery.SortableFields; an unknown field is a 400 that lists\r\nthe permitted values. Wire name `sort`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/currencies/import-template": {
+      "get": {
+        "tags": [
+          "Currency"
+        ],
+        "summary": "<b>GET api/v1/currencies/import-template</b> — the blank workbook a user fills in,\r\n            produced by the unmodified `IExcelTemplateService.CreateTemplateAsync`.",
+        "description": "It does <b>not</b> call `DownloadTemplate(uploadType)`: that method's\r\n`LoadHeadings` switch knows four item-oriented upload types only\r\n(`ExcelTemplateService.cs:46-76`) and returns an empty header array for anything\r\nelse, so a \"Currency\" upload type would silently produce an empty template. Passing the\r\nheaders explicitly wraps the same service without modifying it.",
+        "operationId": "getCurrencyImportTemplate",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/currencies/import": {
+      "post": {
+        "tags": [
+          "Currency"
+        ],
+        "summary": "<b>POST api/v1/currencies/import</b> — `multipart/form-data` with `file`.\r\n            \r\n             \r\nEvery row goes through `ICurrencyService.CreateAsync`. The controller parses             the spreadsheet and does nothing else: duplicate detection, validation and persistence             stay in the business service, and its refusal message is reported verbatim             (BR-SO-001). A bad row is reported, not thrown; the remaining rows are still             processed.",
+        "operationId": "importCurrencies",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              },
+              "encoding": {
+                "file": {
+                  "style": "form"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/files": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "<b>POST api/v1/files</b> — `multipart/form-data` with `file`, `refType`\r\n             and `docType`.\r\n            \r\n             \r\nThe order of the checks is the security contract: extension allow-list, then             size, then the duplicate-name business rule, and only then is a byte written. The             stored record mirrors what `CorrespondenceUpload.razor:299-312` writes — file             name, size string, content type, uploader, and the bytes in             `Correspondence.Image` (`:306-309`) — so a file uploaded here is readable by             the existing Blazor list screens.\r\n<b>Two size limits, deliberately.</b> The framework refuses anything over             V.SMART.Api.Services.FileStorageOptions.DefaultMaxUploadBytes (20 MB) before the action runs —             that attribute must be a compile-time constant — and the action then applies the             configured `FileStorage:MaxUploadBytes`, which a deployment may lower. 20 MB is             the same ceiling `WebFileUploadService.cs:101` passes to             `OpenReadStream`. Note that the correspondence <i>screen</i> refuses at 5 MB             (`CorrespondenceUpload.razor:222`) — a page-level rule, not a storage rule, and             not carried here; a deployment wanting parity sets `FileStorage:MaxUploadBytes`.",
+        "operationId": "uploadFile",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "refType": {
+                    "type": "string"
+                  },
+                  "docType": {
+                    "type": "string"
+                  }
+                }
+              },
+              "encoding": {
+                "file": {
+                  "style": "form"
+                },
+                "refType": {
+                  "style": "form"
+                },
+                "docType": {
+                  "style": "form"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileUploadResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileUploadResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Content Too Large",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/files/{id}": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "<b>GET api/v1/files/{id}</b> — the bytes, with the content type this API resolved from\r\n             the file's extension and a `Content-Disposition: attachment` naming it. The SPA\r\n             turns the response into a blob URL, exactly as ADR-005 specifies for PDFs.\r\n            \r\n             \r\n<b>Why the database column is preferred over the file on disk.</b> The bytes are             held twice: on disk, and in `Correspondence.Image`             (`Correspondence.cs:14`, written by `CorrespondenceUpload.razor:306-309`).             For files uploaded through Blazor the two disagree — the on-disk copy is <b>zero bytes</b>             because `WebFileUploadService.cs:102` is commented out — and the two live download             screens disagree with each other about which to use:             `CorrespondenceListByReference.razor:357-363` abandoned the path and serves the             column, while `CorrespondanceList.razor:319-321` still opens the (empty) path.             This endpoint follows the screen that works. The disk copy is the fallback, used only             when the column is empty, and only after the resolved absolute path has been proved to             be inside the uploads root.\r\n`{id:int}` is a route constraint, so `../`, `%2e%2e%2f` and every             other traversal string fails to match the route at all and never reaches this method.",
+        "operationId": "downloadFile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "<b>What this response deliberately does not contain, and why</b> (M2-A07 step 3 — an\r\n            over-broad `/me` becomes a personal-data endpoint by accident):\r\n            <list type=\"bullet\"><item><description>`User.IsViewOnly` — not a runtime gate. At user creation it\r\n            materialises a `UserRight` row per screen with `CanView` true and everything\r\n            else false (`V.SMART/V.SMART.Shared/BusinessLayer/.../UserService.cs`), so its\r\n            effect is already fully represented in `Rights`. Sending it too would invite a\r\n            client to gate on it a second time and diverge.</description></item><item><description>`User.HideManualJobOrderButton` — read only by\r\n            `JobOrderService.IsManualyJobOrderHiden` for one button on one screen. It belongs\r\n            to the M3 job-order endpoint, not to the bootstrap payload.</description></item><item><description>`User.LevelAuthorization` — an approval-authority input, used\r\n            when selecting approvers. ADR-004 §4 enforces approval authority inside the approval\r\n            endpoints (module M3-4); it is not a UI gate.</description></item><item><description>`User.IsProductionBased` — reaches the Blazor menu only through\r\n            the QR-login path (`ShowProductionMenu = IsQrLogin && IsProductionUser`,\r\n            `V.SMART/V.SMART.Shared/Layout/NavMenu.razor`). The API has no QR-login path, so\r\n            on its own the flag changes nothing. Deferred until an SPA screen needs it.</description></item><item><description>`UserAuthority` (12 document-type/level pairs) — <b>deferred to\r\n            M3-4</b>. ADR-004 §4 enforces it server-side inside the approval endpoints, no M2\r\n            consumer references it, and KB-050's permission contract has no slot for\r\n            it.</description></item><item><description>The tenant's display name and every other `TenantInfo` member —\r\n            `TenantInfo` carries a plaintext credentialed `ConnectionString` (R-01), so\r\n            this endpoint projects the tenant identity from the token claim and never touches the\r\n            tenant record at all.</description></item></list>\r\n<b>Role source (M2-A07 decision).</b> The `ClaimTypes.Role` claim minted by            `JwtTokenService`, not a fresh `User` row read: the login response            (`AuthController.LoginResponse.Role`) is that same expression, so claim-sourcing            keeps `/me` and `/auth/login` from disagreeing inside one token's lifetime,            and it costs no query. `UserRole` has exactly two members, `Administrator` and            `User`; the role the Blazor `AuthorizeView`s also name, `ERPAdmin`, does            not exist in that enum (R-31) and is deliberately <b>not</b> propagated here.            `CurrentUserService.GetUserRoleAsync()` is <b>not</b> called: it reads claim type            `\"role\"` while both providers write `ClaimTypes.Role` (R-18).\r\n<b>Failure is loud.</b> A rights-load fault propagates out of            V.SMART.Api.Authorization.IUserRightsProvider to M2-A06's handler as a `500`. It must never            degrade to an empty map: an empty map renders as \"no permissions\" and reads to a user            as a permission problem rather than an outage. The provider never negative-caches, so            nothing is written on failure either.",
+        "operationId": "getMe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reference/gst-rates": {
+      "get": {
+        "tags": [
+          "Reference"
+        ],
+        "summary": "The two GST ladders, paired by index. Read from `CommonConstants`, never retyped.",
+        "description": "This action is not tenant-dependent — the ladders are compile-time constants — but it\r\nshares the group's tenant-keyed policy anyway. Carving out a per-endpoint exemption\r\nwould buy a marginal cache-entry saving in exchange for two policies to reason about,\r\nand the failure mode of getting that wrong is a cross-tenant leak. Uniform is safer.",
+        "operationId": "getGstRates",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GstRatesResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GstRatesResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GstRatesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reference/uoms": {
+      "get": {
+        "tags": [
+          "Reference"
+        ],
+        "summary": "Units of measure. `UnitCode` is the key; this table has no integer id.",
+        "operationId": "getUoms",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UomDto"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UomDto"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UomDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reference/states": {
+      "get": {
+        "tags": [
+          "Reference"
+        ],
+        "summary": "States.",
+        "operationId": "getStates",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StateDto"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StateDto"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StateDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reference/terms": {
+      "get": {
+        "tags": [
+          "Reference"
+        ],
+        "summary": "Active terms and conditions. The active filter is the domain's — this action calls\r\n`GetAllActiveTermsAsync` and does not re-filter, so the API cannot disagree with\r\nthe Blazor screens about what \"active\" means.",
+        "operationId": "getTerms",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TermsDto"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TermsDto"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TermsDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reference/screens": {
+      "get": {
+        "tags": [
+          "Reference"
+        ],
+        "summary": "The screen catalogue — the permission <b>vocabulary</b>, not the caller's rights.",
+        "description": "\r\n<b>The protection decision, recorded here because it is a security decision.</b>            This returns every screen name in the tenant, which is a map of the application's            surface. It is <i>not</i> sensitive per-user data: the same list is identical for            every user in the tenant, and it discloses nothing about who may do what. The            caller's own rights are a different endpoint (`GET /api/v1/me`, M2-A07) and are            deliberately not merged into this one — merging them would make this response            caller-dependent and force the cache key to include the user, multiplying the entry            count by the user base for no benefit.\r\n\r\nIt therefore requires authentication, is tenant-keyed, and is cached like the            rest of the group. It projects to V.SMART.Api.Contracts.ScreenDto specifically to drop the            `UserRights` navigation — returning the entity would put the tenant's entire            permission matrix on the wire behind a dropdown feed.",
+        "operationId": "getScreens",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScreenDto"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScreenDto"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScreenDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reference/currencies": {
+      "get": {
+        "tags": [
+          "Reference"
+        ],
+        "summary": "Currencies, as reference data for dropdowns.",
+        "description": "<b>Distinct from `CurrencyController`, deliberately.</b> That controller is the\r\n            CRUD surface for the Currency master — paged, sorted, filtered, writable\r\n            (`/api/v1/currencies`). This is a flat, cached, read-only list for populating a\r\n            selector (`/api/v1/reference/currencies`). Different lifetime, different shape,\r\n            different cacheability; the route group and these summaries are what keep them\r\n            distinguishable in Swagger. It excludes the `CurrencyRates` navigation — the\r\n            daily rate feed changes on a different clock and is what makes the entity unsafe to\r\n            cache.",
+        "operationId": "getReferenceCurrencies",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CurrencyDto"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CurrencyDto"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CurrencyDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CurrencyDto": {
+        "type": "object",
+        "properties": {
+          "currId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "currName": {
+            "type": "string",
+            "nullable": true
+          },
+          "currSub": {
+            "type": "string",
+            "nullable": true
+          },
+          "symbol": {
+            "type": "string",
+            "nullable": true
+          },
+          "isSystemDefined": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A currency. Excludes `CurrencyRates` — the daily rate feed is a different concern\r\nwith a different lifetime, and it is what makes the entity unsafe to cache."
+      },
+      "CurrencyVM": {
+        "required": [
+          "currName",
+          "currSub",
+          "symbol"
+        ],
+        "type": "object",
+        "properties": {
+          "currId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "currName": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "currSub": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "symbol": {
+            "minLength": 1,
+            "pattern": "[$€₹¥£₩₿₽]",
+            "type": "string"
+          },
+          "isSystemDefined": {
+            "type": "boolean"
+          },
+          "createdBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "modifiedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "modifiedDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CurrencyVMPagedResult": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyVM"
+            },
+            "nullable": true
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The single paged-list response body for every list endpoint in this API (M2-B02).\r\n            \r\n\r\nThe property names are ADR-002 §2's `{ items, totalCount, pageNumber, pageSize }`verbatim; with ASP.NET Core's default camel-case JSON policy they serialise to exactlythose four names. This is <b>one generic type</b>, deliberately replacing thecontroller-local paged-response record pattern (the one `CurrencyController` used to declare): 60–80 structurally identicalresponse records would become 60–80 distinct interfaces in the generated TypeScriptclient (M2-B10).\r\n<b>Why there is no `totalPages`.</b> ADR-002 §2 names four properties and thegenerated client is frozen at M2-B03, so adding a fifth here is a contract decision, not aconvenience. It is derivable on the client from `totalCount` and `pageSize`.Note that an unrelated, unused `V.SMART.Shared.ViewModels.PagedResult<T>`(`RejectionMasterVM.cs:33-40`) does carry `TotalPages` — it has zero referencesand is not this type. Do not confuse the two; if a file needs both namespaces it mustalias one.\r\n`TotalCount` is the count of the <b>filtered, unpaged</b> query — see`CurrencyService.cs:76`, where `CountAsync()` runs after the filters and before`Skip`/`Take`. Every service in `BusinessLayer/` follows that convention(INV-002); a list endpoint that reports anything else is a defect."
+      },
+      "FileUploadResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "The stored file's identifier — the `{id}` of the download endpoint.",
+            "format": "int32"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "The original client file name, unmodified.",
+            "nullable": true
+          },
+          "relativePath": {
+            "type": "string",
+            "description": "Web-relative path of the stored file.",
+            "nullable": true
+          },
+          "contentType": {
+            "type": "string",
+            "description": "The content type the API resolved from the extension and will serve.",
+            "nullable": true
+          },
+          "size": {
+            "type": "integer",
+            "description": "Size in bytes, as stored.",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The body of a successful `POST api/v1/files` (M2-B06).\r\n            \r\n\r\nV.SMART.Api.Contracts.FileUploadResponse.Id is the `Correspondence.Id` the file was recorded under, and isthe only thing `GET api/v1/files/{id}` accepts. It is deliberately <b>not</b> a path:an identifier a caller cannot turn into a directory traversal is the strongest form of theguarantee, and it also carries tenant isolation for free, because the row lives in thetenant database resolved from the JWT.\r\nV.SMART.Api.Contracts.FileUploadResponse.RelativePath is the web-relative location on disk, in the same shape`WebFileUploadService.cs:104` returns, so a record written through the API and onewritten through Blazor are indistinguishable to every existing reader of`Correspondence.FilePath`."
+      },
+      "GstRatesResponse": {
+        "type": "object",
+        "properties": {
+          "igst": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            },
+            "nullable": true
+          },
+          "cgstSgst": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The two GST ladders, paired by index: `CgstSgst[i]` is exactly half of\r\n`Igst[i]`, because CGST and SGST each carry half the integrated rate."
+      },
+      "ImportResult": {
+        "type": "object",
+        "properties": {
+          "totalRows": {
+            "type": "integer",
+            "description": "Data rows found in the sheet, excluding the header.",
+            "format": "int32"
+          },
+          "accepted": {
+            "type": "integer",
+            "description": "Rows the business service created.",
+            "format": "int32"
+          },
+          "rejected": {
+            "type": "integer",
+            "description": "Rows refused, each with a reason in Errors.",
+            "format": "int32"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportRowError"
+            },
+            "description": "One entry per rejected row, in sheet order.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The body of a `POST api/v1/{resource}/import` (M2-B06). An import is not a\r\nsuccess/failure: it is a per-row report, because a spreadsheet with one bad row must not\r\ndiscard the other 499 and must not silently accept them either."
+      },
+      "ImportRowError": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "type": "integer",
+            "description": "1-based row number as it appears in the spreadsheet, header included.",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "description": "Why the row was refused.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One rejected row. Message is the business service's own refusal message\r\nverbatim where there is one (BR-SO-001), or the DataAnnotations message from the resource's\r\nViewModel — never a reworded API string."
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "nullable": true
+          },
+          "password": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "nullable": true
+          },
+          "username": {
+            "type": "string",
+            "nullable": true
+          },
+          "userId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tenantId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "MeResponse": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "userName": {
+            "type": "string",
+            "nullable": true
+          },
+          "tenantId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          },
+          "rights": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ScreenRight"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "\r\n`Rights` is keyed by `Screens.ScreenName` verbatim, so a client lookup is the            one-step equivalent of            `rights.FirstOrDefault(r => r.Screens.ScreenName == screenName)?.CanX ?? false`            (`V.SMART/V.SMART.Shared/Shared/RightsHelper.cs:7-20`).\r\n\r\n<b>Absent rows are omitted, not materialised</b> (BR-AUTH-002). A screen the caller            holds no `UserRight` row for simply has no key — the response never carries 152            all-`false` entries. The client's default for a missing key is therefore            <b>deny</b>, matching the database and matching the `?? false` the Blazor UI has            always applied. A client that defaults a missing key to \"allow\" is wrong, and this            contract says so.\r\n\r\nNo `User` flag beyond the identity is included, and no connection string, password            or token ever is (R-01). See the endpoint's remarks for the per-field justification."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "ScreenDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "screenCode": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "screenName": {
+            "type": "string",
+            "nullable": true
+          },
+          "isPrintRequired": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A screen in the permission catalogue. Excludes `UserRights` — see the type-level\r\nremarks; that navigation is the tenant's entire permission matrix."
+      },
+      "ScreenRight": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "boolean"
+          },
+          "create": {
+            "type": "boolean"
+          },
+          "edit": {
+            "type": "boolean"
+          },
+          "delete": {
+            "type": "boolean"
+          },
+          "hidden": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One screen's five booleans, named exactly as the client's `ScreenRight` interface\r\nnames them (KB-050 § Permission-based rendering). `Hidden` carries `IsHide`:\r\nnavigation is filtered on `view && !hidden`, which is the flag's actual\r\npurpose — it is not, and must not become, a second gate."
+      },
+      "StateDto": {
+        "type": "object",
+        "properties": {
+          "stateCode": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stateName": {
+            "type": "string",
+            "nullable": true
+          },
+          "isSystemDefined": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A state. `StateCode` is the key the documents store."
+      },
+      "TermsDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "details": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "An active terms-and-conditions entry. Only active rows are returned; the endpoint is\r\nbacked by `ICommonService.GetAllActiveTermsAsync()`, so the filter is the domain's,\r\nnot this layer's."
+      },
+      "UomDto": {
+        "type": "object",
+        "properties": {
+          "unitCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "unitDescription": {
+            "type": "string",
+            "nullable": true
+          },
+          "isSystemDefined": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A unit of measure. `UnitCode` is the key — this table has no integer id."
+      },
+      "ValidationProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "description": "JWT Authorization header using the Bearer scheme. Example: \"Bearer {token}\"",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "Bearer": [ ]
+    }
+  ],
+  "tags": [
+    {
+      "name": "Files",
+      "description": "File upload and download over HTTP (M2-B06) — the replacement for Blazor's\r\n`IBrowserFile` on the way in and `IFileOpener`'s JS interop on the way out. Over\r\nHTTP a download <i>is</i> a response; there is no base64-over-SignalR equivalent and no\r\nreason to want one.\r\n            \r\n\r\n<b>Screen and rights.</b>`[RequireScreen(\"Correspondences\")]` is the seededscreen that owns these files (`ScreenCatalogue.cs:56`; the upload UI it mirrors is`CorrespondenceUpload.razor`). Upload requires `Create`, download requires`View`, per ADR-004 / KB-105 — the rights are evaluated by the globally registered`ScreenRightAuthorizationFilter` against the tenant database, never against acompile-time list.\r\n<b>Tenant isolation is structural, not a check.</b> The download resolves`{id}` through `IUnitOfWork.Correspondances`, which is scoped to thetenant-resolved `ApplicationDbContext` (M2-B07). A tenant-B token therefore queriestenant B's database, where tenant A's id either does not exist or is a different row; theanswer for \"not yours\" and \"does not exist\" is the same 404, so the response never revealswhether an id exists elsewhere.\r\n<b>The upload is not idempotent.</b> Every POST creates a new file (the`Guid.NewGuid()` prefix guarantees a distinct name) and a new row, so a client thatretries a timed-out request creates a duplicate. A general idempotency-key mechanism is`M2-B12-03`; until it lands, clients must not retry blind."
+    },
+    {
+      "name": "Me",
+      "description": "M2-A07 — the SPA bootstrap endpoint: who the caller is, which tenant they are in, their\r\nrole, and their complete screen-rights map, in one call.\r\n\r\n<b>PRESENTATION ONLY (ADR-004 §3).</b> The map this endpoint returns exists so the clientcan render a permission-correct navigation and disable controls the caller cannot use. Itis <b>never</b> the enforcement point. The server re-checks every request independentlythrough V.SMART.Api.Authorization.ScreenRightAuthorizationFilter, and nothing here relaxes that filter.A client must not treat this response as authoritative.\r\n<b>Route (M2-A07 decision, for M2-B01).</b> This ships at `/api/v1/me` — the nameADR-004 §3, KB-105 and KB-080 §9 all use, and the name M2-C02 will code against — making itthe first versioned route in an API whose other routes are still `api/auth` and`api/currencies`. The version segment is a literal here because the versioningmechanism does not exist yet. When M2-B01 lands it must re-express this route through theversioning convention <b>without changing the URL</b>; the URL is the contract, the literalis not.\r\n<b>Thin controller (ADR-002 §2).</b> Read claims, one provider call, map, return. Nobusiness logic, no database access of its own: every value in the response comes eitherfrom the caller's own token or from V.SMART.Api.Authorization.IUserRightsProvider."
+    },
+    {
+      "name": "Reference",
+      "description": "M2-B09 — the small, slow-changing lookup lists every screen needs before it can render a\r\ndropdown, behind one cached route group. Closes KB-041 item <b>B6</b> and the\r\nreference-data half of <b>C1</b>.\r\n            \r\n\r\n<b>Every action is a single `ICommonService` call plus a projection.</b> Noquery is written against `ApplicationDbContext` here and no business logic liveshere (ADR-002 §2). The one action that is not a service call — `gst-rates` — readsthe domain's own constants rather than restating them.\r\n<b>Why `[NoScreenRight]` and not `[RequireScreen]`.</b> Reference data iswhat a screen needs <i>in order to render at all</i>; there is no single screen that owns\"the list of states\". Gating it on a screen right would deadlock the UI for exactly thereason KB-105 §2.4 gives for `GET /api/v1/me` — a user must be able to fetch thevocabulary before the app can decide what to show them. The endpoints still requireauthentication and are still tenant-scoped; this is an explicit, greppable opt-out fromthe screen-right axis, not from authorization."
+    }
+  ]
+}

@@ -123,6 +123,24 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "V.SMART API", Version = "v1" });
+
+    // M2-B10 — the operation id becomes the generated TypeScript method name, so it is declared
+    // explicitly on every action as the route name (`[HttpGet("…", Name = "getCurrencies")]`)
+    // instead of being left to Swashbuckle's default. Renaming one is a breaking change to every
+    // call site in the SPA, so it is a deliberate, reviewable edit rather than a by-product of
+    // renaming a C# method. KB-112 records the naming rule; KB-114 §11 makes it a template
+    // obligation, and OpenApiConformanceTests fails the build when an action omits it.
+    c.CustomOperationIds(api => api.ActionDescriptor.AttributeRouteInfo?.Name);
+
+    // M2-B10 — the XML <summary> on each action becomes the operation description in the
+    // document and the doc comment on the generated client method. Requires
+    // <GenerateDocumentationFile> in the csproj (set there, with CS1591 suppressed).
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, "V.SMART.Api.xml");
+    if (File.Exists(xmlPath))
+    {
+        c.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
+    }
+
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "JWT Authorization header using the Bearer scheme. Example: \"Bearer {token}\"",

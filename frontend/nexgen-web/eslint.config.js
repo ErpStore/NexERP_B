@@ -104,7 +104,21 @@ const noRawColourTemplate = [
 
 module.exports = defineConfig([
   {
-    ignores: ['dist/**', 'coverage/**', 'playwright-report/**', 'test-results/**', '.angular/**'],
+    // M2-B10 - src/app/core/api/generated/** is ng-openapi-gen's output, rewritten in full
+    // by tools/generate-api-client.sh. It is ignored here for two reasons: the generated files
+    // carry their own blanket /* eslint-disable */ header, which this config's
+    // reportUnusedDisableDirectives then flags as 15 warnings and --max-warnings=0 turns into a
+    // failed build; and a lint rule can only ever be satisfied there by changing the GENERATOR,
+    // not the code. What stops a hand edit is the CI drift check, not a lint rule. The
+    // hand-written wrapper layer around it (src/app/core/api/*.ts) is still fully linted.
+    ignores: [
+      'dist/**',
+      'coverage/**',
+      'playwright-report/**',
+      'test-results/**',
+      '.angular/**',
+      'src/app/core/api/generated/**',
+    ],
   },
   {
     files: ['**/*.ts'],

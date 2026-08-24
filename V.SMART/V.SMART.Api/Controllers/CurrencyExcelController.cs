@@ -38,6 +38,10 @@ namespace V.SMART.Api.Controllers
     [Route($"{ApiRoutes.V1}/currencies")]
     [Authorize]
     [RequireScreen("Currency")]
+    // M2-B10 - deliberately the SAME tag as CurrencyController: both controllers serve
+    // /api/v1/currencies, and the generated client should expose one Currency group rather than
+    // leaking the server-side split into the SPA's call sites.
+    [Tags("Currency")]
     public class CurrencyExcelController : ControllerBase
     {
         /// <summary>The only value <c>format</c> accepts. ADR-005 puts PDF behind M2-B08, not here.</summary>
@@ -77,10 +81,16 @@ namespace V.SMART.Api.Controllers
         /// query string produces the same rows; only <c>pageNumber</c>/<c>pageSize</c> are ignored,
         /// because an export is the whole filtered set rather than a page of it.</para>
         /// </summary>
-        [HttpGet("export")]
+        [HttpGet("export", Name = "exportCurrencies")]
         [RequireRight(Right.View)]
-        [ProducesResponseType(StatusCodes.Status200OK)]
+        // M2-B10 - the 200 is a spreadsheet, declared as a binary FileContentResult with its media
+        // type. [Produces] is deliberately NOT used: it constrains the output formatters for the
+        // whole action, which would change the runtime content type of this action's problem+json
+        // error responses. This attribute is metadata only.
+        [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK, XlsxContentType)]
         [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
         public async Task<IActionResult> Export([FromQuery] CurrencyQuery query, [FromQuery] string? format)
         {
@@ -127,9 +137,11 @@ namespace V.SMART.Api.Controllers
         /// else, so a "Currency" upload type would silently produce an empty template. Passing the
         /// headers explicitly wraps the same service without modifying it.
         /// </remarks>
-        [HttpGet("import-template")]
+        [HttpGet("import-template", Name = "getCurrencyImportTemplate")]
         [RequireRight(Right.View)]
-        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK, XlsxContentType)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> ImportTemplate()
         {
             var bytes = await _excelTemplateService.CreateTemplateAsync("Currency", ImportHeaders);
@@ -145,12 +157,14 @@ namespace V.SMART.Api.Controllers
         /// (BR-SO-001). A bad row is reported, not thrown; the remaining rows are still
         /// processed.</para>
         /// </summary>
-        [HttpPost("import")]
+        [HttpPost("import", Name = "importCurrencies")]
         [RequireRight(Right.Create)]
         [RequestSizeLimit(FileStorageOptions.DefaultMaxUploadBytes)]
         [RequestFormLimits(MultipartBodyLengthLimit = FileStorageOptions.DefaultMaxUploadBytes)]
         [ProducesResponseType(typeof(ImportResult), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<ActionResult<ImportResult>> Import(IFormFile? file)
         {
             if (file is null || file.Length == 0)

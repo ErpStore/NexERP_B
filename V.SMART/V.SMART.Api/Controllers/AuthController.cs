@@ -11,6 +11,9 @@ namespace V.SMART.Api.Controllers
 {
     [ApiController]
     [Route($"{ApiRoutes.V1}/auth")]
+    // M2-B10 - the OpenAPI tag is declared rather than inherited from the class name, so renaming
+    // the controller cannot silently regroup the generated client.
+    [Tags("Auth")]
     public class AuthController : ControllerBase
     {
         /// <summary>
@@ -73,8 +76,20 @@ namespace V.SMART.Api.Controllers
             int TenantId,
             string Role);
 
-        [HttpPost("login")]
+        /// <summary>
+        /// Exchanges a username and password for a JWT bearer token. Every other endpoint requires
+        /// the token this returns, sent as <c>Authorization: Bearer &lt;token&gt;</c>.
+        /// </summary>
+        [HttpPost("login", Name = "login")]
         [AllowAnonymous]
+        // M2-B10 - KB-114 s11 / divergence 13.2: before this task Login declared nothing, so its
+        // 400, 401 and 403 were invisible to the generated client. All three are real paths in the
+        // body below; none is over-declared. There is no 401 from the authentication middleware
+        // here because the action is [AllowAnonymous] - the 401 is the credential refusal.
+        [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
         {
             // M2-A06 — same status and same message as before this task; only the body shape

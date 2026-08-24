@@ -872,8 +872,10 @@ first exception: two awaits, no domain branch, both required by the service's sh
 
 ## 11. OpenAPI annotations — M2-B10 depends on this section
 
-[M2-B10](../execution/tasks/M2-B10.md) generates the TypeScript client from
-`/swagger/v1/swagger.json`. **A status code you do not declare does not exist for the client**:
+[M2-B10](../execution/tasks/M2-B10.md) generates the TypeScript client from the committed
+`api/openapi.json`, which `tools/generate-openapi.sh` writes out of the compiled assembly with
+`dotnet swagger tofile` — not from `/swagger/v1/swagger.json`, because Swagger UI is gated to
+`Development` (KB-112). **A status code you do not declare does not exist for the client**:
 the generated method has no type for it, and the Angular error handling has nothing to branch
 on. This is the section most likely to be skipped and the one with the largest downstream cost.
 
@@ -898,9 +900,35 @@ Rules:
   client needs the type.
 - Do not declare a status the action cannot return. An over-declared 409 on a `GET` is as much
   a defect as a missing one — it produces dead branches in the generated client.
-- `[Produces("…")]` only where the media type is not JSON (print, export).
+- `[Produces("…")]` only where the media type is not JSON (print, export). **Amended 2026-08-24
+  (M2-B10) — do not use `[Produces]` for this.** `ProducesAttribute` constrains the output
+  formatters for the WHOLE action, including its `problem+json` error responses, so it is a
+  behaviour change and not metadata. Declare the media type on the response instead:
+  `[ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK, "application/…")]`,
+  which is what `CurrencyExcelController` and `FilesController` now carry.
 - The XML doc comment on the action becomes the operation summary. Write it for the client
   developer, not for yourself.
+
+### Added 2026-08-24 by M2-B10 — two more obligations, both machine-checked
+
+The client is now generated from this document's output, so two things that used to be
+implicit are mandatory and are asserted by
+`tests/V.SMART.Api.Tests/OpenApiConformanceTests.cs`:
+
+- **An explicit operation id on every action**, written as the route name:
+  `[HttpGet("{id:int}", Name = "getCurrencyById")]`. It becomes the generated TypeScript
+  method name (`currencies.getCurrencyById({ id })`). Convention: camelCase
+  `verb + Resource`, unique across the whole API. **Renaming one is a breaking change to
+  every SPA call site** — it is API surface, not an implementation detail, and it must not
+  change merely because a C# method was renamed.
+- **An explicit `[Tags("…")]` on every controller**, so the client groups by RESOURCE and a
+  class rename cannot silently regroup it. Two controllers serving one resource share one
+  tag: `CurrencyController` and `CurrencyExcelController` are both `[Tags("Currency")]`.
+
+After any of this changes, run `bash tools/generate-api-client.sh` and commit the regenerated
+`api/openapi.json` and client with the controller change. CI fails on drift. The whole
+procedure, the generator comparison and the `decimal` → `number` finding are in
+[KB-112](generated-client.md).
 
 ---
 
@@ -956,7 +984,8 @@ reading the file; no judgement calls.
 
 **OpenAPI**
 
-23. Every action declares the full `[ProducesResponseType]` set from §11.
+23. Every action declares the full `[ProducesResponseType]` set from §11, an explicit operation
+    id (route `Name`) and an explicit controller `[Tags("…")]` (M2-B10).
 24. 400 is typed `ValidationProblemDetails`; the rest `ProblemDetails`.
 
 **Thin**
@@ -997,9 +1026,17 @@ The template's rule (§9) exists for the 129 `Upsert…Async` services where the
 the service acts on. Adding the guards here would be an improvement, not a correction — raise
 it as a follow-up on the Currency module, not in `M2-B03`.
 
-**Divergence D-2 — `[ProducesResponseType]` coverage (items 23–24).** Only `GetAll` declares
-them (`:54-55`), and it omits 401/403. `GetById`, `Create`, `Update` and `Delete` declare none.
-**Resolution: no template change — the template is right and the controller is behind it.**
+**Divergence D-2 — `[ProducesResponseType]` coverage (items 23–24). CLOSED 2026-08-24 by
+[M2-B10](../execution/tasks/M2-B10.md)**, which was the follow-up this paragraph asked for:
+all five Currency actions, and `AuthController.Login`, now declare their full status set, so
+the generated client has the 404 on `GET /currencies/{id}` and the 409 on `DELETE` that the
+document used to lack. One judgement recorded there rather than repeated: `PUT` declares **no**
+404, because `UpdateAsync` reports a missing row through the same refusal tuple as a
+business-rule refusal and the action answers 409. The original finding, for the record: only
+`GetAll` declared them (`:54-55`), omitting 401/403; `GetById`, `Create`, `Update` and `Delete`
+declared none.
+**Resolution at M2-B03: no template change — the template was right and the controller was
+behind it.**
 This matters concretely: M2-B10 generates from the OpenAPI document, so today's document has no
 404 for `GET /currencies/{id}` and no 409 for `DELETE`. Raised as a follow-up for whoever owns
 Currency next; it is out of `M2-B03`'s scope, which ships no code.
@@ -1022,7 +1059,7 @@ the token endpoint exactly this way. The exception is granted for these items an
 | 6 `[Authorize]`, 7 `[RequireScreen]` | **Exception.** Neither is present | Login is the endpoint that *establishes* identity. Gating it on a screen right would deadlock authentication. `[AllowAnonymous]` `:77` is the correct and audited marker, and `ScreenRightStartupValidator.cs:60-63` skips anonymous actions by design |
 | 12–18 resource contract | **N/A.** No collection, no id, no VM payload | The `LoginRequest`/`LoginResponse` records (`:65-74`) are §8's permitted command records |
 | 22a duplicate-key | **N/A.** No `POST`/`PUT` over a resource, and zero `IsDuplicate` hits in the file | The check applies to create/update of a keyed resource |
-| 23–24 OpenAPI | **Not met.** `Login` declares no `[ProducesResponseType]` | Same follow-up as D-2. Its 400 (tenant unresolved), 401 and 403 (account gate) are invisible to the generated client |
+| 23–24 OpenAPI | **Met since 2026-08-24 (M2-B10).** `Login` declares 200 `LoginResponse`, 400 `ValidationProblemDetails`, 401 and 403 `ProblemDetails`, plus an operation id (`login`) and `[Tags("Auth")]` | Was *not met*: its 400 (tenant unresolved), 401 and 403 (account gate) were invisible to the generated client. Closed with D-2 |
 | T7 (no `IUnitOfWork`) | **Exception.** It injects `IUnitOfWork` (`:29`) and calls `Users.LoginAsync` (`:92`) | Authentication is not a business service; there is no `IAuthService` and inventing one would mean editing `V.SMART.Shared`. This exception is granted to `AuthController` **only** — a resource controller touching `IUnitOfWork` is a reject |
 
 **Items it does pass, and which every controller must:** 1, 2 (`[Route($"{ApiRoutes.V1}/auth")]`
