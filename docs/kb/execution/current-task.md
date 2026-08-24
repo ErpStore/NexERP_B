@@ -6,10 +6,10 @@ source_files: []
 entities: []
 api_endpoints: []
 database_tables: []
-business_rules: [BR-SO-003]
+business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-23
+last_verified: 2026-08-24
 dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 ---
 
@@ -21,67 +21,65 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## ▶ M2-C04-03 — Feedback: modal, drawer, toast, empty/loading/error states
+## ▶ No task is currently selectable
 
-**Task file:** [`tasks/M2-C04-03.md`](tasks/M2-C04-03.md) — the overlay/feedback layer of
-[KB-051 §Overlays and §Feedback](../../frontend-new/design-system.md#overlays) as standalone
-Angular components over **PrimeNG only**: `Modal`, `Drawer`, `ConfirmDialog` (optional
-required reason), `Popover`, `Tooltip`, `ContextMenu`, `Toast`, `InlineAlert`, `BusyOverlay`,
-`Skeleton`, `ProgressBar`, `EmptyState`, `ErrorState`, `PermissionDeniedState`. Locations
-`frontend/nexgen-web/src/app/shared/components/overlay/` and `.../feedback/` — **to be
-created**. `BR-SO-003` (mandatory cancellation reason on a Sales Order/line) supplies the
-*capability* (`ConfirmDialog`'s reason field); the rule itself stays server-side — this task
-never implements it client-side.
+`M2-C04-03` (modal, drawer, toast, empty/loading/error states) closed **`Needs Review`** this
+session (2026-08-24) — independently validated `PASS` on attempt 2 of 4, `scopeOk: true`,
+branch `migration/M2-C04-03-feedback-primitives` (tip `1806bca`), left unmerged, unpushed for
+owner review. Full record:
+[`tasks/M2-C04-03.md`](tasks/M2-C04-03.md) § Execution Record (2026-08-24),
+[`task-tracker.md`](task-tracker.md) footnote 53, [`runner-state.md`](runner-state.md).
 
-**Why this one.** This session (2026-08-23) re-selected after finding `current-task.md` still
-pointing at `M2-C10`, which an intervening session had already dispatched and closed
-**`Blocked`** (attempt 1 `FAIL`, category `environment` — its binding criterion needs a
-*measured* wire format from a live `[Authorize]`d endpoint, and this workstation's
-`ConnectionStrings:MasterDb`/`Jwt:Secret` are both empty; not a code defect, owner **Vivek**,
-task-tracker.md footnote 52). `task-tracker.md`'s own "Current state" section (line ~268)
-states outright: **"Only one task is genuinely selectable: `M2-C04-03`"** — the other three
-`Ready` rows all fail the five-part test (`M0-06` already has a branch; `M0-11` is a `Product
-Decision`; `M2-A02` is gated on unanswered **Q-28** and **R-65**). Full reasoning:
-[`runner-state.md`](runner-state.md) Current task / selection_note, `task-tracker.md` rows
-`M2-C10` and `M2-C04-03`.
+**Re-checked against the five-part "can actually be done" test** ([KB-082 § Ready-task
+selection rule](dependency-graph.md#ready-task-selection-rule)) and confirmed unchanged since
+the prior session: none of the remaining `Ready` rows in `task-tracker.md` clears it.
 
-### Five-part "can actually be done" check
+| Task | Ready? | Why it fails the five-part test |
+|---|---|---|
+| `M0-06` — remove the seeded default Administrator credential | `Ready` | Fails part 5: a sibling branch already exists (`migration/M0-06-remove-default-admin`, confirmed via `git branch --no-merged master` 2026-08-24). |
+| `M0-11` — Product decision: silent FIFO under-issue (Q-01) | `Ready` | Fails part 2: `task_type: Product Decision`, owner-only, never self-selectable. |
+| `M2-A02` — apply to `CurrencyController` + denial tests | `Ready` (gated) | Fails part 3: gated on unanswered **Q-28** and **R-65**. |
 
-1. Hard prerequisite `M2-C04-01` — `Completed` and merged to `master`. **Met**
-   (task-tracker.md line 158). `M2-C01` (also Hard) — `Completed` and merged. **Met.**
-2. Not a `Product Decision`. **Met** — `task_type: Frontend`.
-3. Not blocked on an unanswered open question. **Met.** No open question gates this task's own
-   scope (M2-A06's correlation-id soft dependency has a documented fallback if unmet; see
-   task file § Dependencies).
-4. Task file not superseded/stale. **Met** — no live ⛔ banner; re-specified for Angular by
-   `M2-C12-01` (merged), `last_verified: 2026-08-22`.
-5. No sibling branch open on the same files. **Met** — `git branch --no-merged master`
-   (checked 2026-08-23, this session) lists no branch touching
-   `frontend/nexgen-web/src/app/shared/components/overlay/`,
-   `frontend/nexgen-web/src/app/shared/components/feedback/`, or `M2-C04-03.md`.
+Everything else in the tracker is `Blocked`, `In Progress`, `Not Started`, or already
+`Completed`/`Needs Review`. This is a **person-level** stall, not an execution-capacity one —
+see `task-tracker.md` § Current state (2026-08-24) for the five outstanding owner decisions,
+in order of how much each unblocks:
 
-### Read before starting
+1. **`M0-04`** — rotate the exposed credentials (deferred to end-of-milestone 2026-08-19).
+   Unblocks `M2-A04` → `M2-A05` → `M2-C02`, and G0 criteria 2/3.
+2. **`M2-C10`'s environment** — a reachable DB + credential, or relax its "MEASURED wire
+   format" criterion to static analysis. Unblocks `M2-C10`, then `M2-C07`.
+3. **Q-28 + R-65**. Unblocks `M2-A02` → `M2-A03`, `M2-B03` → `M2-B10`.
+4. **Q-38** — what `M2-C11` is *for*, now `M2-C01` has built the workspace it existed to
+   adopt. Unblocks `M2-C11`.
+5. **Owner review and merge of unmerged `PASS`/`Needs Review` branches** — several sit ready
+   for review and merging any of them may release further `Blocked` tasks (e.g.
+   `M2-C05`/`M2-C05-01` need `M2-C04-02` merged, not just `Needs Review`). See
+   `task-tracker.md` § "Unmerged branches still carrying work" for the current list, which now
+   includes `migration/M2-C04-03-feedback-primitives`.
 
-- [`tasks/M2-C04-03.md`](tasks/M2-C04-03.md) in full, including § Prerequisites and
-  § Dependencies — `M2-C04-02` (form controls) is a **Soft** dependency only: use
-  `app-form-field` + `app-textarea` for `ConfirmDialog`'s reason field if they exist
-  (`M2-C04-02` closed `Needs Review`, unmerged — check whether it has since merged before
-  assuming the real components are available); otherwise use a bare `[pTextarea]` with a
-  `TODO` and replace it later. Do not build a parallel field/error mechanism.
-- [KB-051 §Overlays, §Feedback, §State patterns](../../frontend-new/design-system.md) — the
-  full 14-primitive contract, the seven-state pattern, and Principle 6 ("errors are specific"
-  — server messages shown verbatim).
-- [ADR-007](../../decisions/ADR-007-angular-stack.md) — PrimeNG only.
-- `BsModal.razor` (Confirmed, KB-015 §Shared components) — existing confirm-dialog/reason-box
-  reference; `BR-SO-003` is the rule that requires the mandatory reason on Sales Order
-  cancellation.
+### What a future session should do here
 
-### Run State — not yet dispatched
+- **Do not re-run Select** against the same three `Ready` rows without a state change —
+  nothing about them has changed since 2026-08-23. Check `git branch --no-merged master` and
+  `task-tracker.md` § Current state first; if one of the five decisions above has been made,
+  re-derive selectability from that, not from this file's stale snapshot.
+- **Offer the owner a documentation-only task ahead of an unmet gate** rather than stalling,
+  per standing guidance — e.g. re-specifying or investigating something that does not need a
+  `Ready` row to proceed, if one exists and is worth doing.
+- If the owner merges any unmerged `Needs Review`/`PASS` branch (`M2-C04-02`, `M2-C04-03`,
+  `M2-C12-03`, `M2-C12-04`, or others), re-run the five-part test — a merge is the only event
+  that changes this file's answer.
 
-Selected this Select-only pass (2026-08-23, this session). No branch cut, no implementer
-dispatched. Next session should dispatch per [`workflow.md`](workflow.md) (KB-088) rather than
-re-run Select.
+### Carried forward from `M2-C04-03`, for whoever revisits the overlay/feedback layer
 
-`M2-C10` is **not** selectable again until the environment blocker clears (a reachable
-`MasterDb` + `Jwt:Secret`, or a relaxed wire-format criterion) — owner **Vivek**. No other
-`Ready` row passes the five-part test; see `runner-state.md` § Next ready task.
+- **Q-80** (new, raised at this close-out): `confirm-dialog.component.html:23` hard-codes
+  `[maxlength]="500"` on the BR-SO-003 reason textarea with no `file:line` rule behind it.
+  Needs an owner ruling or a fix when the branch is reviewed.
+- **Q-78**/**Q-79**: no stacking-order/backdrop token exists in the token layer; no owner
+  decision yet on sub-768px toast positioning (a reasoned default is implemented).
+- **R-69**–**R-72** (`docs/kb/risks/technical-debt-register.md`): the initial bundle now trips
+  Angular's 600 kB warning budget; a duplicated jsdom fixture across `form/` and `overlay/`;
+  measured PrimeNG 22.1 ARIA/keyboard defects worked around per-component; a stale React
+  remnant in KB-051's prose.
+- `M2-C05-03`, `M2-C06`, `M2-C08` all consume these primitives once the branch merges.

@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-23
+last_verified: 2026-08-24
 dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
@@ -155,7 +155,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-01`)* | P0 | M2-C01 | 2 wks | G2 |
 | M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
 | M2-C04-02 | M2 | — form controls + validation display | Frontend | **Completed**⁵¹˒⁵² *(merged to `master` on owner instruction 2026-08-23; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 4 d | G2 |
-| M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Ready**²⁶˒⁴⁶ *(released 2026-08-23 — `M2-C04-01` is `Completed` and merged)* | P0 | M2-C04-01 | 3 d | G2 |
+| M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Needs Review**⁵³ *(independently validated `PASS` 2026-08-24 on `migration/M2-C04-03-feedback-primitives` @ `1806bca`, unmerged; owner review + a human keyboard/screen-reader pass still required before `Completed`)* | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
 | M2-C05-01 | M2 | — server-paged table core | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blockers are `M2-C04-02`, `M2-B02`)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
@@ -259,15 +259,20 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 | M5 | 10 | 0 | G5 | ⬜ Not met |
 | M6 | 8 | 0 | G6 | ⬜ Not met |
 
-### Current state — 2026-08-23
+### Current state — 2026-08-24
 
-**45 tasks `Completed`, 1 `Needs Review`, 4 `Ready`, 36 `Blocked`, 2 `In Progress`, 34 `Not Started`.**
+**45 tasks `Completed`, 2 `Needs Review`, 3 `Ready`, 36 `Blocked`, 2 `In Progress`, 34 `Not Started`.**
 Counts are derived from the rows above, which are the authority; the rollup totals for M3/M4 are
-task *estimates*, not rows.
+task *estimates*, not rows. `M2-C04-03` moved `Ready` → `Needs Review` this session (independent
+validation `PASS`, unmerged, footnote ⁵³) — a status change, not a merge, so it releases nothing.
 
-**Only one task is genuinely selectable: `M2-C04-03`** (modal, drawer, toast, states). The other
-three `Ready` rows all fail the five-part test — `M0-06` already has a branch, `M0-11` is a
-`Product Decision`, and `M2-A02` is gated on the unanswered **Q-28** and on **R-65**.
+**No task is currently selectable.** The three remaining `Ready` rows all fail the five-part
+test, unchanged from the prior entry — `M0-06` already has an open branch
+(`migration/M0-06-remove-default-admin`, confirmed via `git branch --no-merged master`
+2026-08-24), `M0-11` is a `Product Decision`, and `M2-A02` is gated on the unanswered **Q-28**
+and on **R-65**. Every other task is `Blocked`, `In Progress`, `Not Started`, or already
+`Completed`/`Needs Review`. Work is stalled on the same person-level decisions as before, not on
+execution capacity — see the table below.
 
 **Everything now waiting is waiting on a person, not on execution capacity.** Five decisions, in
 rough order of how much they unblock:
@@ -287,10 +292,12 @@ went from a React scaffold to an Angular workspace with design tokens and form c
 (`M2-C01`, `M2-C04-01`, `M2-C04-02`). Frontend test count over that window: **6 → 215**, across
 **2 → 29** files.
 
-**Unmerged branches still carrying work:** none awaiting review. Two exist and neither should be
-merged — `migration/M2-A08-row-level-scoping` (duplicate of the merged `M2-A08`, functionally
-identical `UserRepository.cs` change, no validated `PASS`; safe to delete) and
-`migration/M2-B12-01-inv-012-numbering` (`Blocked`, verdict `FAIL`, escalation budget exhausted).
+**Unmerged branches still carrying work:** `migration/M2-C04-03-feedback-primitives` (tip
+`1806bca`) is now awaiting owner review — independently validated `PASS`, footnote ⁵³. Two other
+unmerged branches exist and neither should be merged — `migration/M2-A08-row-level-scoping`
+(duplicate of the merged `M2-A08`, functionally identical `UserRepository.cs` change, no
+validated `PASS`; safe to delete) and `migration/M2-B12-01-inv-012-numbering` (`Blocked`, verdict
+`FAIL`, escalation budget exhausted).
 
 **M0-03-01: `Completed` 2026-08-17.** Reviewed, signed off by the repository owner, and
 merged to `master` (`f55db52`). See note ³ above and
@@ -2486,3 +2493,29 @@ duplicate **Q-72** on the strength of an id-allocation check its report describe
 had not been. `Q-72…Q-75` are held by `migration/M2-C04-02-form-controls`; the true next free id
 is **Q-76** — confirmed against `open-questions.md` at merge. This is the sixth id collision in
 this run and the second caught before it reached `master`.
+
+⁵³ **`M2-C04-03` `Needs Review` — 2026-08-24.** All 14 overlay/feedback primitives (KB-051
+§Overlays, §Feedback) built over PrimeNG 22.1.0 only on
+`migration/M2-C04-03-feedback-primitives` (tip `1806bca`), left unmerged, unpushed. Attempt 1
+`FAIL` (`acceptance-criterion`) — the modal/drawer/confirm-dialog focus-trap-restore-scroll-lock
+matrix (acceptance criterion 2) was 8/12 asserted, not 12/12; the confirm dialog in particular
+had **no** focus-restoration code at all, not merely an untested one — PrimeNG 22.1's
+`p-confirmdialog` sets `[focusOnShow]="false"` and depends on `pAutoFocus` sitting on its own
+accept/reject buttons, which this component's custom `#footer` replaces. Diagnosed and fixed at
+`56b4c1d`: an `effect` captures the invoking element, `afterEveryRender` focuses the dialog panel
+(needed because `p-dialog` moves its wrapper to `document.body` mid-transition), `onDialogHide()`
+restores focus. Attempt 2 independently validated `PASS`, all 20 acceptance criteria `MET`,
+`scopeOk: true`. Verified commands (attempt 2, all `EXIT=0`): `typecheck`; `lint` "All files pass
+linting"; `format:check` clean; `test:ci` **304 passed / 46 files**; `build` 711.75 kB raw /
+158.28 kB gzip, one non-fatal budget warning (**R-69**, already inside KB-050's `<250 kB` gzip
+target). Scope confined to `frontend/nexgen-web/` and `docs/kb/`; no `V.SMART/**`, no schema, no
+ERP rule reimplemented client-side (BR-SO-003 stays server-side; the dialog supplies only the
+mandatory-reason capability). Documentation already landed on the branch: KB-051, KB-050, the
+INV-006 amendment (including the measured PrimeNG focus defect), `Q-78`/`Q-79`
+(`open-questions.md`), and `R-69`–`R-72` (`technical-debt-register.md`). One new open question
+raised at close-out, **Q-80**: `confirm-dialog.component.html:23` hard-codes
+`[maxlength]="500"` on the BR-SO-003 reason textarea with no `file:line` rule behind it — see
+`open-questions.md`. **Not `Completed`**: the task's Completion Conditions require a human
+keyboard-only and screen-reader pass over the modal, confirm dialog and toast layer, which has
+not happened, and only the repository owner may set `Completed` (KB-088 §Who may set Completed).
+Full record: `tasks/M2-C04-03.md` § Execution Record (2026-08-24); `failure-log.md`.
