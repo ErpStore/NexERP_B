@@ -287,8 +287,8 @@ gated on the unanswered **Q-28** *and* on **R-65**.
 
 > ~~**Read [R-69](../risks/technical-debt-register.md) before starting `M2-C03`.** The initial
 > bundle is **711.75 kB raw**, past the 600 kB warning and **88 kB short of the 800 kB error
-> budget** that fails the build.~~ **Resolved 2026-08-24 by `M2-C13`** (footnotes ⁵⁶ and ⁵⁷, mergeder
-> merge): the confirm-dialog host is now deferred and the initial bundle measures **571.20 kB
+> budget** that fails the build.~~ **Resolved 2026-08-24 by `M2-C13`** (footnotes ⁵⁶ and ⁵⁷, merged):
+> the confirm-dialog host is now deferred and the initial bundle measures **571.20 kB
 > raw / 136.72 kB transfer**, no budget warning. `M2-C03` is not imminent regardless — it is
 > transitively blocked behind `M0-04` (see footnote ⁵⁵).
 
