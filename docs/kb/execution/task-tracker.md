@@ -132,7 +132,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Completed**³² ³⁵ *(merged to `master` 2026-08-21, `65d9666`)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Completed**³⁴ *(merged to `master` `501b12d` on owner instruction 2026-08-21)* | P1 | **M2-B07**, M2-B02, M2-B01 | 3 d | G2 |
-| M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | **Needs Review**⁶⁷ *(implemented and independently validated `PASS` 2026-08-24, unmerged)* | P0 | M2-B03 | 3 d | G2 |
+| M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | **Completed**⁶⁷˒⁶⁸ *(merged to `master` on owner instruction 2026-08-25)* | P0 | M2-B03 | 3 d | G2 |
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Blocked**²⁹ *(escalation budget exhausted, owner **Vivek**; on `migration/M2-B12-01-inv-012-numbering` `407d0ba`, unmerged — the earlier `PASS` was premature)* | P0 | M2-B07 | 2 d | G2 |
@@ -256,7 +256,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | **17** | G0 | ⚠️ **Passed with exceptions** 2026-08-19 — criteria **2 and 3 are not satisfied**, deferred by owner decision; `M0-04`/`M0-05` stay `Blocked`. See [KB-080 § G0 deferral](README.md#g0-deferral--criteria-2-and-3-decided-by-the-repository-owner-2026-08-19) |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | **62** | **30** | G2 | **OPEN** — 30 of 62 done (48%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
+| M2 | **62** | **31** | G2 | **OPEN** — 31 of 62 done (50%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -264,7 +264,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**52 `Completed`, 3 `Needs Review`, 2 `Ready`, 33 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
+**53 `Completed`, 2 `Needs Review`, 2 `Ready`, 33 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
 *estimates*, not rows. (2026-08-24 close-out: `M2-A09` moved `Ready` → `Needs Review`,
 implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰. Later the same day,
@@ -2927,3 +2927,40 @@ warning gate: 6,693, equal to the committed baseline. **Not merged** — `M2-D01
 prerequisite half stays unreleased until a human reviews and merges
 `migration/M2-B10-openapi-typescript-client`. Full record:
 [`tasks/M2-B10.md` § Execution Record (2026-08-24)](tasks/M2-B10.md#execution-record-2026-08-24).
+
+⁶⁸ **`M2-B10` `Completed` and merged 2026-08-25 — `PASS` on attempt 1, 0 escalations. G2
+criterion 4 is met, completing the three that `Q-28`/`R-65` released.**
+
+**It closed KB-114 §13's divergences rather than documenting them, which was the right call.**
+The template task had recorded that `CurrencyController` declared `[ProducesResponseType]` on
+`GetAll` only and `AuthController.Login` declared none — so the OpenAPI document had **no 404 for
+`GET /currencies/{id}` and no 409 for `DELETE`**, and a generated client would have inherited
+exactly those blind spots. `M2-B10` added **45** attributes across the six controllers; the two
+named gaps are closed at `CurrencyController.cs:85` and `:105`. Documenting them instead would
+have shipped a typed client that silently omits real failure modes — worse than none, because
+consumers code against it as if complete.
+
+**The contract and the client are both committed, and drift is mechanically impossible to land.**
+`api/openapi.json` plus **62** files under `frontend/nexgen-web/src/app/core/api/generated/`. The
+new CI job regenerates both and diff-checks, so a hand-edit fails the build rather than surviving
+until someone notices.
+
+**It anticipated R-45 instead of re-opening it.** `.gitattributes` now pins `api/*.json`,
+`core/api/generated/**` and `tools/*.sh` to `text eol=lf`, with the reasoning recorded: the tools
+emit LF on every platform, `core.autocrlf` is `true` on both the dev box and the `windows-latest`
+runner, and without the pin the drift check would compare LF output against a CRLF working tree
+and fail on **every** run — "a false failure that would get the check disabled within a week."
+That is the same class of defect as R-45, caught before it landed rather than after.
+
+**Verified on the merged result — both stacks, ten gates.** `V.SMART.Api` **0 errors / 6693
+warnings** (baseline held despite 45 new attributes) · `tests/V.SMART.Api.Tests` **508 passed**
+(470 → 508) · `typecheck` exit 0 · `lint` clean · `format:check` clean · `test:ci` **309 passed /
+47 files** · `build` exit 0.
+
+> **The bundle did not move — 571.20 kB, unchanged, no budget warning — and the reason matters
+> more than the number.** Nothing imports the generated client yet: `grep -rl "core/api/generated"`
+> over `src/app` finds no consumer outside the generated tree itself, so Angular tree-shakes all
+> 62 files out of the initial chunk. **The cost is deferred, not avoided.** `M2-C02` is the first
+> task to consume it, and that is when the client's weight lands against the **29 kB** of headroom
+> below the 600 kB warning. Whoever runs `M2-C02` should measure the bundle before assuming R-69
+> stays closed.
