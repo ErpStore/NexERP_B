@@ -13,7 +13,7 @@ database_tables: []
 business_rules: []
 status: complete
 confidence: confirmed
-last_verified: 2026-08-19
+last_verified: 2026-08-24
 dependencies: [KB-080, KB-083, KB-086, KB-060]
 ---
 
@@ -39,7 +39,7 @@ and is the enforcement point every task after it relies on.
 | Runner | `windows-latest` (see §2) |
 | Job timeout | 45 minutes |
 | Permissions | `contents: read` — the workflow reads the repository and nothing else |
-| Secrets | **none.** CI does not need a connection string to compile |
+| Secrets | **none.** CI does not need a connection string to compile — and the M2-B10 contract job still needs none: its four environment variables are placeholders set by the script, not credentials |
 
 Push-on-every-branch is deliberate: `migration/*` branches must be checked **before** review,
 not at it.
@@ -118,6 +118,45 @@ Three decisions worth stating rather than leaving to be re-derived:
 not push, so "green on the branch" is unverified for both — recorded as NOT MET in that task's
 report, not quietly assumed. What *is* verified is every step's command, run locally on
 2026-08-19: see [KB-083 § Verified frontend commands](prompt-template.md#verified-frontend-commands).
+
+### The `api-contract` job (added 2026-08-24 by M2-B10)
+
+The workflow now has **four** jobs. `api-contract` is blocking, runs on `windows-latest`, uses
+`shell: bash` throughout (git-bash ships on the Windows runners) and needs **both** toolchains —
+it is the only job that does, which is why it is a job and not steps bolted onto `build` or
+`frontend`.
+
+| Step | Why |
+|---|---|
+| checkout → hygiene guard → setup-dotnet → setup-node → cache NuGet | same conventions as the other jobs; nothing new invented |
+| `npm ci` in `frontend/nexgen-web` | `ng-openapi-gen` is a devDependency and the script calls it with `npx --no-install` |
+| `dotnet tool restore` | Swashbuckle.AspNetCore.Cli, pinned in `.config/dotnet-tools.json` to **7.3.1**, the same version `V.SMART.Api` references. A tool/library mismatch is the classic cause of a spec that differs between machines |
+| `bash tools/generate-api-client.sh --check` | builds the API, rewrites `api/openapi.json` and the generated Angular client, **fails on any difference** from what is committed, and prints the fix command plus the diff |
+| `npm run typecheck` | ADR-002 §6's *"a contract change that breaks the client fails the build"*, run against the **regenerated** client |
+| upload `api/openapi.json` | always, so a reviewer can read the branch's contract without running anything |
+
+**How to fix a red `api-contract`.** The failure message says it, which is the point:
+
+```bash
+bash tools/generate-api-client.sh
+git add api/openapi.json frontend/nexgen-web/src/app/core/api/generated
+git commit
+```
+
+Read the `api/openapi.json` diff before committing — it *is* the contract change your API edit
+made, and every SPA call site sees it. If the diff surprises you, the API change did more than
+you intended.
+
+**Two failure modes it is designed to catch, both proven locally on 2026-08-24** (see
+[KB-112 §6](../api/generated-client.md)): a contract change committed without regenerating, and
+a hand-edited file inside the generated directory. **This job, like the others, has never run
+on a GitHub-hosted runner** — an execution session may not push. What is verified is the script
+it runs, three times, with all three outcomes observed, and that `ci.yml` parses with the job
+and steps present.
+
+**No secret, still.** The four environment variables the generation script needs are
+placeholders that only get the host past its startup validator; nothing connects to a database.
+See [KB-112 §2](../api/generated-client.md).
 
 ## 2. Runner choice — `windows-latest`
 

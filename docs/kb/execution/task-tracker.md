@@ -132,7 +132,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Completed**³² ³⁵ *(merged to `master` 2026-08-21, `65d9666`)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Completed**³⁴ *(merged to `master` `501b12d` on owner instruction 2026-08-21)* | P1 | **M2-B07**, M2-B02, M2-B01 | 3 d | G2 |
-| M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | **Ready**⁶⁶ *(released 2026-08-24 — `M2-B03` `Completed` and merged)* | P0 | M2-B03 | 3 d | G2 |
+| M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | **Needs Review**⁶⁷ *(implemented and independently validated `PASS` 2026-08-24, unmerged)* | P0 | M2-B03 | 3 d | G2 |
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Blocked**²⁹ *(escalation budget exhausted, owner **Vivek**; on `migration/M2-B12-01-inv-012-numbering` `407d0ba`, unmerged — the earlier `PASS` was premature)* | P0 | M2-B07 | 2 d | G2 |
@@ -264,7 +264,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**52 `Completed`, 2 `Needs Review`, 3 `Ready`, 33 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
+**52 `Completed`, 3 `Needs Review`, 2 `Ready`, 33 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
 *estimates*, not rows. (2026-08-24 close-out: `M2-A09` moved `Ready` → `Needs Review`,
 implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰. Later the same day,
@@ -273,12 +273,15 @@ implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰
 on a sibling branch already open (`migration/M0-06-remove-default-admin`, unmerged), `M0-11` on
 being a `Product Decision` (owner-only). No task is currently selectable.) *(Row counts above
 predate this note's own sequence of close-outs and are superseded by the per-task paragraphs
-below; the most recent event, also 2026-08-24, is `M2-B03` moving `Ready` → `Needs Review`,
+below; between those events, also 2026-08-24, `M2-B03` moved `Ready` → `Needs Review`,
 implemented and independently validated `PASS`, unmerged — footnote ⁶⁵. With it, `M2-A03`'s
-`M2-B03` prerequisite half is satisfied, but `M2-B03` itself is `Needs Review`, not `Completed`
-and merged, so `M2-B10` stays `Blocked`. No row on the tracker now reads `Ready` and clears the
-five-part test — `M0-06` and `M0-11` fail it as above, and no other row is `Ready`. No task is
-currently selectable.)*
+`M2-B03` prerequisite half is satisfied, but `M2-B03` itself was `Needs Review`, not `Completed`
+and merged, so `M2-B10` stayed `Blocked` at that point.)* **Most recent event, also 2026-08-24:
+`M2-B03` was subsequently `Completed` and merged to `master`, which released `M2-B10` to
+`Ready`; `M2-B10` was then implemented and independently validated `PASS`, closing `Needs
+Review` — see footnote ⁶⁷. No row on the tracker now reads `Ready` and clears the five-part
+"can actually be done" test — `M0-06` and `M0-11` fail it as above, and no other row is `Ready`.
+No task is currently selectable.**
 
 **`M2-C13` `Completed` and merged** to `master` 2026-08-24 (`2328c94`; footnotes ⁵⁶ and ⁵⁷) —
 deferred the confirm-dialog host, initial bundle **711.75 kB → 571.20 kB raw**, no budget
@@ -344,7 +347,9 @@ Two further unmerged branches exist and **neither should be merged** —
 (duplicate of the merged `M2-A08`, functionally identical `UserRepository.cs` change, no
 validated `PASS`; safe to delete) and `migration/M2-B12-01-inv-012-numbering` (`Blocked`, verdict
 `FAIL`, escalation budget exhausted). `migration/M0-06-remove-default-admin` also exists and is
-what excludes `M0-06` at selection step 5.
+what excludes `M0-06` at selection step 5. `migration/M2-B10-openapi-typescript-client` (tip
+`195daf3`, validated `PASS`, `Needs Review`) also awaits owner review and merge — merging it
+releases `M2-D01`'s `M2-B10` prerequisite half.
 
 **M0-03-01: `Completed` 2026-08-17.** Reviewed, signed off by the repository owner, and
 merged to `master` (`f55db52`). See note ³ above and
@@ -2904,3 +2909,21 @@ and names the anti-pattern so it stays greppable.
 > 404 for `GET /currencies/{id}` and no 409 for `DELETE`. `AuthController` additionally carries a
 > written exception for five checklist items (§13.2). **Those divergences are `M2-B10`'s problem
 > now**, because they are exactly what a generated client would inherit.
+
+⁶⁷ **`M2-B10` implemented 2026-08-24 on `migration/M2-B10-openapi-typescript-client` (tip
+`195daf3`, base `master` `c2a9140`) and independently validated `PASS` on attempt 1 of 1,
+`scopeOk: true`, no regressions.** All 17 acceptance criteria objectively met (one review
+note, not a failure: no action declares `500` — [KB-114 §11](../api/controller-conventions.md)'s
+frozen table does not require it, and it is produced only by the global exception middleware).
+Delivered at the corrected Angular path `frontend/nexgen-web/src/app/core/api/generated/`
+(the task file's own React-era `src/api/generated/` corrected in-line, per its "Execution
+note" section) — `M2-C01` had already reserved this path and its ESLint boundary rule.
+Generator: `ng-openapi-gen` 1.0.5, chosen over `@hey-api/openapi-ts`, `openapi-typescript`
+and `openapi-generator-cli`; `decimal?` → `number | null`, flagged to `M2-C10` per the task's
+own requirement (INV-051, [KB-112](../api/generated-client.md)). CI job `api-contract` added
+to the single `.github/workflows/ci.yml` (:394-470); the drift check was proven to fail by a
+deliberate contract break and by a hand-edit of a generated file, both reverted. `V.SMART.Api`
+warning gate: 6,693, equal to the committed baseline. **Not merged** — `M2-D01`'s `M2-B10`
+prerequisite half stays unreleased until a human reviews and merges
+`migration/M2-B10-openapi-typescript-client`. Full record:
+[`tasks/M2-B10.md` § Execution Record (2026-08-24)](tasks/M2-B10.md#execution-record-2026-08-24).

@@ -39,6 +39,7 @@ namespace V.SMART.Api.Controllers
     [Route($"{ApiRoutes.V1}/files")]
     [Authorize]
     [RequireScreen("Correspondences")]
+    [Tags("Files")]
     public class FilesController : ControllerBase
     {
         private readonly ApiFileUploadService _fileUploadService;
@@ -75,12 +76,14 @@ namespace V.SMART.Api.Controllers
         /// (<c>CorrespondenceUpload.razor:222</c>) — a page-level rule, not a storage rule, and
         /// not carried here; a deployment wanting parity sets <c>FileStorage:MaxUploadBytes</c>.</para>
         /// </summary>
-        [HttpPost]
+        [HttpPost(Name = "uploadFile")]
         [RequireRight(Right.Create)]
         [RequestSizeLimit(FileStorageOptions.DefaultMaxUploadBytes)]
         [RequestFormLimits(MultipartBodyLengthLimit = FileStorageOptions.DefaultMaxUploadBytes)]
         [ProducesResponseType(typeof(FileUploadResponse), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status413PayloadTooLarge)]
         public async Task<ActionResult<FileUploadResponse>> Upload(
@@ -173,9 +176,14 @@ namespace V.SMART.Api.Controllers
         /// <para><c>{id:int}</c> is a route constraint, so <c>../</c>, <c>%2e%2e%2f</c> and every
         /// other traversal string fails to match the route at all and never reaches this method.</para>
         /// </summary>
-        [HttpGet("{id:int}")]
+        [HttpGet("{id:int}", Name = "downloadFile")]
         [RequireRight(Right.View)]
-        [ProducesResponseType(StatusCodes.Status200OK)]
+        // M2-B10 - the 200 is the stored file, whose media type is per-record (see below), so the
+        // document declares the generic binary type rather than one concrete media type. Metadata
+        // only - [Produces] would constrain this action's error responses too.
+        [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK, "application/octet-stream")]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Download(int id)
         {

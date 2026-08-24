@@ -364,3 +364,107 @@ jobs:
           path: frontend/nexgen-web/playwright-report
           retention-days: 14
           if-no-files-found: ignore
+
+  # ==================================================== api contract (M2-B10) ===
+  # ADR-002 §6: "OpenAPI is the contract; the TypeScript client is generated in
+  # CI, never hand-written. A contract change that breaks the client fails the
+  # build." This job is that sentence, mechanised. It regenerates BOTH committed
+  # artefacts from the source of truth (the compiled API) and fails when either
+  # differs from what the branch committed:
+  #
+  #     api/openapi.json                                   the contract
+  #     frontend/nexgen-web/src/app/core/api/generated/**   the Angular client
+  #
+  # WHY DRIFT DETECTION AND TYPE-CHECKING, NOT ONE OF THEM. Drift detection alone
+  # catches a contract change nobody committed; type-checking alone lets the
+  # committed spec rot while the app compiles against a stale client. Both, or
+  # half the failures ship.
+  #
+  # It also makes hand-editing a generated file impossible to land: the edit is a
+  # difference from what the generator produces, so this job fails on it.
+  #
+  # A SEPARATE job, not steps bolted onto `build` or `frontend`: it is the only
+  # job needing BOTH toolchains, and a red here means "the contract moved", which
+  # is a different diagnosis from "the code does not compile".
+  #
+  # RUNNER: windows-latest, matching every other job and matching the workstation
+  # where `dotnet swagger tofile` and `ng-openapi-gen` were verified (M2-B10).
+  # Every step uses `shell: bash` because tools/generate-api-client.sh is the same
+  # script a developer runs; git-bash ships on the Windows runners.
+  api-contract:
+    name: API contract - regenerate spec and client, fail on drift
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Hygiene guard - no build output tracked
+        shell: bash
+        run: bash tools/check-no-build-output.sh
+
+      - name: Set up .NET SDK (pinned by global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Set up Node (pinned by .nvmrc)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/nexgen-web/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/nexgen-web/package-lock.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      # ng-openapi-gen is a devDependency; the generation script calls it with
+      # `npx --no-install`, so it must already be on disk. `npm ci`, never
+      # `npm install` -- CI installs exactly what the lockfile pins, which is also
+      # what makes the generated output reproducible.
+      - name: Install frontend dependencies (npm ci)
+        working-directory: frontend/nexgen-web
+        run: npm ci
+
+      # Restores Swashbuckle.AspNetCore.Cli from .config/dotnet-tools.json, pinned
+      # to 7.3.1 -- the same version V.SMART.Api references. A mismatch between the
+      # tool and the library is the classic source of a spec that differs between
+      # two machines.
+      - name: Restore .NET local tools
+        shell: bash
+        run: dotnet tool restore
+
+      # The one command. It builds V.SMART.Api, writes api/openapi.json from the
+      # compiled assembly, regenerates the Angular client, stamps the banner, and
+      # with --check fails on any difference from the committed artefacts, printing
+      # the exact command that fixes it.
+      - name: Regenerate the contract and the client, and fail on drift
+        shell: bash
+        run: bash tools/generate-api-client.sh --check
+
+      # ADR-002 §6's "a contract change that breaks the client fails the build".
+      # Runs AFTER regeneration and against the regenerated tree on purpose: this
+      # is the step that catches an API change the client cannot express, even when
+      # the regenerated output was correctly committed.
+      - name: Typecheck the SPA against the regenerated client
+        working-directory: frontend/nexgen-web
+        run: npm run typecheck
+
+      # The contract is uploaded whatever happens, so a reviewer can read what the
+      # branch's API actually produces without running anything locally.
+      - name: Upload the generated contract
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-${{ github.run_id }}
+          path: api/openapi.json
+          retention-days: 14
+          if-no-files-found: warn
