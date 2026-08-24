@@ -110,7 +110,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | **Completed**²⁵ | P0 | M2-A01-01 | 3 d | G2 |
 | M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Completed**²⁷ | P0 | M2-A01-02 | 2 d | G2 |
 | M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Completed**⁵⁹˒⁶² *(merged to `master` on owner instruction 2026-08-24)* | P0 | M2-A01-03 | 1 d | G2 |
-| M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | **Blocked**⁶³ *(implemented, independently validated FAIL — one criterion is GitHub branch protection, unreadable/unsettable from any execution session; owner: **Vivek**)* | P0 | M2-A02 | 3 d | G2 |
+| M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | **Needs Review**⁶³˒⁶⁴ *(harness merged to `master` `d94d8ce` 2026-08-24 on owner instruction; stays open on one criterion only — an owner setting in GitHub branch protection)* | P0 | M2-A02 | 3 d | G2 |
 | M2-A04 | M2 | Refresh tokens + revocation | Security | **Blocked**⁴⁸ *(correctly — on **M0-04**, not on `M2-A01-02`; ruled 2026-08-23)* | P0 | M2-A01-02, **M0-03/M0-04** | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
@@ -2814,3 +2814,26 @@ authenticated, can mark the `build` job (or a job containing it) a required stat
 was accepted) or move it into an owner-owned successor task. Full record: `tasks/M2-A03.md` §
 Execution Record (2026-08-24); `failure-log.md` entry `M2-A03 - attempt 1 - independent
 validation - 2026-08-24 - FAIL (environment)`; `runner-state.md`.
+
+⁶⁴ **M2-A03: harness merged 2026-08-24 (`d94d8ce`); status `Needs Review`, not `Completed`,
+because the one unmet criterion is a setting only the owner can make.**
+
+**The work is done and it proved something.** 470 Api tests pass (364 → 470; the harness adds
+106) and the matrix found **no enforcement holes** — every endpoint × right combination is
+correctly protected. That is an independent confirmation of the enforcement `M2-A02` landed,
+which is worth more than the harness merely existing. `HarnessSelfTests.cs` seeds a violation and
+asserts the harness catches it, so it cannot pass vacuously.
+
+**Scope was the cleanest of any merge in this run: no production code and no CI file** — purely
+`tests/` and `docs/kb/`. A harness that changes nothing it tests is the right shape.
+
+**What remains is not a code defect and no retry can clear it.** Criterion `M2-A03.md:317`
+requires the harness run in CI *as a **required** job*. Branch protection has no representation in
+the repository, cannot be read here (no `gh` CLI), and cannot be set by an execution session (no
+push; the branch is not on origin). Classified `environment`, stopped rather than retried —
+correct, and the same shape as `M0-01-03` waiting on a named operator.
+
+**Worth knowing: the harness already runs in CI today.** `ci.yml`'s `Test - V.SMART.Api.Tests`
+step executes it with an explicit `$LASTEXITCODE` check, so a permission regression already fails
+the job. Only the *required-status-check* setting is missing. The owner action is
+**Settings → Branches → `master` → Require status checks to pass → add `Test - V.SMART.Api.Tests`**.
