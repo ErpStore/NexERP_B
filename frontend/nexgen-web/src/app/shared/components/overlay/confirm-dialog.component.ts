@@ -1,10 +1,14 @@
 import {
+  afterEveryRender,
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
   viewChild,
+  type ElementRef,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
@@ -13,6 +17,7 @@ import { ConfirmDialog } from 'primeng/confirmdialog';
 import { FormFieldComponent } from '../form/form-field.component';
 import { TextareaComponent } from '../form/textarea.component';
 import { ConfirmDialogService } from './confirm-dialog.service';
+import { focusFirstElementIn, OverlayFocusKeeper } from './overlay-focus';
 
 /**
  * The single confirm-dialog host. One instance lives in `app.component.html`;
@@ -43,6 +48,8 @@ import { ConfirmDialogService } from './confirm-dialog.service';
 export class ConfirmDialogComponent {
   private readonly service = inject(ConfirmDialogService);
   private readonly dialog = viewChild(ConfirmDialog);
+  private readonly body = viewChild<ElementRef<HTMLElement>>('body');
+  private readonly focus = new OverlayFocusKeeper();
 
   /**
    * PrimeNG 22.1.0 does not forward `closeAriaLabel` from `p-confirmdialog` to
@@ -70,11 +77,56 @@ export class ConfirmDialogComponent {
     this.reasonControl.valueChanges.pipe(takeUntilDestroyed()).subscribe((value) => {
       this.reason.set(value ?? '');
     });
+
+    // Runs while the request is still only a signal change, before the dialog
+    // has rendered, so the invoker is still the active element - the same
+    // point `app-modal` captures at, and for the same reason.
+    effect(() => {
+      if (this.request() !== null) {
+        untracked(() => {
+          this.focus.capture();
+        });
+      }
+    });
+
+    // **Focus does not enter this dialog on its own.** Measured in PrimeNG
+    // 22.1.2: `p-confirmdialog` hard-codes `[focusOnShow]="false"` on the
+    // `p-dialog` it renders and relies on `pAutoFocus` sitting on *its own*
+    // accept/reject buttons (`primeng-confirmdialog.mjs`). This component
+    // supplies its own `#footer`, so those buttons never exist, nothing takes
+    // focus, and a keyboard user is left behind an open modal - which also
+    // makes PrimeNG's own focus trap useless, because a trap only holds focus
+    // that is already inside.
+    //
+    // It is done from `afterEveryRender` rather than from an `effect` on the
+    // view query because `p-dialog` **moves** its wrapper to `document.body`
+    // (`appendContainer()`, `primeng-dialog.mjs`) once the enter transition
+    // starts, and moving a node blurs whatever inside it had focus. Focusing
+    // when the content first renders is therefore undone a moment later;
+    // `afterEveryRender` runs again after the move. `focusFirstElementIn` is a
+    // no-op when focus is already inside, so the repetition costs nothing and
+    // never steals focus from the control the operator is using.
+    afterEveryRender(() => {
+      if (this.request() === null) {
+        return;
+      }
+      const panel = dialogPanelOf(this.body()?.nativeElement ?? null);
+      if (panel?.isConnected === true) {
+        focusFirstElementIn(panel);
+      }
+    });
   }
 
-  /** Every close - Cancel, `Esc`, the backdrop, the close icon - clears the reason. */
+  /**
+   * Every close - Cancel, `Esc`, the backdrop, the close icon - clears the
+   * reason and puts focus back on the element that opened the dialog.
+   * Restoration is done here rather than left to PrimeNG: what it restores is
+   * whatever it decided to focus on show, and with a custom footer it decided
+   * nothing (see the constructor).
+   */
   onDialogHide(): void {
     this.reset();
+    this.focus.restore();
   }
 
   accept(): void {
@@ -96,4 +148,13 @@ export class ConfirmDialogComponent {
     this.reasonControl.reset(null, { emitEvent: false });
     this.reason.set('');
   }
+}
+
+/**
+ * The rendered dialog panel that `body` sits inside. `p-confirmdialog` puts
+ * `role="alertdialog"` on the panel it renders, and focus has to be moved into
+ * the panel, not into the message block, or `Tab` starts below the header.
+ */
+function dialogPanelOf(body: HTMLElement | null): HTMLElement | null {
+  return body?.closest<HTMLElement>('[role="alertdialog"]') ?? body;
 }

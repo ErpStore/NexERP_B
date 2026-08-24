@@ -31,14 +31,14 @@ is open. If yes, it is a drawer.
 
 ## Keyboard model
 
-| Component            | Model                                                                                                                                                                                                  |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `app-modal`          | Focus moves to the first control on open, is trapped, `Esc` closes, focus returns to the exact invoking element, background scroll is locked while it is open.                                         |
-| `app-drawer`         | The same, plus the resize handle: `←` widens, `→` narrows, `Shift` doubles the step, `Home`/`End` jump to the limits. Width is remembered per `persistKey` in local storage.                           |
-| `app-confirm-dialog` | `Esc`, the backdrop and the close icon all map to **cancel** — never to confirm. Confirm is disabled until a required reason is non-empty after trim. The `destructive` variant changes emphasis only. |
-| `app-popover`        | The trigger is your own button, so `Enter`/`Space` already open it. `Esc` closes and restores focus.                                                                                                   |
-| `[appTooltip]`       | Opens on **focus** as well as hover; `Esc` dismisses.                                                                                                                                                  |
-| `app-context-menu`   | A visible trigger button, plus `Shift+F10`. Arrow keys move, `Esc` closes and restores focus.                                                                                                          |
+| Component            | Model                                                                                                                                                                                                                                                                                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app-modal`          | Focus moves to the first control on open, is trapped, `Esc` closes, focus returns to the exact invoking element, background scroll is locked while it is open.                                                                                                                                                                            |
+| `app-drawer`         | The same, plus the resize handle: `←` widens, `→` narrows, `Shift` doubles the step, `Home`/`End` jump to the limits. Width is remembered per `persistKey` in local storage.                                                                                                                                                              |
+| `app-confirm-dialog` | The modal contract — focus in on open, trapped, focus back on the exact invoking element on close, background scroll locked — plus: `Esc`, the backdrop and the close icon all map to **cancel**, never to confirm. Confirm is disabled until a required reason is non-empty after trim. The `destructive` variant changes emphasis only. |
+| `app-popover`        | The trigger is your own button, so `Enter`/`Space` already open it. `Esc` closes and restores focus.                                                                                                                                                                                                                                      |
+| `[appTooltip]`       | Opens on **focus** as well as hover; `Esc` dismisses.                                                                                                                                                                                                                                                                                     |
+| `app-context-menu`   | A visible trigger button, plus `Shift+F10`. Arrow keys move, `Esc` closes and restores focus.                                                                                                                                                                                                                                             |
 
 **A tooltip must never be the only place a piece of information exists.** It is unreachable
 on touch, absent from print, and gone the moment focus moves. If the operator needs it to
@@ -90,6 +90,16 @@ rediscovered:
 - **Focus on open.** PrimeNG decides what is focusable partly from layout, and declines to
   move focus where there is none (jsdom, for one). `overlay-focus.ts` moves focus in if
   PrimeNG has not.
+- **`p-confirmdialog` never moves focus in at all.** It hard-codes `[focusOnShow]="false"` on
+  the `p-dialog` it renders and depends on `pAutoFocus` sitting on _its own_ accept/reject
+  buttons; a custom `#footer` replaces those, so nothing takes focus — and PrimeNG's focus
+  trap cannot help, because a trap only holds focus that is already inside. It also exposes
+  no `(onShow)`, and `p-dialog` **moves** its wrapper to `document.body`
+  (`appendContainer()`) as the enter transition starts, which blurs anything focused before
+  the move. `app-confirm-dialog` therefore focuses from `afterEveryRender`, which runs again
+  after the move; `focusFirstElementIn` is a no-op once focus is inside. Its `[focusTrap]`
+  input is **not** forwarded to the inner dialog either — the trap that works is the inner
+  `p-dialog`'s own default, which is why the trap is asserted by test rather than assumed.
 - **Accessible names.** The dialog and drawer close icons have no name unless
   `closeAriaLabel` / `ariaCloseLabel` is set; `p-confirmdialog` does **not** forward
   `closeAriaLabel` to the dialog it renders, so the name goes through `[pt]`.

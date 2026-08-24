@@ -64,6 +64,21 @@ describe('app-drawer', () => {
     expect(document.activeElement).toBe(invoker);
   });
 
+  it('keeps Tab inside the drawer', async () => {
+    const { invoker } = await setup();
+
+    await userEvent.click(invoker);
+    const drawer = await screen.findByRole('dialog');
+    expect(drawer.contains(document.activeElement)).toBe(true);
+
+    await userEvent.tab();
+    await userEvent.tab();
+    await userEvent.tab();
+    await userEvent.tab();
+
+    expect(drawer.contains(document.activeElement)).toBe(true);
+  });
+
   it('locks background scroll while open', async () => {
     const { invoker } = await setup();
 

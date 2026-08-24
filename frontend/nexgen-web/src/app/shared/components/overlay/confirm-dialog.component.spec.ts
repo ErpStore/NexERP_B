@@ -46,6 +46,34 @@ async function setup(request: ConfirmRequest = CANCEL_LINE) {
   return { view, caller };
 }
 
+/**
+ * The same dialog, opened the way a screen opens it: from a click on a real
+ * button that stays in the document. The focus contract - trap, restore,
+ * scroll lock - can only be asserted against a genuine invoking element, so
+ * these tests need a trigger rather than a bare `service.confirm()` call.
+ */
+async function setupFromTrigger(request: ConfirmRequest = CANCEL_LINE) {
+  const trigger: { ask: () => void } = { ask: () => undefined };
+  const view = await render(
+    `<button type="button" (click)="onClick()">Cancel line 3</button>
+     <app-confirm-dialog />`,
+    {
+      imports: [ConfirmDialogComponent],
+      providers: [ConfirmationService],
+      componentProperties: {
+        onClick: () => {
+          trigger.ask();
+        },
+      },
+    },
+  );
+  const caller = new Caller(view.fixture.debugElement.injector.get(ConfirmDialogService));
+  trigger.ask = () => {
+    caller.ask(request);
+  };
+  return { view, caller, invoker: screen.getByRole('button', { name: 'Cancel line 3' }) };
+}
+
 describe('app-confirm-dialog', () => {
   beforeAll(installMatchMedia);
 
@@ -120,5 +148,45 @@ describe('app-confirm-dialog', () => {
     await caller.pending;
 
     expect(caller.result).toEqual({ confirmed: true, reason: null });
+  });
+
+  it('moves focus into the dialog and keeps Tab inside it', async () => {
+    const { invoker } = await setupFromTrigger();
+
+    await userEvent.click(invoker);
+    const dialog = await screen.findByRole('alertdialog', { name: CANCEL_LINE.header });
+    expect(dialog.contains(document.activeElement)).toBe(true);
+
+    await userEvent.tab();
+    await userEvent.tab();
+    await userEvent.tab();
+    await userEvent.tab();
+
+    expect(dialog.contains(document.activeElement)).toBe(true);
+  });
+
+  it('returns focus to the exact invoking element on close', async () => {
+    const { invoker } = await setupFromTrigger();
+
+    invoker.focus();
+    await userEvent.click(invoker);
+    await screen.findByRole('alertdialog', { name: CANCEL_LINE.header });
+
+    await userEvent.keyboard('{Escape}');
+
+    expect(screen.queryByRole('alertdialog', { name: CANCEL_LINE.header })).toBeNull();
+    expect(document.activeElement).toBe(invoker);
+  });
+
+  it('locks background scroll while open and restores it on close', async () => {
+    const { invoker } = await setupFromTrigger();
+
+    await userEvent.click(invoker);
+    await screen.findByRole('alertdialog', { name: CANCEL_LINE.header });
+    expect(document.body.classList.contains('p-overflow-hidden')).toBe(true);
+
+    await userEvent.keyboard('{Escape}');
+
+    expect(document.body.classList.contains('p-overflow-hidden')).toBe(false);
   });
 });
