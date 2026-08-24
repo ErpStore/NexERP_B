@@ -127,12 +127,12 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | **Completed**²⁸ *(merged to `master` `f054c75` on owner instruction 2026-08-21)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Completed**³³ | P1 | M2-B07 | 1 d | G2 |
 | M2-B02 | M2 | Paging / sort / filter contract | Backend | **Completed**²⁴ | P0 | M2-A06 | 1 wk | G2 |
-| M2-B03 | M2 | Codify the controller template | Documentation | **Needs Review**⁶⁵ *(implemented on `migration/M2-B03-controller-conventions`, independently validated `PASS` 2026-08-24; unmerged)* | P0 | M2-A02, M2-B02 | 2 d | G2 |
+| M2-B03 | M2 | Codify the controller template | Documentation | **Completed**⁶⁵˒⁶⁶ *(merged to `master` on owner instruction 2026-08-24 — KB-114)* | P0 | M2-A02, M2-B02 | 2 d | G2 |
 | M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Blocked**³¹ *(⛔ premise falsified — needs re-specification by the owner; no code written, no branch)* | P1 | M2-B07 | 2 d | G2 |
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Completed**³² ³⁵ *(merged to `master` 2026-08-21, `65d9666`)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Completed**³⁴ *(merged to `master` `501b12d` on owner instruction 2026-08-21)* | P1 | **M2-B07**, M2-B02, M2-B01 | 3 d | G2 |
-| M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | Blocked | P0 | M2-B03 | 3 d | G2 |
+| M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | **Ready**⁶⁶ *(released 2026-08-24 — `M2-B03` `Completed` and merged)* | P0 | M2-B03 | 3 d | G2 |
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Blocked**²⁹ *(escalation budget exhausted, owner **Vivek**; on `migration/M2-B12-01-inv-012-numbering` `407d0ba`, unmerged — the earlier `PASS` was premature)* | P0 | M2-B07 | 2 d | G2 |
@@ -256,7 +256,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | **17** | G0 | ⚠️ **Passed with exceptions** 2026-08-19 — criteria **2 and 3 are not satisfied**, deferred by owner decision; `M0-04`/`M0-05` stay `Blocked`. See [KB-080 § G0 deferral](README.md#g0-deferral--criteria-2-and-3-decided-by-the-repository-owner-2026-08-19) |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | **62** | **29** | G2 | **OPEN** — 29 of 62 done (47%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
+| M2 | **62** | **30** | G2 | **OPEN** — 30 of 62 done (48%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -264,7 +264,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**51 `Completed`, 1 `Needs Review`, 2 `Ready`, 36 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
+**52 `Completed`, 2 `Needs Review`, 3 `Ready`, 33 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
 *estimates*, not rows. (2026-08-24 close-out: `M2-A09` moved `Ready` → `Needs Review`,
 implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰. Later the same day,
@@ -2869,3 +2869,38 @@ authors. No ADR edited; `docs/kb/business-rules/business-rule-inventory.md` unto
 record: `tasks/M2-B03.md` § Execution Record — 2026-08-24 and its Attempt 2 subsection, plus the
 close-out session's own Execution Record entry; `failure-log.md`. **Not merged** — merging it
 releases `M2-B10` (`depends_on: [M2-B03]`, currently `Blocked`).
+
+⁶⁶ **`M2-B03` `Completed` and merged 2026-08-24 (KB-114); `M2-B10` released.** `PASS` on attempt
+2, 1 escalation. Verified on the merged result: `tests/V.SMART.Api.Tests` **470 passed / 0
+failed**, `tests/V.SMART.Shared.Tests` **90 passed / 1 skipped**, and across **both** this merge
+and `M2-A03`'s the diff touches only `tests/` and `docs/kb/` — **no production code at all**,
+which is the right shape for a harness and a template.
+
+**Attempt 1's `FAIL` was a real business-rule defect, not paperwork.** §9 of the frozen template
+asserted flatly that `IsDuplicate…Async` "is a 409 out of create/update". True of
+`CurrencyService` (`:108,152`); **false** of the shape the reference controller is written over —
+`MfgPOUpsert.razor:3745-3753` refuses a duplicate PO while `MfgPoService.cs:985 UpsertPoAsync`
+never calls `IsDuplicatePoAsync` (`:964`). A `POST` copied from the template would have created
+the duplicate the live screen refuses. §9 now carries a decision instead of an assertion. This is
+the failure mode a template *causes*: one wrong sentence, copied into every controller after it.
+
+**The reference controller was compiled, not merely written.** A scratch
+`ScratchSalesOrdersController` over the real `IMfgPoService` and `ReportService` was built
+(`0 Error(s)`) and then deleted; the two textual differences between the compiled file and the
+shipped code block are stated in KB-114 §2. A template that has never compiled is a guess.
+
+**It corrected a stale premise in its own task file rather than copying it.** The "two different
+400 body shapes in `CurrencyController`" that the spec used as its worked counter-example **no
+longer exist** — `M2-A06` closed that (R-24, 2026-08-20). KB-114 documents the corrected pattern
+and names the anti-pattern so it stays greppable.
+
+> **G2 criterion 6 is now *half* met, and the remaining half is not this task's to close.** The
+> criterion reads *"controller template **and** error contract documented **and adopted**"*, and
+> [KB-080 §9](README.md)'s Definition of Done requires the template be *"demonstrably followed by
+> both existing controllers — the template is only real once it has two independent users."* The
+> template now exists and the error contract is adopted, but KB-114 §13 records **two live
+> divergences**: `CurrencyController` declares `[ProducesResponseType]` on `GetAll` only, and
+> `AuthController.Login` declares none — so the OpenAPI document `M2-B10` will generate has no
+> 404 for `GET /currencies/{id}` and no 409 for `DELETE`. `AuthController` additionally carries a
+> written exception for five checklist items (§13.2). **Those divergences are `M2-B10`'s problem
+> now**, because they are exactly what a generated client would inherit.
