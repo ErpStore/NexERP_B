@@ -5626,3 +5626,232 @@ are orchestrator-owned and deliberately left out of the branch commit.
 - Documentation drift of this exact kind is the recurring failure mode on this branch: a fact was
   stated in four places and corrected in two. If the same claim is repeated again, prefer a single
   statement in KB-013 with the others linking to it.
+
+---
+
+## M2-A03 - attempt 1 - independent validation - 2026-08-24 - `FAIL` (`environment`)
+
+| Field | Value |
+|---|---|
+| Branch | `migration/M2-A03-permission-matrix-harness` (commit `21dc055`, base `13ee72a`) |
+| Runner state | validator pass; the validator wrote no application code |
+| Model in use | opus (implementer), opus (validator) |
+| Validator verdict | **FAIL** |
+| Failure category | **environment** (deliberate - not `acceptance-criterion`) |
+
+**What failed - exactly one criterion, and it is not settable from this repository.**
+
+`tasks/M2-A03.md:317` - "The harness runs in CI on every push and pull request as a **required**
+job." The first half is observed and true (`.github/workflows/ci.yml:56-61` triggers on every push
+and on pull requests to `master`; the blocking step *Test - V.SMART.Api.Tests* is at `:213-219`
+inside the `build` job, which is not `continue-on-error`). The second half is GitHub
+branch-protection configuration, which does not live in the tree and could not be read here:
+
+```
+$ gh api repos/ErpStore/NexERP_B/branches/master/protection
+/usr/bin/bash: line 1: gh: command not found
+```
+
+Same class as the M0-07 attempt-1 entry above: an execution session cannot push, cannot trigger an
+Actions run and cannot edit branch protection. The implementer reported this honestly as not met
+and recorded it in KB-105 s13.7 and KB-060 R-03.
+
+**Everything else passed, observed this pass, not taken from the implementer's account.**
+
+```
+$ dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj
+Build succeeded.    2 Warning(s)    0 Error(s)    Time Elapsed 00:00:04.51   (incremental)
+
+$ dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj
+Passed!  - Failed: 0, Passed: 470, Skipped: 0, Total: 470, Duration: 6 s
+
+$ dotnet test ... --filter "FullyQualifiedName~PermissionMatrix"
+Passed!  - Failed: 0, Passed: 106, Skipped: 0, Total: 106, Duration: 4 s
+
+$ dotnet test ... --filter "FullyQualifiedName~PermissionMatrixTests.Every_gated_endpoint_answers_the_whole_matrix"
+Passed!  - Failed: 0, Passed:  60, Skipped: 0, Total:  60, Duration: 160 ms
+
+$ git status --porcelain                                                       -> 0 entries
+$ git diff --name-only 13ee72a..HEAD | grep -v -E "^(tests/|docs/kb/)" | wc -l -> 0
+$ git diff --stat 13ee72a..HEAD -- V.SMART/                                    -> empty
+$ git diff --name-only 13ee72a..HEAD -- *Migrations* *.csproj *.sln docs/kb/decisions/ -> 0
+```
+
+**The discovered surface was re-derived by hand and agrees with the harness.** Grepping the six
+controllers gives 18 public non-constructor action methods (Auth 1, Currency 5, CurrencyExcel 3,
+Files 2, Me 1, Reference 6) and exactly 10 `[RequireRight]` sites. The harness's 60 generated
+matrix cases imply 10 gated endpoints; its two-directional allow-list equality tests imply exactly
+1 `[AllowAnonymous]` and exactly 7 `[NoScreenRight]` actually declared in the assembly.
+10 + 7 + 1 = 18, so the sweep missed nothing. The task file's "2 controllers / 6 endpoints / 30
+cases" is stale by 3x and the implementer was right to build against the code.
+
+**Not checkable by this validator - named so nobody records them as passes:**
+
+1. Branch protection (above). Verified only by
+   `gh api repos/ErpStore/NexERP_B/branches/master/protection` or the repository settings UI - an
+   owner action.
+2. KB-105 s13.6 claims the two deliberate breakages were also run against the real
+   `CurrencyController` and reverted ("10 harness tests failed" / "3 harness tests failed"). The
+   validator's attempt to reproduce that mutation was refused by the permission system (no write
+   access to application code), so those two figures are the implementer's claim, not an observed
+   result. What *is* observed: `HarnessSelfTests` runs the same `AnnotationAudit` and the same
+   production `ScreenRightStartupValidator` over deliberately misannotated stand-in controllers and
+   passes - i.e. the rules do produce the expected problems for broken input - and
+   `EndpointDiscoveryTests.Every_action_is_gated_or_explicitly_allow_listed` feeds
+   `ApiEndpointDiscovery.All` into those same rules, so a real removal would fail the suite by
+   construction. Deduction, not observation; recorded as such.
+3. Nothing crosses HTTP (R-43 unchanged): the 401/403 rows are asserted on the filter's
+   `IActionResult` and its `ProblemDetails`, not over the wire.
+
+**Residual risk found by the validator - not a failing criterion today.**
+`ApiEndpointDiscovery.IsController` requires `type.IsPublic`, which is `false` for a *nested*
+public controller, and `Actions()` uses `BindingFlags.DeclaredOnly`, so concrete actions inherited
+from a `public abstract` base controller would be swept on neither the base (excluded by
+`IsAbstract`) nor the derived type. No such base exists in `V.SMART.Api` today - all six
+controllers derive directly from `ControllerBase` - but a future `CrudControllerBase` would be a
+hole in "growth without edits", which is the harness's only job. Worth a line in KB-105 s13.1, or
+an assertion, when the first shared base controller lands.
+
+**Deviations from the task file that the validator accepts as sound, recorded for the reviewer:**
+
+- *R-03 recorded as MITIGATED, not CLOSED*, against the task's Documentation Updates instruction
+  "R-03 closes here". Justified: the production fail-open direction
+  (`ScreenRightAuthorizationFilter.cs:69-72`, `ScreenRightStartupValidator.cs:83-88`) is still off
+  and is Q-71, which M2-A03's scope forbade touching. Closing it would have been an overclaim.
+- *Two allow-lists instead of one.* The criterion "POST /api/auth/login is its only current entry"
+  predates `[NoScreenRight]`, which now covers 7 authenticated-but-ungated actions.
+  `AnonymousActions` still has exactly one entry; `ScreenRightExemptActions` makes the other seven
+  equally reviewable rather than silently omitted, and both are compared against the assembly in
+  both directions. Stronger than the letter of the criterion, not weaker.
+- *Screen names validated against `ScreenCatalogue`* - production's own list, forced because
+  `Screens` is per-tenant with no tenant context at startup - *plus* a drift test that reads the
+  real `ApplicationDbContext` `HasData` seed via `EnsureCreated()` on InMemory and pins the
+  catalogue as a strict subset, minus exactly the `ScreenCode` 114/115 rows R-65 deletes. The
+  task's "do not hard-code the 152 names into a test fixture" is satisfied: no list is transcribed
+  into the tests.
+- `docs/kb/execution/task-tracker.md` not touched (orchestrator-owned); `docs/kb/open-questions.md`
+  edited to record Q-71's status although the task file did not list it. Benign.
+
+**Regressions:** none observed. No file under `V.SMART/` changed; no `.csproj`, `.sln` or migration
+changed; no existing test file modified (all eight harness files are additions); Blazor Server
+untouched; no frontend file in the diff, so no business logic moved into TypeScript. The
+pre-existing 364 tests still pass inside the 470.
+
+**Disposition - do NOT re-dispatch the implementer.** A same-spec retry at any model cannot set a
+GitHub required status check. KB-091 s6.3: external-dependency stop, human decision. The
+engineering work is complete and independently verified locally.
+
+**Decision the owner needs to take** (one of):
+
+- **A** - make the `build` job a required status check on `master` in branch protection, then tick
+  `tasks/M2-A03.md:317` and close R-03's third condition.
+- **B** - accept M2-A03 as complete with that one criterion carried as a standing human action
+  item, exactly as M0-07 was.
+- **C** - amend the task file to move "required for merge" into an owner-owned successor task, so
+  no future validation is forced to `FAIL` on a setting that cannot exist in the tree.
+
+**Next attempt routed to** - no model.
+
+---
+
+## M2-A03 - attempt 1 - diagnosis - 2026-08-24 - `BLOCKED` (`environment`, confirmed)
+
+*(Diagnosis pass over the validator's `FAIL` above, written by the debugger per
+[KB-091 s7](autonomous-runner.md#7-persistent-state--what-is-written-where). **No fix applied** -
+no code defect exists to fix.)*
+
+| Field | Value |
+|---|---|
+| Branch | `migration/M2-A03-permission-matrix-harness`, HEAD `21dc055` (verified `git rev-parse HEAD`) |
+| Runner state | BLOCKED |
+| Model in use | opus (diagnosis) |
+| Validator verdict | FAIL |
+| Failure category | **environment** - confirmed, not re-classified |
+| Retry budget | attempt 1 of 2; **not consumed by a retry** - a retry cannot change the outcome |
+
+**Reproduced - yes, independently, all of it.**
+
+```
+$ git rev-parse HEAD
+21dc05548eb5dde7b25fefae3f01e7fbd68df205
+
+$ dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj -v minimal -nologo
+Build succeeded.   2 Warning(s)   0 Error(s)   Time Elapsed 00:00:05.22
+   (both warnings are the pre-existing NU1608 Microsoft.CodeAnalysis.Common restore warnings)
+
+$ dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj -v minimal -nologo
+Passed!  - Failed: 0, Passed: 470, Skipped: 0, Total: 470, Duration: 6 s
+
+$ git status --porcelain
+ M docs/kb/execution/failure-log.md        <- this file only; no source file dirty
+
+$ which gh
+which: no gh in (...)  exit=1
+$ gh --version
+/usr/bin/bash: line 1: gh: command not found
+$ ls "/c/Program Files/GitHub CLI"
+No such file or directory
+```
+
+So the engineering half of the task is green and reproducible. Exactly one criterion is unmet and
+it is the one the validator named.
+
+**Root cause - confirmed.** `tasks/M2-A03.md:317` requires the harness to run in CI "as a
+**required** job". A *required status check* is GitHub branch-protection / ruleset state. It has
+**no representation anywhere in the repository**, it cannot be read from this workstation, and it
+cannot be set by any execution session. This is not a defect in the harness, the workflow, or the
+task's code.
+
+**Evidence - three independent confirmations that it is out of tree and out of reach:**
+
+1. *Not in the tree.* `.github/` contains exactly `copilot-instructions.md`,
+   `prompts/convert-to-zoho-ui.prompt.md` and `workflows/ci.yml` (`find .github -type f`). There is
+   no `settings.yml`, no ruleset JSON, no other config file. `grep -rn "branch protection|required
+   status check|ruleset" .github/` returns **nothing**. There is therefore no file this session
+   could have edited to satisfy the criterion, correctly or otherwise.
+2. *Not readable.* `gh` is not installed (above), so
+   `gh api repos/ErpStore/NexERP_B/branches/master/protection` cannot be run - the validator's
+   result reproduces exactly.
+3. *Not even reachable.* `git ls-remote --heads origin` shows nine remote branches;
+   `migration/M2-A03-permission-matrix-harness` is **not** among them, and `origin/master` is at
+   `2a45330` while local `master` is many commits ahead. No Actions run has ever executed against
+   this work and none can without a push, which `allowMerge=false` / no-push forbids
+   (KB-091 s8 trigger 7).
+
+The in-tree half of the criterion is genuinely satisfied and was re-observed:
+`.github/workflows/ci.yml:56-61` triggers on `push: branches: ['**']` and
+`pull_request: branches: [master]`; the blocking step *Test - V.SMART.Api.Tests* is at
+`:213-219` inside the `build` job (`:73`, `runs-on: windows-latest`). `grep -n "continue-on-error"`
+finds it only at `:329`, on the unrelated `frontend-e2e` job - the `build` job has none, and the
+step checks `$LASTEXITCODE` explicitly.
+
+**I looked for a real defect hiding behind the environment stop, and found none.**
+The one substantive doubt the validator left open was whether removing a `[RequireRight]` from a
+*real* controller fails the suite, or only fails it for the `HarnessSelfTests` stand-ins. I tried
+to reproduce the mutation on `CurrencyController.cs:81` (`[RequireRight(Right.Create)]`) and **the
+permission system refused the write**, exactly as it refused the validator - so that figure remains
+unobserved by two independent passes. What closes the gap deductively, read firsthand this pass:
+`EndpointDiscoveryTests.Every_action_is_gated_or_explicitly_allow_listed`
+(`EndpointDiscoveryTests.cs:62-71`) calls `AnnotationAudit.Problems(ApiEndpointDiscovery.All)` -
+the *real* assembly sweep - and asserts `problems.Count == 0`; `AnnotationAudit.cs:82-87` is the
+`RightAttributeCount != 1` rule that `HarnessSelfTests.cs:53-60` proves fires. Same rule, same
+input path, so a real removal fails the suite by construction. Recorded as **deduction, still not
+observation** - it should not be written up anywhere as an observed run.
+
+**Disposition - `BLOCKED`, not `retry`.** KB-091 s8 trigger 5 (an environment the task needs is
+unavailable) *and* trigger 7 (would require a push). Re-dispatching the implementer at any model
+cannot create a GitHub required status check, so attempt 2 would reproduce this entry verbatim and
+burn the retry budget for nothing. Direct precedent: **M0-07 attempt 1**
+(`failure-log.md:305-379` verdict, `:383+` diagnosis), which hit the identical `gh: command not
+found` wall on the same criterion class and was stopped rather than retried.
+
+**Nothing was changed to make the check pass.** Specifically *not* done, and named so no future
+session reaches for them: the criterion was not deleted or softened in `tasks/M2-A03.md`; the CI
+workflow was not edited; no `.github` settings file was invented to simulate branch protection.
+Weakening the criterion would make the gap silent, which is worse than the `FAIL`.
+
+**The owner's decision is unchanged from the validator's A/B/C.** The engineering deliverable is
+complete and independently verified locally (470 tests, 106 of them this harness); only the
+GitHub-side "required for merge" setting is outstanding, and it is a human action.
+
+**Next attempt routed to** - no model. Escalated to the owner.

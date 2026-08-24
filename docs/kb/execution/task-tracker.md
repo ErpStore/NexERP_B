@@ -110,7 +110,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | **Completed**²⁵ | P0 | M2-A01-01 | 3 d | G2 |
 | M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Completed**²⁷ | P0 | M2-A01-02 | 2 d | G2 |
 | M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Completed**⁵⁹˒⁶² *(merged to `master` on owner instruction 2026-08-24)* | P0 | M2-A01-03 | 1 d | G2 |
-| M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | **Ready**⁶² *(released 2026-08-24 — `M2-A02` `Completed` and merged)* | P0 | M2-A02 | 3 d | G2 |
+| M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | **Blocked**⁶³ *(implemented, independently validated FAIL — one criterion is GitHub branch protection, unreadable/unsettable from any execution session; owner: **Vivek**)* | P0 | M2-A02 | 3 d | G2 |
 | M2-A04 | M2 | Refresh tokens + revocation | Security | **Blocked**⁴⁸ *(correctly — on **M0-04**, not on `M2-A01-02`; ruled 2026-08-23)* | P0 | M2-A01-02, **M0-03/M0-04** | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
@@ -283,6 +283,13 @@ per-action `[RequireRight(...)]`, proven by 45 new reflection-driven tests plus 
 357-test API suite, on `migration/M2-A02-currency-authorization` (tip `634d30c`). **Not merged.**
 `M2-A03` and `M2-B03` stay `Blocked` until it is merged to `master` — a `Needs Review` branch is
 not a satisfied Hard prerequisite.
+
+**`M2-A03` implemented on `migration/M2-A03-permission-matrix-harness` (tip `21dc055`) and
+closed `Blocked` 2026-08-24** (footnote ⁶³) — independently validated `FAIL`,
+`failureCategory: environment`, not a code defect. 17 of 18 acceptance criteria are met; the
+one unmet criterion ("runs in CI as a **required** job") is GitHub branch-protection
+configuration the repository cannot read or set. **Blocked on a human — owner: Vivek** — see
+footnote ⁶³ for the unblock action.
 
 **`M2-A09` implemented and independently validated `PASS`, closed `Needs Review` 2026-08-24**
 (footnote ⁶⁰) — the two phantom screen names deleted from `ScreenCatalogue.cs`, R-65 resolved,
@@ -2782,3 +2789,28 @@ corrected account. A half-applied correction is worse than none, because the dis
 authoritative in whichever copy the next reader opens.
 
 **R-65 is resolved**; **Q-28 is answered and its fix has landed**.
+
+---
+
+⁶³ **`M2-A03` implemented 2026-08-24 on `migration/M2-A03-permission-matrix-harness` (tip
+`21dc055`, base `13ee72a`) — independently validated `FAIL` (`failureCategory: environment`),
+not a code defect.** Reflection-driven permission-matrix harness added under
+`tests/V.SMART.Api.Tests/PermissionMatrix/` (8 files); no file under `V.SMART/` changed
+(`git diff --stat 13ee72a..HEAD -- V.SMART/` empty). 17 of 18 acceptance criteria are
+objectively met, independently re-verified: `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`
+0 errors; `dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj` 470/470 passed; the
+harness alone 106/106; the generated matrix 60/60 (10 gated endpoints × 6 rights fixtures — the
+real surface is 6 controllers / 18 actions, not the task file's stale "2 controllers / 6
+endpoints"). **The one unmet criterion**: "the harness runs in CI ... as a **required** job"
+(`tasks/M2-A03.md` acceptance criteria). Runs-on-every-push/PR is true and observed
+(`.github/workflows/ci.yml:56-61,213-219`); *required-for-merge* is GitHub branch-protection
+configuration outside the git tree, unreadable from this workstation
+(`gh api repos/ErpStore/NexERP_B/branches/master/protection` → `gh: command not found`) and
+unsettable by any execution session — the branch is not even on `origin`, and no session may
+push. Same class as the `M0-07` attempt-1 wall (`failure-log.md:305-379`). **Blocked on a
+human, not on a task**: only the repository owner, in the GitHub UI or with `gh` installed and
+authenticated, can mark the `build` job (or a job containing it) a required status check on
+`master` — or decide instead to accept the criterion as a standing manual gate (as `M0-07`
+was accepted) or move it into an owner-owned successor task. Full record: `tasks/M2-A03.md` §
+Execution Record (2026-08-24); `failure-log.md` entry `M2-A03 - attempt 1 - independent
+validation - 2026-08-24 - FAIL (environment)`; `runner-state.md`.
