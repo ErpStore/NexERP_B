@@ -29,7 +29,7 @@ database_tables: [UserRights, Screens]
 business_rules: [BR-AUTH-002]
 status: proposal
 confidence: n/a
-last_verified: 2026-08-20
+last_verified: 2026-08-24
 dependencies: [ADR-004, ADR-002, KB-013, KB-030, KB-060, KB-040]
 ---
 
@@ -1004,6 +1004,133 @@ written against this specification, G0's rationale applies in full: without char
 tests there is no way to prove the filter preserves `RightsHelper`'s semantics, and §9 lists
 verification that cannot even run until `M0-12-01` creates a test project. Recorded in
 [KB-081](../execution/task-tracker.md) so the deviation is visible rather than silent.
+
+---
+
+## 13. The permission-matrix harness — how the spec is enforced (`M2-A03`)
+
+**Added 2026-08-24 by `M2-A03`.** Everything above describes what the API must do. This
+section describes the machinery that makes it *stay* true as the API grows from six
+controllers to sixty. It lives in `tests/V.SMART.Api.Tests/PermissionMatrix/` and runs in CI
+on every push and every pull request (`.github/workflows/ci.yml:213-219`, step
+*Test - V.SMART.Api.Tests*).
+
+### 13.1 Discovery
+
+`ApiEndpointDiscovery` reflects over the real `V.SMART.Api` assembly — every public,
+declared, non-`[NonAction]` instance method on every `ControllerBase` — and composes each
+action's metadata **controller-attributes first, then action-attributes**, which is MVC's own
+order. Both `ScreenRightAuthorizationFilter` and `ScreenRightStartupValidator` take
+`LastOrDefault()` from that sequence, so a helper reading `MethodInfo.GetCustomAttribute`
+alone would find no controller-level `[RequireScreen]` anywhere and pass the whole API
+vacuously. Nothing in the harness names a controller: a controller added tomorrow is swept,
+and its six matrix cases appear, with no edit to any test.
+
+Measured 2026-08-24 on `master` tip `13ee72a`: **6 controllers, 18 actions — 10 gated, 7
+`[NoScreenRight]`-exempt, 1 `[AllowAnonymous]`.**
+
+### 13.2 The allow-list policy — exempt by declaration, never by omission
+
+`ExemptEndpointAllowList` is a checked-in source file naming every ungated endpoint with a
+written justification, and `EndpointDiscoveryTests` compares it against the assembly **in both
+directions**. Adding `[AllowAnonymous]` or `[NoScreenRight]` to a new action fails the suite
+until the file is edited; deleting a still-valid entry fails it too, so the list cannot rot
+into a stale superset.
+
+Two lists, because there are two exemptions:
+
+| List | Meaning | Entries as of 2026-08-24 |
+|---|---|---|
+| `AnonymousActions` | No authentication at all | **1** — `POST /api/v1/auth/login` |
+| `ScreenRightExemptActions` | Authenticated, no screen right (`[NoScreenRight]`) | **7** — `GET /api/v1/me`, six `GET /api/v1/reference/*` |
+
+The `[NoScreenRight(justification)]` attribute already forces a reason at the declaration
+site (§2.4). The allow-list is the second signature: no single controller edit can widen the
+ungated surface without a reviewer seeing it in the diff.
+
+### 13.3 Screen names
+
+Names are validated against `ScreenCatalogue.SeededScreenNames`, which is what the production
+`ScreenRightStartupValidator` uses, and — since `Screens` lives in the per-tenant database
+with no tenant context at startup — what it is *forced* to use. The hazard that leaves is
+drift between that hand-copied catalogue and the seed itself, so
+`The_screen_catalogue_does_not_drift_from_the_ApplicationDbContext_seed` reads the seed by
+materialising `ApplicationDbContext`'s own `HasData` rows on the InMemory provider
+(`EnsureCreated()`) and pins the relationship: the catalogue is a strict subset of the seed,
+missing exactly the two rows a later migration deletes (`ScreenCode` 114/115 — R-65, KB-109
+option A), and that exclusion is derived from the seed rather than hard-coded.
+
+Recorded so it is not re-attempted: `db.Model.FindEntityType(...).GetSeedData()` throws (the
+runtime model is read-optimised), and `IDesignTimeModel` is not present in the EF Core
+assemblies this project references (probed in the build output, 2026-08-24).
+
+**Known limit, stated rather than assumed.** A *real but wrong* name — `"Currency Today"` on
+a Currency controller — is seeded, so no catalogue check can reject it. That is asserted as a
+limit in `HarnessSelfTests.A_real_but_wrong_screen_name_is_not_caught_and_that_limit_is_deliberate`;
+only an endpoint's own tests catch it.
+
+### 13.4 The matrix, and the rights-fixture / cache-reset mechanism
+
+Every gated `(action, right)` pair is driven through all six fixtures of §3's truth table —
+no row, all flags false, only the required flag, every flag except the required one, required
+flag plus `IsHide`, and no token. **60 cases at 10 gated endpoints**, and six more for every
+endpoint added. Positive rows assert *not 403*, never 200: the harness proves authorization
+and must not couple itself to any endpoint's success contract.
+
+Cache isolation uses **M2-A01-03's documented bypass** and nothing else:
+
+1. every case constructs its own `MemoryCache` — nothing static, nothing shared;
+2. every case constructs the **real** `UserRightsProvider` with `ttlSeconds: 0`
+   (`UserRightsCacheOptions.IsEnabled == false`, `UserRightsProvider.cs:57-62`), so every
+   resolution goes to the repository and nothing is ever written to the cache;
+3. every case asserts the repository was called **exactly once** and that no cache entry
+   exists afterwards — isolation observed, not assumed. A stale read shows as zero calls.
+
+`CacheIsolationTests` is the meta-test set that fails when this stops working: a flipped right
+is observed immediately; the same flip driven **400 times** against one provider and one cache
+is correct on every iteration; the enabled-cache control case documents the stale read the
+bypass avoids and shows `Invalidate` as the second lever; and matrix outcomes are proved
+independent of the order cases run in.
+
+### 13.5 Failure messages
+
+Every message names controller, action, screen and right — e.g.
+`CurrencyController.Delete [DELETE /api/v1/currencies/{id:int}] screen='Currency' right='(undeclared)' declares 0 [RequireRight] attributes; exactly one is required`.
+A bare assertion failure across sixty-plus cases is unusable.
+
+### 13.6 The harness proving it can fail
+
+Both deliberate breakages were run against the real `CurrencyController` on 2026-08-24 and
+reverted (the final diff contains no controller change):
+
+| Breakage | Observed |
+|---|---|
+| `[RequireRight(Right.Delete)]` deleted from `CurrencyController.Delete` | 10 harness tests failed, naming the action |
+| `[RequireScreen("Currency")]` → `"Currencyy"` | 3 harness tests failed, naming all five affected actions |
+
+They are also encoded permanently as `HarnessSelfTests`, which runs the same
+`AnnotationAudit` and the same production `ScreenRightStartupValidator` over deliberately
+misannotated stand-in controllers declared in the test assembly. A prose record of a one-off
+manual experiment does not re-run; these do, on every push.
+
+### 13.7 What the harness still does not prove — and the hole it does not close
+
+- **No host.** R-43 stands: the project references neither `Microsoft.AspNetCore.Mvc.Testing`
+  nor a `WebApplicationFactory`, so outcomes are asserted on the filter's `IActionResult` and
+  its `ProblemDetails` body, not on bytes on a socket. The "no token" row is a filter-level
+  401 plus a declaration-level `[Authorize]` assertion.
+- **The fail-open direction is still open in production.** An action on a controller with no
+  `[RequireScreen]` at all is passed through by both
+  `ScreenRightAuthorizationFilter.cs:69-72` and `ScreenRightStartupValidator.cs:83-88`. The
+  harness fails on that condition, so it cannot reach `master` unnoticed — but a host started
+  from a hypothetical unannotated build would still serve it. Switching the production
+  direction on is **Q-71**, owned by the repository owner; `M2-A03`'s scope forbids editing
+  `V.SMART.Api/Authorization/**`.
+  `HarnessSelfTests.The_production_validator_still_allows_an_unannotated_controller_which_is_Q_71`
+  records that state executably and will fail — deliberately — on the day Q-71 is resolved.
+- **"Required for merge" is not a repository artefact.** `ci.yml` runs the suite as a blocking
+  step on push and pull request, but whether the job is *required* is GitHub branch-protection
+  configuration, outside this tree. It cannot be set or verified from here.
 
 ---
 
