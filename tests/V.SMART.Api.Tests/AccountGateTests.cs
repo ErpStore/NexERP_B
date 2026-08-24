@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using V.SMART.Api.Auth;
 using V.SMART.Api.Controllers;
 using V.SMART.Api.Middleware;
 using V.SMART.Api.Tests.Infrastructure;
+using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IAdminService;
 using V.SMART.Shared.Data;
 using V.SMART.Shared.Data.Master.Admin;
 using V.SMART.Shared.Repository.IRepository;
@@ -296,7 +298,12 @@ namespace V.SMART.Api.Tests
                 unitOfWork.Object,
                 null!,
                 tenantProvider.Object,
-                new ConfigurationBuilder().Build())
+                new ConfigurationBuilder().Build(),
+                // M2-A10 added the IUserRightService and ILogger parameters. Every login in this
+                // file is refused before the seeding call, so an inert stand-in is enough here;
+                // the seeding behaviour itself is covered by AuthControllerRightsSeedingTests.
+                Mock.Of<IUserRightService>(),
+                NullLogger<AuthController>.Instance)
             {
                 ControllerContext = new ControllerContext
                 {
