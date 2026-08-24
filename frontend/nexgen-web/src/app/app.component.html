@@ -6,4 +6,15 @@
   can appear twice, or in the wrong stacking context.
 -->
 <p-toast position="bottom-right" [breakpoints]="toastBreakpoints" [pt]="toastPassThrough" />
-<app-confirm-dialog />
+
+<!--
+  The confirm host is deferred (M2-C13) so p-confirmdialog, p-dialog,
+  app-form-field and app-textarea leave the initial chunk (R-69). It is still
+  exactly one host: the trigger latches on the first confirm() and never goes
+  back, and ConfirmDialogService queues that first request until this host has
+  mounted and subscribed - PrimeNG's requireConfirmation$ is a plain Subject
+  and would otherwise drop it.
+-->
+@defer (when confirmHostRequested()) {
+  <app-confirm-dialog />
+}

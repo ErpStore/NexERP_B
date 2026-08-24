@@ -48,38 +48,95 @@ export interface ConfirmResult {
  * back through it. The reason therefore lives here, written by
  * `app-confirm-dialog` at the moment of acceptance and read by the callback
  * that resolves the promise.
+ *
+ * **The host is deferred, and this service is what makes that safe (M2-C13).**
+ * `app.component.html` renders `<app-confirm-dialog />` inside an `@defer
+ * (when confirmHostRequested())` block so `p-confirmdialog`, `p-dialog`,
+ * `app-form-field` and `app-textarea` stay out of the initial chunk (R-69).
+ * That creates a window: the very call that *triggers* the mount happens while
+ * nothing is subscribed yet, and PrimeNG's `requireConfirmation$` is a plain
+ * `Subject` (`primeng/api`, `requireConfirmationSource = new Subject()`), so an
+ * emission with no subscriber is dropped silently and the caller's promise
+ * would never resolve. Requests made before the host has mounted are therefore
+ * **queued here** and replayed by `markHostMounted()`.
  */
 @Injectable({ providedIn: 'root' })
 export class ConfirmDialogService {
   private readonly primeng = inject(ConfirmationService);
   private readonly currentRequest = signal<ConfirmRequest | null>(null);
+  private readonly requested = signal(false);
   private reason: string | null = null;
+
+  /**
+   * `false` until `app-confirm-dialog` has been created *and* its inner
+   * `p-confirmdialog` has subscribed to `requireConfirmation$`. Deliberately a
+   * plain field, not a signal: it is written from a post-render hook and never
+   * read from a template.
+   */
+  private hostMounted = false;
+  /** Confirmations asked for before the host mounted, in the order asked. */
+  private queued: (() => void)[] = [];
 
   /** What the host component is currently rendering. */
   readonly request = this.currentRequest.asReadonly();
 
   /**
+   * The `@defer` trigger for the host: latches `true` on the first `confirm()`
+   * and never returns to `false`, because the single host stays mounted for the
+   * rest of the session once it exists.
+   */
+  readonly hostRequested = this.requested.asReadonly();
+
+  /**
    * Resolves `{ confirmed: false }` for every non-acceptance - the Cancel
    * button, `Esc`, the backdrop and the close icon alike. There is exactly one
    * way to say yes.
+   *
+   * Safe to call before the deferred host exists: the request waits for it.
    */
   confirm(request: ConfirmRequest): Promise<ConfirmResult> {
     this.currentRequest.set(request);
     this.reason = null;
+    this.requested.set(true);
     return new Promise<ConfirmResult>((resolve) => {
-      this.primeng.confirm({
-        header: request.header,
-        message: request.message,
-        accept: () => {
-          resolve({ confirmed: true, reason: this.reason });
-          this.currentRequest.set(null);
-        },
-        reject: () => {
-          resolve({ confirmed: false, reason: null });
-          this.currentRequest.set(null);
-        },
-      });
+      const emit = (): void => {
+        this.primeng.confirm({
+          header: request.header,
+          message: request.message,
+          accept: () => {
+            resolve({ confirmed: true, reason: this.reason });
+            this.currentRequest.set(null);
+          },
+          reject: () => {
+            resolve({ confirmed: false, reason: null });
+            this.currentRequest.set(null);
+          },
+        });
+      };
+
+      if (this.hostMounted) {
+        emit();
+      } else {
+        this.queued.push(emit);
+      }
     });
+  }
+
+  /**
+   * Called by `app-confirm-dialog` only, from a post-render hook - by which
+   * point its `p-confirmdialog` has run its constructor and is subscribed.
+   * Replays anything asked for while the host was still being loaded.
+   */
+  markHostMounted(): void {
+    if (this.hostMounted) {
+      return;
+    }
+    this.hostMounted = true;
+    const pending = this.queued;
+    this.queued = [];
+    for (const emit of pending) {
+      emit();
+    }
   }
 
   /** Called by `app-confirm-dialog` only, immediately before acceptance. */

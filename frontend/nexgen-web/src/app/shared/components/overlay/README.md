@@ -107,6 +107,30 @@ rediscovered:
   `aria-posinset`, which ARIA allows on a treeitem and not a menuitem; axe rates it critical.
   Cleared through `[pt]`.
 
+## The confirm host is deferred (M2-C13)
+
+`app.component.html` renders the one `<app-confirm-dialog />` inside
+`@defer (when confirmHostRequested())`, so `p-confirmdialog`, `p-dialog`, `app-form-field`
+and `app-textarea` sit in a lazy chunk rather than in the initial bundle (R-69: 711.75 kB →
+571.20 kB raw, back under Angular's 600 kB warning budget).
+
+Nothing changes for a caller — `ConfirmDialogService.confirm()` is still awaited the same way,
+including the very first call of the session. Two things follow for anyone editing this
+directory:
+
+- **Still exactly one host.** The trigger latches on the first `confirm()` and never returns
+  to `false`, so the host mounts once and stays. A screen must still never place its own.
+- **The pre-mount window is handled in the service, not by luck.** PrimeNG's
+  `requireConfirmation$` is a plain `Subject`, so the request that _triggers_ the mount would
+  be emitted with nobody subscribed and dropped — the promise would never resolve.
+  `ConfirmDialogService` queues requests until `markHostMounted()`, which
+  `ConfirmDialogComponent` calls from `afterNextRender` once its `p-confirmdialog` has
+  subscribed. `confirm-dialog.deferred.spec.ts` pins this; it fails if the queue is removed.
+- **Testing trap, measured 2026-08-24.** `TestBed` defaults `deferBlockBehavior` to **manual**,
+  so a spec that renders an `@defer` block and expects the trigger to fire gets an empty DOM and
+  a five-second timeout, with no hint that the block is the reason. Pass
+  `deferBlockBehavior: DeferBlockBehavior.Playthrough` to exercise the real trigger.
+
 ## Deliberate departure from `BsModal.razor`
 
 `V.SMART/V.SMART.Shared/Components/BsModal.razor:76-93` lets Confirm be pressed with an empty
