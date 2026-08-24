@@ -1569,7 +1569,17 @@ only the API host, is missing.
 host; the comment in `Program.cs` says so at the site. `ValidateScopes` was deliberately left
 at the framework default, so captive-dependency detection is unaffected.
 
-### R-65 — `ScreenCatalogue` names two screens that exist in no database, and the startup validator accepts them
+### R-65 — `ScreenCatalogue` names two screens that exist in no database, and the startup validator accepts them — RESOLVED
+
+> **RESOLVED 2026-08-24 (M2-A09).** `ScreenCatalogue.cs` now lists **150** names — the two
+> phantoms are deleted, not merely flagged. `grep -cE '^\s+"' ScreenCatalogue.cs` returns `150`;
+> `grep -n "Bill Paid List\|Bill Pending List" ScreenCatalogue.cs` returns nothing.
+> `ScreenRightStartupValidatorTests.cs` gained `A_deleted_phantom_screen_name_is_rejected`,
+> confirmed to fail against the pre-fix (152-name) catalogue and pass after — the point of the
+> task, not merely asserted. `dotnet test tests/V.SMART.Api.Tests` — 313 passed, 0 failed.
+> `dotnet test tests/V.SMART.Shared.Tests` — 90 passed, 1 skipped (pre-existing, unrelated), 0
+> failed. Option B (generated catalogue) remains deferred to `M2-B10`; the other 150 names were
+> left untouched, per scope.
 
 > **DECIDED 2026-08-24 by Vivek — option A of [KB-109](../decisions/KB-109-q28-r65-decision-brief.md).**
 > Delete `Bill Pending List` and `Bill Paid List` from `ScreenCatalogue.cs` so the compile-time

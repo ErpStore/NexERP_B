@@ -1,8 +1,12 @@
 namespace V.SMART.Api.Authorization
 {
     /// <summary>
-    /// A compile-time copy of the 152 seeded <c>Screens.ScreenName</c> values (KB-105 §2.7,
-    /// Appendix A).
+    /// A compile-time copy of the 150 <c>Screens.ScreenName</c> values that survive in every real
+    /// database (KB-105 §2.7, Appendix A). <c>ApplicationDbContext.cs:1151</c> seeds 152 rows, but
+    /// a later migration deletes the two rows at <c>ScreenCode</c> 114 and 115 (the "pending" and
+    /// "paid" bill list screens); those two names are deliberately absent here (M2-A09, R-65,
+    /// KB-109 option A) so a <c>[RequireScreen]</c> naming either fails loudly at startup instead
+    /// of passing validation and then denying every request forever.
     /// <para>
     /// Used <b>only</b> by <see cref="ScreenRightStartupValidator"/> (KB-105 D-6). It is never
     /// consulted at request time: the authorization decision always comes from the tenant
@@ -27,7 +31,7 @@ namespace V.SMART.Api.Authorization
     /// </summary>
     public static class ScreenCatalogue
     {
-        /// <summary>The 152 seeded <c>ScreenName</c> values. Ordinal set.</summary>
+        /// <summary>The 150 surviving <c>ScreenName</c> values. Ordinal set.</summary>
         public static IReadOnlySet<string> SeededScreenNames { get; } = new HashSet<string>(StringComparer.Ordinal)
         {
             "User",
@@ -143,8 +147,6 @@ namespace V.SMART.Api.Authorization
             "Stock Ledger",
             "Stock Analysis",
             "ViewTallyDc-In-Out",
-            "Bill Pending List",
-            "Bill Paid List",
             "Service Bills",
             "Po Pendings",
             "Pending Statements",
