@@ -13,6 +13,34 @@ last_verified: 2026-08-24
 dependencies: [KB-089, KB-091, KB-092, KB-081]
 
 selection_note: |
+  2026-08-24 Select-only pass (this session), starting from tip `8d330c8` on `master` (clean
+  tree, verified via `git status --porcelain` before trusting this file — the initial
+  conversation snapshot claimed branch `migration/M2-B11-health-checks-logging` at `7b4b86c`,
+  which was stale; `git branch --show-current` showed `master` at `8d330c8` with nothing
+  uncommitted). Found that `master` had moved three commits past what this file and
+  `current-task.md` describe: `2328c94` (merge `M2-C13`), `e5e291c` ("M2-C13 Completed and
+  merged; R-69 resolved") and `5f32f2a`/`8d330c8` (wording/G2-ownership fixes) — none of which
+  touched this file or `current-task.md`. `task-tracker.md`'s own row for `M2-C13` now reads
+  `Completed`⁵⁵˒⁵⁶˒⁵⁷ with footnote ⁵⁷ confirming the merge, the counts line reads "48
+  `Completed`, 1 `Needs Review`", and the branch is gone from `git branch --no-merged master`.
+  **But the tracker's own prose is internally inconsistent with its own row**: the "Current
+  state" narrative (lines 269-271, 302-304) and this file's/`current-task.md`'s selection notes
+  still describe `M2-C13` as `Needs Review`/unmerged/awaiting owner review — stale text the
+  `Completed` commits (`e5e291c`, `5f32f2a`, `8d330c8`) never touched. Per CLAUDE.md's authority
+  order, git/the row wins over the stale prose; this note corrects it rather than propagating
+  it further. **This changes nothing about selectability**: grepped `task-tracker.md` and
+  `dependency-graph.md` for `M2-C13` and confirmed no row lists it in `depends_on` — its merge
+  releases no task, exactly as the prior note already concluded. Re-ran the five-part test
+  against the tracker's three remaining `Ready` rows myself rather than trust the inherited
+  claim: `M0-06` still fails part 5 (`migration/M0-06-remove-default-admin` still present,
+  unmerged, in `git branch --no-merged master`); `M0-11` still fails part 2 (`task_type:
+  Product Decision`, owner-only); `M2-A02` still fails part 3 (`open-questions.md` Q-28 row
+  still has no resolution filled in, and no commit since 2026-08-24 touches R-65 or Q-28).
+  **No task is selectable this pass.** Selection only, per this session's instructions —
+  neither `current-task.md` nor `task-tracker.md`'s stale prose rewritten in this pass; noted
+  here so the next session does not need to re-discover the inconsistency. Previous note,
+  superseded by the above:
+
   2026-08-24 Session close-out (this session) for `M2-C13`, tip `3e821cc` on
   `migration/M2-C13-defer-confirm-host`. Independently validated `PASS` (attempt 1 of 3,
   `scopeOk: true`, `failureCategory: none`, 0 escalations) was carried into this session's
@@ -144,7 +172,7 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `STOPPED` — **`M2-C13` closed `Needs Review` (session close-out, 2026-08-24), independently validated `PASS` on attempt 1 of 3, `scopeOk: true`, `failureCategory: none`, 0 escalations.** Branch `migration/M2-C13-defer-confirm-host`, tip `3e821cc`, left unmerged, unpushed, for owner review. Confirm-dialog host deferred, initial bundle 711.75 kB → 571.20 kB raw, no budget warning, R-69 resolved. Re-ran the five-part "can actually be done" test against the tracker's three remaining `Ready` rows (`M0-06`, `M0-11`, `M2-A02`) and confirmed via `git branch --no-merged master` that none has changed status since `M2-C13` was selected — all three still fail it, so **no task is selectable this pass**. Full record: `tasks/M2-C13.md` § Execution Record (2026-08-24), task-tracker.md footnote ⁵⁶. |
+| **Status** | `STOPPED` — **Select-only pass, 2026-08-24, tip `8d330c8` on `master`.** `M2-C13` is now confirmed `Completed` **and merged** (`2328c94`/`e5e291c`, three commits ahead of what this file previously described) — task-tracker.md row reads `Completed`⁵⁵˒⁵⁶˒⁵⁷, no row names it in `depends_on`, so the merge releases no task. Re-ran the five-part "can actually be done" test against the tracker's three remaining `Ready` rows (`M0-06`, `M0-11`, `M2-A02`) directly against current `git`/KB state rather than trusting the inherited note — all three still fail it (see `selection_note` above for detail), so **no task is selectable this pass**. |
 | **Status (previous, superseded)** | `RUNNING` — **`M2-C13` selected this pass (2026-08-24, tip `521fe36` on `master`, tree clean).** Defer the confirm-dialog host to bring the initial bundle back inside Angular's 600 kB warning budget (R-69). Selection only, then dispatched and closed in a later pass — see Status above. |
 | **Stop reason (final, after `M2-C13`)** | **`M2-C13` was the only dispatched task and it closed clean, independently validated `PASS` on attempt 1 of 3; nothing behind it merges without owner review, and nothing else is selectable.** Deferred the `<app-confirm-dialog>` host behind `@defer (when confirmHostRequested())` on `migration/M2-C13-defer-confirm-host` (tip `3e821cc`) — `p-confirmdialog`, `p-dialog`, `app-form-field` and `app-textarea` move into a lazy `confirm-dialog-component` chunk (148.61 kB raw / 29.06 kB transfer). `ConfirmDialogService` now queues pre-mount `confirm()` requests rather than emitting into PrimeNG's plain-`Subject` `requireConfirmation$`, replayed via `markHostMounted()` from `ConfirmDialogComponent`'s `afterNextRender`; `confirm-dialog.deferred.spec.ts` (5 new tests) proves the first-call case through the real `@defer` trigger and was independently confirmed to fail without the fix (mutation test: `4 failed | 1 passed` with the queue removed, `5 passed` restored, both in an out-of-repo copy). Measured: `npm run build` **711.75 kB → 571.20 kB raw / 158.24 kB → 136.72 kB transfer**, no budget warning (was: `▲ bundle initial exceeded maximum budget... 711.75 kB`). All 10 acceptance criteria `MET`; `typecheck`/`lint`/`format:check` clean; `test:ci` **309 passed / 47 files** (up from 304/46); `build` exit 0. Diff confined to `frontend/` and `docs/kb/`, 7 files, 280/16 — `git rev-parse master` = merge-base = `521fe36`, so HEAD is the merged result on top of `master`. R-69 marked `RESOLVED` in the same commit; the "`M2-C03` lands next" claim it and footnote ⁵⁴ carried was corrected. **Not `Completed`** — this project requires owner integration (merge) before `Completed` regardless of the task's own Completion Conditions (KB-088 §Who may set Completed); left unmerged for review. Full record: tracker footnote ⁵⁶, `tasks/M2-C13.md` § Execution Record (2026-08-24). |
 | **Stop reason (after `M2-C04-03`)** | **`M2-C04-03` was the only dispatched task and it closed clean, independently validated `PASS`; nothing behind it merges without owner review, and nothing else is selectable.** All 14 overlay/feedback primitives (KB-051 §Overlays, §Feedback) built over PrimeNG 22.1.0 only, on `migration/M2-C04-03-feedback-primitives` (tip `1806bca`). Attempt 1 `FAIL` (`acceptance-criterion`) — the focus-trap/restore/scroll-lock matrix was 8/12 asserted, not 12/12, and the confirm dialog had **no** focus-restoration code at all (PrimeNG 22.1's `p-confirmdialog` depends on `pAutoFocus` on its own accept/reject buttons, which this component's custom `#footer` replaces). Diagnosed and fixed at `56b4c1d`: an `effect` captures the invoker, `afterEveryRender` focuses the dialog panel, `onDialogHide()` restores focus. Attempt 2 independently validated `PASS`, all 20 acceptance criteria `MET`, `scopeOk: true`. Verified: `typecheck`/`lint`/`format:check` all exit 0; `test:ci` 304 passed / 46 files; `build` exit 0, 711.75 kB raw / 158.28 kB gzip with one non-fatal budget warning (**R-69**, inside KB-050's `<250 kB` gzip target). Scope confined to `frontend/nexgen-web/` and `docs/kb/`; no `V.SMART/**`, no schema, BR-SO-003 stays server-side. Documentation landed on the branch: KB-051, KB-050, the INV-006 amendment (including the measured PrimeNG confirm-dialog focus defect), **Q-78**/**Q-79** and **R-69**–**R-72**. One new question raised at this close-out, **Q-80** (an undocumented `maxlength=500` on the BR-SO-003 reason textarea). **Not `Completed`** — the Completion Conditions require a human keyboard-only and screen-reader pass, not yet done, and only the repository owner may set `Completed` (KB-088 §Who may set Completed). Full record: tracker footnote ⁵³, `tasks/M2-C04-03.md` § Execution Record (2026-08-24), `failure-log.md`. |

@@ -266,9 +266,9 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
 *estimates*, not rows.
 
-**`M2-C13` closed `Needs Review` 2026-08-24** (footnote ⁵⁶) — deferred the confirm-dialog host,
-initial bundle **711.75 kB → 571.20 kB raw**, no more budget warning, R-69 resolved. Left
-unmerged on `migration/M2-C13-defer-confirm-host` for owner review.
+**`M2-C13` `Completed` and merged** to `master` 2026-08-24 (`2328c94`; footnotes ⁵⁶ and ⁵⁷) —
+deferred the confirm-dialog host, initial bundle **711.75 kB → 571.20 kB raw**, no budget
+warning, **R-69 resolved**. Verified on the merged result: 309 tests / 47 files, all gates green.
 
 **Nothing is selectable. The pool is empty on specification and dependency grounds alike, and
 every remaining path runs through a person.** All three `Ready` rows fail the five-part test:
@@ -299,13 +299,14 @@ went from a React scaffold to an Angular workspace with design tokens and form c
 (`M2-C01`, `M2-C04-01`, `M2-C04-02`). Frontend test count over that window: **6 → 215**, across
 **2 → 29** files.
 
-**Unmerged branches still carrying work:** `migration/M2-C04-03-feedback-primitives` merged to
-`master` at `ec8fb52` 2026-08-24 (footnote ⁵⁴) and is no longer unmerged — struck from this list.
-`migration/M2-C13-defer-confirm-host` (tip `3e821cc`) is now awaiting owner review —
-independently validated `PASS`, footnote ⁵⁶. Two other unmerged branches exist and neither
-should be merged — `migration/M2-A08-row-level-scoping` (duplicate of the merged `M2-A08`,
-functionally identical `UserRepository.cs` change, no validated `PASS`; safe to delete) and
-`migration/M2-B12-01-inv-012-numbering` (`Blocked`, verdict `FAIL`, escalation budget exhausted).
+**Unmerged branches still carrying work: none.** Everything validated has been merged —
+`migration/M2-C04-03-feedback-primitives` (`ec8fb52`, footnote ⁵⁴) and
+`migration/M2-C13-defer-confirm-host` (`2328c94`, footnotes ⁵⁶/⁵⁷) both landed 2026-08-24. Two
+unmerged branches exist and **neither should be merged** — `migration/M2-A08-row-level-scoping`
+(duplicate of the merged `M2-A08`, functionally identical `UserRepository.cs` change, no
+validated `PASS`; safe to delete) and `migration/M2-B12-01-inv-012-numbering` (`Blocked`, verdict
+`FAIL`, escalation budget exhausted). `migration/M0-06-remove-default-admin` also exists and is
+what excludes `M0-06` at selection step 5.
 
 **M0-03-01: `Completed` 2026-08-17.** Reviewed, signed off by the repository owner, and
 merged to `master` (`f55db52`). See note ³ above and

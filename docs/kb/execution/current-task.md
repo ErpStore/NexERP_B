@@ -24,13 +24,16 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 ## ▶ No task is currently selectable
 
 `M2-C13` (defer the confirm-dialog host, bring the initial bundle back inside Angular's 600 kB
-warning budget, R-69) closed **`Needs Review`** this session (2026-08-24) — independently
-validated `PASS` on attempt 1 of 3, `scopeOk: true`, `failureCategory: none`, 0 escalations.
-Branch `migration/M2-C13-defer-confirm-host` (tip `3e821cc`), left unmerged, unpushed, for owner
-review. Measured: initial bundle **711.75 kB → 571.20 kB raw / 158.24 kB → 136.72 kB transfer**,
-no more budget warning; R-69 marked resolved. Full record:
-[`tasks/M2-C13.md`](tasks/M2-C13.md) § Execution Record (2026-08-24),
-[`task-tracker.md`](task-tracker.md) footnote ⁵⁶, [`runner-state.md`](runner-state.md).
+warning budget, R-69) closed `Needs Review` in the session that ran it (2026-08-24) —
+independently validated `PASS` on attempt 1 of 3, `scopeOk: true`, `failureCategory: none`,
+0 escalations — and has **since been reviewed and merged to `master`** (`2328c94`, `e5e291c`),
+now `Completed`. Confirmed by re-reading `task-tracker.md` this pass (2026-08-24, later
+session): its row reads `Completed`⁵⁵˒⁵⁶˒⁵⁷, its "Current state" prose (as of this writing)
+has not yet caught up. Measured: initial bundle **711.75 kB → 571.20 kB raw / 158.24 kB →
+136.72 kB transfer**, no more budget warning; R-69 marked resolved. No row in the tracker or
+`dependency-graph.md` names `M2-C13` in `depends_on`, so this merge releases no other task.
+Full record: [`tasks/M2-C13.md`](tasks/M2-C13.md) § Execution Record (2026-08-24),
+[`task-tracker.md`](task-tracker.md) footnote ⁵⁷, [`runner-state.md`](runner-state.md).
 
 **Re-checked against the five-part "can actually be done" test** ([KB-082 § Ready-task
 selection rule](dependency-graph.md#ready-task-selection-rule)) and confirmed unchanged since
