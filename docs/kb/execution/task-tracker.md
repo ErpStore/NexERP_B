@@ -117,7 +117,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A07 | M2 | `GET /api/v1/me` | Backend | **Completed**³⁷ *(merged to `master` `80c209b` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 2 d | G2 |
 | M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | **Completed**²⁹˒³⁹ *(merged to `master` `380c805` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 3 d | G2 |
 | M2-A09 | M2 | Remove the two phantom screen names from `ScreenCatalogue` (R-65) | Security | **Needs Review**⁶⁰ *(implemented and independently validated PASS 2026-08-24; unmerged)* | P0 | M2-A01-03 | 0.5 d | G2 |
-| M2-A10 | M2 | Seed administrator rights on the API login path (Q-28) | Security | **Ready**⁵⁸ | P1 | M2-A01-03 | 0.5 d | G2 |
+| M2-A10 | M2 | Seed administrator rights on the API login path (Q-28) | Security | **Needs Review**⁶¹ *(implemented and independently validated PASS 2026-08-24; unmerged)* | P1 | M2-A01-03 | 0.5 d | G2 |
 
 ### M2-B — API structure
 
@@ -264,10 +264,14 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**48 `Completed`, 3 `Needs Review`, 3 `Ready`, 36 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
+**48 `Completed`, 4 `Needs Review`, 2 `Ready`, 36 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
 *estimates*, not rows. (2026-08-24 close-out: `M2-A09` moved `Ready` → `Needs Review`,
-implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰.)
+implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰. Later the same day,
+`M2-A10` moved `Ready` → `Needs Review` the same way — see footnote ⁶¹. The two remaining
+`Ready` rows, `M0-06` and `M0-11`, both fail the five-part "can actually be done" test: `M0-06`
+on a sibling branch already open (`migration/M0-06-remove-default-admin`, unmerged), `M0-11` on
+being a `Product Decision` (owner-only). No task is currently selectable.)
 
 **`M2-C13` `Completed` and merged** to `master` 2026-08-24 (`2328c94`; footnotes ⁵⁶ and ⁵⁷) —
 deferred the confirm-dialog host, initial bundle **711.75 kB → 571.20 kB raw**, no budget
@@ -2716,3 +2720,34 @@ in the same commit. See
 (KB-088 "Who may set Completed"); the branch is left for review, not merged, not pushed.
 **Releases nothing** — no task file names `M2-A09` in `depends_on`; its value is R-65 itself,
 closing the silent-lockout trap for any future `[RequireScreen]` annotation.
+
+⁶¹ **`M2-A10` implemented 2026-08-24 on `migration/M2-A10-api-rights-seeding` (tip `02a4633`),
+independently validated `PASS`** on the final of 3 validation-attempt passes (`scopeOk: true`,
+`failureCategory: none`, 1 escalation across the run). `AuthController.Login` now calls
+`SeedAdministratorRightsAsync(user.UserId)` — gated on a `private const int AdministratorUserId
+= 1`, mirroring `Login.razor:345-349` exactly — after the credential check and before the JWT is
+issued. Chosen failure behaviour: **log and continue**, so a seeding exception does not fail an
+otherwise-successful login (justified in the task file's Execution Record — seeding repairs a
+missing-rows condition rather than performing authentication, and continuing grants nothing new
+because ADR-004's filter still refuses every endpoint the account holds no row for). New test
+file `tests/V.SMART.Api.Tests/AuthControllerRightsSeedingTests.cs` (4 methods, one a 3-case
+`Theory` — 6 cases total): a **negative** test proving the seeder is never invoked for
+`UserId != 1` (`MockBehavior.Strict`, `Times.Never` + `VerifyNoOtherCalls()`, independently
+proven a real guard by simulating removal of the gate against the same `Moq.dll` the suite
+binds), a positive test for `UserId == 1` using the real `UserRightService` and asserting the
+exact rows it writes, and a throw test proving the login response stays a normal `200`. Full API
+suite **318/318** (up from 312 on `master`); Shared suite **90/91** (1 pre-existing unrelated
+skip). Build — `0` errors, `6693` warnings, exact gate-baseline match. `git diff master...HEAD
+--stat` — 8 files, confined to `V.SMART/V.SMART.Api/`, `tests/` and `docs/kb/`; `Login.razor` and
+`UserRightService.cs` confirmed byte-identical to `master`. Two validation attempts (1 and 3)
+failed on a documentation-recording defect, not a code defect — the Execution Record was missing,
+then a factual correction to a prior false claim about Blazor's seeding-failure behaviour
+("aborts sign-in") was applied to only 2 of 4 places the branch had written it; both diagnosed
+and fixed (`bba1c8b`, `ef7cdb1`, `cb18964`) without touching any assertion or executable
+statement. Full attempt history: [`failure-log.md`](failure-log.md) (KB-092, "M2-A10" entries).
+See [`tasks/M2-A10.md` § Execution Record
+(2026-08-24)](tasks/M2-A10.md#execution-record-2026-08-24) for the full validator transcript.
+**Closed `Needs Review`, not `Completed`** — only the repository owner may set `Completed`
+(KB-088 "Who may set Completed"); the branch is left for review, not merged, not pushed.
+**Releases nothing** — no task file names `M2-A10` in `depends_on`; its value is closing the
+API-only-administrator lockout itself.
