@@ -109,7 +109,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A01-01 | M2 | — implementation spec from ADR-004 | Architecture | **Completed**¹⁸ | P0 | G0 *(exception)* | 2 d | G2 |
 | M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | **Completed**²⁵ | P0 | M2-A01-01 | 3 d | G2 |
 | M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Completed**²⁷ | P0 | M2-A01-02 | 2 d | G2 |
-| M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Ready**²⁷˒⁵⁸ *(unblocked 2026-08-24 — **Q-28 answered** and **R-65 decided**, both option A, KB-109)* | P0 | M2-A01-03 | 1 d | G2 |
+| M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Needs Review**⁵⁹ *(implemented and independently validated PASS 2026-08-24; unmerged)* | P0 | M2-A01-03 | 1 d | G2 |
 | M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | Blocked | P0 | M2-A02 | 3 d | G2 |
 | M2-A04 | M2 | Refresh tokens + revocation | Security | **Blocked**⁴⁸ *(correctly — on **M0-04**, not on `M2-A01-02`; ruled 2026-08-23)* | P0 | M2-A01-02, **M0-03/M0-04** | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
@@ -264,18 +264,27 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**48 `Completed`, 1 `Needs Review`, 3 `Ready`, 36 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
+**48 `Completed`, 2 `Needs Review`, 4 `Ready`, 36 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
-*estimates*, not rows.
+*estimates*, not rows. (The `Ready` count corrects a stale "3" that predates this close-out —
+`M2-A09` and `M2-A10` were already `Ready` and simply not tallied.)
 
 **`M2-C13` `Completed` and merged** to `master` 2026-08-24 (`2328c94`; footnotes ⁵⁶ and ⁵⁷) —
 deferred the confirm-dialog host, initial bundle **711.75 kB → 571.20 kB raw**, no budget
 warning, **R-69 resolved**. Verified on the merged result: 309 tests / 47 files, all gates green.
 
-**Nothing is selectable. The pool is empty on specification and dependency grounds alike, and
-every remaining path runs through a person.** All three `Ready` rows fail the five-part test:
-`M0-06` already has a branch, `M0-11` is a `Product Decision` (owner-only), and `M2-A02` is
-gated on the unanswered **Q-28** *and* on **R-65**.
+**`M2-A02` implemented and independently validated `PASS`, closed `Needs Review` 2026-08-24**
+(footnote ⁵⁹) — `CurrencyController` now carries `[RequireScreen("Currency")]` +
+per-action `[RequireRight(...)]`, proven by 45 new reflection-driven tests plus the full
+357-test API suite, on `migration/M2-A02-currency-authorization` (tip `634d30c`). **Not merged.**
+`M2-A03` and `M2-B03` stay `Blocked` until it is merged to `master` — a `Needs Review` branch is
+not a satisfied Hard prerequisite.
+
+**Nothing is selectable. The pool is empty on dependency grounds, and every remaining path runs
+through a person.** The two remaining `Ready` rows both fail the five-part test: `M0-06`
+already has a branch, `M0-11` is a `Product Decision` (owner-only). `M2-A09` and `M2-A10`
+(both unblocked 2026-08-24 by the Q-28/R-65 decision, KB-109) remain genuinely `Ready` and
+selectable — see the next-task note below.
 
 **Five decisions, in order of what they unblock:**
 
@@ -301,10 +310,13 @@ went from a React scaffold to an Angular workspace with design tokens and form c
 (`M2-C01`, `M2-C04-01`, `M2-C04-02`). Frontend test count over that window: **6 → 215**, across
 **2 → 29** files.
 
-**Unmerged branches still carrying work: none.** Everything validated has been merged —
-`migration/M2-C04-03-feedback-primitives` (`ec8fb52`, footnote ⁵⁴) and
-`migration/M2-C13-defer-confirm-host` (`2328c94`, footnotes ⁵⁶/⁵⁷) both landed 2026-08-24. Two
-unmerged branches exist and **neither should be merged** — `migration/M2-A08-row-level-scoping`
+**Unmerged branches still carrying work: `migration/M2-A02-currency-authorization` (tip
+`634d30c`, validated `PASS`, `Needs Review`) awaits owner review and merge** — merging it
+releases `M2-A03` and (with `M2-B02`, already `Completed`) `M2-B03`. Otherwise everything
+validated has been merged — `migration/M2-C04-03-feedback-primitives` (`ec8fb52`, footnote ⁵⁴)
+and `migration/M2-C13-defer-confirm-host` (`2328c94`, footnotes ⁵⁶/⁵⁷) both landed 2026-08-24.
+Two further unmerged branches exist and **neither should be merged** —
+`migration/M2-A08-row-level-scoping`
 (duplicate of the merged `M2-A08`, functionally identical `UserRepository.cs` change, no
 validated `PASS`; safe to delete) and `migration/M2-B12-01-inv-012-numbering` (`Blocked`, verdict
 `FAIL`, escalation budget exhausted). `migration/M0-06-remove-default-admin` also exists and is
@@ -2656,3 +2668,25 @@ first, but nothing forces it.
 **One thing deliberately left open.** Both the Blazor path and `M2-A10` treat *administrator* as
 `UserId == 1`. That is a magic number and no evidence was found that it is guaranteed. KB-109
 flags it; `M2-A10` is forbidden from acting on it. It needs its own question if it matters.
+
+⁵⁹ **`M2-A02` implemented 2026-08-24 on `migration/M2-A02-currency-authorization` (tip
+`634d30c`), independently validated `PASS`** (attempt 1 of 3, `scopeOk: true`,
+`failureCategory: none`, 0 escalations). `[RequireScreen("Currency")]` on the controller class
+and `[RequireRight(...)]` on all five actions (`CurrencyController.cs:21,53,71,81,95,109`);
+the controller diff is usings, attributes and a provenance comment only — no logic changed.
+New test file `tests/V.SMART.Api.Tests/CurrencyAuthorizationTests.cs` (45 tests, all passing),
+proving the matrix by reflecting the real attributes onto the real
+`ScreenRightAuthorizationFilter` (`IUserRightsProvider` substituted — the filter is proven,
+not the rights query). Full API suite 357/357; Shared suite 90/91 (1 pre-existing unrelated
+skip). Anonymous-401 and 403-`application/problem+json` are proved at policy/`ObjectResult`
+level only — no `WebApplicationFactory` host exists (`Program.cs` has no partial `Program`
+class), so over-the-wire proof is explicitly **M2-A03**'s. Raised **Q-71** (open-questions.md):
+whether some task should now flip `ScreenRightAuthorizationFilter.cs:58-72` /
+`ScreenRightStartupValidator.cs:33-42,83-88`'s dormant "unannotated controller is an error"
+direction, now that every endpoint is annotated or exempt — candidate owner `M2-A03`, decision
+owner the repository owner. See
+[`tasks/M2-A02.md` § Execution Record (2026-08-24)](tasks/M2-A02.md#execution-record-2026-08-24)
+for the full validator transcript. **Closed `Needs Review`, not `Completed`** — only the
+repository owner may set `Completed` (KB-088 "Who may set Completed"); the branch is left for
+review, not merged, not pushed. **Releases nothing yet**: `M2-A03` and `M2-B03` need `M2-A02`
+*merged to `master`*, which a `Needs Review` branch does not satisfy.

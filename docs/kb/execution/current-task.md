@@ -21,78 +21,68 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## ▶ No task is currently selectable
+## ▶ Active task: `M2-A09` — Remove the two phantom screen names from `ScreenCatalogue` (R-65)
 
-`M2-C13` (defer the confirm-dialog host, bring the initial bundle back inside Angular's 600 kB
-warning budget, R-69) closed `Needs Review` in the session that ran it (2026-08-24) —
-independently validated `PASS` on attempt 1 of 3, `scopeOk: true`, `failureCategory: none`,
-0 escalations — and has **since been reviewed and merged to `master`** (`2328c94`, `e5e291c`),
-now `Completed`. Confirmed by re-reading `task-tracker.md` this pass (2026-08-24, later
-session): its row reads `Completed`⁵⁵˒⁵⁶˒⁵⁷, its "Current state" prose (as of this writing)
-has not yet caught up. Measured: initial bundle **711.75 kB → 571.20 kB raw / 158.24 kB →
-136.72 kB transfer**, no more budget warning; R-69 marked resolved. No row in the tracker or
-`dependency-graph.md` names `M2-C13` in `depends_on`, so this merge releases no other task.
-Full record: [`tasks/M2-C13.md`](tasks/M2-C13.md) § Execution Record (2026-08-24),
-[`task-tracker.md`](task-tracker.md) footnote ⁵⁷, [`runner-state.md`](runner-state.md).
+Full spec: [`tasks/M2-A09.md`](tasks/M2-A09.md). Owner decision already made: **option A**
+of [KB-109](../decisions/KB-109-q28-r65-decision-brief.md), 2026-08-24 — delete the two
+phantom names, do not generate the catalogue from the database (that is option B, deferred to
+`M2-B10`), do not make the validator query the database at startup (option C, rejected).
 
-**Re-checked against the five-part "can actually be done" test** ([KB-082 § Ready-task
-selection rule](dependency-graph.md#ready-task-selection-rule)) and confirmed unchanged since
-the prior session: none of the remaining `Ready` rows in `task-tracker.md` clears it.
+**Why it's selectable now.** `depends_on: [M2-A01-03]` only, which is `Completed` and merged.
+`task_type: Security`, not a `Product Decision`. No open question gates it (grepped
+`open-questions.md` for `M2-A09`, no hit). No ⛔ banner; `status: Ready`,
+`last_verified: 2026-08-24` in its own frontmatter. `git branch --no-merged master` (checked
+2026-08-24, this session) shows no branch touching `ScreenCatalogue.cs`,
+`ScreenRightStartupValidator.cs` or `ScreenRightStartupValidatorTests.cs` — the only unmerged
+branch that overlaps *anything* in `V.SMART/V.SMART.Api/Authorization/` is none; the sole
+overlap risk in that directory is `M2-A02`'s branch, which touches only `Controllers/` and
+`tests/`, not `Authorization/`. Ranked ahead of the other newly-`Ready` sibling, `M2-A10`
+(Security, P1, same `depends_on`), on priority — `M2-A09` is P0.
 
-| Task | Ready? | Why it fails the five-part test |
-|---|---|---|
-| `M0-06` — remove the seeded default Administrator credential | `Ready` | Fails part 5: a sibling branch already exists (`migration/M0-06-remove-default-admin`, confirmed via `git branch --no-merged master` 2026-08-24). |
-| `M0-11` — Product decision: silent FIFO under-issue (Q-01) | `Ready` | Fails part 2: `task_type: Product Decision`, owner-only, never self-selectable. |
-| `M2-A02` — apply to `CurrencyController` + denial tests | `Ready` (gated) | Fails part 3: gated on unanswered **Q-28** and **R-65**. |
+**One-line summary of the work.** `ApplicationDbContext.cs` seeds 152 `Screens` rows; two were
+later deleted by migration (`ScreenCode` 114/115), so every real database holds 150.
+`ScreenCatalogue.cs:146-147` still lists the two phantoms — `"Bill Pending List"` and
+`"Bill Paid List"`. `ScreenRightStartupValidator` checks a declared `[RequireScreen(...)]` name
+against this catalogue, not against the database, so today it would wave through an annotation
+naming a phantom screen and produce a **silent, permanent 403 for every user**, with no boot
+warning. Delete the two entries; add a test proving the validator now **rejects** a phantom
+name (run it against the pre-fix catalogue too, and say so — a test that passes both ways
+proves nothing); confirm at least one real, surviving screen name still passes. Full acceptance
+criteria, out-of-scope boundaries and doc-update list are in the task file — do not re-derive
+them here.
 
-Everything else in the tracker is `Blocked`, `In Progress`, `Not Started`, or already
-`Completed`/`Needs Review`. This is a **person-level** stall, not an execution-capacity one —
-see `task-tracker.md` § Current state (2026-08-24) for the outstanding owner decisions, in
-order of how much each unblocks:
+**Blast radius today is zero** — no endpoint currently carries either phantom annotation. This
+converts a latent trap into a loud boot failure, nothing more.
 
-1. **`M0-04`** — rotate the exposed credentials (deferred to end-of-milestone 2026-08-19).
-   Unblocks `M2-A04` → `M2-A05` → `M2-C02` → `M2-C03`, and G0 criteria 2/3.
-2. **`M2-C10`'s environment** — a reachable DB + credential, or relax its "MEASURED wire
-   format" criterion to static analysis. Unblocks `M2-C10`, then `M2-C07`.
-3. **Q-28 + R-65**. Unblocks `M2-A02` → `M2-A03`, `M2-B03` → `M2-B10`.
-4. **Q-38** — what `M2-C11` is *for*, now `M2-C01` has built the workspace it existed to
-   adopt. Unblocks `M2-C11`.
-5. **Owner review and merge of unmerged `PASS`/`Needs Review` branches** — several sit ready
-   for review and merging any of them may release further `Blocked` tasks (e.g.
-   `M2-C05`/`M2-C05-01` need `M2-C04-02` merged, not just `Needs Review`). This session adds
-   `migration/M2-C13-defer-confirm-host` (tip `3e821cc`, `PASS`) to that list — nothing in the
-   dependency graph names `M2-C13` as a prerequisite, so merging it releases no other task, but
-   it removes the last thin margin on the initial-bundle budget. See `task-tracker.md` §
-   "Unmerged branches still carrying work" for the current list.
+## Carried forward from `M2-A02`'s close-out (2026-08-24)
 
-### What a future session should do here
+- `M2-A02` (`CurrencyController` screen-right enforcement) is **implemented and independently
+  validated `PASS`**, closed `Needs Review` on `migration/M2-A02-currency-authorization` (tip
+  `634d30c`) — **not merged**. `M2-A03` and `M2-B03` stay `Blocked` until it is merged to
+  `master`; a `Needs Review` branch does not satisfy a Hard prerequisite. See
+  [`tasks/M2-A02.md` § Execution Record (2026-08-24)](tasks/M2-A02.md#execution-record-2026-08-24)
+  and `task-tracker.md` footnote ⁵⁹.
+- **Q-71** was raised by that close-out (`open-questions.md`): whether some task should now
+  switch on `ScreenRightAuthorizationFilter.cs:58-72` /
+  `ScreenRightStartupValidator.cs:33-42,83-88`'s dormant "an authenticated action on a
+  controller with no `[RequireScreen]` is an error" direction, now that every API endpoint is
+  annotated or explicitly exempt. Candidate owner `M2-A03`; decision owner the repository
+  owner. Not `M2-A09`'s to act on — `M2-A09` touches only the catalogue's *contents*, not the
+  validator's unannotated-controller policy — but whoever next reads
+  `ScreenRightStartupValidator.cs` for `M2-A09` will see the same dormant comment and should not
+  mistake it for this task's scope.
+- `M2-A02`'s executing session independently reconfirmed the R-65 gate text (KB-109) names only
+  `"Bill Pending List"` / `"Bill Paid List"` as the phantom entries — the same two names
+  `M2-A09` targets. No new phantom was found.
 
-- **Do not re-run Select** against the same three `Ready` rows without a state change —
-  nothing about them has changed since 2026-08-23. Check `git branch --no-merged master` and
-  `task-tracker.md` § Current state first; if one of the decisions above has been made,
-  re-derive selectability from that, not from this file's stale snapshot.
-- **Offer the owner a documentation-only task ahead of an unmet gate** rather than stalling,
-  per standing guidance — e.g. re-specifying or investigating something that does not need a
-  `Ready` row to proceed, if one exists and is worth doing.
-- If the owner merges any unmerged `Needs Review`/`PASS` branch (`M2-C04-02`, `M2-C13`,
-  `M2-C12-03`, `M2-C12-04`, or others), re-run the five-part test — a merge is the only event
-  that changes this file's answer.
+## What a future session should do here
 
-### Carried forward from `M2-C13`, for whoever revisits the overlay layer or the app shell
-
-- **R-69** (`docs/kb/risks/technical-debt-register.md`) is now `RESOLVED` — the
-  confirm-dialog host is deferred behind `@defer (when confirmHostRequested())`, and the two
-  facts it recorded still bind: import both overlay hosts **from their own files**, never the
-  `shared/components` barrel (a barrel import takes the initial chunk to ~1.31 MB, a failing
-  build); PrimeNG's `requireConfirmation$` is a plain `Subject`, so any future overlay wired
-  the same way needs the same pre-mount-queue treatment `ConfirmDialogService` now has.
-- `<p-toast>` was deliberately left eager — the confirm-host deferral alone cleared budget, so
-  the toast host's own lost-emission hazard (fire-and-forget, no promise to strand, but still a
-  silently dropped message) was not taken on. Whoever next touches the toast path should reread
-  that reasoning before assuming it, too, should be deferred.
-- **R-70**–**R-72** (unrelated to `M2-C13`, carried from `M2-C04-03` and still open): a
-  duplicated jsdom fixture across `form/` and `overlay/`; measured PrimeNG 22.1 ARIA/keyboard
-  defects worked around per-component; a stale React remnant in KB-051's prose.
-- `M2-C05-03`, `M2-C06`, `M2-C08` all consume the overlay primitives once the relevant branches
-  merge; `M2-C03` (app shell) is transitively blocked behind `M0-04` and is not imminent
-  regardless of the bundle-budget fix.
+- Read [`tasks/M2-A09.md`](tasks/M2-A09.md) in full before starting — it is short (0.5 d
+  estimate) and self-contained.
+- After `M2-A09` closes, `M2-A10` (Seed administrator rights on the API login path, Q-28, P1,
+  same `depends_on: [M2-A01-03]`) is the other sibling already `Ready` and independent — no
+  file overlap with `M2-A09` (`AuthController.cs`-adjacent only) or with `M2-A02`'s unmerged
+  branch.
+- If the owner merges `migration/M2-A02-currency-authorization` before this task is picked up,
+  re-run the five-part test for `M2-A03` and `M2-B03` — that merge is the event that would
+  change their answer.
