@@ -109,15 +109,15 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A01-01 | M2 | — implementation spec from ADR-004 | Architecture | **Completed**¹⁸ | P0 | G0 *(exception)* | 2 d | G2 |
 | M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | **Completed**²⁵ | P0 | M2-A01-01 | 3 d | G2 |
 | M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Completed**²⁷ | P0 | M2-A01-02 | 2 d | G2 |
-| M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Needs Review**⁵⁹ *(implemented and independently validated PASS 2026-08-24; unmerged)* | P0 | M2-A01-03 | 1 d | G2 |
-| M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | Blocked | P0 | M2-A02 | 3 d | G2 |
+| M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Completed**⁵⁹˒⁶² *(merged to `master` on owner instruction 2026-08-24)* | P0 | M2-A01-03 | 1 d | G2 |
+| M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | **Ready**⁶² *(released 2026-08-24 — `M2-A02` `Completed` and merged)* | P0 | M2-A02 | 3 d | G2 |
 | M2-A04 | M2 | Refresh tokens + revocation | Security | **Blocked**⁴⁸ *(correctly — on **M0-04**, not on `M2-A01-02`; ruled 2026-08-23)* | P0 | M2-A01-02, **M0-03/M0-04** | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
 | M2-A07 | M2 | `GET /api/v1/me` | Backend | **Completed**³⁷ *(merged to `master` `80c209b` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 2 d | G2 |
 | M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | **Completed**²⁹˒³⁹ *(merged to `master` `380c805` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 3 d | G2 |
-| M2-A09 | M2 | Remove the two phantom screen names from `ScreenCatalogue` (R-65) | Security | **Needs Review**⁶⁰ *(implemented and independently validated PASS 2026-08-24; unmerged)* | P0 | M2-A01-03 | 0.5 d | G2 |
-| M2-A10 | M2 | Seed administrator rights on the API login path (Q-28) | Security | **Needs Review**⁶¹ *(implemented and independently validated PASS 2026-08-24; unmerged)* | P1 | M2-A01-03 | 0.5 d | G2 |
+| M2-A09 | M2 | Remove the two phantom screen names from `ScreenCatalogue` (R-65) | Security | **Completed**⁶⁰˒⁶² *(merged to `master` on owner instruction 2026-08-24)* | P0 | M2-A01-03 | 0.5 d | G2 |
+| M2-A10 | M2 | Seed administrator rights on the API login path (Q-28) | Security | **Completed**⁶¹˒⁶² *(merged to `master` on owner instruction 2026-08-24)* | P1 | M2-A01-03 | 0.5 d | G2 |
 
 ### M2-B — API structure
 
@@ -127,7 +127,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | **Completed**²⁸ *(merged to `master` `f054c75` on owner instruction 2026-08-21)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Completed**³³ | P1 | M2-B07 | 1 d | G2 |
 | M2-B02 | M2 | Paging / sort / filter contract | Backend | **Completed**²⁴ | P0 | M2-A06 | 1 wk | G2 |
-| M2-B03 | M2 | Codify the controller template | Documentation | Blocked | P0 | M2-A02, M2-B02 | 2 d | G2 |
+| M2-B03 | M2 | Codify the controller template | Documentation | **Ready**⁶² *(released 2026-08-24 — `M2-A02` and `M2-B02` both `Completed` and merged)* | P0 | M2-A02, M2-B02 | 2 d | G2 |
 | M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Blocked**³¹ *(⛔ premise falsified — needs re-specification by the owner; no code written, no branch)* | P1 | M2-B07 | 2 d | G2 |
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Completed**³² ³⁵ *(merged to `master` 2026-08-21, `65d9666`)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
@@ -256,7 +256,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | **17** | G0 | ⚠️ **Passed with exceptions** 2026-08-19 — criteria **2 and 3 are not satisfied**, deferred by owner decision; `M0-04`/`M0-05` stay `Blocked`. See [KB-080 § G0 deferral](README.md#g0-deferral--criteria-2-and-3-decided-by-the-repository-owner-2026-08-19) |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | **60** | **26** | G2 | **OPEN** — 26 of 60 done (43%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
+| M2 | **62** | **29** | G2 | **OPEN** — 29 of 62 done (47%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -264,7 +264,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**48 `Completed`, 4 `Needs Review`, 2 `Ready`, 36 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
+**51 `Completed`, 1 `Needs Review`, 2 `Ready`, 36 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
 *estimates*, not rows. (2026-08-24 close-out: `M2-A09` moved `Ready` → `Needs Review`,
 implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰. Later the same day,
@@ -2751,3 +2751,34 @@ See [`tasks/M2-A10.md` § Execution Record
 (KB-088 "Who may set Completed"); the branch is left for review, not merged, not pushed.
 **Releases nothing** — no task file names `M2-A10` in `depends_on`; its value is closing the
 API-only-administrator lockout itself.
+
+⁶² **`M2-A02`, `M2-A09` and `M2-A10` all `Completed` and merged 2026-08-24 — the release Q-28 and
+R-65 bought.** Merged `--no-ff` one at a time, each verified independently before it touched
+`master`; safety tags `pre-merge-M2-A09`, `pre-merge-M2-A02`, `pre-merge-M2-A10`.
+
+**Verified on the merged result, not inherited:** `V.SMART.Api` **0 errors / 6693 warnings** (the
+exact gate baseline) · `V.SMART.Web` **0 / 6697** (its exact baseline) · `tests/V.SMART.Api.Tests`
+**364 passed / 0 failed** (312 → 364) · `tests/V.SMART.Shared.Tests` **90 passed / 1 skipped**, the
+skip being `M0-10`'s deliberate R-08 characterisation test. Every branch's diff was confined to
+`V.SMART.Api/`, `tests/` and `docs/kb/`.
+
+**Merge order was chosen, not incidental.** `M2-A09` went first so that `M2-A02`'s
+`[RequireScreen("Currency")]` was checked against the **trimmed 150-name** catalogue rather than
+the one still carrying phantoms. `"Currency"` survives the trim — confirmed before merging either.
+
+**The owner's rejection of KB-109 option B is now enforced by a test, not by prose.**
+`AuthController` gates on a named `private const int AdministratorUserId = 1`, and
+`Non_administrator_login_does_not_invoke_the_rights_seeder` asserts `Times.Never` under
+`MockBehavior.Strict`, parameterised over non-admin ids. `Login.razor` and `UserRightService.cs`
+are **byte-unchanged**, so Blazor behaviour is untouched and a later "seed everyone with no rows"
+change cannot land without failing a test.
+
+**`M2-A10` cost 4 attempts and 1 escalation, and both failures were documentation, not code.**
+Attempt 1 failed because the Execution Record did not exist — the code was already correct.
+Attempt 3 is the more instructive one: attempt 2 had corrected a false claim about Blazor's
+failure behaviour in **2 of the 4 places the branch had written it**, and validation caught the
+two survivors (`open-questions.md`'s Q-28 entry and an XML doc comment) still contradicting the
+corrected account. A half-applied correction is worse than none, because the disagreement looks
+authoritative in whichever copy the next reader opens.
+
+**R-65 is resolved**; **Q-28 is answered and its fix has landed**.
