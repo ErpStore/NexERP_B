@@ -150,6 +150,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-03 | M2 | — re-spec the list / CRUD shell (M2-C05*, M2-C06) | Documentation | **Completed**⁴⁴ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Completed**⁴⁵ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Completed**⁴⁶ *(merged to `master` `27dfc5d` on owner instruction 2026-08-23)* | P0 | M2-C12-01…04 | 1 d | G2 |
+| M2-C13 | M2 | Defer the confirm-dialog host; bundle back inside budget (R-69) | Frontend | **Ready**⁵⁵ | P1 | M2-C04-03 | 1 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Blocked**²⁶˒⁴⁶˒⁴⁷˒⁵² *(attempt 1 `FAIL`, category `environment` — its binding criterion needs a MEASURED wire format from a live `[Authorize]`d endpoint, and this workstation has empty `ConnectionStrings:MasterDb` and `Jwt:Secret`. Not a code defect. See footnote ⁵²)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | **Completed**⁴⁶˒⁵⁴ *(parent — all three children `Completed` and merged)* | P0 | M2-C01 | 2 wks | G2 |
@@ -2539,10 +2540,36 @@ eleven stylesheets this task added, against **138 `var(--…)`** references. Thr
 > **Carried forward — [R-69](../risks/technical-debt-register.md), and `M2-C03` should read it
 > first.** The initial bundle is **711.75 kB raw / 158.28 kB gzip**, past Angular's **600 kB
 > warning** and **88 kB short of the 800 kB error budget** that fails the build. `M2-C03` (app
-> shell) lands next and is not small. R-69 records two measured facts worth more than the number:
+> shell) is **not** imminent — corrected 2026-08-24 by `M2-C13`: it is transitively blocked behind `M0-04`. R-69 records two measured facts worth more than the number:
 > importing the toast and confirm-dialog hosts from their files rather than the
 > `shared/components` barrel is what keeps this at 711 kB instead of **1.31 MB with a failing
 > build**; and the remaining eager cost is the confirm-dialog host, whose fix needs
 > `ConfirmDialogService` to hold the request until the host mounts, because PrimeNG's
 > `requireConfirmation$` is a plain `Subject` and an emission before mount is lost. **No gate
 > catches this** — `npm run build` exits 0 on a warning.
+
+⁵⁵ **M2-C13: created `Ready` 2026-08-24 — the only executable work left, and a correction to how
+its own urgency was described.** [R-69](../risks/technical-debt-register.md) measured the initial
+bundle at **711.75 kB raw / 158.28 kB gzip**, past Angular's **600 kB warning** and **88 kB short
+of the 800 kB error budget**. `npm run build` exits 0 on a warning, so **no gate catches the
+crossing**.
+
+**The urgency claim in R-69 and in footnote ⁵⁴ was wrong, and this task carries the correction.**
+Both said `M2-C03`'s shell "lands next" and would consume the headroom. It cannot: `M2-C03`
+`depends_on: [M2-C02, M2-C04-01]`, `M2-C02` needs `M2-A04`, and `M2-A04` is Hard-blocked on
+**`M0-04`** (footnote ⁴⁸). `M2-C03` is transitively blocked behind the credential rotation and is
+not imminent. **This is not a race** — it is worth doing because the margin is thin, the fix is
+already understood, and nothing else is executable.
+
+**It is not a one-line deferral, which is why it is a task rather than a tidy-up.**
+`ConfirmDialogService.confirm()` emits through PrimeNG's `requireConfirmation$`, a plain
+**`Subject`** — an emission with no subscriber is dropped silently. `app-confirm-dialog` is that
+subscriber and only exists once mounted, so deferring the host means the **first** `confirm()`
+call — the one that triggers the mount — would emit into nothing and leave its promise unresolved
+forever, with no error. The service must hold the request until the host has subscribed.
+Acceptance criterion 3 requires a test that **fails without the fix**.
+
+**The 1.31 MB trap is carried into the task file verbatim.** R-69 established by measurement that
+importing the two hosts from their own files rather than the `shared/components` barrel is what
+keeps the bundle at 711 kB instead of **1.31 MB with a failing build**. Criterion 6 is a `grep`
+guarding exactly that.
