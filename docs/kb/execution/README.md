@@ -13,7 +13,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-21
+last_verified: 2026-08-24
 dependencies: [KB-001, KB-002, KB-003, KB-005, KB-020, KB-030, KB-040, KB-041, KB-050, KB-051, KB-052, KB-053, KB-060, KB-070, KB-071, KB-081, KB-082, KB-083, KB-084]
 ---
 
@@ -991,7 +991,7 @@ terminal phase would misrepresent when the work happens.
 | M5-02 | API integration tests per controller | with each `<W>-06` | — |
 | M5-03 | Component tests for design-system primitives | M2 | — |
 | M5-04 | E2E per module critical path | with each `<W>-10` | — |
-| M5-05 | Permission-matrix testing — **merge-blocking CI gate** | M2 onward | [↗](tasks/M2-A03.md) |
+| M5-05 | Permission-matrix testing — **merge-blocking CI gate** | M2 onward | [↗](tasks/M2-A03.md) — **delivered 2026-08-24 by M2-A03**; live from M2 onward: `tests/V.SMART.Api.Tests/PermissionMatrix/` sweeps the whole `V.SMART.Api` assembly, drives 6 fixtures per gated endpoint (60 cases at 10 gated endpoints today) and runs in CI on every push and PR. Caveat: `ci.yml` makes it a blocking *step*; whether the job is *required for merge* is GitHub branch protection, outside this repository (KB-105 §13.7) |
 | M5-06 | Parity testing per module | with each `<W>-11` | — |
 | M5-07 | Performance: 10k-row grids, 200-line documents, concurrent creates | M5 | generated at M5 |
 | M5-08 | Security: tenant isolation, IDOR on `{id}` routes, JWT, XSS | M5 | generated at M5 |

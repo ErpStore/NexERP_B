@@ -333,6 +333,41 @@ What did **not** close, and why the risk stays open:
 **R-24 is explicitly not addressed by M2-A02** — it was already closed by M2-A06 (2026-08-20);
 `CurrencyController`'s error shapes were not touched by this task.
 
+**Update 2026-08-24 (M2-A03) — the merge gate exists. R-03 is MITIGATED, not yet CLOSED.**
+M2-A03 was specified to close this risk (mechanism M2-A01 + first application M2-A02 + merge
+gate M2-A03). Two of the three are done and the gate is live; the third condition below is
+what keeps the entry open, and it is a decision, not work M2-A03 was permitted to do.
+
+What closed. `tests/V.SMART.Api.Tests/PermissionMatrix/` reflects over the whole
+`V.SMART.Api` assembly and fails the build if **any** action is ungated, half-annotated, or
+names a screen absent from the seeded catalogue — with the offending controller, action,
+screen and right named in the message. Exemptions are declared twice: at the declaration site
+(`[AllowAnonymous]` / `[NoScreenRight(justification)]`) and in the checked-in
+`ExemptEndpointAllowList`, compared against the assembly in both directions, so no endpoint
+can become exempt by omission. Measured on `master` tip `13ee72a`: 6 controllers, 18 actions —
+10 gated, 7 exempt, 1 anonymous — and 60 matrix cases (10 × 6 fixtures), 106 harness tests in
+all, suite 470/470 green in ~6 s. It runs in CI on every push and pull request
+(`.github/workflows/ci.yml:213-219`), so **controller number two cannot merge unannotated**,
+which is the specific failure this entry was opened for. Full description: KB-105 §13.
+
+What did **not** close:
+
+1. **The fail-open direction is still off in production — Q-71.**
+   `ScreenRightAuthorizationFilter.cs:69-72` and `ScreenRightStartupValidator.cs:83-88` still
+   pass through an action whose controller declares no `[RequireScreen]`. M2-A03's scope
+   forbids editing `V.SMART.Api/Authorization/**`, so it could not flip it — it made the same
+   condition a **test** failure instead, and recorded the production state executably in
+   `HarnessSelfTests.The_production_validator_still_allows_an_unannotated_controller_which_is_Q_71`.
+   The practical difference: unannotated code cannot reach `master`, but a host built from
+   such code would still serve it unchecked. **R-03 closes when Q-71 is answered and the
+   direction is switched on**, by whichever task the owner assigns it to.
+2. **R-43 still stands** — no test host, so the proof remains at `IActionResult` /
+   `ProblemDetails` level rather than over the wire.
+3. **"Required for merge" is not settable from this repository.** `ci.yml` makes the suite a
+   blocking step; making the job *required* is GitHub branch protection, owner-side
+   configuration. The gate's value depends on it, so it is named here rather than assumed.
+
+
 ### R-38 — Account-level login gates are enforced only in Blazor `@code`; the API bypasses all of them
 **Confirmed, added 2026-08-12.** R-03 established that *authorization* (screen rights) is
 UI-only. This is a distinct, previously unrecorded category: **authentication-time account
