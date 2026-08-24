@@ -21,71 +21,60 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## ⛔ `M2-A03` — Automated permission-matrix test harness — BLOCKED, needs a human
+## No task selectable — `M2-B10` closed this session, nothing behind it is ready
 
-**Not resumable by another execution session as-is.** Implemented and independently validated
-this session (2026-08-24) on `migration/M2-A03-permission-matrix-harness` (tip `21dc055`, base
-`13ee72a`). Verdict: **`FAIL`, `failureCategory: environment`, `scopeOk: true`**. 17 of 18
-acceptance criteria are objectively met. The sole unmet one is GitHub repository configuration,
-not a code defect, and **no execution session can fix it** — re-dispatching the implementer or
-the validator at any model will reproduce this entry verbatim.
+`M2-B10` (OpenAPI polish + generated TypeScript client in CI) was implemented and
+independently validated **`PASS`** on attempt 1 of 1, `scopeOk: true`, `failureCategory:
+none`, 0 escalations, and closed **`Needs Review`** (not `Completed` — owner integration
+required, [KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed)) on
+`migration/M2-B10-openapi-typescript-client` (tip `195daf3`, base `master` `c2a9140`).
 
-**Full spec:** [`tasks/M2-A03.md`](tasks/M2-A03.md) § Execution Record (2026-08-24) has the
-full account. Runner bookkeeping: [`runner-state.md`](runner-state.md) `Status` row and
-`selection_note`. Tracker: [`task-tracker.md`](task-tracker.md) row 113, footnote ⁶³.
+**Full record:** [`tasks/M2-B10.md`](tasks/M2-B10.md) § Execution Record (2026-08-24).
+Tracker: [`task-tracker.md`](task-tracker.md) row 135, footnote ⁶⁷. Runner bookkeeping:
+[`runner-state.md`](runner-state.md) `Status` row (session close-out).
 
-### Run State — what stopped it
+### What landed
 
-- **Unmet criterion**: `tasks/M2-A03.md`'s acceptance criterion "The harness runs in CI on
-  every push and pull request as a **required** job." The "runs on every push/PR" half is true
-  and observed (`.github/workflows/ci.yml:56-61,213-219`). The "**required**" half is GitHub
-  branch-protection configuration — it has no representation anywhere in this git tree.
-- **Why it can't be checked or fixed here**: `gh api repos/ErpStore/NexERP_B/branches/master/protection`
-  → `gh: command not found` (no `gh` CLI on this workstation). Even with `gh` present, setting
-  branch protection requires push/admin access this session does not have, and the branch
-  itself is not on `origin` (`git ls-remote --heads origin` does not list it) — there is no PR
-  for a required check to attach to yet.
-- **Category is deliberately `environment`, not `acceptance-criterion`** — same class and same
-  disposition as the `M0-07` attempt-1 stop (`failure-log.md:305-379`).
-- **Attempts used: 1 of 4. Escalations: 0.** Not retried, because a retry cannot change the
-  outcome (KB-091 §8 triggers 5 and 7).
-- **Everything else this task built is sound**, independently re-verified this session:
-  `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` → 0 errors; `dotnet test
-  tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj` → 470/470 passed; the harness alone
-  106/106; the generated matrix 60/60 (10 gated endpoints × 6 rights fixtures — the real
-  surface is 6 controllers / 18 actions, 3x the task file's stale premise). No file under
-  `V.SMART/` was touched (`git diff --stat 13ee72a..HEAD -- V.SMART/` empty).
+All three deliverables, at the corrected Angular locations (the task file was written for
+the pre-ADR-007 React stack and self-corrected in its own "Execution note" section):
 
-### To resume this task, a human needs to do one of
+- **OpenAPI polish** — all 18 actions across 6 controllers (Auth, Currency, CurrencyExcel,
+  Files, Me, Reference) carry an explicit operation id, a resource tag, and
+  `[ProducesResponseType]` for every status they can return, per
+  [KB-114 §11](../api/controller-conventions.md). This closes the gap the previous session
+  had flagged (`CurrencyController` `GetAll`-only, `AuthController.Login` none).
+- **Committed spec** — `api/openapi.json`, produced by one reproducible command
+  (`bash tools/generate-api-client.sh`), recorded in
+  [KB-083](prompt-template.md#verified-repository-commands).
+- **Generated client** — `ng-openapi-gen` 1.0.5, generated into
+  `frontend/nexgen-web/src/app/core/api/generated/` (the path `M2-C01` reserved). `decimal?`
+  → `number | null`, flagged to `M2-C10`, not resolved silently — recorded in
+  [KB-112](../api/generated-client.md) / INV-051.
+- **CI job** — `api-contract` added to the single `.github/workflows/ci.yml`, drift-checked
+  and proven to fail on a deliberate contract break and on a hand-edited generated file, both
+  reverted after observing the failure.
 
-1. **Mark the `build` job (or a job containing it) a required status check on `master`** in
-   the GitHub repository settings (or via an authenticated `gh` from a machine that has it),
-   then have a session re-verify and close the task `Needs Review`/`Completed`.
-2. **Accept the criterion as a standing manual gate**, the way `M0-07`'s equivalent criterion
-   was accepted, and close the task on that basis.
-3. **Move "required for merge" into a separate owner-owned successor task** and re-scope
-   `M2-A03`'s acceptance criteria to what a repository-only session can prove.
+### Next dependency-ready candidate — none
 
-**Owner: Vivek** (repository owner; only he may decide among the above or set a task
-`Completed`).
+Re-ran the five-part "can actually be done" test
+([KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule)) against
+every row currently `Ready` on the tracker:
 
-### Not to do
+- **`M0-06`** — fails part 5: sibling branch `migration/M0-06-remove-default-admin` still
+  exists, unmerged.
+- **`M0-11`** — fails part 2: `task_type: Product Decision`, owner-only, never
+  self-selectable.
 
-- Do not re-dispatch the implementer or validator on `M2-A03` expecting a different result —
-  the blocking condition is external and unchanged.
-- Do not soften, delete, or silently mark the criterion met.
-- Do not merge or push `migration/M2-A03-permission-matrix-harness` — leave it for owner
-  review.
+No other row reads `Ready`. In particular:
 
-### Next dependency-ready candidate (not started — this close-out's scope is M2-A03 only)
+- **`M2-D01`** (Currency end-to-end in Angular) names `M2-B10` as a Hard prerequisite, but
+  `M2-B10` is `Needs Review`, not `Completed` and merged — merging it releases `M2-D01`'s
+  `M2-B10` half (its other two prerequisites, `M2-C05-03` and `M2-A02`, are also not both
+  `Completed`-and-merged yet).
+- **`M2-A03`** stays `Blocked` on the named GitHub branch-protection gap (owner: Vivek),
+  unaffected by this task.
 
-`task-tracker.md` row 130, **`M2-B03`** (`Documentation`, P0, `depends_on: [M2-A02, M2-B02]`,
-both `Completed` and merged) clears the five-part "can actually be done" test as of this
-session: no unmet Hard prerequisite, not a `Product Decision`, no open question gates it, no
-⛔ banner, no sibling branch on its `source_files` (`git branch --no-merged master` re-checked
-2026-08-24). It was **not started** in this session — only recorded as the honest next
-candidate, per this close-out's explicit instruction to record the outcome of `M2-A03` and
-start nothing else.
+**Nothing is selectable. This close-out starts no new task**, per its own instruction.
 
 ### Carried forward — still true
 
@@ -93,16 +82,27 @@ start nothing else.
   still exists, unmerged.
 - **`M0-11`** (`Ready`) still fails part 2: `task_type: Product Decision`, owner-only, never
   self-selectable.
+- **`M2-A03`** (`Blocked`) still needs a human to mark the `api-contract`/`build` CI job a
+  *required* status check on `master` in GitHub repository settings, or to accept the
+  criterion as a standing manual gate, or to re-scope the criterion into a successor task.
+  Owner: Vivek.
 - **Q-71** (open-questions.md) is still open: whether/when to switch the production fail-open
   direction on an unannotated controller (`ScreenRightAuthorizationFilter.cs:69-72`,
-  `ScreenRightStartupValidator.cs:83-88`). `M2-A03`'s harness makes the condition a
-  build/test-time failure but did not touch `Authorization/**`, so the production gap itself
-  is unchanged and remains Q-71's to answer.
-- **R-43** (no `WebApplicationFactory` host in `tests/V.SMART.Api.Tests`) is still open. The
-  401/403 proofs in this harness (and in `M2-A02`/`M2-A10` before it) stop at the
-  policy/`ObjectResult` level, not over the wire.
-- **`AuthController.cs`'s `AdministratorUserId` const (`= 1`)** is still the whole safety
-  property for API-side rights seeding (`M2-A10`, merged). Do not generalise or "fix" that
-  gate incidentally while touching `AuthController.cs` for any reason.
-- Outstanding owner decisions unrelated to `M2-A03` (`M0-04` credential rotation, `M2-C10`'s
-  environment, `Q-38`) are unchanged — see `task-tracker.md` § Current state.
+  `ScreenRightStartupValidator.cs:83-88`). Untouched by `M2-B10`.
+- **R-43** (no `WebApplicationFactory` host in `tests/V.SMART.Api.Tests`) is still open —
+  401/403 proofs across the suite stop at the policy/`ObjectResult` level, not over the wire.
+- **`M2-C10`'s decimal wire format is now measured**, not merely reserved: `decimal?` →
+  `number | null` per the real committed `api/openapi.json` (INV-051, KB-112). `M2-C10`
+  itself remains `Blocked` on its own separate criterion — a reachable DB + credential for a
+  live `[Authorize]`d endpoint, or relaxing that criterion to static analysis; an owner
+  decision, unaffected by this task.
+- Outstanding owner decisions unrelated to `M2-B10` (`M0-04` credential rotation, `Q-38`,
+  merging `migration/M2-A02-currency-authorization` and other `Needs Review` branches) are
+  unchanged — see `task-tracker.md` § Current state.
+- **Unmerged branches worth a reviewer's attention, none to be merged by a session:**
+  `migration/M2-B10-openapi-typescript-client` (this task, `PASS`, `Needs Review`),
+  `migration/M2-A02-currency-authorization` (`PASS`, `Needs Review`),
+  `migration/M2-A03-permission-matrix-harness` (`FAIL`/`environment`, `Blocked` on a human),
+  `migration/M2-A09-screen-catalogue-phantoms` (`PASS`, `Needs Review`),
+  `migration/M2-A10-api-rights-seeding` (`PASS`, `Needs Review`), `migration/M0-06-remove-default-admin`
+  (unknown validation state — the reason `M0-06` is excluded from selection).
