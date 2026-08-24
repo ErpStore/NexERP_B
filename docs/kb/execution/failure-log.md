@@ -5132,3 +5132,497 @@ for this task proposes this or any other fix, so it is a retry, not a loop.
    to the 800 kB error budget with `M2-C03`'s shell still to land. Untouched by this fix.
 4. **The human keyboard-only / screen-reader pass** in *Completion Conditions* is still
    outstanding and is still not automatable here.
+
+---
+
+## M2-A10 - attempt 1 - independent validation - 2026-08-24 - `FAIL` (`acceptance-criterion`)
+
+Branch `migration/M2-A10-api-rights-seeding`, commit `0a1d796`. The validator wrote no
+application code; every command below was executed in this pass and its output is quoted as
+observed.
+
+**Verdict: FAIL on acceptance criterion 3's second clause, and on KB-088 section 4's "always"
+rule for the task file.** Eight of the nine criteria are objectively met and the code itself is
+correct; what is missing is the durable record the task and the workflow both require.
+
+### What failed
+
+Criterion 3: *"**A successful login still succeeds when seeding throws.** Test it with a service
+that throws; the response must still be the normal `200` login response. **State the chosen
+behaviour and its justification in the Execution Record.**"*
+
+- First half **met**: `Login_still_returns_200_when_the_rights_seeder_throws`
+  (`tests/V.SMART.Api.Tests/AuthControllerRightsSeedingTests.cs:206-227`) passed in this pass.
+- Second half **not met**: `docs/kb/execution/tasks/M2-A10.md` has **no `## Execution Record`
+  section**. Observed - `grep -n "^## " docs/kb/execution/tasks/M2-A10.md` returns
+  `36 Objective / 44 Why... / 72 Scope / 81 Out of Scope / 93 Acceptance Criteria /
+  112 Testing Requirements / 118 Documentation Updates / 126 Completion Conditions /
+  132 Git Strategy`. No Execution Record. And `git diff master...HEAD --name-only` does not
+  contain `docs/kb/execution/tasks/M2-A10.md` at all.
+- The task file's frontmatter still reads `status: Ready` (`M2-A10.md:9`) and its header table
+  still reads `| Status | Ready |` (`:32`). KB-088 section 4's table (`workflow.md:207`) says
+  `tasks/<TASK-ID>.md` is updated **Always** - frontmatter status **plus `## Execution Record`**;
+  section 3 step 2 (`workflow.md:169-171`) says the same.
+- The task's own *Completion Conditions* (`M2-A10.md:128`) say "All 9 criteria met, **output
+  quoted**". There is nowhere in the repository where this task's command output is quoted.
+
+The justification itself is not missing from the repository - it is stated three times, well:
+`V.SMART/V.SMART.Api/Controllers/AuthController.cs:127-145` (XML doc), the commit body of
+`0a1d796`, and `docs/kb/architecture/auth-and-permissions.md:98-114`. **The defect is location,
+not substance.** The remedy is small: append `## Execution Record (2026-08-24)` to
+`docs/kb/execution/tasks/M2-A10.md` with the chosen failure behaviour, its justification and the
+quoted command output, and set that file's status to `Needs Review`. No code needs to change.
+
+### What was verified as met (evidence observed this pass)
+
+| # | Criterion | Evidence |
+|---|---|---|
+| 1 | Seeder called **only** for `UserId == 1`, proven by a negative test | Gate at `AuthController.cs:148-149`. `Non_administrator_login_does_not_invoke_the_rights_seeder` for userId 2, 7, 150 - 3 of 3 `Passed`, each asserting `seeder.Verify(..., Times.Never)` plus `VerifyNoOtherCalls()` on a `MockBehavior.Strict` mock |
+| 2 | Invoked for `UserId == 1`, and the rows are what `SyncRightsForUserAsync` writes | `Administrator_login_invokes_the_rights_seeder_exactly_once_for_user_1` and `Administrator_login_writes_the_rows_SyncRightsForUserAsync_writes` both `Passed`; the second uses the **real** `UserRightService` and asserts all four flags `true`, `IsHide` false, `CreatedBy == "System"` - matching `UserRightService.cs:62-75` |
+| 3a | 200 when seeding throws | `Login_still_returns_200_when_the_rights_seeder_throws` `Passed` |
+| 4 | `Login.razor` byte-unchanged | `git diff master...HEAD -- '*Login.razor'` - empty |
+| 5 | `UserRightService.cs` byte-unchanged | `git diff master...HEAD -- '*UserRightService.cs'` - empty |
+| 6 | API build 0 errors, warnings at 6693 | `dotnet restore` then `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-restore --no-incremental -v normal -nologo` - **`6693 Warning(s)` / `0 Error(s)`, 00:01:26.36** - exactly the gate baseline |
+| 7 | API tests all pass, count greater than current | `dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj` - **`Failed: 0, Passed: 318, Skipped: 0, Total: 318, Duration: 6 s`**. Master total is 312: the diff adds exactly one test file (4 methods, one a 3-case `Theory`, so 6 cases) and removes none |
+| 8 | Shared tests, no regression | `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` - **`Failed: 0, Passed: 90, Skipped: 1, Total: 91`**. The single skip is `MfgPoServiceDeleteGuardTests.CanSalesOrderItemCancel_WithOnlyContractReview_IsRefused`, pre-existing - the diff touches no file under `tests/V.SMART.Shared.Tests/` |
+| 9 | Diff confined to `V.SMART/V.SMART.Api/`, `tests/`, `docs/kb/` | `git diff master...HEAD --name-only` - 7 files, all inside those three roots |
+
+### Extra checks the validator ran that the implementer did not claim
+
+- **The negative test is a real guard, not a false green.** `SeedAdministratorRightsAsync`
+  swallows every exception (`AuthController.cs:159-165`), so a strict-mock throw would be
+  hidden; the open question was whether Moq still records the invocation for
+  `Verify(Times.Never)`. Probed empirically against the same `Moq.dll` the suite binds
+  (`tests/V.SMART.Api.Tests/bin/Debug/net9.0/Moq.dll`) in a scratch console app outside the
+  repository: call a strict mock, swallow the `MockException`, then `Verify(..., Times.Never)`.
+  Output: `swallowed: MockException` then `RESULT: Verify(Times.Never) FAILED -> invocation IS
+  recorded -> test is a REAL guard`. Removing the `UserId == 1` gate would therefore turn the
+  three negative cases red, which is what criterion 1 is for.
+- **No DI regression from the two new constructor parameters.** `IUserRightService` is
+  registered scoped at `ServiceCollectionExtensions.cs:347`, reached by `AddVSmartDomain()`
+  which `V.SMART/V.SMART.Api/Program.cs:230` calls. Its transitive dependencies all resolve in
+  this host: `CurrentUserService` (`:307`; its ctor's `Dns.GetHostEntry` is inside a try/catch,
+  `CurrentUserService.cs:22-31`), `ICommonService` (`:510`), `IReportExecutor` (`:616`),
+  `ILoggingService` to `StructuredLoggingService` (`Program.cs:313`). Corroborated by
+  `Program.cs:215-227`, which lists - from an actual `ValidateOnBuild = true` run during M2-B07 -
+  the exact seven registrations unresolvable in this host; `IUserRightService` and
+  `ICommonService` are not among them.
+- **Blazor Server intact.** `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj
+  --no-incremental` - **`6697 Warning(s)` / `0 Error(s)`, 00:01:27.42** - identical to the
+  recorded baseline. The diff contains no file that `V.SMART.Web` or `V.SMART.Shared` compiles.
+- **Legacy comparison.** `Login.razor:345-349`, read directly rather than trusting the task
+  file's line numbers, is
+  `if (user.UserId == 1) { LogDeveloperInfo(...); await userRightService.SyncRightsForUserAsync(user.UserId); }`.
+  `UserRightService.cs:82-86` rethrows, so in Blazor the page catch (`Login.razor:357-362`)
+  toasts an error and skips `NavigateTo("/dashboard")`. The API's swallow-and-continue is a
+  genuine divergence, but one criterion 3 explicitly mandates. One correction to the
+  implementer's wording: Blazor has already called `customAuth.MarkUserAsAuthenticated` at
+  `Login.razor:336-341` **before** the seeding call, so a Blazor seeding failure leaves the user
+  authenticated but stranded on the login page - it does not "abort sign-in" as cleanly as the
+  new code comment and the KB-013 edit both say.
+- **No missing business rule.** No rule the Blazor seeding path enforces is absent from the API
+  path. The `UserId == 1` gate is reproduced exactly, as a private const, and is not
+  configurable - which is what the task demands.
+
+### Not checkable
+
+- Nothing here proves the seeding writes to SQL Server, or that the endpoint returns 200 over
+  HTTP: `tests/V.SMART.Api.Tests` still has no `Microsoft.AspNetCore.Mvc.Testing` reference and
+  no host (R-43). What would verify it: a `WebApplicationFactory` test, or a manual login against
+  the workstation SQL Express instance recorded in KB-083.
+- **R-73's own premise is unverified.** The new register row asserts a stale-empty-cache
+  interaction that no test exercises. Debt register is the right place for it, but it should not
+  be read as observed behaviour.
+
+### Lesser observations, not part of the verdict
+
+- `docs/kb/execution/task-tracker.md` (KB-081), named in the task's *Documentation Updates*
+  table, is not in the diff. That matches this repository's convention of a separate
+  `KB-081/KB-089/KB-093: Record ...` commit on `master`, so it is not counted against the branch.
+- `docs/kb/execution/runner-state.md` is modified in the working tree and uncommitted.
+
+### Tried before
+
+Nothing. This is the first validation pass on `M2-A10`; no earlier entry in this file names the
+task. A retry that appends the Execution Record is not a loop.
+
+---
+
+## M2-A10 - attempt 2 - diagnosis of attempt 1 - 2026-08-24 - `FIXED` (`implementation-error`)
+
+Branch `migration/M2-A10-api-rights-seeding`. Every command below was executed in this pass and
+its output is quoted as observed.
+
+### Reproduced
+
+Yes.
+
+```
+$ grep -n "^## " docs/kb/execution/tasks/M2-A10.md
+36 Objective / 44 Why... / 72 Scope / 81 Out of Scope / 93 Acceptance Criteria /
+112 Testing Requirements / 118 Documentation Updates / 126 Completion Conditions / 132 Git Strategy
+$ sed -n '9p;32p' docs/kb/execution/tasks/M2-A10.md
+status: Ready
+| Status | Ready |
+$ git diff master...HEAD --name-only        # 7 files, none of them the task file
+```
+
+No `## Execution Record`, task file absent from the diff, status still `Ready` - exactly what the
+validator reported.
+
+### Root cause
+
+**Simple implementation error, of the recording kind, not the code kind.** Acceptance criterion 3
+has two clauses and only the first was executed. The chosen failure behaviour was implemented and
+tested (`Login_still_returns_200_when_the_rights_seeder_throws`) and its justification was written
+three times - `AuthController.cs` XML doc, the body of commit `0a1d796`, and
+`docs/kb/architecture/auth-and-permissions.md` - but never in the one place criterion 3 and
+KB-088 section 4 (`workflow.md:169-171`, `:207`) both name: the task file's `## Execution Record`.
+The defect is location, not substance. No code was wrong.
+
+### Not tried before
+
+`grep -n "M2-A10" docs/kb/execution/failure-log.md` found exactly one prior block, the attempt-1
+validator entry at `:5138`, whose own *Tried before* section reads "Nothing". Appending the
+Execution Record has not been attempted. This is a retry, not a loop.
+
+### Fix applied
+
+1. **`docs/kb/execution/tasks/M2-A10.md`** - appended `## Execution Record (2026-08-24)`
+   (`:142`) carrying: what was implemented; the chosen failure behaviour (log-and-continue, normal
+   `200`) with its three-point justification; the four tests and what each asserts; the quoted
+   output of all four validation commands; the known limits (no HTTP/SQL coverage, R-43; DI
+   evidence is registration-graph only because `ValidateOnBuild` is off at `Program.cs:203`; R-73
+   Inferred not observed). Frontmatter `status:` and the header table row set `Ready` ->
+   `Needs Review`.
+2. **Factual correction to a legacy claim that had entered the KB.** The attempt-1 wording said a
+   Blazor seeding failure "does not sign the user in" / "does abort the sign-in". Checked against
+   source and it is false: `Login.razor:337` calls `customAuth.MarkUserAsAuthenticated`
+   **before** the seeding call at `:345-349`, so the Blazor user is already authenticated when
+   seeding runs; the catch at `:357-362` only toasts an error and skips
+   `NavigateTo("/dashboard")`, leaving them signed in but stranded on the login page. The real
+   divergence is that Blazor loses the navigation while the API returns `200` - narrower than
+   stated, and it makes the chosen API behaviour *closer* to Blazor. Corrected in the
+   `SeedAdministratorRightsAsync` XML doc (`V.SMART/V.SMART.Api/Controllers/AuthController.cs`)
+   and in `docs/kb/architecture/auth-and-permissions.md` §REST API step 4. **Comment and prose
+   only - no executable statement changed**, which the unchanged warning and test counts below
+   confirm.
+
+No business rule, schema, ADR or test assertion was altered. Nothing was weakened to pass.
+
+### Re-validated (all run after both edits)
+
+```
+$ dotnet restore V.SMART/V.SMART.Api/V.SMART.Api.csproj
+$ dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-restore --no-incremental -v normal -nologo
+    6693 Warning(s)
+    0 Error(s)
+Time Elapsed 00:01:26.68
+
+$ dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj
+Passed!  - Failed:     0, Passed:   318, Skipped:     0, Total:   318, Duration: 6 s
+
+$ dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj
+Passed!  - Failed:     0, Passed:    90, Skipped:     1, Total:    91, Duration: 13 s
+
+$ git diff master...HEAD -- '*Login.razor'          -> no output
+$ git diff master...HEAD -- '*UserRightService.cs'  -> no output
+```
+
+Criterion 6 at the 6693 gate baseline, 7 and 8 unchanged from attempt 1, 4 and 5 still byte-clean.
+Criterion 3's second clause is now met at `docs/kb/execution/tasks/M2-A10.md:142`. Criterion 9
+holds: the working tree adds only `docs/kb/execution/tasks/M2-A10.md` to the seven-file diff
+(`docs/kb/execution/failure-log.md` and `docs/kb/execution/runner-state.md` are orchestrator-owned
+and deliberately left out of the branch commit).
+
+### Residual risk
+
+- Everything R-43 covers: still no `WebApplicationFactory`, so no assertion in this task has ever
+  crossed HTTP or reached SQL Server. The 200-on-seeding-failure contract is proven at controller
+  level only.
+- The DI graph for the two new `AuthController` constructor parameters is proven by inspection,
+  not by an activation, because `ValidateOnBuild` is off in the API host (`Program.cs:203`). A
+  first real login through the API is what would confirm it.
+- R-73's stale-empty-cache premise remains unexercised by any test; it is recorded as Inferred in
+  both the debt register and the new Execution Record, and should not be read as observed.
+- `UserId == 1` as the definition of "administrator" is still an unevidenced magic number
+  (KB-109). Out of scope here by owner decision; it stays an open question.
+
+---
+
+## M2-A10 - attempt 3 - independent validation - 2026-08-24 - `FAIL` (`acceptance-criterion`)
+
+Branch `migration/M2-A10-api-rights-seeding`, HEAD `bba1c8b` (on top of `0a1d796`). The validator
+wrote no application code. Every command below was executed in this pass and its output is quoted
+as observed.
+
+**Verdict: FAIL.** All nine numbered acceptance criteria are met - re-run and re-observed, not
+taken from the report - and the code is correct. What fails is attempt 2's own headline fix: the
+factual correction to the Blazor-failure claim was applied to **two** of the **four** places this
+branch put that claim. The false statement survives in a KB document the task's *Documentation
+Updates* table explicitly names, where it now **directly contradicts** the corrected text this
+same branch wrote into KB-013.
+
+### What failed
+
+`docs/kb/open-questions.md:58` (Q-28, added by `0a1d796`, untouched by `bba1c8b`) states as fact:
+
+> "A seeding failure is logged and the login still returns 200 - **a deliberate divergence from
+> `Login.razor`, which aborts sign-in on that failure**"
+
+That is false, and this branch says so itself at
+`docs/kb/architecture/auth-and-permissions.md:112-114`:
+
+> "an earlier wording here said a Blazor seeding failure 'does abort the sign-in'. That is wrong
+> (Confirmed)."
+
+Verified independently against source this pass, not taken from either document:
+
+- `V.SMART/V.SMART.Shared/Pages/Master_Module_pages/Identity_Pages/Login.razor:337` calls
+  `customAuth.MarkUserAsAuthenticated(...)`; the seeding call is at `:345-348`; the catch is at
+  `:357`.
+- `V.SMART/V.SMART.Shared/Authentication/Custom AuthenticationStateProvider.cs:24-47` -
+  `MarkUserAsAuthenticated` assigns `_currentUser` and raises `NotifyAuthenticationStateChanged`.
+  The catch block does **not** call `MarkUserAsLoggedOut` (`:49-58`). The Blazor sign-in therefore
+  survives a seeding throw; only `NavigateTo("/dashboard")` at `:355` is skipped.
+
+The same false claim also survives in code this branch added, at
+`tests/V.SMART.Api.Tests/AuthControllerRightsSeedingTests.cs:193`:
+
+> "This diverges from `Login.razor` as written, where the call sits inside the page's try/catch and
+> **a failure does abort the sign-in**."
+
+Grep, this pass:
+
+```
+$ grep -rn "does abort the sign-in|aborts sign-in on that failure" docs/kb tests V.SMART
+docs/kb/open-questions.md:58                                     <- FALSE, uncorrected
+tests/V.SMART.Api.Tests/AuthControllerRightsSeedingTests.cs:193  <- FALSE, uncorrected
+docs/kb/architecture/auth-and-permissions.md:113                 <- the correction
+docs/kb/execution/tasks/M2-A10.md:180                            <- the correction
+docs/kb/execution/failure-log.md:5299                            <- the attempt-2 record
+```
+
+Why this is a `FAIL` and not a lesser observation: KB-004 is one of the three documents the task's
+*Documentation Updates* table requires this task to update, the repository is the migration's
+persistent memory (CLAUDE.md section Authority order, item 3), and the entry is a claim about
+**legacy Blazor behaviour** in a project whose whole purpose is behaviour preservation. Two KB
+documents changed by the same branch now assert opposite things about the same legacy code path.
+The attempt-2 record above (`:5298-5309`) presents the correction as complete; it was not.
+
+**Remedy (small, prose only, no code behaviour):** replace the "which aborts sign-in on that
+failure" clause in `docs/kb/open-questions.md:58` and in
+`tests/V.SMART.Api.Tests/AuthControllerRightsSeedingTests.cs:193` with the corrected account
+already written at `docs/kb/architecture/auth-and-permissions.md:112-119`.
+
+### The nine criteria - all met, evidence observed this pass
+
+| # | Criterion | Evidence observed |
+|---|---|---|
+| 1 | Seeder called **only** for `UserId == 1`, proven by a negative test | Gate `if (userId != AdministratorUserId) return;` in `AuthController.SeedAdministratorRightsAsync`; `AdministratorUserId` is a `private const int` of `1`. `Non_administrator_login_does_not_invoke_the_rights_seeder` (`Theory`: 2, 7, 150) asserts `Verify(..., Times.Never)` plus `VerifyNoOtherCalls()` on a `MockBehavior.Strict` mock. All passed within the 318 |
+| 2 | Invoked for `UserId == 1`, rows are what `SyncRightsForUserAsync` writes | `Administrator_login_invokes_the_rights_seeder_exactly_once_for_user_1` and `Administrator_login_writes_the_rows_SyncRightsForUserAsync_writes`; the second uses the **real** `UserRightService` and asserts all four flags `true`, `IsHide` false, `CreatedBy == "System"` - matches `UserRightService.cs:62-75`, read this pass |
+| 3 | 200 when seeding throws, plus behaviour stated in the Execution Record | `Login_still_returns_200_when_the_rights_seeder_throws` passed; `docs/kb/execution/tasks/M2-A10.md:142-271` now carries the Execution Record with the chosen behaviour and a three-point justification. Attempt 1 defect repaired |
+| 4 | `Login.razor` byte-unchanged | `git diff master...HEAD -- '*Login.razor'` - no output |
+| 5 | `UserRightService.cs` byte-unchanged | `git diff master...HEAD -- '*UserRightService.cs'` - no output |
+| 6 | API build 0 errors, warnings at 6693 | `dotnet restore` then `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-restore --no-incremental -v normal -nologo` gives **`6693 Warning(s)` / `0 Error(s)`, Time Elapsed 00:02:38.35** |
+| 7 | API tests pass, count strictly greater | `dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj` gives **`Failed: 0, Passed: 318, Skipped: 0, Total: 318, Duration: 7 s`**. Strictly-greater established from the diff, not from a `master` run: only three test files change; the two pre-existing ones (`AccountGateTests.cs`, `AuthControllerErrorContractTests.cs`) gain only two usings and two constructor arguments and lose no `[Fact]`/`[Theory]`/`[InlineData]`; the new file contributes 6 cases; 318 - 6 = 312 |
+| 8 | Shared tests, no regression | `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` gives **`Failed: 0, Passed: 90, Skipped: 1, Total: 91, Duration: 13 s`**. The one skip is the pre-existing `MfgPoServiceDeleteGuardTests.CanSalesOrderItemCancel_WithOnlyContractReview_IsRefused` |
+| 9 | Diff confined to `V.SMART/V.SMART.Api/`, `tests/`, `docs/kb/` | `git diff master...HEAD --stat` - 8 files, all inside those three roots. No schema change, no migration, no `V.SMART.Web/`, no `V.SMART.Shared/Pages/`, no MAUI, no TypeScript |
+
+### Extra checks this pass ran, both stronger than what was claimed
+
+- **The criterion-1 negative test is a real guard - re-proved empirically, independently.** Built a
+  throwaway console project outside the repository pinned to the same `Moq 4.20.72` the suite
+  binds, simulating removal of the gate:
+
+  ```
+  swallowed: MockException
+  recorded invocations = 1
+  RESULT: Verify(Times.Never) THREW   -> negative test is a REAL GUARD
+  ```
+
+  Moq records the invocation before the strict-behaviour throw, so the `catch` in
+  `SeedAdministratorRightsAsync` cannot hide a widened gate from `Times.Never`.
+
+- **DI activation is now partly observed, closing most of the Execution Record second known
+  limit.** Built a throwaway console project referencing `V.SMART.Api.csproj` that composes the
+  API host container (`AddLogging`, `AddHttpContextAccessor`, `AddHttpClient`,
+  `AddVSmartDomain(config)`, `AddScoped<AuthenticationStateProvider, ApiAuthStateProvider>()`,
+  mirroring `Program.cs:178,185,230,289`) and resolves from a scope:
+
+  ```
+  OK   ILoggingService    -> FileLoggingService
+  OK   CurrentUserService -> CurrentUserService
+  OK   IMapper            -> Mapper
+  FAIL IUnitOfWork        -> NullReferenceException at TenantDbContextFactory.CreateDbContext()
+                             (V.SMART.Shared/Services/MultiCompanyService/TenantDbContextFactory.cs:18)
+  FAIL ICommonService     -> same exception, same frame
+  FAIL IUserRightService  -> same exception, same frame
+  ```
+
+  Every dependency M2-A10 **newly** requires resolves. The only failure is `IUnitOfWork`, and it
+  fails for an environmental reason the probe cannot supply - no tenant
+  (`[TenantProvider] tenant.json not found`, `Unable to determine tenant`) - **and `IUnitOfWork` is
+  already an `AuthController` constructor parameter on `master`**, so if it failed in the real
+  host, login would be broken before this task. Conclusion: **M2-A10 introduces no new DI failure
+  mode.** That is stronger than the registration-graph-only claim in the Execution Record; the
+  known limit should be narrowed to "the tenant-scoped leg was not activated", which is R-43, not
+  new.
+
+### Not checkable
+
+- No HTTP and no SQL Server anywhere in this task evidence (R-43). `tests/V.SMART.Api.Tests` has
+  no `Microsoft.AspNetCore.Mvc.Testing` reference and no host, so "returns 200" is an
+  `OkObjectResult` assertion rather than a wire status, and "writes the rows" is an EF InMemory
+  assertion rather than a `UserRights` insert. What would verify it: a `WebApplicationFactory`
+  harness, or one manual `POST /api/v1/auth/login` as `UserId 1` against the SQL Express instance
+  recorded in KB-086, with a `SELECT` on `UserRights` before and after.
+- R-73 stale-empty-cache premise is still Inferred and exercised by no test. It is correctly
+  labelled as such in the Execution Record; not counted against the branch.
+
+### Regressions and scope
+
+None found. Blazor is untouched (`V.SMART.Web/` and `V.SMART.Shared/Pages/` absent from the diff;
+`Login.razor` and `UserRightService.cs` byte-identical). No schema or EF migration change. No
+business logic in TypeScript - no frontend file in the diff. No unrelated module touched. The
+rejected KB-109 option B is actively guarded against by the negative test. The two working-tree
+modifications (`docs/kb/execution/failure-log.md`, `docs/kb/execution/runner-state.md`) are
+orchestrator-owned and are not part of the branch commit.
+
+### Tried before
+
+`grep -n "M2-A10" docs/kb/execution/failure-log.md` finds two prior blocks: attempt 1 (`:5138`,
+`FAIL`, missing Execution Record) and attempt 2 (`:5251`, the fix). This entry repeats neither -
+attempt 1 defect is genuinely repaired, and attempt 2 fix was partial in a way neither earlier
+entry records. A retry that completes the correction in `docs/kb/open-questions.md:58` and
+`tests/V.SMART.Api.Tests/AuthControllerRightsSeedingTests.cs:193` is a retry, not a loop.
+
+---
+
+## M2-A10 - attempt 4 - diagnosis of attempt 3 - 2026-08-24 - `FIXED` (`implementation-error`)
+
+Branch `migration/M2-A10-api-rights-seeding`, HEAD before this pass `bba1c8b`, after it `ef7cdb1`.
+Every command below was executed in this pass and its output is quoted as observed.
+
+### Reproduced
+
+Yes.
+
+```
+$ grep -rniE "abort(s)? (the )?sign-in" docs/kb tests V.SMART --include=*.md --include=*.cs --include=*.razor
+docs/kb/open-questions.md:58                                     <- FALSE, uncorrected
+tests/V.SMART.Api.Tests/AuthControllerRightsSeedingTests.cs:193  <- FALSE, uncorrected
+docs/kb/architecture/auth-and-permissions.md:113                 <- the correction
+docs/kb/execution/tasks/M2-A10.md:180                            <- the correction
+```
+
+`docs/kb/open-questions.md:58` read, verbatim: "A seeding failure is logged and the login still
+returns 200 - a deliberate divergence from `Login.razor`, which aborts sign-in on that failure".
+`docs/kb/architecture/auth-and-permissions.md:113`, same branch: "an earlier wording here said a
+Blazor seeding failure 'does abort the sign-in'. That is wrong (Confirmed)." Two KB documents
+changed by one branch asserting opposite things about the same legacy code path - exactly what the
+validator reported.
+
+### Which of the two is right - checked against source in this pass, not taken from either document
+
+Read directly, this pass:
+
+- `V.SMART/V.SMART.Shared/Pages/Master_Module_pages/Identity_Pages/Login.razor:335-341` -
+  `customAuth.MarkUserAsAuthenticated(user.UserName, user.UserId, ...)`. The seeding call
+  `await userRightService.SyncRightsForUserAsync(user.UserId)` is at `:345-348`, inside
+  `if (user.UserId == 1)`. `_nav.NavigateTo("/dashboard")` is at `:355`; the page `catch` at
+  `:356-361` logs and toasts only.
+- `V.SMART/V.SMART.Shared/Authentication/Custom AuthenticationStateProvider.cs:24-47` -
+  `MarkUserAsAuthenticated` assigns `_currentUser` and raises `NotifyAuthenticationStateChanged`.
+  `MarkUserAsLoggedOut` (`:49-58`) is the only thing that reverts it, and the `Login.razor` catch
+  never calls it.
+
+**Confirmed:** a Blazor seeding throw leaves the user signed in and only loses the navigation.
+The `open-questions.md` wording was false; KB-013 was right. This is a documented-fact defect with
+the correct behaviour confirmable from source right now, so it is fixable here rather than an
+escalation on misunderstood legacy behaviour.
+
+### Root cause
+
+**Simple implementation error, of the recording kind.** Attempt 2's factual correction was applied
+to two of the four places this branch had written the false claim. The remaining two -
+`docs/kb/open-questions.md:58` (Q-28, a document the task's *Documentation Updates* table
+explicitly names) and the XML doc on
+`Login_still_returns_200_when_the_rights_seeder_throws` - were missed, and the attempt-2 record at
+`:5298-5309` presents the correction as complete. No code behaviour was or is wrong; all nine
+numbered acceptance criteria were already met and were re-observed green in this pass.
+
+### Not tried before
+
+`grep -n "M2-A10" docs/kb/execution/failure-log.md` finds three prior blocks: attempt 1 (`:5138`,
+missing Execution Record), attempt 2 (`:5251`, the fix that added it and began the factual
+correction) and attempt 3 (`:5353`, this failure). Correcting `open-questions.md:58` and
+`AuthControllerRightsSeedingTests.cs:193` appears in none of them as attempted - attempt 2 names
+`AuthController.cs` and KB-013 only. Different files, a defect neither earlier entry records:
+retry, not a loop.
+
+### Fix applied - prose and XML comment only, no executable statement changed
+
+Commit `ef7cdb1`, three files:
+
+1. `docs/kb/open-questions.md` Q-28 (one line) - the clause "a deliberate divergence from
+   `Login.razor`, which aborts sign-in on that failure" replaced with the corrected account:
+   the same outcome as `Login.razor`, which also leaves the user signed in
+   (`MarkUserAsAuthenticated` at `:337` runs before the seeding call at `:345-349`; the catch at
+   `:357-362` only toasts and skips `NavigateTo("/dashboard")`), the only divergence being that
+   Blazor loses that navigation while the API returns its normal `200`. Cross-referenced to KB-013.
+2. `tests/V.SMART.Api.Tests/AuthControllerRightsSeedingTests.cs` - the XML doc on
+   `Login_still_returns_200_when_the_rights_seeder_throws` rewritten to the same corrected account,
+   with the `file:line` anchors. **Comment only**; no assertion, no `[Fact]`, no test body touched.
+3. `docs/kb/execution/tasks/M2-A10.md` - the Execution Record's correction paragraph, which had
+   claimed the correction complete after two files, now records the other two and states that all
+   four copies agree.
+
+Nothing was weakened to pass. No business rule, schema, ADR, DI registration or assertion changed.
+The task's `Out of Scope` list is untouched: `Login.razor` and `UserRightService.cs` remain
+byte-identical to `master`.
+
+### Re-validated (all run after the edits)
+
+```
+$ dotnet test tests/V.SMART.Api.Tests/V.SMART.Api.Tests.csproj
+Passed!  - Failed:     0, Passed:   318, Skipped:     0, Total:   318, Duration: 5 s
+
+$ dotnet restore V.SMART/V.SMART.Api/V.SMART.Api.csproj
+$ dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-restore --no-incremental -v normal -nologo
+    6693 Warning(s)
+    0 Error(s)
+Time Elapsed 00:02:00.12
+
+$ dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj
+Passed!  - Failed:     0, Passed:    90, Skipped:     1, Total:    91, Duration: 13 s
+  (the one skip is the pre-existing MfgPoServiceDeleteGuardTests.CanSalesOrderItemCancel_WithOnlyContractReview_IsRefused)
+
+$ git diff master...HEAD -- '*Login.razor' '*UserRightService.cs'   -> no output (0 lines)
+$ git diff             -- '*Login.razor' '*UserRightService.cs'   -> no output (0 lines)
+
+$ git diff master...HEAD --name-only | grep -v -E "^(V.SMART/V.SMART.Api/|tests/|docs/kb/)" | wc -l
+0
+
+$ grep -rniE "abort(s)? (the )?sign-in" docs/kb tests V.SMART --include=*.md --include=*.cs --include=*.razor
+  (only docs/kb/architecture/auth-and-permissions.md:113 and docs/kb/execution/tasks/M2-A10.md:180,
+   both of which quote the wrong wording in order to correct it, plus this file)
+```
+
+Criteria 4, 5, 6, 7, 8 and 9 re-observed unchanged; 1, 2 and 3 are unaffected by a comment edit and
+were validated green in attempt 3. The branch diff is 8 files, all under `V.SMART/V.SMART.Api/`,
+`tests/` and `docs/kb/`. `docs/kb/execution/failure-log.md` and `docs/kb/execution/runner-state.md`
+are orchestrator-owned and deliberately left out of the branch commit.
+
+### Residual risk
+
+- R-43 unchanged: no `WebApplicationFactory`, so "returns 200" is still an `OkObjectResult`
+  assertion and "writes the rows" an EF InMemory assertion. Nothing in this task has crossed HTTP
+  or reached SQL Server. One manual `POST /api/v1/auth/login` as `UserId 1` against the KB-086
+  instance, with a `SELECT` on `UserRights` either side, is what would close it.
+- The `UserId == 1` definition of "administrator" remains an unevidenced magic number (KB-109),
+  out of scope here by owner decision.
+- R-73's stale-empty-cache premise is still Inferred, exercised by no test.
+- Documentation drift of this exact kind is the recurring failure mode on this branch: a fact was
+  stated in four places and corrected in two. If the same claim is repeated again, prefer a single
+  statement in KB-013 with the others linking to it.
