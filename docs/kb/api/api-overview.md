@@ -30,7 +30,7 @@ database_tables: [Users, Currency, Tenants, UserRights, Screens]
 business_rules: [BR-AUTH-001, BR-AUTH-002, BR-TEN-002]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-21
+last_verified: 2026-08-24
 dependencies: [KB-013, KB-014]
 ---
 
@@ -210,7 +210,16 @@ through the versioning convention **without changing the URL**; the URL is the c
 
 ### `GET /api/v1/currencies`
 
-`CurrencyController.GetAll` · `[Authorize]`
+`CurrencyController.GetAll` · `[Authorize]` · `[RequireScreen("Currency")]` `[RequireRight(Right.View)]`
+
+> **403 (M2-A02, 2026-08-24).** Every one of the five Currency endpoints below now answers
+> `403 application/problem+json`, `type: …/screen-right-denied`,
+> `title: "Screen right denied."`, `detail: "You do not have the '{right}' right for the
+> 'Currency' screen."`, with `screen` and `right` extensions, when the caller's `UserRight`
+> row for `"Currency"` does not grant the action's right — or when there is no such row at
+> all. The check runs in the **authorization** stage, ahead of model binding, so an
+> unauthorized caller with an invalid body gets `403`, never `400`. Anonymous callers still
+> get `401`: authentication failure and authorization failure stay distinguishable.
 
 > **Rewritten by M2-B02 (2026-08-20)** to the paged list contract — ADR-002 §2 and its
 > [§2a addendum](../decisions/ADR-002-rest-api-layer.md). This is the **reference
@@ -249,6 +258,7 @@ here. Binding stays case-insensitive, so `PageSize` is still accepted.
 the same camel-case names as the parameters (`errors.pageSize`, `errors.fromDate`) — for:
 `pageNumber < 1`, `pageSize` outside 1–100, an unparseable `fromDate`/`toDate`,
 `fromDate > toDate`, and a `sort` field that is unknown or repeated. 401 when unauthenticated.
+**403** when the caller has no `CanView` on `"Currency"` (M2-A02).
 
 **Business logic.** `ICurrencyService.SearchWithDynamicFilterAsync(pageNumber, pageSize, filters, sort)`
 — an **additive** overload added by M2-B02; the three-argument member is unchanged and delegates
@@ -260,7 +270,9 @@ by `V.SMART.Api.Contracts.FilterDictionaryAdapter`; that dictionary never appear
 ### `GET /api/v1/currencies/{id:int}`
 
 200 `CurrencyVM` · 404 `problem+json`, `type: …/not-found`, `title: "Currency not found."`.
-Calls `ICurrencyService.GetByIdAsync(id)`.
+**403** `problem+json`, `type: …/screen-right-denied`, when the caller has no `CanView` on
+`"Currency"` — decided before the lookup, so a denied caller cannot probe which ids exist
+(M2-A02). Calls `ICurrencyService.GetByIdAsync(id)`.
 
 ---
 
@@ -274,6 +286,7 @@ Calls `ICurrencyService.GetByIdAsync(id)`.
 |---|---|
 | 201 | `CurrencyVM`, `Location: /api/v1/currencies/{CurrId}` |
 | 400 | `problem+json`, `type: …/validation-failed`, with an `errors` dictionary keyed by field carrying `CurrencyVM`'s `DataAnnotations` messages verbatim |
+| **403** | `problem+json`, `type: …/screen-right-denied` — caller has no `CanCreate` on `"Currency"` (M2-A02) |
 | 409 | `problem+json`, `type: …/business-rule`, `title` = the service's message verbatim (e.g. `"Currency name already exists."`) |
 
 **Business logic.** `ICurrencyService.CreateAsync(vm)` → `(bool success, string message, CurrencyVM? entity)`.
@@ -286,7 +299,8 @@ canonical `400`; a **service rejection is now `409`**, because it is a business-
 
 ### `PUT /api/v1/currencies/{id:int}`
 
-200 `CurrencyVM` · 400 / 409 as above. `ICurrencyService.UpdateAsync(id, vm)`.
+200 `CurrencyVM` · 400 / 409 as above · **403** when the caller has no `CanEdit` on
+`"Currency"` (M2-A02). `ICurrencyService.UpdateAsync(id, vm)`.
 **Note.** No check that `vm.CurrId` matches the route `id`.
 
 ---
@@ -298,6 +312,7 @@ canonical `400`; a **service rejection is now `409`**, because it is a business-
 | 204 | — | deleted |
 | **409** | `problem+json`, `type: …/business-rule`, `title` = the guard's message **verbatim** | `CanDeleteCurrencyAsync` refused (referential integrity) — **was 400 before M2-A06** |
 | 404 | `problem+json`, `type: …/not-found`, `title: "Currency not found."` | not found |
+| **403** | `problem+json`, `type: …/screen-right-denied` | caller has no `CanDelete` on `"Currency"` — decided before `CanDeleteCurrencyAsync` runs (M2-A02) |
 
 **Business logic.** `CanDeleteCurrencyAsync(id)` then `DeleteCurrencyByCurrIdAsync(id)` —
 the standard two-step delete-guard pattern (see BR-SO-001 for the same shape in Sales).
@@ -480,29 +495,53 @@ the pilot's fate is [M2-C11](../execution/tasks/M2-C11.md)'s to decide, and mixi
 route-prefix change would put two tasks in one diff. Whoever picks the pilot up inherits exactly
 these two lines.
 
-## 🚨 Authorization state of the existing API
+## Authorization state of the existing API
 
-`[Authorize]` on `CurrencyController` means **"any authenticated user of any tenant with a
-valid token"**. It does **not** check `UserRight` for the `"Currency"` screen.
+**Updated by M2-A02 (2026-08-24).** Every endpoint the API exposes is now either screen-right
+enforced, explicitly and auditably exempt, or anonymous by design. Nothing is unannotated.
 
-Concretely, today: a user whose `UserRight` row for `Currency` has
-`CanView = CanCreate = CanEdit = CanDelete = false` — a user for whom the Blazor UI hides
-the entire Currency screen — **can create, edit, and delete currencies through the API**.
+| Controller | Declaration | Evidence |
+|---|---|---|
+| `CurrencyController` | `[Authorize]` + `[RequireScreen("Currency")]`, one `[RequireRight]` per action: `View` on both GETs, `Create` on POST, `Edit` on PUT, `Delete` on DELETE | `Controllers/CurrencyController.cs:13,21` and `:53,71,81,95,109` |
+| `CurrencyExcelController` | `[RequireScreen("Currency")]`, `View` on the exports, `Create` on the import | `Controllers/CurrencyExcelController.cs:40` |
+| `FilesController` | `[RequireScreen("Correspondences")]` | `Controllers/FilesController.cs:41` |
+| `MeController`, `ReferenceController` | `[NoScreenRight(reason)]` — reachable by every authenticated user, with the reason recorded in the attribute | `Controllers/MeController.cs:37`, `Controllers/ReferenceController.cs:33` |
+| `AuthController` | `[AllowAnonymous]` by design — login cannot require a token | `Controllers/AuthController.cs:57` |
 
-This generalises to every controller that follows this template. It is the single most
-important thing to fix before the API grows.
-See [ADR-004](../decisions/ADR-004-server-side-authorization.md).
+The rule enforced is BR-AUTH-002 exactly as `RightsHelper.cs:7-20` states it: per user, per
+screen, **deny by default** (`?? false`). No `UserRight` row for `"Currency"` means no right,
+so the caller receives `403`. `IsHide` is never consulted — it hides a screen from navigation
+and neither grants nor revokes an operation (ADR-004 §1; KB-105 T-4).
 
-> **M2-A01-02 (2026-08-20) — the mechanism now exists; the hole above is still open.**
+**What this closed.** Before M2-A02, `[Authorize]` on `CurrencyController` meant only *"any
+authenticated user of any tenant with a valid token"*. A user whose `UserRight` row for
+`Currency` had `CanView = CanCreate = CanEdit = CanDelete = false` — a user for whom the
+Blazor UI hides the entire Currency screen — **could create, edit and delete currencies
+through the API**. That is the hole ADR-004 names, and for Currency it is now shut.
+
+> **Breaking change, deliberate.** Any client whose user lacks the relevant Currency right
+> now receives `403` where it previously received `200`/`201`/`204`. This is the correction of
+> a security defect, not a regression, and it is recorded here so it is not later misdiagnosed
+> as one. Verified 2026-08-24: no Angular code under `frontend/nexgen-web/src` calls
+> `/api/v1/currencies`, so there is no live SPA consumer to break.
+
+**Still open (R-03 is partially, not fully, closed).** Two directions of KB-105 D-4 remain
+switched off: an authenticated action on a controller carrying *no* `[RequireScreen]` is still
+passed through by `ScreenRightAuthorizationFilter.cs:69-72` rather than denied, and
+`ScreenRightStartupValidator.cs:83-88` still skips it rather than refusing to start. Both
+files' comments say M2-A02 turns that on; M2-A02's own scope forbids editing
+`V.SMART/V.SMART.Api/Authorization/**`, so it did not. Recorded as **Q-71** in
+[`open-questions.md`](../open-questions.md). It is now *feasible* — after this task every
+endpoint is annotated or exempt — and it is the guard that stops controller number sixty-one
+from silently shipping unprotected.
+
+> **M2-A01-02 (2026-08-20) — how the mechanism is built.**
 > `V.SMART/V.SMART.Api/Authorization/` holds `[RequireScreen]`, `[RequireRight]`,
-> `[NoScreenRight]`, `IUserRightsProvider`/`UserRightsProvider` (no cache — M2-A01-03 adds
-> one behind that seam), `ScreenRightSet`, `ScreenCatalogue`, `ScreenRightStartupValidator`
-> and `ScreenRightAuthorizationFilter`, registered globally in `Program.cs`. **No controller
-> declares the attributes yet**, so every paragraph above still describes today's behaviour
-> exactly: the filter passes unannotated endpoints through untouched and all six existing
-> endpoints respond as before. `M2-A02` annotates `CurrencyController`; `M2-A03` proves it
-> with the permission matrix. R-03 stays open until both land.
-> Specification: [KB-105](../architecture/server-side-authorization-spec.md).
+> `[NoScreenRight]`, `IUserRightsProvider`/`UserRightsProvider`, `ScreenRightSet`,
+> `ScreenCatalogue`, `ScreenRightStartupValidator` and `ScreenRightAuthorizationFilter`,
+> registered globally in `Program.cs`. `M2-A03` generalises M2-A02's matrix into the
+> merge-blocking harness. Specification:
+> [KB-105](../architecture/server-side-authorization-spec.md).
 
 > **M2-A01-03 (2026-08-20) — rights are resolved per request, never carried in the JWT.**
 > `UserRightsProvider` now reads through a singleton `IMemoryCache` keyed
@@ -534,11 +573,13 @@ Worth fixing before replication:
 |---|---|
 | Untyped `Dictionary<string, object>` filters | typed query DTO per resource |
 | No route/body id consistency check | validate in the controller |
-| No permission check | `[RequireScreen("Currency", Right.Edit)]` filter |
 
 Fixed and no longer listed: *two 400 shapes* and *no correlation id* — both closed by
 **M2-A06** (see [*Error contract*](#error-contract-m2-a06)); *no versioning* — closed by
-**M2-B01** (see [*Versioning*](#versioning-m2-b01)).
+**M2-B01** (see [*Versioning*](#versioning-m2-b01)); *no permission check* — closed for
+Currency by **M2-A02**, which is now the convention every controller copies:
+`[RequireScreen("<seeded screen name>")]` on the class, one `[RequireRight(Right.X)]` per
+action.
 
 ## Row scope and account gates (M2-A08)
 
