@@ -4023,10 +4023,10 @@ Do **not** escalate; do **not** re-raise Q-69.
 covered by AC6 (scoped to `V.SMART/`), recorded so the next pass fixes them in the same edit:
 `M2-C05-01.md:186` cites `(:152)` for the quote "PrimeNG's table covers `DataGrid`", which is at
 `ADR-007-angular-stack.md:149`; `:152` is "ADR's to pre-empt." The range `:151-158`, used in
-`M2-C05.md:73,94`, `M2-C05-01.md:33,43` and in **Q-71** (`open-questions.md:70`), covers the last
+`M2-C05.md:73,94`, `M2-C05-01.md:33,43` and in **Q-83** (`open-questions.md:70`), covers the last
 two lines of the PrimeNG-over-headless paragraph (which runs `:144-152`) plus six unrelated lines
 about Karma and i18n; the AG Grid fallback it claims the range "names" is at `:150`, outside it.
-Q-71's underlying observation is nonetheless verified: `grep -n LineItemGrid` on ADR-007 returns
+Q-83's underlying observation is nonetheless verified: `grep -n LineItemGrid` on ADR-007 returns
 only `:98` and `:206`. Verified-correct ADR-007 citations in the batch: `:95`, `:98`, `:134-138`,
 `:140-142`, `:162-164`, `:170-173`; and `eslint.config.js:97-103` is correct.
 
@@ -4105,8 +4105,8 @@ corrected in the same change so it no longer asserts the removal.
 PrimeNG-over-headless paragraph runs `ADR-007-angular-stack.md:144-152`; verified at source,
 *"PrimeNG's table covers `DataGrid`"* is at `:149` and the AG Grid fallback at `:150`. Every
 `:151-158` was corrected to `:144-152` (`M2-C05.md:36,73,94`, `M2-C05-01.md:33,43`,
-`M2-C12-03.md:139,378,379`, and inside Q-71 at `open-questions.md:72`), and `M2-C05-01.md:186`'s
-`(:152)` to `(:149)`. Q-71's underlying observation is untouched and still stands.
+`M2-C12-03.md:139,378,379`, and inside Q-83 at `open-questions.md:72`), and `M2-C05-01.md:186`'s
+`(:152)` to `(:149)`. Q-83's underlying observation is untouched and still stands.
 
 **Re-validated — every criterion re-run, output observed.**
 

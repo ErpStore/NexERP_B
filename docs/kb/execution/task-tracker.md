@@ -165,7 +165,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C05-02 | M2 | — column preferences + persistence | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P1 | M2-C05-01 | 3 d | G2 |
 | M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C06 | M2 | `RecordPickerDialog` | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P0 | M2-C05-01 | 1 wk | G2 |
-| M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-C10`. Its table-technology evaluation is **Q-71**, owner-owned)* | P0 | M2-C05-01, M2-C10 | 2 wks | G2 |
+| M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-C10`. Its table-technology evaluation is **Q-83**, owner-owned)* | P0 | M2-C05-01, M2-C10 | 2 wks | G2 |
 | M2-C08 | M2 | `DocumentEditor` shell *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-04`)* | P0 | M2-C07 | 2 wks | G2 |
 | M2-C08-01 | M2 | — layout: header + lines + totals + commands | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C07`)* | P0 | M2-C07 | 4 d | G2 |
 | M2-C08-02 | M2 | — server-authoritative totals wiring | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)* | P0 | M2-C08-01 | 3 d | G2 |
@@ -2261,7 +2261,7 @@ citation set-diff empty except one loss traced to the deleted *Fresh-Session Exe
 block and confirmed to survive elsewhere, criterion-7 diff confined to the declared footprint
 (8 paths, all `docs/kb/`), all 13 KB-090 headings present in all five files. `scopeOk: true`,
 `failureCategory: none`, no regressions observed. BR-SO-001 independently re-verified against
-`MfgPoService.cs:488,598` — unchanged. Raised **Q-71** (dangling `ADR-007-angular-stack.md:98`
+`MfgPoService.cs:488,598` — unchanged. Raised **Q-83** (dangling `ADR-007-angular-stack.md:98`
 "see below" pointer for `LineItemGrid`) — did not block this batch, will bite `M2-C12-04`.
 
 Full record: `tasks/M2-C12-03.md` § Execution Record (2026-08-22) and § Execution Record
@@ -2278,13 +2278,13 @@ per-file grep output quoted in `tasks/M2-C12-04.md`'s Execution Record. The obso
 files* directs for a regenerated file, and each file was restructured onto KB-090's section set,
 the same shape `M2-C12-03` used.
 
-**Two substantive judgement calls, recorded rather than buried.** (1) **Q-71** — `ADR-007`'s
+**Two substantive judgement calls, recorded rather than buried.** (1) **Q-83** — `ADR-007`'s
 tables row promises *"`LineItemGrid` re-evaluated, see below"* (`ADR-007-angular-stack.md:98`) with
 no resolving section under it. `M2-C07` is the task that names `LineItemGrid`, so the re-specified
 file cites `:144-152` **directly** (PrimeNG's table covers `DataGrid`; AG Grid is the fallback and
 *"that evaluation is `M2-C07`'s to make and record"*), specifies the measurement as a required
 investigation with escalation on a negative result, and does **not** pre-decide a table technology.
-Q-71 stays open and owner-owned; the accepted ADR is untouched. (2) `M2-C08-03` gained two **new**
+Q-83 stays open and owner-owned; the accepted ADR is untouched. (2) `M2-C08-03` gained two **new**
 `file:line` citations, `ApiProblems.cs:43` and `ProblemTypes.cs:17`, replacing the replaced text's
 vaguer *"correlation id"* with the field name the middleware actually ships (`traceId`) and the
 stable branch key (`type`); both were verified against source on 2026-08-22. No pre-existing
@@ -2293,7 +2293,7 @@ stable branch key (`type`); both were verified against source on 2026-08-22. No 
 **Independently validated 2026-08-22, verdict `PASS`.** All 8 acceptance criteria re-checked
 directly against `9d0ccdd`, matching the Execution Record's own greps and diffs; `dotnet build
 V.SMART.Api` re-run as a regression check, 0 errors / 6695 warnings, exact baseline. One advisory
-(non-blocking) finding: `M2-C07.md:55` cites **Q-71**, which exists only on the unmerged sibling
+(non-blocking) finding: `M2-C07.md:55` cites **Q-83**, which exists only on the unmerged sibling
 `migration/M2-C12-03-respec`, not yet in this branch's or `master`'s `open-questions.md` — resolves
 once that branch merges. Status stays `Needs Review`; only the owner sets `Completed`. Full record:
 `tasks/M2-C12-04.md` § Execution Record (Close-out).
@@ -2355,7 +2355,7 @@ files re-specified, `M2-C10` and `M2-C04-01` both newly clear the CLAUDE.md five
 Decision, no unresolved gating question, no sibling branch — `git branch --no-merged master`
 checked). **`M2-C04-01` was selected** over `M2-C10` at rank: both `P0`; `M2-C04-01` unblocks two
 direct children (`M2-C04-02`, `M2-C04-03`) against `M2-C10`'s one (`M2-C07`, itself further gated
-on `M2-C05-01` and **Q-71**); and `M2-C04-01` sits on the ancestry of the stated critical path
+on `M2-C05-01` and **Q-83**); and `M2-C04-01` sits on the ancestry of the stated critical path
 (`M2-C04-01 → M2-C04-02 → M2-C05-01 → M2-C05-03 → M2-D01 → …`, `dependency-graph.md` § *Project
 critical path*) while `M2-C10` feeds only the off-path `M2-C07`. `M2-C04-01` carries **Q-68**
 (whether resetting its status to `Ready` after its earlier React implementation was deleted is
