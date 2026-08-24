@@ -150,7 +150,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-03 | M2 | — re-spec the list / CRUD shell (M2-C05*, M2-C06) | Documentation | **Completed**⁴⁴ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Completed**⁴⁵ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Completed**⁴⁶ *(merged to `master` `27dfc5d` on owner instruction 2026-08-23)* | P0 | M2-C12-01…04 | 1 d | G2 |
-| M2-C13 | M2 | Defer the confirm-dialog host; bundle back inside budget (R-69) | Frontend | **Needs Review**⁵⁵˒⁵⁶ | P1 | M2-C04-03 | 1 d | G2 |
+| M2-C13 | M2 | Defer the confirm-dialog host; bundle back inside budget (R-69) | Frontend | **Completed**⁵⁵˒⁵⁶˒⁵⁷ | P1 | M2-C04-03 | 1 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Blocked**²⁶˒⁴⁶˒⁴⁷˒⁵² *(attempt 1 `FAIL`, category `environment` — its binding criterion needs a MEASURED wire format from a live `[Authorize]`d endpoint, and this workstation has empty `ConnectionStrings:MasterDb` and `Jwt:Secret`. Not a code defect. See footnote ⁵²)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | **Completed**⁴⁶˒⁵⁴ *(parent — all three children `Completed` and merged)* | P0 | M2-C01 | 2 wks | G2 |
@@ -254,7 +254,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | **17** | G0 | ⚠️ **Passed with exceptions** 2026-08-19 — criteria **2 and 3 are not satisfied**, deferred by owner decision; `M0-04`/`M0-05` stay `Blocked`. See [KB-080 § G0 deferral](README.md#g0-deferral--criteria-2-and-3-decided-by-the-repository-owner-2026-08-19) |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | **59** | **25** | G2 | **OPEN** — 25 of 59 done (42%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
+| M2 | **60** | **26** | G2 | **OPEN** — 26 of 60 done (43%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -262,7 +262,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**47 `Completed`, 2 `Needs Review`, 3 `Ready`, 36 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
+**48 `Completed`, 1 `Needs Review`, 3 `Ready`, 36 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
 *estimates*, not rows.
 
@@ -287,7 +287,7 @@ gated on the unanswered **Q-28** *and* on **R-65**.
 
 > ~~**Read [R-69](../risks/technical-debt-register.md) before starting `M2-C03`.** The initial
 > bundle is **711.75 kB raw**, past the 600 kB warning and **88 kB short of the 800 kB error
-> budget** that fails the build.~~ **Resolved 2026-08-24 by `M2-C13`** (footnote ⁵⁶, pending owner
+> budget** that fails the build.~~ **Resolved 2026-08-24 by `M2-C13`** (footnotes ⁵⁶ and ⁵⁷, mergeder
 > merge): the confirm-dialog host is now deferred and the initial bundle measures **571.20 kB
 > raw / 136.72 kB transfer**, no budget warning. `M2-C03` is not imminent regardless — it is
 > transitively blocked behind `M0-04` (see footnote ⁵⁵).
@@ -2598,3 +2598,29 @@ through, `docs/kb/risks/technical-debt-register.md`) with the measured after-fig
 integration (merge) before `Completed` regardless of a task's own Completion Conditions
 (KB-088 §Who may set Completed); left unmerged, unpushed, for review. Full record:
 `tasks/M2-C13.md` § Execution Record (2026-08-24).
+
+⁵⁷ **M2-C13 `Completed` and merged 2026-08-24 — `PASS` on attempt 1, 0 escalations, and the one
+criterion that mattered was proved by negative control rather than asserted.**
+
+**R-69 is resolved.** Initial bundle **711.75 kB → 571.20 kB raw** (158.28 → 136.72 kB gzip),
+back inside Angular's 600 kB warning budget: `npm run build` now emits **no budget line at all**,
+where before it reported *"bundle initial exceeded maximum budget … not met by 111.75 kB"*. The
+88 kB margin to the 800 kB **error** budget is now **229 kB**.
+
+**Criterion 3 was the point of the task, and it was verified, not claimed.** Deferring the host
+introduces a silent defect unless the service absorbs it: PrimeNG's `requireConfirmation$` is a
+plain `Subject`, so the very `confirm()` call that *triggers* the mount emits with no subscriber
+and its promise never resolves — no error, no timeout, just a caller waiting forever. The fix
+queues pre-mount requests and replays them from `markHostMounted()`. The proof is a **negative
+control**: mutating the service to emit directly produced `Tests 4 failed | 1 passed (5)` against
+`confirm-dialog.deferred.spec.ts`; unmutated, `5 passed`. The harness uses
+`DeferBlockBehavior.Playthrough` so the real `@defer` trigger mounts the real host — nothing about
+the deferral is simulated.
+
+**The 1.31 MB barrel trap was not re-sprung.** `grep -n "shared/components'" src/app/app.component.ts`
+returns nothing.
+
+**Verified on the merged result:** `typecheck` exit 0 · `lint` clean · `format:check` clean ·
+`test:ci` **309 passed / 47 files** (304/46 → 309/47, the five new ones being the deferred-host
+suite) · `build` exit 0 with no budget warning. Scope confined to `frontend/` and `docs/kb/`; no
+stylesheet touched, so the zero-raw-colour rule is trivially intact.
