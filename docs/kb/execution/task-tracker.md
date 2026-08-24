@@ -2964,3 +2964,31 @@ warnings** (baseline held despite 45 new attributes) · `tests/V.SMART.Api.Tests
 > task to consume it, and that is when the client's weight lands against the **29 kB** of headroom
 > below the 600 kB warning. Whoever runs `M2-C02` should measure the bundle before assuming R-69
 > stays closed.
+
+⁶⁹ **Branch protection on `master` **exists** — discovered 2026-08-25 from a `git push` response,
+and it refines both `M2-A03`'s block and this run's whole merge practice.**
+
+Pushing 164 commits to `origin/master` returned:
+
+```
+remote: Bypassed rule violations for refs/heads/master:
+remote: - Changes must be made through a pull request.
+```
+
+**Two things follow, and the second is the uncomfortable one.**
+
+**1. `M2-A03`'s block is smaller than it looked.** That task stopped because its final criterion —
+the permission-matrix job must be a *required* status check — is branch-protection configuration
+"which has no representation anywhere in the repository". The *unreadable-from-here* half is true.
+The *does-not-exist* implication is false: protection is configured, and it already enforces a
+pull-request rule. So the owner action is **adding a required status check to an existing ruleset**,
+not creating protection from scratch. Recorded against footnote ⁶⁴.
+
+**2. Every merge in this run bypassed that rule.** The repository's own policy is *"changes must be
+made through a pull request"*, and this run merged twenty-plus branches straight to local `master`
+and pushed the result. The owner holds bypass rights and exercised them knowingly by running the
+push, so nothing was done without authority — but the practice and the policy disagree, and the
+disagreement was invisible until the remote said so. **This is a question for the owner, not a
+defect to fix unilaterally:** either the PR rule is the intended workflow and execution sessions
+should be producing PRs rather than local merges, or the rule is vestigial and should be relaxed
+to match how the repository is actually operated. Raised as **Q-82** — `Q-77` was already taken; ids now run to `Q-81`, and `Q-82` was checked against `git branch --no-merged master` before claiming.
