@@ -4,7 +4,7 @@ title: Investigation Registry
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-23
+last_verified: 2026-08-24
 ---
 
 # Investigation Registry
@@ -437,7 +437,7 @@ Evidence:       V.SMART/V.SMART.Shared/Components/BsModal.razor:4,21-23,57-74,76
                 V.SMART/V.SMART.Api/Middleware/ProblemTypes.cs:17-45
 Business rule:  BR-SO-003 (capability only; the rule stays server-side)
 Confidence:     Confirmed
-Last verified:  2026-08-23
+Last verified:  2026-08-24
 ```
 
 **Line-citation correction to the INV-040 amendment below.** That entry cites the `403`
@@ -463,6 +463,23 @@ close; `Drawer`'s document escape fallback keys off the deprecated `event.which`
 and `aria-posinset` on `role="menuitem"`; `p-progressbar` writes `aria-level="42%"` and turns
 an unbound `value` into `aria-valuenow="NaN"`; `p-toast` items are `role="alert"
 aria-live="assertive"`. Each is worked around through `[pt]` or a small wrapper, never a fork.
+
+**Added 2026-08-24, and the most expensive of the set: `p-confirmdialog` never moves focus
+into itself.** It hard-codes `[focusOnShow]="false"` on the `p-dialog` it renders and depends
+on `pAutoFocus` sitting on *its own* accept/reject buttons; supplying a custom `#footer` —
+which any wrapper needing a reason field must — removes those buttons, so focus never enters
+the dialog and PrimeNG's focus trap holds nothing, because a trap only holds focus that is
+already inside. `p-confirmdialog` emits no `(onShow)`, and `p-dialog` **moves** its wrapper to
+`document.body` (`appendContainer()`) as the enter transition starts, blurring anything focused
+before the move — so focusing from a view-query effect does not survive. The fix used is
+`afterEveryRender`, which runs again after the move, with `focusFirstElementIn` a no-op once
+focus is inside. Evidence:
+`frontend/nexgen-web/src/app/shared/components/overlay/confirm-dialog.component.ts:82-118`,
+asserted by `confirm-dialog.component.spec.ts:153-192` (focus-in + `Tab` trap, focus restore,
+scroll lock), which fail against the pre-fix component — measured on 2026-08-24 by reverting
+it. **Generalisation for future overlay wrappers:** a PrimeNG overlay's focus contract is not
+inherited by a wrapper that replaces its templated buttons; assert it by test for every new
+overlay, as `overlay-focus.ts:5-9` warns.
 
 ### INV-042 — `role` in `GET /api/v1/me`, and what else belongs in the bootstrap response
 
