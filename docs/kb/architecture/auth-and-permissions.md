@@ -95,8 +95,31 @@ kept as-is so existing credentials keep working.
 `POST /api/v1/auth/login` → `AuthController.Login`:
 1. `_tenantProvider.GetCurrentTenant()`; 400 if unresolved.
 2. `_unitOfWork.Users.LoginAsync(username, password)`; 401 if null.
-3. `JwtTokenService.CreateToken(user, tenant.Id)`.
-4. Returns `{ token, username, userId, tenantId, role }`.
+3. `TrialGate.Evaluate(user, HostIsDesktop, DateTime.Today)`; 403 if refused (M2-A08).
+4. **Administrator rights seeding (M2-A10, 2026-08-24):** if — and only if — `user.UserId == 1`,
+   `IUserRightService.SyncRightsForUserAsync(user.UserId)` is called
+   (`AuthController.cs`, `SeedAdministratorRightsAsync`). This mirrors `Login.razor:345-349`;
+   without it an administrator who has only ever authenticated through the API holds zero
+   `UserRight` rows and ADR-004's filter answers 403 to every annotated endpoint (Q-28,
+   [KB-109](../decisions/KB-109-q28-r65-decision-brief.md) option A).
+   **The `UserId == 1` gate is the safety property, not an incidental detail:**
+   `SyncRightsForUserAsync` writes `CanView`, `CanCreate`, `CanEdit` and `CanDelete` all `true`
+   (`UserRightService.cs:67-70`), so widening it by one user grants delete on every screen — that
+   was option B, rejected by the owner on 2026-08-24.
+   **Failure behaviour (chosen deliberately):** the API logs a seeding exception and lets the
+   login succeed, because the credential check and account gates have already passed and a
+   transient fault during a repair should not lock out the only account that can fix it. This is
+   the same outcome Blazor reaches — see the correction immediately below; the only divergence is
+   the post-login navigation Blazor loses.
+   **Correction, 2026-08-24 (validation of M2-A10):** an earlier wording here said a Blazor seeding
+   failure "does abort the sign-in". That is wrong (Confirmed). `Login.razor:337` calls
+   `customAuth.MarkUserAsAuthenticated` **before** the seeding call at `:345-349`, so the Blazor
+   user is already authenticated when seeding runs; the page catch at `:357-362` only toasts an
+   error and skips `NavigateTo("/dashboard")`, leaving them signed in but stranded on the login
+   page. The actual divergence is that Blazor loses the navigation while the API returns its
+   normal `200`. `Login.razor` is unchanged.
+5. `JwtTokenService.CreateToken(user, tenant.Id)`.
+6. Returns `{ token, username, userId, tenantId, role }`.
 
 JWT claims: `ClaimTypes.Name`, `"UserId"`, `"TenantId"`, `ClaimTypes.Role`.
 HS256, `ExpiresMinutes` default 480 (8 h), `ClockSkew` 1 minute, issuer/audience validated.

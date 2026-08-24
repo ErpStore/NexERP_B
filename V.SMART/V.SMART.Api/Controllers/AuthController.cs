@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using V.SMART.Api.Auth;
 using V.SMART.Api.Middleware;
+using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IAdminService;
 using V.SMART.Shared.Repository.IRepository;
 using V.SMART.Shared.Services.MultiCompanyService;
 
@@ -12,21 +13,40 @@ namespace V.SMART.Api.Controllers
     [Route($"{ApiRoutes.V1}/auth")]
     public class AuthController : ControllerBase
     {
+        /// <summary>
+        /// M2-A10 — the only user for whom the API seeds rights on login, mirroring
+        /// <c>Login.razor:345</c>'s <c>if (user.UserId == 1)</c>.
+        ///
+        /// This gate IS the safety property, not an incidental detail:
+        /// <c>SyncRightsForUserAsync</c> writes <c>CanView</c>, <c>CanCreate</c>, <c>CanEdit</c> and
+        /// <c>CanDelete</c> all <c>true</c> (<c>UserRightService.cs:67-70</c>) for every screen the
+        /// user has no row for, so widening it by even one user silently grants delete on all
+        /// screens. That was option B in KB-109 and the owner rejected it on 2026-08-24.
+        /// Do not generalise, do not make configurable.
+        /// </summary>
+        private const int AdministratorUserId = 1;
+
         private readonly IUnitOfWork _unitOfWork;
         private readonly JwtTokenService _jwtTokenService;
         private readonly ITenantProvider _tenantProvider;
         private readonly IConfiguration _configuration;
+        private readonly IUserRightService _userRightService;
+        private readonly ILogger<AuthController> _logger;
 
         public AuthController(
             IUnitOfWork unitOfWork,
             JwtTokenService jwtTokenService,
             ITenantProvider tenantProvider,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IUserRightService userRightService,
+            ILogger<AuthController> logger)
         {
             _unitOfWork = unitOfWork;
             _jwtTokenService = jwtTokenService;
             _tenantProvider = tenantProvider;
             _configuration = configuration;
+            _userRightService = userRightService;
+            _logger = logger;
         }
 
         /// <summary>
@@ -88,6 +108,12 @@ namespace V.SMART.Api.Controllers
             if (trialRefusal is not null)
                 return this.AccountGateProblem(trialRefusal);
 
+            // M2-A10 — administrator rights seeding, in the position Login.razor:345-349 puts it:
+            // after the credential and account gates, before anything is issued. Without it an
+            // administrator who has only ever authenticated through the API holds zero UserRight
+            // rows and ADR-004's filter answers 403 to every annotated endpoint.
+            await SeedAdministratorRightsAsync(user.UserId);
+
             var token = _jwtTokenService.CreateToken(user, tenant.Id);
 
             return Ok(new LoginResponse(
@@ -96,6 +122,50 @@ namespace V.SMART.Api.Controllers
                 user.UserId,
                 tenant.Id,
                 user.Role?.ToString() ?? string.Empty));
+        }
+
+        /// <summary>
+        /// M2-A10 — mirrors <c>Login.razor:345-349</c>: sync rights for the administrator, and for
+        /// nobody else.
+        ///
+        /// <para><b>Failure behaviour — the deliberate choice.</b> A seeding failure is logged and
+        /// swallowed; the login still succeeds. Justification: the credential check and the account
+        /// gates have already passed, so the caller IS authenticated, and rights seeding is a repair
+        /// of a missing-rows condition rather than part of authentication. Letting it fail the login
+        /// would convert any transient database fault during the repair into a total lockout of the
+        /// one account that could fix it, while gaining nothing — an administrator whose rows failed
+        /// to seed is in exactly the state they were already in, and ADR-004's filter still refuses
+        /// the endpoints they lack rows for. Nothing is granted by continuing.</para>
+        ///
+        /// <para>This diverges from the Blazor page as written, but less than it first appears.
+        /// <c>Login.razor:337</c> calls <c>MarkUserAsAuthenticated</c> <i>before</i> the seeding call
+        /// at <c>:345-349</c>, so the Blazor user is already signed in when seeding runs; the page's
+        /// catch (<c>:357-362</c>) only toasts an error and skips <c>NavigateTo("/dashboard")</c>,
+        /// leaving them authenticated but stranded on the login page. The real divergence is
+        /// therefore that Blazor loses the navigation while the API returns its normal 200. The
+        /// scope of this task (<c>docs/kb/execution/tasks/M2-A10.md</c> §Scope 2, §Acceptance 3)
+        /// requires the API to continue. Blazor is left byte-unchanged.</para>
+        /// </summary>
+        private async Task SeedAdministratorRightsAsync(int userId)
+        {
+            if (userId != AdministratorUserId)
+                return;
+
+            try
+            {
+                _logger.LogInformation(
+                    "[UserRights] Administrator login detected. Syncing rights for UserId {UserId}.",
+                    userId);
+
+                await _userRightService.SyncRightsForUserAsync(userId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "[UserRights] Error while syncing rights for UserId {UserId}. Login continues.",
+                    userId);
+            }
         }
     }
 }
