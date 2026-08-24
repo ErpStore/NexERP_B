@@ -21,7 +21,73 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## ▶ No task is currently selectable
+## ▶ `M2-A03` — Automated permission-matrix test harness
+
+**Selected 2026-08-24** (tip `22eb745` on `master`, tree clean), not yet dispatched. This
+supersedes the previous "no task is currently selectable" note below, which the repository
+owner overtook by merging `migration/M2-A02-currency-authorization`,
+`migration/M2-A09-screen-catalogue-phantoms` and `migration/M2-A10-api-rights-seeding` to
+`master` (`a7bbc34`, `--no-ff` one at a time, `M2-A09` first) — that note was never rewritten
+by the merge commits themselves, which only touched `task-tracker.md` rows/footnotes and
+`runner-state.md`'s `Status`/`Current task` lines.
+
+**Full spec:** [`tasks/M2-A03.md`](tasks/M2-A03.md).
+
+### Why this task, not `M2-B03`
+
+`task-tracker.md` rows 113/130 both read `Ready`, released by the same merge:
+
+- **`M2-A03`** — `Testing`, P0, 3 d, `depends_on: [M2-A02]` (`Completed`, merged).
+- **`M2-B03`** — `Documentation`, P0, 2 d, `depends_on: [M2-A02, M2-B02]` (both `Completed`,
+  merged).
+
+Both cleared the five-part "can actually be done" test (KB-082 § Ready-task selection rule):
+no unmet Hard prerequisite, not a `Product Decision`, no unanswered open question gates either
+(`open-questions.md` grepped — `Q-71` names `M2-A03` only as a *candidate owner* for a
+separate, still-undecided direction-switch, not as something `M2-A03`'s own task file depends
+on), no ⛔ banner, no sibling branch on either's `source_files`
+(`git branch --no-merged master`: only `M0-03-*`, `M0-04`, `M0-06`, `M0-08`, `M2-A08`,
+`M2-B12-01`, `M2-C10` remain, none touching `CurrencyController.cs`, `AuthController.cs`,
+`Program.cs`, `ApplicationDbContext.cs`, `RightsHelper.cs`, `UserRight.cs`, `Contracts/`, or
+the two ADR files either task names).
+
+Both P0 → rank step 1 ties. Both name exactly one dependent (`M2-A03` → `M5-05`; `M2-B03` →
+`M2-B10`) → rank step 2 ties. **Rank step 3 (critical path) breaks the tie**: the documented
+critical path (`dependency-graph.md` § *Project critical path*) runs
+`... → M2-A01-03 → M2-A02 → M2-A03 → M2-C05-01 → ...` — `M2-B03` does not appear in it.
+**`M2-A03` wins.**
+
+### Classification (KB-091 §4)
+
+No explicit `complexity`/`risk` override in `tasks/M2-A03.md` frontmatter. `task_type: Testing`
+→ base MEDIUM (§4.1); raised to the HIGH ceiling by `estimate: 3 d` (≥3 d), non-empty
+`business_rules: [BR-AUTH-002]`, `source_files` spanning two projects (`V.SMART.Api`,
+`V.SMART.Shared`), and the task explicitly extending the authorization surface `M2-A02` built
+(§4.2). Risk **HIGH** per §4.3 (`business_rules` populated). Per §5.1 HIGH-complexity routing
+plus the §5.2 item 2 risk-HIGH floor: **Investigate `opus`, Implement `opus`, Validate `opus`.**
+
+### Carried forward — still true, not re-derived this pass
+
+- **`M0-06`** (`Ready`) still fails part 5: sibling branch `migration/M0-06-remove-default-admin`
+  still exists, unmerged (`git branch --no-merged master`, re-checked 2026-08-24).
+- **`M0-11`** (`Ready`) still fails part 2: `task_type: Product Decision`, owner-only, never
+  self-selectable.
+- Outstanding owner decisions from the prior close-out (`M0-04` credential rotation,
+  `M2-C10`'s environment, `Q-38`) are unchanged by this pass — see `task-tracker.md` § Current
+  state for detail; none of them gates `M2-A03`.
+- `M2-A03`'s own note in `tasks/M2-A03.md` (unverified this pass beyond the frontmatter read
+  above): it is the task responsible for proving the authorization matrix **over the wire**
+  (`R-43` — no `WebApplicationFactory` host exists yet in `tests/V.SMART.Api.Tests`, so
+  `M2-A02`'s 401/403 proof stopped at the policy/`ObjectResult` level). Whoever implements this
+  task should expect to need that host, not assume it already exists.
+- **`AuthController.cs`'s `AdministratorUserId` const (`= 1`)** is still the whole safety
+  property for API-side rights seeding (`M2-A10`, merged) — not this task's surface, but listed
+  among `M2-A03`'s `source_files` (`AuthController.cs`) because the harness may exercise the
+  login path. Do not generalise or "fix" that gate as part of this task; it is out of scope.
+
+---
+
+## Previous note (superseded by the above)
 
 `M2-A10` (seed administrator rights on the API login path, mirroring Blazor, Q-28) closed
 **`Needs Review`** this session (2026-08-24) — independently validated `PASS` on the final of 3
@@ -34,51 +100,9 @@ if seeding throws. Full API suite 318/318, Shared suite 90/91 (1 pre-existing un
 [`tasks/M2-A10.md`](tasks/M2-A10.md) § Execution Record (2026-08-24),
 [`task-tracker.md`](task-tracker.md) footnote ⁶¹, [`runner-state.md`](runner-state.md).
 
-**Re-checked against the five-part "can actually be done" test** ([KB-082 § Ready-task
-selection rule](dependency-graph.md#ready-task-selection-rule)) against every `Ready` row left
-in `task-tracker.md` after this close-out.
-
-| Task | Ready? | Why it fails the five-part test |
-|---|---|---|
-| `M0-06` — remove the seeded default Administrator credential | `Ready` | Fails part 5: a sibling branch already exists (`migration/M0-06-remove-default-admin`, confirmed via `git branch --no-merged master` 2026-08-24, this session). |
-| `M0-11` — Product decision: silent FIFO under-issue (Q-01) | `Ready` | Fails part 2: `task_type: Product Decision`, owner-only, never self-selectable. |
-
-Nothing else in the tracker carries a `Ready` row. `M2-A02` and `M2-A09` are `Needs Review`
-(implemented, independently validated `PASS`, both unmerged) — a `Needs Review` branch does not
-satisfy part 1 of the test for anything that depends on it, and neither has a task naming it in
-`depends_on` regardless. Everything else is `Blocked`, `In Progress`, `Not Started`, or already
-`Completed`. This is a **person-level** stall, not an execution-capacity one — see
-`task-tracker.md` § Current state (2026-08-24) for the outstanding owner decisions, in order of
-how much each unblocks:
-
-1. **`M0-04`** — rotate the exposed credentials (deferred to end-of-milestone 2026-08-19).
-   Unblocks `M2-A04` → `M2-A05` → `M2-C02` → `M2-C03`, and G0 criteria 2/3.
-2. **`M2-C10`'s environment** — a reachable DB + credential, or relax its "MEASURED wire
-   format" criterion to static analysis. Unblocks `M2-C10`, then `M2-C07`.
-3. **Owner review and merge of unmerged `PASS`/`Needs Review` branches.** Several sit ready for
-   review; merging any of them may release further `Blocked` tasks. Merging `M2-A02` in
-   particular moves `M2-A03` and `M2-B03` from `Blocked` to selectable — the largest single
-   release currently sitting on the owner's desk. `M2-A09` and `M2-A10` release no other task
-   (nothing names either in `depends_on`) but are still worth merging for their own fixes. See
-   `task-tracker.md` § "Unmerged branches still carrying work" for the current list.
-4. **Q-38** — what `M2-C11` is *for*, now `M2-C01` has built the workspace it existed to
-   adopt. Unblocks `M2-C11`.
-5. **`M0-06`'s own branch** (`migration/M0-06-remove-default-admin`) — reviewed and merged (or
-   abandoned) would clear the sibling-branch block on that row, but nothing else depends on it.
-
-### What a future session should do here
-
-- **Do not re-run Select** against the same two `Ready` rows without a state change — nothing
-  about them has changed since this close-out. Check `git branch --no-merged master` and
-  `task-tracker.md` § Current state first; if one of the decisions above has been made,
-  re-derive selectability from that, not from this file's stale snapshot.
-- **Offer the owner a documentation-only task ahead of an unmet gate** rather than stalling, per
-  standing guidance — e.g. re-specifying or investigating something that does not need a
-  `Ready` row to proceed, if one exists and is worth doing.
-- If the owner merges any unmerged `Needs Review`/`PASS` branch (`M2-A02`, `M2-A09`, `M2-A10`,
-  or others), re-run the five-part test — a merge is the only event that changes this file's
-  answer. Merging `M2-A02` in particular is the one to watch: it releases `M2-A03` and `M2-B03`
-  immediately.
+At that point in time no task was selectable — a person-level stall on owner merge review.
+The owner has since merged `M2-A02`, `M2-A09` and `M2-A10` (`a7bbc34`), which is exactly the
+event this note said would change the answer, and released `M2-A03` and `M2-B03` — see above.
 
 ### Carried forward from `M2-A10`'s close-out, for whoever next touches auth or rights seeding
 
@@ -105,4 +129,4 @@ how much each unblocks:
 - **R-43** (no `WebApplicationFactory` host in `tests/V.SMART.Api.Tests`) is still open and is
   why neither `M2-A02` nor `M2-A10` can prove their HTTP-level behaviour (401/403/200 over the
   wire, or that seeding actually reaches SQL Server) — both are controller/`ObjectResult`-level
-  proofs only. Candidate owner unclear; raise if a task starts needing it.
+  proofs only. `M2-A03` (selected above) is the task named as owning that wire-level proof.
