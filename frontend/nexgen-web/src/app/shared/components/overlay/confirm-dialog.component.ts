@@ -1,5 +1,6 @@
 import {
   afterEveryRender,
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -74,6 +75,21 @@ export class ConfirmDialogComponent {
   readonly canConfirm = computed(() => !this.reasonRequired() || this.reason().trim().length > 0);
 
   constructor() {
+    // **This host is deferred (M2-C13), so it may not exist when the first
+    // confirmation is asked for.** `p-confirmdialog` subscribes to
+    // `requireConfirmation$` in its own constructor
+    // (`primeng-confirmdialog.mjs`), i.e. while this component's template is
+    // being created - so by the first post-render hook the subscription is in
+    // place and any request queued during the lazy load can be replayed
+    // without being dropped by that plain `Subject`. Done from
+    // `afterNextRender` rather than from the constructor or `ngAfterViewInit`
+    // because replaying immediately sets `p-confirmdialog`'s `visible` signal,
+    // and a post-render hook is the point at which that schedules a new
+    // change-detection pass instead of mutating one already in progress.
+    afterNextRender(() => {
+      this.service.markHostMounted();
+    });
+
     this.reasonControl.valueChanges.pipe(takeUntilDestroyed()).subscribe((value) => {
       this.reason.set(value ?? '');
     });
