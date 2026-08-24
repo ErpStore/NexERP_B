@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-24
 dependencies: [KB-020, KB-041, KB-050, KB-052, KB-060, KB-070, ADR-001, ADR-002, ADR-003, ADR-004, ADR-005]
 ---
 
@@ -68,29 +68,36 @@ afterthought.
 
 ## Position
 
+> **Status refreshed 2026-08-24.** The block below was written 2026-08-12 and said *"M0 —
+> Stabilise (not started)"* with *"M2 and everything after"* blocked. Both were true then and
+> neither is now. [KB-081](../execution/task-tracker.md) remains the authority on task status;
+> this is a milestone-level summary and will go stale again.
+
 | | |
 |---|---|
 | **Completed** | M1 — Repository understanding |
-| **Current** | **M0 — Stabilise** (not started) |
-| **Blocked until M0 closes** | M2 and everything after it |
-| **Next decision needed from the product owner** | Q-01, Q-13 (see [open-questions.md](../open-questions.md)) |
+| **Current** | **M2 — Foundation**, 23 of 59 tasks `Completed` (39%). M0 is 17 of 24 and its gate is **passed with exceptions** |
+| **Blocked** | M3–M6, behind G2. Within M2, the `M2-A` security chain stops at `M2-A04` |
+| **Next decisions needed from the product owner** | **`M0-04`** (rotate exposed credentials — gates `M2-A04` → `M2-A05` → `M2-C02`, and G0 criteria 2/3); **`M2-C10`'s environment** (a database credential, or relax its measured-wire-format criterion); **Q-28 + R-65** (gate `M2-A02`); **Q-38** (what `M2-C11` is for) |
 
 ### Milestone map
 
 | ID | Milestone | Est. | Gate | Status |
 |---|---|---|---|---|
-| **M0** | Stabilise — safety net | 2–3 wks | G0 | ⬜ Not started |
+| **M0** | Stabilise — safety net | 2–3 wks | G0 | ⚠️ **Passed with exceptions** 2026-08-19 — 17/24 done; criteria **2 and 3 unsatisfied**, deferred by owner. `M0-04`/`M0-05` `Blocked` |
 | **M1** | Repository understanding | — | G1 | ✅ Complete (rolling) |
-| **M2** | Foundation — API + Angular shell + vertical slice | 6–8 wks | G2 | ⬜ Blocked by G0 |
+| **M2** | Foundation — API + Angular shell + vertical slice | 6–8 wks | G2 | 🔄 **OPEN** — 23/59 (39%). Backend API slice done; Angular workspace, design tokens and form controls live |
 | **M3** | Core modules — masters → sales order | 12–16 wks | G3 | ⬜ Blocked by G2 |
 | **M4** | Advanced modules | 16–22 wks | G4 | ⬜ Blocked by G3 |
 | **M5** | Hardening sweep | 6–8 wks (overlapped) | G5 | ⬜ Runs from M2 |
 | **M6** | Production migration | 4–6 wks | G6 | ⬜ Blocked by G4 |
 
-**Do not start M2 frontend work before G0 passes.** The reason is not process hygiene: **82**
-of 94 stored procedures have no DDL in source control, so today a fresh environment cannot be
-built at all — which means no CI, no integration tests, and no reproducible parity testing
-for any later milestone.
+> **The "do not start M2 frontend work before G0 passes" rule below was overridden by the owner
+> on 2026-08-19**, who closed G0 with criteria 2 and 3 deferred specifically to unbar M2. The
+> paragraph is kept because its *reason* still stands and is still unresolved: the stored-procedure
+> DDL gap is what makes a fresh environment unbuildable, and it is the same gap now blocking
+> `M2-C10` — that task cannot be validated here because no database is reachable. The rule was
+> waived, not satisfied.
 
 ---
 
@@ -105,24 +112,40 @@ must not drift.
 | ID | Task | Addresses | Est. | Status |
 |---|---|---|---|---|
 | M0-01 | Capture DDL for all 94 stored procedures into `db/stored-procedures/`, one file per proc, with a deployment script | R-04, INV-027 | 4–5 d | ⬜ |
-| M0-02 | Confirm whether procs have drifted between tenant databases; if so, record per-tenant variants | Q-14 | 1 d | ⬜ |
-| M0-03 | Move connection strings and `Jwt:Secret` to environment / Key Vault; remove from `appsettings.json` | R-01, R-02 | 1 d | ⬜ |
+| M0-02 | Confirm whether procs have drifted between tenant databases; if so, record per-tenant variants | Q-14 | 1 d | ✅ |
+| M0-03 | Move connection strings and `Jwt:Secret` to environment / Key Vault; remove from `appsettings.json` | R-01, R-02 | 1 d | ✅ |
 | M0-04 | **Rotate** the exposed SA password and the `bspl` production credential; rotate the JWT secret | R-01 | 1 d | ⬜ |
 | M0-05 | Purge secrets from git history (or accept and document the exposure if history rewrite is refused) | R-01 | 1 d | ⬜ |
 | M0-06 | Remove the seeded default Administrator hash; force first-run password set | R-09 | 1 d | ⬜ |
-| M0-07 | CI pipeline: restore → build → analyzers → (later) test, on every push | R-05 | 2 d | ⬜ |
-| M0-08 | `.gitignore` fixes; remove committed `dist/`, `.angular/cache/`, `bin/`, `obj/` | R-14 | 0.5 d | ⬜ |
-| M0-09 | Fix the two unreachable delete guards — `MfgPoService.cs:504` (`hasInvoice` ← `hasExpInvoice`), `:525` (`hasRc` ← `hasCR`) | R-08 | 0.5 d | ⬜ |
-| M0-10 | Audit all ~40 `CanDelete…Async` methods for the same copy-paste pattern | R-08, INV-025 | 2 d | ⬜ |
+| M0-07 | CI pipeline: restore → build → analyzers → (later) test, on every push | R-05 | 2 d | ✅ |
+| M0-08 | `.gitignore` fixes; remove committed `dist/`, `.angular/cache/`, `bin/`, `obj/` | R-14 | 0.5 d | ✅ |
+| M0-09 | Fix the two unreachable delete guards — `MfgPoService.cs:504` (`hasInvoice` ← `hasExpInvoice`), `:525` (`hasRc` ← `hasCR`) | R-08 | 0.5 d | ✅ |
+| M0-10 | Audit all ~40 `CanDelete…Async` methods for the same copy-paste pattern | R-08, INV-025 | 2 d | ✅ |
 | M0-11 | **Product decision** on the silent FIFO under-issue (`StockManagerService.cs:209-233`) — bug or relied-upon? | R-07, Q-01 | decision | ⬜ |
 | M0-12 | Characterisation tests for `ICalculationService` — the 9-step totals/tax algorithm, item-wise and header-wise, TCS, round-off | R-05 | 3 d | ⬜ |
-| M0-13 | Characterisation tests for `IStockManagerService` — FIFO allocation, partial balance, multi-batch, `StockIssueTrack` | R-05 | 3 d | ⬜ |
-| M0-14 | Turn off unconditional `DetailedErrors` in production config | R-19 | 0.5 d | ⬜ |
+| M0-13 | Characterisation tests for `IStockManagerService` — FIFO allocation, partial balance, multi-batch, `StockIssueTrack` | R-05 | 3 d | ✅ |
+| M0-14 | Turn off unconditional `DetailedErrors` in production config | R-19 | 0.5 d | ✅ |
 
 > **M0-12 and M0-13 are characterisation tests, not correctness tests.** They pin down what
 > the code *does today*, including behaviour we may consider wrong. They exist so that any
 > change during migration is visible. M0-11's outcome is applied *after* the tests capture
 > the current behaviour, as a deliberate, recorded change.
+
+> **Where the six unticked M0 rows actually stand**, and two of them are not what the tick-box
+> suggests. [KB-081](../execution/task-tracker.md) is the authority; this table is parent-level
+> and predates `M0-00` and `M0-15`, both of which are ✅ there.
+>
+> - **`M0-01`** — children `M0-01-01`/`-01-02` are ✅; `M0-01-03` (rebuild drill) is merged but
+>   `Needs Review`, waiting on a **named operator** to sign runbook §7. Not a technical blocker.
+> - **`M0-04`** *(rotate credentials)* and **`M0-05`** *(purge history)* — `Blocked`, deferred to
+>   end-of-milestone by the owner 2026-08-19. **These are G0 criteria 2 and 3**, and they are the
+>   single highest-leverage item outstanding: `M0-04` gates `M2-A04` → `M2-A05` → `M2-C02`.
+> - **`M0-06`** — `Ready`, but a branch already exists for it.
+> - **`M0-11`** — a `Product Decision` (silent FIFO under-issue, Q-01). Owner-only; no runner may
+>   self-select it.
+> - **`M0-12`** — **its bookkeeping disagrees with itself.** Both children `M0-12-01` and
+>   `M0-12-02` are ✅ in KB-081, yet the parent row there still reads `Not Started`. Left ⬜ here
+>   rather than silently resolved, because correcting a parent's status is KB-081's call.
 
 ### Exit gate G0
 
@@ -171,14 +194,14 @@ far cheaper to change the pattern here than in M4.
 
 | ID | Task | Addresses | Est. | Status |
 |---|---|---|---|---|
-| M2-A01 | `[RequireScreen]` / `[RequireRight]` authorization filter resolving `UserRight × Screens` per request, with caching | **ADR-004, P0** | 1–2 wks | ⬜ |
+| M2-A01 | `[RequireScreen]` / `[RequireRight]` authorization filter resolving `UserRight × Screens` per request, with caching | **ADR-004, P0** | 1–2 wks | ✅ |
 | M2-A02 | Apply the filter to `CurrencyController` and prove denial with a permission-less user | ADR-004 | 1 d | ⬜ |
 | M2-A03 | Automated permission-matrix test harness — every endpoint × every right combination | ADR-004 | 3 d | ⬜ |
 | M2-A04 | Refresh tokens + revocation; shorten access-token lifetime from 480 min | A4, R-03 | 3–5 d | ⬜ |
 | M2-A05 | Tenant resolution for a cross-origin SPA: tenant in login request, JWT claim thereafter; real CORS origin list (replace the `AngularDev` → `localhost:4200` policy) | A3 | 3–5 d | ⬜ |
-| M2-A06 | Global exception middleware → `application/problem+json`, correlation ids, request logging | A5 | 3–5 d | ⬜ |
-| M2-A07 | `GET /api/v1/me` — user, tenant, role, and the full `UserRight` set for client-side rendering | B5 | 2 d | ⬜ |
-| M2-A08 | Resolve Q-05 … Q-08 (QR expiry, trial/expiry, device binding, `StateCodesCsv` row scoping) and enforce whatever is real, **server-side** | Q-05…Q-08, INV-028 | 3 d | ⬜ |
+| M2-A06 | Global exception middleware → `application/problem+json`, correlation ids, request logging | A5 | 3–5 d | ✅ |
+| M2-A07 | `GET /api/v1/me` — user, tenant, role, and the full `UserRight` set for client-side rendering | B5 | 2 d | ✅ |
+| M2-A08 | Resolve Q-05 … Q-08 (QR expiry, trial/expiry, device binding, `StateCodesCsv` row scoping) and enforce whatever is real, **server-side** | Q-05…Q-08, INV-028 | 3 d | ✅ |
 
 > **M2-A08 is not optional polish.** If `User.StateCodesCsv` is real row-level security and
 > is only applied in Razor pages today, then every list endpoint leaks other states' data
@@ -188,23 +211,23 @@ far cheaper to change the pattern here than in M4.
 
 | ID | Task | Addresses | Est. | Status |
 |---|---|---|---|---|
-| M2-B01 | API versioning — move to `/api/v1` | C3 | 1 d | ⬜ |
-| M2-B02 | Server-side paging/sort/filter contract, uniform across all list endpoints | B9 | 1 wk | ⬜ |
+| M2-B01 | API versioning — move to `/api/v1` | C3 | 1 d | ✅ |
+| M2-B02 | Server-side paging/sort/filter contract, uniform across all list endpoints | B9 | 1 wk | ✅ |
 | M2-B03 | Controller template + conventions codified and documented (thin controller; commands as `POST /{id}/{verb}`) | ADR-002 | 2 d | ⬜ |
-| M2-B04 | Decouple `IApprovalService` from the `Authorization` Razor page, plus the other 13 `Pages`-referencing business files | A6, R-11 | 1 wk | ⬜ |
+| M2-B04 | Decouple `IApprovalService` from the `Authorization` Razor page, plus the other 13 `Pages`-referencing business files | A6, R-11 | 1 wk | ✅ |
 | M2-B05 | Typed `ScreenCodes` constants replacing the magic integers passed to `IStockManagerService` | B7, R-10 | 2 d | ⬜ |
-| M2-B06 | File upload/download endpoints replacing `IBrowserFile` and local-path `IFileOpener` | B3 | 1 wk | ⬜ |
-| M2-B07 | **Shared `AddVSmartDomain()` DI extension** used by Web, Api and MAUI hosts | R-26 | 3 d | ⬜ |
+| M2-B06 | File upload/download endpoints replacing `IBrowserFile` and local-path `IFileOpener` | B3 | 1 wk | ✅ |
+| M2-B07 | **Shared `AddVSmartDomain()` DI extension** used by Web, Api and MAUI hosts | R-26 | 3 d | ✅ |
 | M2-B08 | Report endpoints — `GET /{resource}/{id}/print` → PDF; `GET /reports/{slug}` → JSON; export | B4, ADR-005 | 1 wk | ⬜ |
-| M2-B09 | Reference-data endpoints (GST rates, UOM, states, screens, terms, currencies) with output caching | B6 | 3 d | ⬜ |
+| M2-B09 | Reference-data endpoints (GST rates, UOM, states, screens, terms, currencies) with output caching | B6 | 3 d | ✅ |
 | M2-B10 | OpenAPI polish + TypeScript client generation wired into CI | B10 | 3 d | ⬜ |
-| M2-B11 | Health checks + structured logging sink replacing the flat-file logger | C2, R-23 | 3 d | ⬜ |
+| M2-B11 | Health checks + structured logging sink replacing the flat-file logger | C2, R-23 | 3 d | ✅ |
 
 ### M2-C — Angular foundation
 
 | ID | Task | Est. | Status |
 |---|---|---|---|
-| M2-C01 | Angular 22 CLI + TS strict; ESLint/Prettier; Jest-or-Vitest + Angular Testing Library; Playwright; CI | 3 d | ⬜ |
+| M2-C01 | Angular 22 CLI + TS strict; ESLint/Prettier; Jest-or-Vitest + Angular Testing Library; Playwright; CI | 3 d | ✅ |
 | M2-C02 | Auth: login, token refresh, route guards, permission store, `PermissionGate` | 1 wk | ⬜ |
 | M2-C03 | App shell — header, permission-filtered sidebar, breadcrumbs, ⌘K palette, light/dark | 1.5 wks | ⬜ |
 | M2-C04 | Design-system primitives per [design-system.md](../frontend-new/design-system.md) | 2 wks | ⬜ |
@@ -215,6 +238,25 @@ far cheaper to change the pattern here than in M4.
 | M2-C09 | `ReportPage` framework driven by declarative report definitions | 1 wk | ⬜ |
 | M2-C10 | Decimal handling (`decimal.js`) — **never** float arithmetic on money or quantity | 2 d | ⬜ |
 | M2-C11 | Archive `frontend/vsmart-erp` (the Angular pilot) | 0.5 d | ⬜ |
+
+> **Tasks that exist in [KB-081](../execution/task-tracker.md) but have no row above.** This
+> table is parent-level and predates them; KB-081 is the authority.
+>
+> - **`M2-C00`** ✅ — rewrote [KB-050](../frontend-new/react-architecture.md) for Angular and
+>   re-specified `M2-C01` in the same change. It is the reason `M2-C01` was executable.
+> - **`M2-C04-01`** ✅ design tokens, theming, light/dark · **`M2-C04-02`** ✅ form layout,
+>   controls and validation display · **`M2-C04-03`** in progress — modal, drawer, toast, states.
+>   `M2-C04` stays ⬜ until all three land.
+> - **`M2-C12`** ✅ *(and `M2-C12-01…05`)* — **re-specified all 25 superseded `M2-C`/`M2-D` task
+>   files for Angular.** ADR-007 replaced React on 2026-08-20 and left every downstream task
+>   carrying a `⛔ STOP — this specification is superseded` banner, so the dependency graph said
+>   they were ready while the task files said they were not. **Zero banners now remain.** Without
+>   it nothing below `M2-C01` was implementable, whatever the gates said.
+>
+> **Frontend reality check, 2026-08-23:** the app is an Angular 22 + PrimeNG workspace at
+> `frontend/nexgen-web/` with a token-driven design system and **215 tests across 29 files**
+> (from 6 across 2 at scaffold). It renders one placeholder route — no ERP screen exists yet.
+> That is `M2-D`'s job.
 
 ### M2-D — Vertical slice
 
