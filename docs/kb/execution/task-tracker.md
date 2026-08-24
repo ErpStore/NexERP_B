@@ -150,7 +150,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-03 | M2 | — re-spec the list / CRUD shell (M2-C05*, M2-C06) | Documentation | **Completed**⁴⁴ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Completed**⁴⁵ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Completed**⁴⁶ *(merged to `master` `27dfc5d` on owner instruction 2026-08-23)* | P0 | M2-C12-01…04 | 1 d | G2 |
-| M2-C13 | M2 | Defer the confirm-dialog host; bundle back inside budget (R-69) | Frontend | **Ready**⁵⁵ | P1 | M2-C04-03 | 1 d | G2 |
+| M2-C13 | M2 | Defer the confirm-dialog host; bundle back inside budget (R-69) | Frontend | **Needs Review**⁵⁵˒⁵⁶ | P1 | M2-C04-03 | 1 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Blocked**²⁶˒⁴⁶˒⁴⁷˒⁵² *(attempt 1 `FAIL`, category `environment` — its binding criterion needs a MEASURED wire format from a live `[Authorize]`d endpoint, and this workstation has empty `ConnectionStrings:MasterDb` and `Jwt:Secret`. Not a code defect. See footnote ⁵²)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | **Completed**⁴⁶˒⁵⁴ *(parent — all three children `Completed` and merged)* | P0 | M2-C01 | 2 wks | G2 |
@@ -262,14 +262,18 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**47 `Completed`, 1 `Needs Review`, 3 `Ready`, 36 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
+**47 `Completed`, 2 `Needs Review`, 3 `Ready`, 36 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
 *estimates*, not rows.
 
-**Nothing is selectable. For the first time in this run the pool is empty on specification and
-dependency grounds alike, and every remaining path runs through a person.** All three `Ready`
-rows fail the five-part test: `M0-06` already has a branch, `M0-11` is a `Product Decision`
-(owner-only), and `M2-A02` is gated on the unanswered **Q-28** *and* on **R-65**.
+**`M2-C13` closed `Needs Review` 2026-08-24** (footnote ⁵⁶) — deferred the confirm-dialog host,
+initial bundle **711.75 kB → 571.20 kB raw**, no more budget warning, R-69 resolved. Left
+unmerged on `migration/M2-C13-defer-confirm-host` for owner review.
+
+**Nothing is selectable. The pool is empty on specification and dependency grounds alike, and
+every remaining path runs through a person.** All three `Ready` rows fail the five-part test:
+`M0-06` already has a branch, `M0-11` is a `Product Decision` (owner-only), and `M2-A02` is
+gated on the unanswered **Q-28** *and* on **R-65**.
 
 **Five decisions, in order of what they unblock:**
 
@@ -281,11 +285,12 @@ rows fail the five-part test: `M0-06` already has a branch, `M0-11` is a `Produc
 | 4 | **Q-38** — what `M2-C11` is *for*, now `M2-C01` has built the workspace it existed to adopt | `M2-C11` |
 | 5 | **`stash@{0}`** — orphaned work from a dead run, carrying out-of-scope `AuthController.cs` and `.sln` edits | nothing; recommend discard |
 
-> **Read [R-69](../risks/technical-debt-register.md) before starting `M2-C03`.** The initial
+> ~~**Read [R-69](../risks/technical-debt-register.md) before starting `M2-C03`.** The initial
 > bundle is **711.75 kB raw**, past the 600 kB warning and **88 kB short of the 800 kB error
-> budget** that fails the build. `M2-C03` (app shell) is the next frontend task and is not small.
-> `npm run build` exits 0 on a warning, so **no gate will stop this** — it will simply start
-> failing one day.
+> budget** that fails the build.~~ **Resolved 2026-08-24 by `M2-C13`** (footnote ⁵⁶, pending owner
+> merge): the confirm-dialog host is now deferred and the initial bundle measures **571.20 kB
+> raw / 136.72 kB transfer**, no budget warning. `M2-C03` is not imminent regardless — it is
+> transitively blocked behind `M0-04` (see footnote ⁵⁵).
 
 **What changed between 2026-08-21 and 2026-08-23**, which is why M2 moved from 6 completed to 25:
 the owner cleared an eight-branch merge queue, then `M2-C12` re-specified all **25** superseded
@@ -294,12 +299,13 @@ went from a React scaffold to an Angular workspace with design tokens and form c
 (`M2-C01`, `M2-C04-01`, `M2-C04-02`). Frontend test count over that window: **6 → 215**, across
 **2 → 29** files.
 
-**Unmerged branches still carrying work:** `migration/M2-C04-03-feedback-primitives` (tip
-`1806bca`) is now awaiting owner review — independently validated `PASS`, footnote ⁵³. Two other
-unmerged branches exist and neither should be merged — `migration/M2-A08-row-level-scoping`
-(duplicate of the merged `M2-A08`, functionally identical `UserRepository.cs` change, no
-validated `PASS`; safe to delete) and `migration/M2-B12-01-inv-012-numbering` (`Blocked`, verdict
-`FAIL`, escalation budget exhausted).
+**Unmerged branches still carrying work:** `migration/M2-C04-03-feedback-primitives` merged to
+`master` at `ec8fb52` 2026-08-24 (footnote ⁵⁴) and is no longer unmerged — struck from this list.
+`migration/M2-C13-defer-confirm-host` (tip `3e821cc`) is now awaiting owner review —
+independently validated `PASS`, footnote ⁵⁶. Two other unmerged branches exist and neither
+should be merged — `migration/M2-A08-row-level-scoping` (duplicate of the merged `M2-A08`,
+functionally identical `UserRepository.cs` change, no validated `PASS`; safe to delete) and
+`migration/M2-B12-01-inv-012-numbering` (`Blocked`, verdict `FAIL`, escalation budget exhausted).
 
 **M0-03-01: `Completed` 2026-08-17.** Reviewed, signed off by the repository owner, and
 merged to `master` (`f55db52`). See note ³ above and
@@ -2573,3 +2579,22 @@ Acceptance criterion 3 requires a test that **fails without the fix**.
 importing the two hosts from their own files rather than the `shared/components` barrel is what
 keeps the bundle at 711 kB instead of **1.31 MB with a failing build**. Criterion 6 is a `grep`
 guarding exactly that.
+
+⁵⁶ **M2-C13 `Needs Review` — 2026-08-24.** Single commit `3e821cc` on
+`migration/M2-C13-defer-confirm-host` (cut from `master` `521fe36`), independently validated
+`PASS` on attempt 1 of 3, `scopeOk: true`, `failureCategory: none`, 0 escalations. All 10
+acceptance criteria `MET`, quoted verbatim by the validator. **Measured:** `npm run build`
+**711.75 kB raw / 158.24 kB transfer → 571.20 kB raw / 136.72 kB transfer**, no budget warning;
+new lazy chunk `confirm-dialog-component` 148.61 kB raw / 29.06 kB transfer. `typecheck`/`lint`/
+`format:check` all clean; `test:ci` **309 passed / 47 files** (up from 304/46 — the deferred-host
+spec added 5 tests); `build` exit 0. `grep -n "shared/components'" src/app/app.component.ts`
+confirmed empty — no barrel import, the 1.31 MB trap not re-sprung. The first-call test
+(`confirm-dialog.deferred.spec.ts`) was independently proven to fail without the service fix: the
+validator removed `ConfirmDialogService`'s pre-mount queue in an out-of-repo copy and observed
+`Tests 4 failed | 1 passed (5)`, restored, observed `Tests 5 passed (5)`. Diff confined to
+`frontend/` and `docs/kb/`, 7 files, 280/16. R-69 marked `RESOLVED` in the same commit (struck
+through, `docs/kb/risks/technical-debt-register.md`) with the measured after-figure and the
+`M2-C03`-does-not-land-next correction retained. **Not `Completed`**: this project requires owner
+integration (merge) before `Completed` regardless of a task's own Completion Conditions
+(KB-088 §Who may set Completed); left unmerged, unpushed, for review. Full record:
+`tasks/M2-C13.md` § Execution Record (2026-08-24).

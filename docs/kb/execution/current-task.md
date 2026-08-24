@@ -23,12 +23,14 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 
 ## ▶ No task is currently selectable
 
-`M2-C04-03` (modal, drawer, toast, empty/loading/error states) closed **`Needs Review`** this
-session (2026-08-24) — independently validated `PASS` on attempt 2 of 4, `scopeOk: true`,
-branch `migration/M2-C04-03-feedback-primitives` (tip `1806bca`), left unmerged, unpushed for
-owner review. Full record:
-[`tasks/M2-C04-03.md`](tasks/M2-C04-03.md) § Execution Record (2026-08-24),
-[`task-tracker.md`](task-tracker.md) footnote 53, [`runner-state.md`](runner-state.md).
+`M2-C13` (defer the confirm-dialog host, bring the initial bundle back inside Angular's 600 kB
+warning budget, R-69) closed **`Needs Review`** this session (2026-08-24) — independently
+validated `PASS` on attempt 1 of 3, `scopeOk: true`, `failureCategory: none`, 0 escalations.
+Branch `migration/M2-C13-defer-confirm-host` (tip `3e821cc`), left unmerged, unpushed, for owner
+review. Measured: initial bundle **711.75 kB → 571.20 kB raw / 158.24 kB → 136.72 kB transfer**,
+no more budget warning; R-69 marked resolved. Full record:
+[`tasks/M2-C13.md`](tasks/M2-C13.md) § Execution Record (2026-08-24),
+[`task-tracker.md`](task-tracker.md) footnote ⁵⁶, [`runner-state.md`](runner-state.md).
 
 **Re-checked against the five-part "can actually be done" test** ([KB-082 § Ready-task
 selection rule](dependency-graph.md#ready-task-selection-rule)) and confirmed unchanged since
@@ -42,11 +44,11 @@ the prior session: none of the remaining `Ready` rows in `task-tracker.md` clear
 
 Everything else in the tracker is `Blocked`, `In Progress`, `Not Started`, or already
 `Completed`/`Needs Review`. This is a **person-level** stall, not an execution-capacity one —
-see `task-tracker.md` § Current state (2026-08-24) for the five outstanding owner decisions,
-in order of how much each unblocks:
+see `task-tracker.md` § Current state (2026-08-24) for the outstanding owner decisions, in
+order of how much each unblocks:
 
 1. **`M0-04`** — rotate the exposed credentials (deferred to end-of-milestone 2026-08-19).
-   Unblocks `M2-A04` → `M2-A05` → `M2-C02`, and G0 criteria 2/3.
+   Unblocks `M2-A04` → `M2-A05` → `M2-C02` → `M2-C03`, and G0 criteria 2/3.
 2. **`M2-C10`'s environment** — a reachable DB + credential, or relax its "MEASURED wire
    format" criterion to static analysis. Unblocks `M2-C10`, then `M2-C07`.
 3. **Q-28 + R-65**. Unblocks `M2-A02` → `M2-A03`, `M2-B03` → `M2-B10`.
@@ -54,32 +56,40 @@ in order of how much each unblocks:
    adopt. Unblocks `M2-C11`.
 5. **Owner review and merge of unmerged `PASS`/`Needs Review` branches** — several sit ready
    for review and merging any of them may release further `Blocked` tasks (e.g.
-   `M2-C05`/`M2-C05-01` need `M2-C04-02` merged, not just `Needs Review`). See
-   `task-tracker.md` § "Unmerged branches still carrying work" for the current list, which now
-   includes `migration/M2-C04-03-feedback-primitives`.
+   `M2-C05`/`M2-C05-01` need `M2-C04-02` merged, not just `Needs Review`). This session adds
+   `migration/M2-C13-defer-confirm-host` (tip `3e821cc`, `PASS`) to that list — nothing in the
+   dependency graph names `M2-C13` as a prerequisite, so merging it releases no other task, but
+   it removes the last thin margin on the initial-bundle budget. See `task-tracker.md` §
+   "Unmerged branches still carrying work" for the current list.
 
 ### What a future session should do here
 
 - **Do not re-run Select** against the same three `Ready` rows without a state change —
   nothing about them has changed since 2026-08-23. Check `git branch --no-merged master` and
-  `task-tracker.md` § Current state first; if one of the five decisions above has been made,
+  `task-tracker.md` § Current state first; if one of the decisions above has been made,
   re-derive selectability from that, not from this file's stale snapshot.
 - **Offer the owner a documentation-only task ahead of an unmet gate** rather than stalling,
   per standing guidance — e.g. re-specifying or investigating something that does not need a
   `Ready` row to proceed, if one exists and is worth doing.
-- If the owner merges any unmerged `Needs Review`/`PASS` branch (`M2-C04-02`, `M2-C04-03`,
+- If the owner merges any unmerged `Needs Review`/`PASS` branch (`M2-C04-02`, `M2-C13`,
   `M2-C12-03`, `M2-C12-04`, or others), re-run the five-part test — a merge is the only event
   that changes this file's answer.
 
-### Carried forward from `M2-C04-03`, for whoever revisits the overlay/feedback layer
+### Carried forward from `M2-C13`, for whoever revisits the overlay layer or the app shell
 
-- **Q-80** (new, raised at this close-out): `confirm-dialog.component.html:23` hard-codes
-  `[maxlength]="500"` on the BR-SO-003 reason textarea with no `file:line` rule behind it.
-  Needs an owner ruling or a fix when the branch is reviewed.
-- **Q-78**/**Q-79**: no stacking-order/backdrop token exists in the token layer; no owner
-  decision yet on sub-768px toast positioning (a reasoned default is implemented).
-- **R-69**–**R-72** (`docs/kb/risks/technical-debt-register.md`): the initial bundle now trips
-  Angular's 600 kB warning budget; a duplicated jsdom fixture across `form/` and `overlay/`;
-  measured PrimeNG 22.1 ARIA/keyboard defects worked around per-component; a stale React
-  remnant in KB-051's prose.
-- `M2-C05-03`, `M2-C06`, `M2-C08` all consume these primitives once the branch merges.
+- **R-69** (`docs/kb/risks/technical-debt-register.md`) is now `RESOLVED` — the
+  confirm-dialog host is deferred behind `@defer (when confirmHostRequested())`, and the two
+  facts it recorded still bind: import both overlay hosts **from their own files**, never the
+  `shared/components` barrel (a barrel import takes the initial chunk to ~1.31 MB, a failing
+  build); PrimeNG's `requireConfirmation$` is a plain `Subject`, so any future overlay wired
+  the same way needs the same pre-mount-queue treatment `ConfirmDialogService` now has.
+- `<p-toast>` was deliberately left eager — the confirm-host deferral alone cleared budget, so
+  the toast host's own lost-emission hazard (fire-and-forget, no promise to strand, but still a
+  silently dropped message) was not taken on. Whoever next touches the toast path should reread
+  that reasoning before assuming it, too, should be deferred.
+- **R-70**–**R-72** (unrelated to `M2-C13`, carried from `M2-C04-03` and still open): a
+  duplicated jsdom fixture across `form/` and `overlay/`; measured PrimeNG 22.1 ARIA/keyboard
+  defects worked around per-component; a stale React remnant in KB-051's prose.
+- `M2-C05-03`, `M2-C06`, `M2-C08` all consume the overlay primitives once the relevant branches
+  merge; `M2-C03` (app shell) is transitively blocked behind `M0-04` and is not imminent
+  regardless of the bundle-budget fix.
