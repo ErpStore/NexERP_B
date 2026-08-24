@@ -1570,6 +1570,23 @@ host; the comment in `Program.cs` says so at the site. `ValidateScopes` was deli
 at the framework default, so captive-dependency detection is unaffected.
 
 ### R-65 — `ScreenCatalogue` names two screens that exist in no database, and the startup validator accepts them
+
+> **DECIDED 2026-08-24 by Vivek — option A of [KB-109](../decisions/KB-109-q28-r65-decision-brief.md).**
+> Delete `Bill Pending List` and `Bill Paid List` from `ScreenCatalogue.cs` so the compile-time
+> catalogue matches the 150 rows a real database holds. The startup validator then **rejects**
+> `[RequireScreen("Bill Paid List")]` loudly at boot instead of accepting it and denying every
+> request forever in silence. Implemented by **M2-A09**.
+>
+> **Option B — generating the catalogue from the database — is deferred to `M2-B10`**, not
+> rejected. It fixes the *class* of drift rather than this instance, and
+> [`server-side-authorization-spec.md` §1.3](../architecture/server-side-authorization-spec.md)
+> already argues a generated constants class would serve `M2-B10`'s needs *and* close this. It
+> needs a reachable database at build time, which this workstation does not have — the same gap
+> blocking `M2-C10`.
+>
+> **Option C — having the validator query the database at startup — was rejected**: it trades a
+> silent lockout for a host that refuses to start when the database is briefly unreachable, which
+> is a worse operational property.
 **Confirmed by direct measurement against two databases, 2026-08-21 (M0-01-03 rebuild drill).**
 *(Id `R-65` is the next free one after **R-64**, held by the unmerged
 `migration/M0-10-candelete-guard-audit` branch — checked with `git branch --no-merged master`

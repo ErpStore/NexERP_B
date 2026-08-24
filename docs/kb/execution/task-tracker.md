@@ -109,13 +109,15 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A01-01 | M2 | — implementation spec from ADR-004 | Architecture | **Completed**¹⁸ | P0 | G0 *(exception)* | 2 d | G2 |
 | M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | **Completed**²⁵ | P0 | M2-A01-01 | 3 d | G2 |
 | M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Completed**²⁷ | P0 | M2-A01-02 | 2 d | G2 |
-| M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Ready** (gated on **Q-28** — see footnote ²⁷) | P0 | M2-A01-03 | 1 d | G2 |
+| M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Ready**²⁷˒⁵⁸ *(unblocked 2026-08-24 — **Q-28 answered** and **R-65 decided**, both option A, KB-109)* | P0 | M2-A01-03 | 1 d | G2 |
 | M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | Blocked | P0 | M2-A02 | 3 d | G2 |
 | M2-A04 | M2 | Refresh tokens + revocation | Security | **Blocked**⁴⁸ *(correctly — on **M0-04**, not on `M2-A01-02`; ruled 2026-08-23)* | P0 | M2-A01-02, **M0-03/M0-04** | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
 | M2-A07 | M2 | `GET /api/v1/me` | Backend | **Completed**³⁷ *(merged to `master` `80c209b` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 2 d | G2 |
 | M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | **Completed**²⁹˒³⁹ *(merged to `master` `380c805` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 3 d | G2 |
+| M2-A09 | M2 | Remove the two phantom screen names from `ScreenCatalogue` (R-65) | Security | **Ready**⁵⁸ | P0 | M2-A01-03 | 0.5 d | G2 |
+| M2-A10 | M2 | Seed administrator rights on the API login path (Q-28) | Security | **Ready**⁵⁸ | P1 | M2-A01-03 | 0.5 d | G2 |
 
 ### M2-B — API structure
 
@@ -2625,3 +2627,32 @@ returns nothing.
 `test:ci` **309 passed / 47 files** (304/46 → 309/47, the five new ones being the deferred-host
 suite) · `build` exit 0 with no budget warning. Scope confined to `frontend/` and `docs/kb/`; no
 stylesheet touched, so the zero-raw-colour rule is trivially intact.
+
+⁵⁸ **Q-28 and R-65 both answered by Vivek 2026-08-24, option A each, per
+[KB-109](../decisions/KB-109-q28-r65-decision-brief.md). This unblocks `M2-A02` and with it three
+of the six G2 exit criteria** — the largest single release in this run.
+
+**Q-28 — A, deferred.** `AuthController.Login` will mirror the Blazor seeding call gated on
+`user.UserId == 1`, as **`M2-A10`**. `M2-A02` does **not** wait for it: that task proves a
+permission-less user is denied, which holds whether or not seeding exists. **Option B was
+explicitly rejected** and the rejection is load-bearing — `SyncRightsForUserAsync` writes all four
+operation rights `true` (`UserRightService.cs:66-71`), so seeding every user would grant delete on
+150 screens to a view-only clerk. `M2-A10`'s criterion 1 is a *negative* test asserting the call
+is not made for a non-`1` user, so option B cannot arrive later by accident.
+
+**R-65 — A.** Delete `Bill Pending List` and `Bill Paid List` from `ScreenCatalogue.cs`, as
+**`M2-A09`**. The catalogue then matches the 150 rows a real database holds, and
+`ScreenRightStartupValidator` rejects a phantom annotation **loudly at boot** instead of accepting
+it and denying every request forever in silence. Option B (generate the catalogue from the
+database) is **deferred to `M2-B10`**, not rejected — it fixes the class rather than the instance,
+and needs a build-time database this workstation lacks. Option C (validator queries the database
+at startup) was rejected: it trades a silent lockout for a host that will not boot when the
+database is briefly unreachable.
+
+**Sequencing.** `M2-A09`, `M2-A10` and `M2-A02` are mutually independent — all three depend only
+on `M2-A01-03`, which is `Completed` and merged. `M2-A09` is P0 and cheap, so it should land
+first, but nothing forces it.
+
+**One thing deliberately left open.** Both the Blazor path and `M2-A10` treat *administrator* as
+`UserId == 1`. That is a magic number and no evidence was found that it is guaranteed. KB-109
+flags it; `M2-A10` is forbidden from acting on it. It needs its own question if it matters.
