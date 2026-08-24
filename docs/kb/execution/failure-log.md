@@ -4917,3 +4917,218 @@ migration, no ERP rule in TypeScript, Blazor untouched.
 4. PrimeNG's `MultiSelect` readonly gap is worked around in **our** wrapper. A PrimeNG upgrade
    that fixes it upstream will make the capture guard redundant, not wrong; the comment names the
    exact lines so the next reader can check.
+
+---
+
+## M2-C04-03 · attempt 1 · independent validation · 2026-08-23 · `FAIL` (`acceptance-criterion`)
+
+| Field | Value |
+|---|---|
+| Runner state | FAILED |
+| Model in use | opus (validator) |
+| Validator verdict | FAIL |
+| Failure category | acceptance-criterion |
+| Branch / commit | `migration/M2-C04-03-feedback-primitives` @ `b9129e1` (unmerged, unpushed) |
+
+**What failed** — acceptance criterion 2, quoted verbatim from
+`docs/kb/execution/tasks/M2-C04-03.md:343-345`:
+
+> "The modal, drawer and confirm dialog trap focus, restore focus to the invoking element
+> on close, close on `Esc`, and lock background scroll — each asserted by test, not assumed
+> from PrimeNG's defaults."
+
+Twelve assertions are demanded (3 components × 4 behaviours). Four are absent, and all four
+of the absent ones are in the two components the task says PrimeNG cannot be trusted for:
+
+| | trap | restore | `Esc` | scroll lock |
+|---|---|---|---|---|
+| `app-modal` | ✅ `modal.component.spec.ts:70-82` | ✅ `:67` | ✅ `:66` | ✅ `:50,54` |
+| `app-drawer` | ❌ **none** | ✅ `drawer.component.spec.ts:64` | ✅ `:63` | ✅ `:73` |
+| `app-confirm-dialog` | ❌ **none** | ❌ **none** | ✅ `confirm-dialog.component.spec.ts:84-92` (maps to cancel) | ❌ **none** |
+
+Verified exhaustively, not by reading one file — the only focus/scroll assertions anywhere in
+the two new directories are:
+
+```
+$ grep -rn "p-overflow-hidden\|activeElement" overlay/ feedback/
+overlay/context-menu.component.spec.ts:78    overlay/drawer.component.spec.ts:59,64,73
+overlay/modal.component.spec.ts:42,50,54,67,81    overlay/overlay-focus.ts:23,67
+overlay/popover.component.spec.ts:37,50    overlay/tooltip.directive.spec.ts:50
+feedback/busy-overlay.component.spec.ts:43,61
+```
+
+No hit belongs to `confirm-dialog.component.spec.ts` or to `overlay/a11y.spec.ts`.
+
+**Root cause** — `ConfirmDialogComponent` delegates the entire focus and scroll contract to
+PrimeNG (`[focusTrap]="true"`, `[blockScroll]="true"`,
+`confirm-dialog.component.html:5-6`) and, unlike the modal, the drawer and even the popover,
+never constructs an `OverlayFocusKeeper` — so focus restoration for the confirm dialog is
+*exactly* the thing the criterion forbids ("assumed from PrimeNG's defaults"), and the
+task's own `overlay/overlay-focus.ts:5-9` states in its header that PrimeNG is unreliable at
+precisely that: *"What they do **not** reliably do is put focus back on the exact element
+that opened the overlay once it closes."*
+
+**Evidence**
+
+- `frontend/nexgen-web/src/app/shared/components/overlay/confirm-dialog.component.ts:43-99` —
+  no `OverlayFocusKeeper`, no `capture()`/`restore()`, no `focusFirstElementIn`.
+- `frontend/nexgen-web/src/app/shared/components/overlay/confirm-dialog.component.spec.ts:49-124`
+  — seven tests, none touching focus or scroll.
+- `frontend/nexgen-web/src/app/shared/components/overlay/drawer.component.spec.ts:26-122` —
+  no `Tab`-cycling assertion (`p-drawer` does apply `pFocusTrap` unconditionally per
+  `node_modules/primeng/fesm2022/primeng-drawer.mjs`, but the criterion demands the test, not
+  the inference).
+- **Documentation overclaim, same defect.** `docs/kb/frontend-new/design-system.md` gains
+  (this branch): *"**Confirmed keyboard model** (asserted by test, not inherited from
+  PrimeNG's defaults): the modal, drawer **and confirm dialog** move focus in on open, trap
+  it, close on `Esc`, return focus to the exact invoking element and lock background
+  scroll"*. For the confirm dialog none of trap/restore/scroll-lock is asserted by test, and
+  focus restoration is not implemented at all outside PrimeNG. A future session reading KB-051
+  will take this as verified fact.
+
+**Everything else passed**, re-run by the validator on this branch:
+
+```
+$ npm run typecheck    -> exit 0
+$ npm run lint         -> exit 0, "All files pass linting."
+$ npm run format:check -> exit 0, "All matched files use Prettier code style!"
+$ npm run test:ci      -> exit 0, Test Files 46 passed (46) / Tests 300 passed (300), 21.50s
+$ npm run build        -> exit 0, initial total 710.39 kB raw / 158.02 kB gzip,
+                          ONE new warning: "bundle initial exceeded maximum budget.
+                          Budget 600.00 kB was not met by 110.39 kB" (recorded as R-69)
+$ git grep -n "MessageService" -- frontend/nexgen-web/src  -> 6 hits, all toast.service.ts
+$ git grep -n "An error occurred" -- frontend/nexgen-web/src -> no matches (exit 1)
+$ git grep -n "core/auth" -- .../shared/components          -> no matches (exit 1)
+```
+
+Scope is clean: `git diff --name-status master...HEAD` touches no `V.SMART/**`, no
+`core/theme/**`, no `tokens.css`, no `shared/components/form/**`, no `core/auth/**`, no
+`frontend/vsmart-erp/**`. No schema change, no migration, no ERP rule reimplemented in
+TypeScript — BR-SO-003 is a capability only and both READMEs say so
+(`overlay/README.md:9-14`, `feedback/README.md:10`). `dotnet` was not run: nothing under
+`V.SMART/**` is in the diff, and `dotnet test` would have validated nothing here.
+
+**Disposition** — `retry`. The gap is four missing test assertions plus one wrong sentence in
+KB-051; the fix is additive and stays inside the branch's existing surface. It is *not*
+`architecture` — no decision is wrong, PrimeNG is still the only library, and the focus
+plumbing already exists in `overlay-focus.ts` and just needs wiring into
+`ConfirmDialogComponent`.
+
+**Next attempt routed to** — same model. No KB-091 §6.3 escalation trigger applies: the root
+cause is known, single-file, and the criterion names the remedy.
+
+**Also observed, not the failure** (for the fixer's benefit, and for the owner's review):
+
+1. **`npm run build` now emits a warning it did not before** — initial 710.39 kB against a
+   600 kB budget, up from 446.36 kB. Exit code is still 0 and gzip (158.02 kB) is inside
+   KB-050's `< 250 kB`, so no criterion is breached, but the margin to the 800 kB **error**
+   budget is 90 kB and `M2-C03`'s shell lands next. Honestly recorded by the implementer as
+   R-69.
+2. **`docs/kb/execution/task-tracker.md:158` still reads `Ready`** while the task file reads
+   `Needs Review`. Listed in the task's *Documentation Updates*; deliberately left to the
+   orchestrator.
+3. **The human keyboard-only and screen-reader pass** (*Completion Conditions*) is
+   outstanding and is **not checkable** by this validator. It needs a person with a screen
+   reader on the modal, the confirm dialog and the toast layer.
+4. **`prefers-reduced-motion` is asserted as stylesheet text**, not computed style
+   (`overlay/reduced-motion.spec.ts:6-17`), which the file states plainly. A behavioural
+   check needs Playwright. Accepted as the best available in jsdom; the criterion says
+   "zeroes every open/close transition" and the coverage test at `:45-63` at least fails the
+   moment a new animated stylesheet arrives without a reduce block.
+
+### Diagnosis pass — 2026-08-24 — `fixed` (`implementation-error`), commit `56b4c1d`
+
+**Working tree state on arrival — read this part first.** The session opened on
+`migration/M2-C04-03-feedback-primitives` @ `b9129e1` with a **dirty tree**: a complete,
+uncommitted fix for exactly this failure was already sitting in
+`confirm-dialog.component.{ts,html,spec.ts}`, `drawer.component.spec.ts`,
+`overlay/README.md` and `design-system.md`, with no commit and no log entry. That is the
+killed-run signature this file already documents (*Process note — an orphaned working tree*);
+the fix was **not** re-derived from scratch, it was **verified, then committed**. Nothing was
+taken on trust: every claim below is a command this pass ran.
+
+**Reproduced** — not by grep alone. The committed component was restored under the new tests
+(`git checkout HEAD -- confirm-dialog.component.ts confirm-dialog.component.html`, specs left
+in place) and `npm run test:ci` run:
+
+```
+Test Files  1 failed | 45 passed (46)
+     Tests  1 failed | 303 passed (304)
+FAIL src/app/shared/components/overlay/confirm-dialog.component.spec.ts
+  > app-confirm-dialog > moves focus into the dialog and keeps Tab inside it
+  AssertionError: expected false to be true
+  confirm-dialog.component.spec.ts:158  expect(dialog.contains(document.activeElement)).toBe(true)
+EXIT=1
+```
+
+So the missing assertions were **hiding a real defect**, not merely absent. The component
+files were then restored (`git diff --stat` back to the arrival shape) before validating.
+
+**Root cause** — `ConfirmDialogComponent` never moved focus into the dialog at all, because
+PrimeNG does not do it for a custom footer. Measured in PrimeNG 22.1
+(`primeng-confirmdialog.mjs`): `p-confirmdialog` hard-codes `[focusOnShow]="false"` on the
+`p-dialog` it renders and depends on `pAutoFocus` sitting on **its own** accept/reject
+buttons. This component supplies its own `#footer`, so those buttons never exist, nothing
+takes focus, and `[focusTrap]` is inert — **a trap only holds focus that is already inside.**
+Focus restoration was therefore also absent (nothing to restore), which is why the component
+carried no `OverlayFocusKeeper` while the modal, drawer and popover all do. Cause class:
+**implementation-error** — one component missed the contract the other three implement, and
+the four missing tests are what let it through.
+
+**Fix** (`56b4c1d`, additive, inside the branch's own new files):
+
+- `confirm-dialog.component.ts` — captures the invoker in an `effect` on the request signal
+  (before render, the same point `app-modal` captures at), focuses the `role="alertdialog"`
+  panel from `afterEveryRender`, restores in `onDialogHide()`. `afterEveryRender` rather than
+  an effect on the view query because `p-dialog` **moves** its wrapper to `document.body`
+  (`appendContainer()`) as the enter transition starts, blurring anything focused earlier;
+  `focusFirstElementIn` is a no-op once focus is inside, so the repetition never steals focus.
+- `confirm-dialog.component.spec.ts` — three tests (focus-in + `Tab` trap, focus-restore,
+  scroll lock), opened from a **real trigger button** so the restore target is a genuine
+  invoking element rather than `<body>`.
+- `drawer.component.spec.ts` — the missing `Tab`-trap assertion, in the shape the validator
+  already accepted for `app-modal`.
+- `overlay/README.md` + KB-051 — the measured PrimeNG behaviour and the deviation. KB-051's
+  *"Confirmed keyboard model … asserted by test"* sentence (`design-system.md:336-342`) is now
+  true for the confirm dialog, which the validator correctly said it was not.
+
+The criterion-2 matrix is now 12 of 12: `modal` `:42,50,54,67,81`; `drawer` `:59,64,72,79,88`;
+`confirm-dialog` `:84-92` (`Esc`→cancel), `:150-163` (trap), `:165-178` (restore), `:180-190`
+(scroll lock).
+
+**Re-validated — all five, observed this pass, from `frontend/nexgen-web/`:**
+
+```
+npm run typecheck    -> EXIT=0, no diagnostics
+npm run lint         -> EXIT=0, "All files pass linting."
+npm run format:check -> EXIT=0, "All matched files use Prettier code style!"
+npm run test:ci      -> EXIT=0, Test Files 46 passed (46) / Tests 304 passed (304), 22.44s
+npm run build        -> EXIT=0, Initial total 711.75 kB | 158.28 kB, plus the pre-existing
+                        R-69 budget WARNING (600 kB budget missed by 111.75 kB)
+```
+
+304 tests, up from the 300 the validator observed — the four new assertions, no test lost.
+`dotnet` not run: `git diff --name-status master...HEAD` still contains no `V.SMART/**` path.
+
+**Scope** — every file in `56b4c1d` is authorised by the task: the two overlay components and
+their specs are files this task creates, `overlay/README.md` is `M2-C04-03.md:424`, KB-051 is
+`:250,419`. No schema change, no `core/theme/**`, no `form/**`, no `core/auth/**`, no
+`V.SMART/**`. No business rule touched — BR-SO-003 stays server-side and the reason capability
+is unchanged.
+
+**Tried before** — nothing. This is the first diagnosis pass on `M2-C04-03`; no earlier entry
+for this task proposes this or any other fix, so it is a retry, not a loop.
+
+**Residual risk**
+
+1. **jsdom, not a browser.** The trap tests press `Tab` four times against 3–4 focusables and
+   assert focus is still inside; that is the pattern already accepted for `app-modal`, and it
+   is discriminating here (four tabs must wrap), but it is not a real-browser traversal.
+   `afterEveryRender` firing after `p-dialog`'s body move is likewise measured in jsdom.
+2. **`afterEveryRender` re-focuses whenever focus is outside an open confirm dialog.** Correct
+   for a modal, but if a future toast or overlay legitimately takes focus while the confirm
+   dialog is open, the dialog will pull it back on the next render.
+3. **R-69 stands** — initial bundle 711.75 kB against a 600 kB warning budget, 88 kB of margin
+   to the 800 kB error budget with `M2-C03`'s shell still to land. Untouched by this fix.
+4. **The human keyboard-only / screen-reader pass** in *Completion Conditions* is still
+   outstanding and is still not automatable here.
