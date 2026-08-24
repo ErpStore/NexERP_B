@@ -83,20 +83,24 @@ owns that). It is the shape of a controller.
 ## 2. The reference controller — complete, and compiled
 
 The block below is a **whole file**. It was compiled inside `V.SMART.Api` on 2026-08-24 —
-`dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` reported **0 Error(s)**, 6,695 warnings
-(the documented MudBlazor baseline, unchanged) — and then deleted, because `M2-B03` ships no
-code. It is written over `IMfgPoService`, a **real** service, so every call, every tuple shape
-and every return type below is one the compiler accepted.
+`dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` reported **0 Error(s)** (first pass, full
+tree: 6,695 warnings, the documented MudBlazor baseline, unchanged; the re-compile after the
+`Search` action was added was incremental and reported 0 errors, 2 pre-existing `NU1608`
+restore warnings) — and then deleted, because `M2-B03` ships no code. It is written over
+`IMfgPoService`, a **real** service, so every call, every tuple shape and every return type
+below is one the compiler accepted.
 
 **Two differences between the block below and the file that was compiled, and no others:**
-the compiled class was named `ScratchSalesOrdersController` (so it could not collide with a
-future real controller), and `ForSalesOrder` sat in a file-local static class rather than on
+the compiled types were prefixed `Scratch…` (`ScratchSalesOrdersController`,
+`ScratchSalesOrderQuery`, `ScratchSalesOrderFilterAdapter`) so they could not collide with a
+future real controller, and `ForSalesOrder` sat in a file-local static class rather than on
 `V.SMART.Api.Contracts.FilterDictionaryAdapter`, which `M2-B03` was not allowed to modify. In
 your controller, the adapter method belongs **on `FilterDictionaryAdapter`**, one explicit
 method per resource, exactly as `FilterDictionaryAdapter.ForCurrency`
 (`V.SMART/V.SMART.Api/Contracts/FilterDictionaryAdapter.cs:42`) is.
 
 ```csharp
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using V.SMART.Api.Authorization;
@@ -182,6 +186,14 @@ namespace V.SMART.Api.Controllers
 
         private const string PdfContentType = "application/pdf";
 
+        /// <summary>The typeahead query-string parameter, and its hard row cap (§9).</summary>
+        private const string TypeaheadParameter = "q";
+
+        private const int TypeaheadCap = 20;
+
+        /// <summary>The resource's own *FilterBuilder switch label - MfgPoService.cs:346.</summary>
+        private const string SalesOrderNumberFilterKey = "Po";
+
         private const string PrintTemplate = "<resource>.frx";
         private const string PrintParameter = "<parameter>";
         private const string PrintProcedure = "<procedure>";
@@ -229,6 +241,37 @@ namespace V.SMART.Api.Controllers
             return Ok(vm);
         }
 
+        /// <summary>
+        /// Typeahead. Unpaged, and capped at TypeaheadCap rows - state the cap here, in the
+        /// summary the generated client shows. Never a mode of the list endpoint (§9).
+        /// </summary>
+        [HttpGet("search")]
+        [RequireRight(Right.View)]
+        [ProducesResponseType(typeof(IEnumerable<MfgPoVM>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        public async Task<ActionResult<IEnumerable<MfgPoVM>>> Search(
+            [FromQuery(Name = TypeaheadParameter), Required, MinLength(1)] string q)
+        {
+            if (!ModelState.IsValid)
+                return this.ValidationProblemResult();
+
+            var (items, _) = await _salesOrders.SearchWithDynamicFilterAsync(
+                1,
+                TypeaheadCap,
+                new Dictionary<string, object> { [SalesOrderNumberFilterKey] = q });
+
+            return Ok(items);
+        }
+
+        /// <summary>
+        /// Creates a Sales Order. Before copying this action, run §9's duplicate-key
+        /// verification for your resource: the refusal must already live inside the service.
+        /// For Sales Order it does NOT - UpsertPoAsync (MfgPoService.cs:985) never calls
+        /// IsDuplicatePoAsync (MfgPoService.cs:964); the check is in the page
+        /// (MfgPOUpsert.razor:3745-3753). See caveat 3 under this block.
+        /// </summary>
         [HttpPost]
         [RequireRight(Right.Create)]
         [ProducesResponseType(typeof(MfgPoVM), StatusCodes.Status201Created)]
@@ -327,7 +370,12 @@ namespace V.SMART.Api.Controllers
 }
 ```
 
-### Two honest caveats on the reference, so you do not copy a wrong thing
+### Four honest caveats on the reference, so you do not copy a wrong thing
+
+Every action above is the settled *shape*. Four of them additionally depend on something that
+is true per resource, and the reference is written over `IMfgPoService` — a real service with
+real gaps — precisely so those dependencies are visible rather than assumed. **Caveat 3 is the
+one that silently loses a business rule if you skip it.**
 
 1. **The print action is a stub, and its three constants are placeholders.** The real
    `.frx` template, parameter and stored-procedure names per document, plus the whole print
@@ -348,6 +396,29 @@ namespace V.SMART.Api.Controllers
    business decision is on the client. The endpoint may only ship once that decision has moved
    into the service (that module's `@code`-extraction wave). The template's rule stands
    regardless: *one endpoint, one service call, the whole sequence server-side.* See §7.
+3. **`Create` compiles, and for Sales Order it would create a duplicate the live Blazor screen
+   refuses.** `MfgPOUpsert.razor:3745-3753` calls
+   `IsDuplicatePoAsync(PONo, Suffix, PoId, CustId)` for a new PO and, on `true`, refuses the
+   save — *"PO No '…' with Suffix '…' already exists."* — while
+   `MfgPoService.UpsertPoAsync` (`MfgPoService.cs:985`) never calls it; the only other
+   references to the method in that file are its own declaration (`:964`) and its error log
+   (`:980`). So `Create` as written above is the correct *shape* and the wrong *behaviour for
+   this resource*: same class of defect as caveat 2, and the same fix — the check moves into
+   the service, not into the controller (§9's duplicate-key decision explains why the
+   controller is the wrong place). **Do not copy `Create` for any resource without running
+   §9's per-resource duplicate-key verification first.** Where the service already refuses
+   internally — `CurrencyService.cs:108` and `:152` return
+   `(false, "Currency name already exists.", null)` — there is nothing to do and `Create` is
+   correct as written.
+4. **The typeahead is served from the paged search, because this resource has no dedicated
+   `Search…Async(string)`.** `IMfgPoService` exposes `SearchCustomersAsync` and
+   `SearchItemsAsync` — *other* resources' typeaheads consumed by the Sales Order screen —
+   but nothing that searches Sales Orders by number, so `Search` above calls
+   `SearchWithDynamicFilterAsync(1, TypeaheadCap, …)` with the resource's own filter key
+   (`"Po"`, `MfgPoService.cs:346`, which does `PONo.StartsWith`) and discards the count. That
+   is the documented fallback in §9, not a second contract: the route, the cap, the bare-array
+   response and the `[ProducesResponseType]` set are identical either way. Where the service
+   *does* expose a typeahead of its own, call it directly.
 
 ---
 
@@ -663,8 +734,8 @@ Derived from [KB-011 §Business service conventions](../architecture/backend-arc
 | `CreateAsync(TVm)` / `UpdateAsync(int, TVm)` → `(bool, string, TVm?)` | `POST /` / `PUT /{id:int}` | 201 + `Location` / 200 | `false` → 409, message verbatim |
 | `CanDelete…Async(int)` → `(bool, string)` | consulted **before** `DELETE` | — | `false` → **409**, message verbatim (BR-SO-001) |
 | `Delete…ByIdAsync(int)` | `DELETE /{id:int}` | 204 | `false` → 404 |
-| `IsDuplicate…Async(…)` | **never an endpoint** | — | it is a 409 out of create/update |
-| `Search…Async(string)` typeahead | **`GET /search?q=…`** | 200 `IReadOnlyList<TVm>` | **decided below** |
+| `IsDuplicate…Async(…)` | **never an endpoint**, and **never called from a controller** | — | a 409 out of create/update **only where the service itself refuses** — **verify per resource, decided below** |
+| `Search…Async(string)` typeahead | **`GET /search?q=…`** | 200 `IReadOnlyList<TVm>` | **decided below**; where no such method exists, the documented paged-search fallback |
 | `GetNext…NoAsync(…)` | **not an endpoint** | — | document numbering is allocated server-side inside the create transaction ([M2-B12](../execution/tasks/M2-B12.md)) |
 | `Generate_Report(…)` → `byte[]` | `GET /{id:int}/print` | 200 `application/pdf` | contract owned by M2-B08 |
 
@@ -698,6 +769,44 @@ behaviour and does not add a pre-check by default. If an insert-on-unknown-id wo
 for your resource, add the `Get…ByIdAsync` existence check — it is a permitted extra read
 (§10 T5) — and say so in the controller's task. Do not change the service to find out.
 
+### Decision — a duplicate-key refusal is the **service's** to make, and you must verify it per resource
+
+`IsDuplicate…Async` is **not** an endpoint and — this is the part the first draft of this
+document got wrong — **a controller must not call it either**. But "it is a 409 out of
+create/update" is only true for some services. The family has **43 declarations under 16
+distinct names** in `V.SMART.Shared/BusinessLayer/` (measured 2026-08-24), and the check sits
+in **three different places** depending on the service. All three are Confirmed:
+
+| # | Where the check lives | Evidence | What the API does today |
+|---|---|---|---|
+| **a** | **Inside the service, as a refusal tuple** | `CurrencyService.cs:108` and `:152` → `(false, "Currency name already exists.", null)` | Correct already: the controller returns `BusinessRuleProblem(message)` → **409**, message verbatim. Nothing to do. |
+| **b** | **Inside the service, as a `throw`** | `LeadService.cs:206` checks `IsDuplicateLeadsNameAsync`, `:209` throws `InvalidOperationException("Leads name already exists.")` | **Wrong status, silently.** The API deliberately does not map that exception type — `ProblemResults.cs:18-31` records why (1,107 `InvalidOperationException` throw sites mix refusals with infrastructure faults) — so it surfaces as **500**. |
+| **c** | **Only in the Razor page** | `MfgPOUpsert.razor:3745-3753` calls `IsDuplicatePoAsync` and refuses the save; `MfgPoService.cs:985` `UpsertPoAsync` never calls it | **The rule is lost.** A `POST` copied from §2 creates the duplicate the live screen refuses. |
+
+**Decided, and this is the obligation the frozen contract imposes on every controller author:**
+
+1. **Before shipping `POST`/`PUT` for a resource, grep that resource's service and its Blazor
+   upsert page for `IsDuplicate`.** Record which of a/b/c you found, in the controller's task.
+   Finding nothing is a valid answer and is also recorded.
+2. **Shape (a) — ship it.** Nothing to add.
+3. **Shape (b) — do not ship the endpoint and do not "fix" it in the controller.** Catching the
+   exception in an action violates T6, and re-classifying `InvalidOperationException` as 409 in
+   the middleware would turn every infrastructure fault in `BusinessLayer` into a business
+   refusal. Raise it; the status mapping is [Q-81](../open-questions.md).
+4. **Shape (c) — the check must move into the service before the endpoint ships.** This is the
+   standing project rule, not a new one: business logic in Razor `@code` is *extracted into a
+   server-side service*, never reimplemented at the edge. It belongs to that module's
+   `@code`-extraction wave, exactly like caveat 2's `ShortClose`.
+
+**Why the controller may not simply call `IsDuplicate…Async` itself** — the tempting shortcut,
+and the reason it is banned. The method returns a **bare `bool`** (`MfgPoService.cs:964`); it
+authors no message. The only message that exists is **UX text in the page**
+(`MfgPOUpsert.razor:3750`). A controller doing the check would therefore have to *compose* the
+409 `title`, which §6 and [ADR-002 §4](../decisions/ADR-002-rest-api-layer.md#4-error-contract-applicationproblemjson-everywhere)
+forbid and §10 T8 makes a checklist failure — and it would leave the rule unenforced for
+Blazor Server, which is still live and still the authority. One rule, one place, and that
+place is the service.
+
 ### Decision — typeahead is its own endpoint
 
 **Decided: `GET /api/v1/{resource}/search?q=…`, not a mode of the list endpoint.**
@@ -712,6 +821,14 @@ separate action gives one operation, one response type, one set of
 - Unpaged, but **capped** — return at most the service's own limit, or 20, whichever is
   smaller. State the cap in the XML doc comment.
 - `[RequireRight(Right.View)]`.
+
+**Where the service has no `Search…Async(string)` of its own** — common; `IMfgPoService` has
+typeaheads for *customers* and *items* but none for Sales Orders — serve the same endpoint from
+`SearchWithDynamicFilterAsync(1, cap, …)` with exactly **one** filter key, the resource's own
+identifying one, and discard the count (§2's `Search`, and `MfgPoService.cs:346` for the key).
+The route, the cap, the bare-array response and the `[ProducesResponseType]` set are unchanged;
+this is a fallback implementation, not a second contract. Do **not** add a `Search…Async` to a
+live service just to satisfy the template.
 
 ### Negative results — deliberately not defined
 
@@ -832,6 +949,10 @@ reading the file; no judgement calls.
 20. Delete calls `CanDelete…Async` first and returns `BusinessRuleProblem(message)` on refusal.
 21. No message string is reworded, prefixed or truncated between the service and `title`.
 22. No `try`/`catch` in any action.
+22a. **Duplicate-key verification recorded** (§9). The controller's task states the result of
+    grepping the resource's service *and* its Blazor upsert page for `IsDuplicate` — shape
+    (a), (b), (c) or none. `POST`/`PUT` may only ship on (a) or none. `grep` the controller
+    for `IsDuplicate` — **zero hits**; the check belongs to the service.
 
 **OpenAPI**
 
@@ -863,6 +984,7 @@ item by item on 2026-08-24 against the code as it then stood.
 | 12–18 contract | **Pass.** `CurrencyQuery`/`PagedResult<CurrencyVM>` `:56,67`; wire names from `const` (`CurrencyQuery.cs:26-35`); real `Sortable` (`:45-48`) because the service has the sort overload; filter keys quoted to `CurrencyService.cs:193-207`; `CurrencyVM` payload; `CreatedAtAction` `:91` |
 | 17 id guards | **Partial — the one divergence, see below** |
 | 19–22 errors | **Pass.** Only `ProblemResults` helpers: `ValidationProblemResult()` `:59,85,99`, `NotFoundProblem` `:76,121`, `BusinessRuleProblem` `:89,103,117`. `CanDelete` before delete `:115-117`. No `try`/`catch` |
+| 22a duplicate-key | **Pass — shape (a).** `CurrencyService.cs:108` (create) and `:152` (update) do the check inside the service and return `(false, "Currency name already exists.", null)`, which the controller surfaces as a 409 at `:89,103`. Zero `IsDuplicate` hits in the controller |
 | 23–24 OpenAPI | **Divergence, see below** |
 | 25 thin | **Pass.** Delete is T5's documented two-await exception |
 
@@ -899,6 +1021,7 @@ the token endpoint exactly this way. The exception is granted for these items an
 | 3 plural kebab resource | **Exception.** `auth` is a singular non-collection segment | ADR-002 §5 writes `POST /api/v1/auth/login`; `ApiRoutes.cs:21-24` names `auth` as the one non-collection segment |
 | 6 `[Authorize]`, 7 `[RequireScreen]` | **Exception.** Neither is present | Login is the endpoint that *establishes* identity. Gating it on a screen right would deadlock authentication. `[AllowAnonymous]` `:77` is the correct and audited marker, and `ScreenRightStartupValidator.cs:60-63` skips anonymous actions by design |
 | 12–18 resource contract | **N/A.** No collection, no id, no VM payload | The `LoginRequest`/`LoginResponse` records (`:65-74`) are §8's permitted command records |
+| 22a duplicate-key | **N/A.** No `POST`/`PUT` over a resource, and zero `IsDuplicate` hits in the file | The check applies to create/update of a keyed resource |
 | 23–24 OpenAPI | **Not met.** `Login` declares no `[ProducesResponseType]` | Same follow-up as D-2. Its 400 (tenant unresolved), 401 and 403 (account gate) are invisible to the generated client |
 | T7 (no `IUnitOfWork`) | **Exception.** It injects `IUnitOfWork` (`:29`) and calls `Users.LoginAsync` (`:92`) | Authentication is not a business service; there is no `IAuthService` and inventing one would mean editing `V.SMART.Shared`. This exception is granted to `AuthController` **only** — a resource controller touching `IUnitOfWork` is a reject |
 
