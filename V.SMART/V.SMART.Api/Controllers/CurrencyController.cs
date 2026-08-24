@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using V.SMART.Api.Authorization;
 using V.SMART.Api.Contracts;
 using V.SMART.Api.Middleware;
 using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IAccountsService;
@@ -10,6 +11,14 @@ namespace V.SMART.Api.Controllers
     [ApiController]
     [Route($"{ApiRoutes.V1}/currencies")]
     [Authorize]
+    // M2-A02 - the first resource controller whose screen right is enforced by the API and not
+    // only by the Blazor UI (ADR-004 section 1; risk R-03). The literal is byte-identical to the seeded
+    // Screens.ScreenName at ApplicationDbContext.cs:1155 (Id = 5, ScreenCode = 5), to
+    // ScreenCatalogue.cs:37, and to the ScreenName both Blazor Currency pages declare
+    // (CurrencyList.razor:252, CurrencyUpsert.razor:135). It is NOT the distinct "Currency Today"
+    // screen (ScreenCatalogue.cs:53). Matching is ordinal and case-sensitive (KB-105 D-1), so a
+    // one-character slip here would silently deny every Currency call in every tenant.
+    [RequireScreen("Currency")]
     public class CurrencyController : ControllerBase
     {
         private readonly ICurrencyService _currencyService;
@@ -41,6 +50,7 @@ namespace V.SMART.Api.Controllers
         /// action directly (unit tests), and matches <c>Create</c>/<c>Update</c>.</para>
         /// </summary>
         [HttpGet]
+        [RequireRight(Right.View)]
         [ProducesResponseType(typeof(PagedResult<CurrencyVM>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
         public async Task<ActionResult<PagedResult<CurrencyVM>>> GetAll([FromQuery] CurrencyQuery query)
@@ -58,6 +68,7 @@ namespace V.SMART.Api.Controllers
         }
 
         [HttpGet("{id:int}")]
+        [RequireRight(Right.View)]
         public async Task<ActionResult<CurrencyVM>> GetById(int id)
         {
             var vm = await _currencyService.GetByIdAsync(id);
@@ -67,6 +78,7 @@ namespace V.SMART.Api.Controllers
         }
 
         [HttpPost]
+        [RequireRight(Right.Create)]
         public async Task<ActionResult<CurrencyVM>> Create([FromBody] CurrencyVM vm)
         {
             if (!ModelState.IsValid)
@@ -80,6 +92,7 @@ namespace V.SMART.Api.Controllers
         }
 
         [HttpPut("{id:int}")]
+        [RequireRight(Right.Edit)]
         public async Task<ActionResult<CurrencyVM>> Update(int id, [FromBody] CurrencyVM vm)
         {
             if (!ModelState.IsValid)
@@ -93,6 +106,7 @@ namespace V.SMART.Api.Controllers
         }
 
         [HttpDelete("{id:int}")]
+        [RequireRight(Right.Delete)]
         public async Task<IActionResult> Delete(int id)
         {
             // M2-A06 — ADR-002 §4: a delete guard's refusal is 409, not 400, and the service's

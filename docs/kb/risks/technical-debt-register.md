@@ -306,6 +306,32 @@ annotates a real controller and an authenticated request's tenant is unresolvabl
 `DbContext` then resolves one filter-pipeline step earlier than before this task. A lazy
 provider injection (e.g. `Func<IUserRightsProvider>`) removes it if `M2-A02`'s validation
 surfaces it as an actual problem — recorded here so it is not rediscovered as a mystery.
+**Update 2026-08-24 (M2-A02) — PARTIALLY CLOSED. The risk stays OPEN.**
+What closed: `CurrencyController` now carries `[RequireScreen("Currency")]`
+(`Controllers/CurrencyController.cs:21`) and one `[RequireRight]` per action
+(`:53,71,81,95,109`), so BR-AUTH-002 is enforced by the API for the first resource controller
+in the system. The user ADR-004 names — all four Currency flags `false`, screen hidden in
+Blazor — now receives `403 application/problem+json` on all five endpoints instead of
+succeeding. Proved by 45 tests in
+`tests/V.SMART.Api.Tests/CurrencyAuthorizationTests.cs`, which read the attributes off the
+real controller by reflection and run the real filter over them; a mutation of the screen
+string to `"currency"` was observed to fail 30 of them.
+What did **not** close, and why the risk stays open:
+1. **The structural guard is still off.** The KB-105 D-4 sub-condition described in the
+   paragraph above — an authenticated action on a controller with *no* `[RequireScreen]` is
+   passed through rather than refused (`ScreenRightAuthorizationFilter.cs:69-72`;
+   `ScreenRightStartupValidator.cs:83-88`) — was **not** switched on by M2-A02. Both files say
+   in comments that M2-A02 enables it, but M2-A02's own scope forbids editing
+   `V.SMART/V.SMART.Api/Authorization/**`. Recorded as **Q-71** in
+   [`open-questions.md`](../open-questions.md). It is now feasible for the first time: after
+   this task every endpoint in the API is annotated or explicitly exempt.
+2. **The merge-blocking matrix harness (M2-A03) does not exist.** Until it does, nothing
+   forces controller number two to carry the attributes.
+3. **The proof is not end-to-end.** R-43 below: the API test project has no host, so "403 over
+   the wire, as `application/problem+json`" is asserted on the `ObjectResult`'s content types
+   and body object, not on bytes on a socket.
+**R-24 is explicitly not addressed by M2-A02** — it was already closed by M2-A06 (2026-08-20);
+`CurrencyController`'s error shapes were not touched by this task.
 
 ### R-38 — Account-level login gates are enforced only in Blazor `@code`; the API bypasses all of them
 **Confirmed, added 2026-08-12.** R-03 established that *authorization* (screen rights) is

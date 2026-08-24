@@ -21,7 +21,7 @@ database_tables: [Users, UserRights, UserAuthority, Screens, ApprovalHistory]
 business_rules: [BR-AUTH-001, BR-AUTH-002, BR-AUTH-003, BR-APPR-001]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-21
+last_verified: 2026-08-24
 dependencies: [KB-010, KB-012]
 ---
 
@@ -271,7 +271,7 @@ endpoint exists. The **device gate is deliberately not enforced** — see Q-40.
 |---|---|---|
 | Password verification via `PasswordHasher<User>` | keep `UserRepository.LoginAsync` unchanged | — (done) |
 | `IsActive` gate | BR-AUTH-001 | — (done) |
-| **Server-side screen-right enforcement on every endpoint** | `UserRight` × `Screens` | **P0 — blocker** |
+| **Server-side screen-right enforcement on every endpoint** — **first endpoints DELIVERED**: M2-A01 built the mechanism, **M2-A02 (2026-08-24)** applied it to `CurrencyController`, the first resource controller where BR-AUTH-002 is enforced by the API rather than only by the Blazor UI (`Controllers/CurrencyController.cs:21` + `[RequireRight]` on all five actions). `FilesController`, `CurrencyExcelController` were annotated earlier; `MeController`/`ReferenceController` carry the audited `[NoScreenRight]` opt-out. **"Every endpoint" is not yet true structurally**: a controller that simply omits `[RequireScreen]` is still passed through (`ScreenRightAuthorizationFilter.cs:69-72`), so nothing yet *forces* the next controller to annotate — see Q-71 and R-03 | `UserRight` × `Screens` | **P0 — first application landed; harness (M2-A03) still blocking** |
 | ~~Return the user's full right set at login so the UI can render~~ — **DELIVERED by M2-A07 (2026-08-20)**: `GET /api/v1/me` returns the caller's identity, tenant, role and complete rights map, read through the **same** `IUserRightsProvider` the M2-A01 filter enforces with. **Presentation only** (ADR-004 §3) — it does not relax that filter. Contract: [KB-040](../api/api-overview.md) | `GetUserRightsWithScreensAsync`, via `IUserRightsProvider` | P0 |
 | Refresh tokens + revocation | new | P1 |
 | Approval authority checks server-side | `UserAuthority` | P1 |
