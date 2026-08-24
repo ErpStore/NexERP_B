@@ -106,9 +106,11 @@ kept as-is so existing credentials keep working.
    `SyncRightsForUserAsync` writes `CanView`, `CanCreate`, `CanEdit` and `CanDelete` all `true`
    (`UserRightService.cs:67-70`), so widening it by one user grants delete on every screen — that
    was option B, rejected by the owner on 2026-08-24.
-   **Failure behaviour diverges from Blazor by design:** the API logs a seeding exception and lets
-   the login succeed, because the credential check and account gates have already passed and a
-   transient fault during a repair should not lock out the only account that can fix it.
+   **Failure behaviour (chosen deliberately):** the API logs a seeding exception and lets the
+   login succeed, because the credential check and account gates have already passed and a
+   transient fault during a repair should not lock out the only account that can fix it. This is
+   the same outcome Blazor reaches — see the correction immediately below; the only divergence is
+   the post-login navigation Blazor loses.
    **Correction, 2026-08-24 (validation of M2-A10):** an earlier wording here said a Blazor seeding
    failure "does abort the sign-in". That is wrong (Confirmed). `Login.razor:337` calls
    `customAuth.MarkUserAsAuthenticated` **before** the seeding call at `:345-349`, so the Blazor
