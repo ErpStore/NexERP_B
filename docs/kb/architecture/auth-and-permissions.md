@@ -108,9 +108,14 @@ kept as-is so existing credentials keep working.
    was option B, rejected by the owner on 2026-08-24.
    **Failure behaviour diverges from Blazor by design:** the API logs a seeding exception and lets
    the login succeed, because the credential check and account gates have already passed and a
-   transient fault during a repair should not lock out the only account that can fix it. In
-   `Login.razor` the call sits inside the page's try/catch and a failure does abort the sign-in;
-   that file is unchanged.
+   transient fault during a repair should not lock out the only account that can fix it.
+   **Correction, 2026-08-24 (validation of M2-A10):** an earlier wording here said a Blazor seeding
+   failure "does abort the sign-in". That is wrong (Confirmed). `Login.razor:337` calls
+   `customAuth.MarkUserAsAuthenticated` **before** the seeding call at `:345-349`, so the Blazor
+   user is already authenticated when seeding runs; the page catch at `:357-362` only toasts an
+   error and skips `NavigateTo("/dashboard")`, leaving them signed in but stranded on the login
+   page. The actual divergence is that Blazor loses the navigation while the API returns its
+   normal `200`. `Login.razor` is unchanged.
 5. `JwtTokenService.CreateToken(user, tenant.Id)`.
 6. Returns `{ token, username, userId, tenantId, role }`.
 

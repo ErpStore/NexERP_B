@@ -137,11 +137,14 @@ namespace V.SMART.Api.Controllers
         /// to seed is in exactly the state they were already in, and ADR-004's filter still refuses
         /// the endpoints they lack rows for. Nothing is granted by continuing.</para>
         ///
-        /// <para>This diverges from the Blazor page as written: there the call sits inside
-        /// <c>Login.razor</c>'s try/catch, whose catch reports the error and does not sign the user
-        /// in, so a seeding failure there does fail the login. The scope of this task
-        /// (<c>docs/kb/execution/tasks/M2-A10.md</c> §Scope 2, §Acceptance 3) requires the API to
-        /// continue. Blazor is left byte-unchanged.</para>
+        /// <para>This diverges from the Blazor page as written, but less than it first appears.
+        /// <c>Login.razor:337</c> calls <c>MarkUserAsAuthenticated</c> <i>before</i> the seeding call
+        /// at <c>:345-349</c>, so the Blazor user is already signed in when seeding runs; the page's
+        /// catch (<c>:357-362</c>) only toasts an error and skips <c>NavigateTo("/dashboard")</c>,
+        /// leaving them authenticated but stranded on the login page. The real divergence is
+        /// therefore that Blazor loses the navigation while the API returns its normal 200. The
+        /// scope of this task (<c>docs/kb/execution/tasks/M2-A10.md</c> §Scope 2, §Acceptance 3)
+        /// requires the API to continue. Blazor is left byte-unchanged.</para>
         /// </summary>
         private async Task SeedAdministratorRightsAsync(int userId)
         {
