@@ -189,8 +189,11 @@ namespace V.SMART.Api.Tests
         /// check and the account gates have already passed, so the caller is authenticated; failing
         /// here would turn a transient database fault into a total lockout of the one account that
         /// could repair it, and continuing grants nothing that seeding would not have granted.
-        /// This diverges from <c>Login.razor</c> as written, where the call sits inside the page's
-        /// try/catch and a failure does abort the sign-in. Blazor is left byte-unchanged.
+        /// <c>Login.razor</c> reaches the same outcome. Its seeding call at <c>:345-349</c> sits
+        /// inside the page try/catch, but <c>MarkUserAsAuthenticated</c> has already run at
+        /// <c>:337</c>, so the catch at <c>:357-362</c> leaves the user signed in and only skips
+        /// <c>NavigateTo("/dashboard")</c> (Confirmed). The divergence is narrow: Blazor loses the
+        /// navigation, the API returns its normal 200. Blazor is left byte-unchanged.
         /// </summary>
         [Fact]
         public async Task Login_still_returns_200_when_the_rights_seeder_throws()
