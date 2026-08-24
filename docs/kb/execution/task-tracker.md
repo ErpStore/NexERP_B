@@ -152,10 +152,10 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Completed**⁴⁶ *(merged to `master` `27dfc5d` on owner instruction 2026-08-23)* | P0 | M2-C12-01…04 | 1 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Blocked**²⁶˒⁴⁶˒⁴⁷˒⁵² *(attempt 1 `FAIL`, category `environment` — its binding criterion needs a MEASURED wire format from a live `[Authorize]`d endpoint, and this workstation has empty `ConnectionStrings:MasterDb` and `Jwt:Secret`. Not a code defect. See footnote ⁵²)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
-| M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | Not Started⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-01`)* | P0 | M2-C01 | 2 wks | G2 |
+| M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | **Completed**⁴⁶˒⁵⁴ *(parent — all three children `Completed` and merged)* | P0 | M2-C01 | 2 wks | G2 |
 | M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
 | M2-C04-02 | M2 | — form controls + validation display | Frontend | **Completed**⁵¹˒⁵² *(merged to `master` on owner instruction 2026-08-23; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 4 d | G2 |
-| M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Needs Review**⁵³ *(independently validated `PASS` 2026-08-24 on `migration/M2-C04-03-feedback-primitives` @ `1806bca`, unmerged; owner review + a human keyboard/screen-reader pass still required before `Completed`)* | P0 | M2-C04-01 | 3 d | G2 |
+| M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Completed**⁵³˒⁵⁴ *(merged to `master` on owner instruction 2026-08-24; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
 | M2-C05-01 | M2 | — server-paged table core | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blockers are `M2-C04-02`, `M2-B02`)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
@@ -253,7 +253,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | **17** | G0 | ⚠️ **Passed with exceptions** 2026-08-19 — criteria **2 and 3 are not satisfied**, deferred by owner decision; `M0-04`/`M0-05` stay `Blocked`. See [KB-080 § G0 deferral](README.md#g0-deferral--criteria-2-and-3-decided-by-the-repository-owner-2026-08-19) |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | **59** | **23** | G2 | **OPEN** — 23 of 59 done (39%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
+| M2 | **59** | **25** | G2 | **OPEN** — 25 of 59 done (42%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -261,31 +261,32 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**45 tasks `Completed`, 2 `Needs Review`, 3 `Ready`, 36 `Blocked`, 2 `In Progress`, 34 `Not Started`.**
-Counts are derived from the rows above, which are the authority; the rollup totals for M3/M4 are
-task *estimates*, not rows. `M2-C04-03` moved `Ready` → `Needs Review` this session (independent
-validation `PASS`, unmerged, footnote ⁵³) — a status change, not a merge, so it releases nothing.
+**47 `Completed`, 1 `Needs Review`, 3 `Ready`, 36 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
+Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
+*estimates*, not rows.
 
-**No task is currently selectable.** The three remaining `Ready` rows all fail the five-part
-test, unchanged from the prior entry — `M0-06` already has an open branch
-(`migration/M0-06-remove-default-admin`, confirmed via `git branch --no-merged master`
-2026-08-24), `M0-11` is a `Product Decision`, and `M2-A02` is gated on the unanswered **Q-28**
-and on **R-65**. Every other task is `Blocked`, `In Progress`, `Not Started`, or already
-`Completed`/`Needs Review`. Work is stalled on the same person-level decisions as before, not on
-execution capacity — see the table below.
+**Nothing is selectable. For the first time in this run the pool is empty on specification and
+dependency grounds alike, and every remaining path runs through a person.** All three `Ready`
+rows fail the five-part test: `M0-06` already has a branch, `M0-11` is a `Product Decision`
+(owner-only), and `M2-A02` is gated on the unanswered **Q-28** *and* on **R-65**.
 
-**Everything now waiting is waiting on a person, not on execution capacity.** Five decisions, in
-rough order of how much they unblock:
+**Five decisions, in order of what they unblock:**
 
 | # | Decision | Unblocks |
 |---|---|---|
-| 1 | **`M0-04`** — rotate the exposed credentials (deferred to end-of-milestone 2026-08-19) | `M2-A04` → `M2-A05` → `M2-C02`, and G0 criteria 2/3 |
-| 2 | **`M2-C10`'s environment** — a reachable DB + credential, or relax its "MEASURED wire format" criterion to static analysis | `M2-C10`, then `M2-C07` |
-| 3 | **Q-28 + R-65** | `M2-A02` → `M2-A03`, `M2-B03` → `M2-B10` |
+| 1 | **`M0-04`** — rotate the exposed credentials (deferred end-of-milestone 2026-08-19) | `M2-A04` → `M2-A05` → `M2-C02`, and G0 criteria 2/3 |
+| 2 | **Q-28 + R-65** | `M2-A02` → `M2-A03`, `M2-B03` → `M2-B10` |
+| 3 | **`M2-C10`'s environment** — a reachable DB + credential, or relax its "MEASURED wire format" criterion to static analysis | `M2-C10`, then `M2-C07` |
 | 4 | **Q-38** — what `M2-C11` is *for*, now `M2-C01` has built the workspace it existed to adopt | `M2-C11` |
 | 5 | **`stash@{0}`** — orphaned work from a dead run, carrying out-of-scope `AuthController.cs` and `.sln` edits | nothing; recommend discard |
 
-**What changed between 2026-08-21 and 2026-08-23**, which is why M2 moved from 6 completed to 23:
+> **Read [R-69](../risks/technical-debt-register.md) before starting `M2-C03`.** The initial
+> bundle is **711.75 kB raw**, past the 600 kB warning and **88 kB short of the 800 kB error
+> budget** that fails the build. `M2-C03` (app shell) is the next frontend task and is not small.
+> `npm run build` exits 0 on a warning, so **no gate will stop this** — it will simply start
+> failing one day.
+
+**What changed between 2026-08-21 and 2026-08-23**, which is why M2 moved from 6 completed to 25:
 the owner cleared an eight-branch merge queue, then `M2-C12` re-specified all **25** superseded
 `M2-C`/`M2-D` task files for Angular — **zero ⛔ banners remain repo-wide** — and the frontend
 went from a React scaffold to an Angular workspace with design tokens and form controls
@@ -2519,3 +2520,29 @@ raised at close-out, **Q-80**: `confirm-dialog.component.html:23` hard-codes
 keyboard-only and screen-reader pass over the modal, confirm dialog and toast layer, which has
 not happened, and only the repository owner may set `Completed` (KB-088 §Who may set Completed).
 Full record: `tasks/M2-C04-03.md` § Execution Record (2026-08-24); `failure-log.md`.
+
+⁵⁴ **M2-C04-03 `Completed` and merged 2026-08-24; `M2-C04` closes with it.** `PASS` on attempt 2,
+0 escalations. Attempt 1's failure produced a real fix rather than a re-run: **focus was not moved
+into the confirm dialog**, so the overlay focus contract was asserted and a `p-confirmdialog` focus
+defect recorded in INV-006. An overlay that does not take focus is an accessibility defect, not a
+cosmetic one.
+
+**Verified on the merged result:** `typecheck` exit 0 · `lint` clean · `format:check` clean ·
+`test:ci` **304 passed / 46 files** (215/29 → 304/46) · `build` exit 0. Scope confined to
+`frontend/` and `docs/kb/`.
+
+**The token discipline survived its hardest test.** Overlays are where raw colours normally leak —
+scrims, shadows, backdrop tints — and there are **zero** raw hex or `rgb()` values across the
+eleven stylesheets this task added, against **138 `var(--…)`** references. Three consecutive tasks
+(`M2-C04-01/-02/-03`) with no raw colour, so `M2-C04-01`'s ESLint ban is holding in practice.
+
+> **Carried forward — [R-69](../risks/technical-debt-register.md), and `M2-C03` should read it
+> first.** The initial bundle is **711.75 kB raw / 158.28 kB gzip**, past Angular's **600 kB
+> warning** and **88 kB short of the 800 kB error budget** that fails the build. `M2-C03` (app
+> shell) lands next and is not small. R-69 records two measured facts worth more than the number:
+> importing the toast and confirm-dialog hosts from their files rather than the
+> `shared/components` barrel is what keeps this at 711 kB instead of **1.31 MB with a failing
+> build**; and the remaining eager cost is the confirm-dialog host, whose fix needs
+> `ConfirmDialogService` to hold the request until the host mounts, because PrimeNG's
+> `requireConfirmation$` is a plain `Subject` and an emission before mount is lost. **No gate
+> catches this** — `npm run build` exits 0 on a warning.
