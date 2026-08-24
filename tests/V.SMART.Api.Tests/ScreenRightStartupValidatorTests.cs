@@ -110,14 +110,36 @@ namespace V.SMART.Api.Tests
         }
 
         [Fact]
-        public void The_catalogue_holds_the_152_seeded_names_including_the_seed_typos()
+        public void The_catalogue_holds_the_150_seeded_names_including_the_seed_typos()
         {
-            Assert.Equal(152, ScreenCatalogue.SeededScreenNames.Count);
+            Assert.Equal(150, ScreenCatalogue.SeededScreenNames.Count);
             Assert.Contains("Currency", ScreenCatalogue.SeededScreenNames);
             Assert.Contains("Sub-Contrect GRN", ScreenCatalogue.SeededScreenNames);
             Assert.Contains("Advaceadjustment", ScreenCatalogue.SeededScreenNames);
             Assert.Contains("Stock Position(Internal & External)", ScreenCatalogue.SeededScreenNames);
             Assert.DoesNotContain("currency", ScreenCatalogue.SeededScreenNames);
+        }
+
+        /// <summary>
+        /// M2-A09 (R-65, KB-109 option A). <c>Bill Pending List</c> and <c>Bill Paid List</c> were
+        /// seeded (<c>ApplicationDbContext.cs:1151</c>) then deleted by a later migration
+        /// (<c>ScreenCode</c> 114/115) - every real database holds 150 rows, not 152. Before the
+        /// fix these two names passed this validator (they were still in the catalogue) yet had no
+        /// corresponding <c>Screens</c> row, so any <c>[RequireScreen]</c> naming one would boot
+        /// clean and then 403 every user, forever, with no warning. The validator must refuse them
+        /// like any other unseeded name.
+        /// </summary>
+        [Fact]
+        public void A_deleted_phantom_screen_name_is_rejected()
+        {
+            var services = Services(Action(
+                new AuthorizeAttribute(),
+                new RequireScreenAttribute("Bill Paid List"),
+                new RequireRightAttribute(Right.View)));
+
+            var error = Assert.Throws<InvalidOperationException>(() => ScreenRightStartupValidator.Validate(services));
+
+            Assert.Contains("Bill Paid List", error.Message, StringComparison.Ordinal);
         }
 
         private static ControllerActionDescriptor Action(params object[] metadata)

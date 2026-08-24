@@ -98,7 +98,7 @@ namespace V.SMART.Api.Authorization
                     !ScreenCatalogue.SeededScreenNames.Contains(screenAttribute.ScreenName))
                 {
                     problems.Add(
-                        $"{name} declares [RequireScreen(\"{screenAttribute.ScreenName}\")], which is not one of the 152 seeded " +
+                        $"{name} declares [RequireScreen(\"{screenAttribute.ScreenName}\")], which is not one of the 150 seeded " +
                         "Screens.ScreenName values (ordinal comparison; see KB-105 Appendix A). Fix the string, or set " +
                         "Seeded = false with written justification at review.");
                 }
