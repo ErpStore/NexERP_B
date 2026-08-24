@@ -280,7 +280,7 @@ gated on the unanswered **Q-28** *and* on **R-65**.
 | # | Decision | Unblocks |
 |---|---|---|
 | 1 | **`M0-04`** — rotate the exposed credentials (deferred end-of-milestone 2026-08-19) | `M2-A04` → `M2-A05` → `M2-C02`, and G0 criteria 2/3 |
-| 2 | **Q-28 + R-65** | `M2-A02` → `M2-A03`, `M2-B03` → `M2-B10` |
+| 2 | **Q-28 + R-65** | `M2-A02` → `M2-A03` → **G2 criterion 3**; and `M2-A02` → `M2-B03` → `M2-B10` → **G2 criteria 4 and 6**. *(Corrected 2026-08-24: these two criteria were previously recorded as having no owning task. They are owned — by `M2-B03` and `M2-B10` — and blocked on this one question.)* |
 | 3 | **`M2-C10`'s environment** — a reachable DB + credential, or relax its "MEASURED wire format" criterion to static analysis | `M2-C10`, then `M2-C07` |
 | 4 | **Q-38** — what `M2-C11` is *for*, now `M2-C01` has built the workspace it existed to adopt | `M2-C11` |
 | 5 | **`stash@{0}`** — orphaned work from a dead run, carrying out-of-scope `AuthController.cs` and `.sln` edits | nothing; recommend discard |

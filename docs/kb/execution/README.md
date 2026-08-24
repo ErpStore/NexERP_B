@@ -750,13 +750,29 @@ unconfirmable as "final" until the milestone closes.**
 | 1 | Currency + Customer Master working in Angular | **Not met.** The app renders one placeholder route. The *foundations* landed — workspace (`M2-C01`), tokens/theming (`M2-C04-01`), form controls (`M2-C04-02`) — but no ERP screen exists. `M2-D01`/`M2-D02*` own Customer Master and are `Blocked`. |
 | 2 | Blazor untouched and still live | **Satisfied on the evidence.** `git diff 52060dc..HEAD -- V.SMART.Web/** V.SMART.Shared/Pages/**` is **empty** across the whole 2026-08-21→23 run. Left unticked only because "still live" is a runtime claim no session has observed. |
 | 3 | No-rights user refused by the **API**, proven by a CI permission-matrix harness | **Half met.** Enforcement exists and is tested — `M2-A01-03`, `M2-A08` (`ScreenRightAuthorizationFilterTests`, `RowScope*Tests`). The **harness does not**: `grep` for `permission-matrix` finds only a comment in `MeEndpointTests.cs:396` noting `M2-A03` has not landed. `M2-A03` is `Blocked` behind `M2-A02`. |
-| 4 | TypeScript client generated from OpenAPI in CI | **Not met.** No `openapi`/`nswag`/`swagger-typescript` reference exists in `.github/workflows/`. No task currently owns this — **worth an owner decision**: it is a G2 criterion with no task behind it. |
+| 4 | TypeScript client generated from OpenAPI in CI | **Not met, and owned by [`M2-B10`](tasks/M2-B10.md)** *(“OpenAPI polish and generated TypeScript client in CI”, DevOps, P0)*. No `openapi`/`nswag`/`swagger-typescript` reference exists in `.github/workflows/` yet. `M2-B10` is `Blocked` on `M2-B03`. |
 | 5 | Parity test `M2-D03` passes | **Not met.** `M2-D03` is `Blocked`; its spec was only made implementable on 2026-08-23 by `M2-C12-05`. |
-| 6 | Controller template + error contract documented and adopted | **Half met.** The error contract landed and is adopted by every controller (`M2-A06`, `problem+json`). The **controller template** has no dedicated task, and its own Definition of Done requires "two independent users" before it counts. |
+| 6 | Controller template + error contract documented and adopted | **Half met.** The error contract landed and is adopted by every controller (`M2-A06`, `problem+json`). The **controller template** is owned by [`M2-B03`](tasks/M2-B03.md) *(“Codify the controller template and API conventions”)*, `Blocked` on `M2-A02`. Its own Definition of Done requires "two independent users" before it counts. |
 
-> **The honest summary: 2 of 6 criteria have no owning task.** Criterion 4 (OpenAPI → TS client)
-> and the template half of criterion 6 are not blocked — they are *unassigned*. Everything else is
-> blocked behind `M2-A02`/`M2-A04` or behind the `M2-C`/`M2-D` build-out, which is now
+> **Correction, 2026-08-24 — the previous summary here was wrong.** It read *"2 of 6 criteria have
+> no owning task … they are unassigned"*. **Both are owned.** Criterion 4 belongs to
+> [`M2-B10`](tasks/M2-B10.md) and criterion 6's template half to [`M2-B03`](tasks/M2-B03.md).
+> Neither is unassigned; both are **blocked**, and they share one root cause.
+>
+> **The real shape of G2 is a single chain**, and it makes **Q-28 + R-65** far more consequential
+> than a lone gate on `M2-A02`:
+>
+> ```
+> Q-28 + R-65  →  M2-A02  →  M2-B03  →  M2-B10  →  G2 criteria 4 and 6
+>                    └────────────────────────────→  G2 criterion 3 (via M2-A03)
+> ```
+>
+> So answering **Q-28** and ruling on **R-65** unblocks *three* of the six exit criteria, not one.
+> The other three (1, 5, and the Angular half of the build-out) run through the `M2-C`/`M2-D`
+> tree, which is specification-ready but gated on **`M0-04`** via `M2-A04` → `M2-C02` → `M2-C03`.
+>
+> **Two decisions therefore govern the whole of G2: `Q-28`/`R-65` and `M0-04`.** Nothing else in
+> the gate is waiting on execution capacity.
 > specification-ready for the first time since ADR-007.
 - [ ] Currency **and** Customer Master fully working in Angular: login, tenant resolution,
       permission-gated CRUD, server paging, validation, error contract, Excel export.
