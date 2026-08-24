@@ -555,6 +555,12 @@ from silently shipping unprotected.
 
 ## Contract conventions established so far
 
+> **Writing a new controller? Read [KB-114 `controller-conventions.md`](controller-conventions.md)**,
+> not this section. It is the complete, compiled, **frozen** specification (M2-B03,
+> 2026-08-24) — route shape, authorization, paging, errors, workflow commands, the
+> `[ProducesResponseType]` set M2-B10 depends on, and a conformance checklist. The table below
+> is a summary of *what is true today*; KB-114 is what a new controller must do.
+
 Worth keeping (they are already consistent):
 
 | Convention | Form |

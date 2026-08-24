@@ -736,7 +736,7 @@ must complete inside M2 or M3-5 stalls.
 |---|---|
 | The authorization filter is designed against `Screens`/`UserRight` semantics that turn out to be richer than documented | M2-A01-01 is a spec task producing an ADR-004 implementation note before any code |
 | ~~Q-08 row-level scoping is real → every list endpoint leaks data~~ **Resolved 2026-08-12: it does not.** `StateCodesCsv` scopes `Leads` only, in the service layer | Replaced by two real risks: scoping is **opt-in** (`GetAllLeadsAsync` returns everything unscoped on the same interface), and **R-38** — trial, device and QR gates live only in Blazor `@code` while `AuthController.cs:39-59` skips all three. M2-A08 stays P0, gated before M2-D01 |
-| The contract chain (A06→B02→B03→B10) settles late, forcing frontend rework | Freeze the contract at M2-B03; treat later changes as breaking and version them |
+| The contract chain (A06→B02→B03→B10) settles late, forcing frontend rework | Freeze the contract at M2-B03; treat later changes as breaking and version them. **Done 2026-08-24: the contract is frozen in [KB-114 `api/controller-conventions.md`](../api/controller-conventions.md).** "Frozen" means precisely this: a change to any shape that document describes is a **breaking API change requiring a new route version** (a second constant beside `ApiRoutes.V1`), not an edit in place; adding a *new* resource that follows the rules is not a contract change; a genuinely new *kind* of endpoint needs an addendum to KB-114 **and** to ADR-002 in the same change, before it merges |
 | `DocumentEditor` under-specified because no document module has migrated yet | Accept: build the shell in M2, harden it in M3-5 against a real document |
 
 ### Exit Gate — G2

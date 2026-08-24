@@ -12,7 +12,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-21
+last_verified: 2026-08-24
 dependencies: [KB-011, KB-013, KB-014, KB-040]
 ---
 
@@ -131,7 +131,7 @@ author one *and* an AutoMapper profile before `<W>-06`.
 
 | # | Item | Est. |
 |---|---|---|
-| B1 | **~60–80 resource controllers** over existing services, following one template | 8–12 wks (mechanical, parallelisable) |
+| B1 | **~60–80 resource controllers** over existing services, following one template — **the template exists and is frozen: [KB-114 `controller-conventions.md`](controller-conventions.md) (M2-B03, 2026-08-24)**. The 8–12 week estimate assumed a template complete enough to follow without re-deriving decisions; that is now what it is measured against | 8–12 wks (mechanical, parallelisable) |
 | B2 | **Extract `@code` business logic into services** — ~184k LOC to triage; the real number needing extraction is far smaller, but must be assessed per screen | **the dominant cost; per-module** |
 | B3 | **File upload/download endpoints** — replace `IBrowserFile` and local-path `IFileOpener` | ~~1 wk~~ **DELIVERED (M2-B06, 2026-08-21)** |
 | B4 | **Report endpoints** — `GET /api/reports/…` → `application/pdf`; Excel export/import endpoints | 1 wk |
@@ -139,7 +139,7 @@ author one *and* an AutoMapper profile before `<W>-06`.
 | B6 | ✅ **DELIVERED (M2-B09, 2026-08-21)** — ~~Reference-data endpoints — GST rates, screen catalogue, UOM, states, currencies, terms~~. All six live under `/api/v1/reference`, tenant-keyed output cached. See [KB-124](reference-data-and-caching.md). | 3 days |
 | B7 | **Typed screen-code constants** replacing the magic integers passed to `IStockManagerService` | 2 days |
 | B8 | **Approval endpoints** enforcing `UserAuthority` server-side | 1 wk |
-| B9 | **Server-side sort/filter/paging contract** consistent across all list endpoints | 1 wk — **contract delivered by M2-B02 (2026-08-20); rollout ongoing.** See below |
+| B9 | **Server-side sort/filter/paging contract** consistent across all list endpoints | 1 wk — **contract delivered by M2-B02 (2026-08-20) and written up for controller authors in [KB-114 §5](controller-conventions.md); rollout ongoing.** See below |
 | B10 | **OpenAPI → TypeScript client generation** in CI | 3 days |
 
 **B3 status (M2-B06, 2026-08-21).** Delivered. `POST /api/v1/files` and
@@ -193,7 +193,18 @@ sweep. Read B9 as *contract done, rollout ~1/134*.
 - Replacing EF Core, AutoMapper, or the Repository/UoW pattern.
 - Converting the Angular pilot.
 
-## Controller template (to be adopted as the standard)
+## Controller template (to be adopted as the standard) — **SUPERSEDED 2026-08-24 by KB-114**
+
+> ⛔ **Do not implement from the sketch below.** It was turned into a real, complete and
+> **compiled** specification by `M2-B03`:
+> **[`controller-conventions.md`](controller-conventions.md) (KB-114)** — route shape,
+> authorization attributes and how to find the screen name, the paging/sort/filter contract,
+> the error contract, the workflow-command pattern, payloads, the service-method → verb
+> mapping (including the decided `Upsert…Async` answer), the `[ProducesResponseType]` set
+> M2-B10 depends on, an objective definition of "thin", and a conformance checklist.
+> **That document is frozen**: a change to the contract after M2-B03 is a breaking, versioned
+> change. The sketch is kept only as history — it predates `/api/v1`, `PagedResult<T>`,
+> `ProblemResults` and the `[ProducesResponseType]` obligation.
 
 ```csharp
 [ApiController]

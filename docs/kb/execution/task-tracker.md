@@ -127,7 +127,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | **Completed**²⁸ *(merged to `master` `f054c75` on owner instruction 2026-08-21)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Completed**³³ | P1 | M2-B07 | 1 d | G2 |
 | M2-B02 | M2 | Paging / sort / filter contract | Backend | **Completed**²⁴ | P0 | M2-A06 | 1 wk | G2 |
-| M2-B03 | M2 | Codify the controller template | Documentation | **Ready**⁶² *(released 2026-08-24 — `M2-A02` and `M2-B02` both `Completed` and merged)* | P0 | M2-A02, M2-B02 | 2 d | G2 |
+| M2-B03 | M2 | Codify the controller template | Documentation | **Needs Review**⁶⁵ *(implemented on `migration/M2-B03-controller-conventions`, independently validated `PASS` 2026-08-24; unmerged)* | P0 | M2-A02, M2-B02 | 2 d | G2 |
 | M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Blocked**³¹ *(⛔ premise falsified — needs re-specification by the owner; no code written, no branch)* | P1 | M2-B07 | 2 d | G2 |
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Completed**³² ³⁵ *(merged to `master` 2026-08-21, `65d9666`)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
@@ -271,7 +271,14 @@ implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰
 `M2-A10` moved `Ready` → `Needs Review` the same way — see footnote ⁶¹. The two remaining
 `Ready` rows, `M0-06` and `M0-11`, both fail the five-part "can actually be done" test: `M0-06`
 on a sibling branch already open (`migration/M0-06-remove-default-admin`, unmerged), `M0-11` on
-being a `Product Decision` (owner-only). No task is currently selectable.)
+being a `Product Decision` (owner-only). No task is currently selectable.) *(Row counts above
+predate this note's own sequence of close-outs and are superseded by the per-task paragraphs
+below; the most recent event, also 2026-08-24, is `M2-B03` moving `Ready` → `Needs Review`,
+implemented and independently validated `PASS`, unmerged — footnote ⁶⁵. With it, `M2-A03`'s
+`M2-B03` prerequisite half is satisfied, but `M2-B03` itself is `Needs Review`, not `Completed`
+and merged, so `M2-B10` stays `Blocked`. No row on the tracker now reads `Ready` and clears the
+five-part test — `M0-06` and `M0-11` fail it as above, and no other row is `Ready`. No task is
+currently selectable.)*
 
 **`M2-C13` `Completed` and merged** to `master` 2026-08-24 (`2328c94`; footnotes ⁵⁶ and ⁵⁷) —
 deferred the confirm-dialog host, initial bundle **711.75 kB → 571.20 kB raw**, no budget
@@ -2837,3 +2844,28 @@ correct, and the same shape as `M0-01-03` waiting on a named operator.
 step executes it with an explicit `$LASTEXITCODE` check, so a permission regression already fails
 the job. Only the *required-status-check* setting is missing. The owner action is
 **Settings → Branches → `master` → Require status checks to pass → add `Test - V.SMART.Api.Tests`**.
+
+⁶⁵ **`M2-B03` implemented 2026-08-24 on `migration/M2-B03-controller-conventions` (tip
+`287a467`, base `d8a7e02`) — independently validated `PASS`, attempt 2 of 4 (attempt 1 escalated
+on a `business-rule` diagnosis), `scopeOk: true`, `failureCategory: none`.** All 14 acceptance
+criteria `MET`. Delivered `docs/kb/api/controller-conventions.md` — **KB-114**, allocated from
+`docs/kb/INDEX.md` (`KB-110`–`KB-113` held by `M2-B08`…`M2-B11`) — 1062 lines, the twelve
+required sections plus the T1–T9 "thin controller" test and a 25-item conformance checklist.
+The reference controller (§2) was compiled twice as a scratch file directly in
+`V.SMART/V.SMART.Api/Controllers/` and deleted both times: attempt 1's compile reported
+**0 Error(s), 2 Warning(s)** (pre-existing `NU1608` restore warnings, confirmed by grepping the
+built `V.SMART.Api.dll` for the scratch type name); attempt 2's re-compile, after the
+`GET /search` action was added, reported **Build succeeded, 0 Error(s)**. `git status
+--porcelain` clean under `V.SMART/` both times; `git diff --stat master...HEAD -- V.SMART/`
+empty on the final branch. **Attempt 1's escalated defect** — §9 flatly stated
+`IsDuplicate…Async` "is a 409 out of create/update", true only for `CurrencyService.cs:108,152`
+and false for the shape the reference controller sits over (`MfgPOUpsert.razor:3745-3753`
+refuses a duplicate PO client-side while `MfgPoService.cs:985 UpsertPoAsync` never calls
+`IsDuplicatePoAsync`) — is fixed in the shipped document: §9 now names three enforcement shapes
+with `file:line` evidence, decides the controller never composes the 409 itself (the check
+returns a bare `bool`; composing a title would breach ADR-002 §4), and imposes a per-resource
+verification duty via checklist item 22a. `Q-81` records the three shapes for future controller
+authors. No ADR edited; `docs/kb/business-rules/business-rule-inventory.md` untouched. Full
+record: `tasks/M2-B03.md` § Execution Record — 2026-08-24 and its Attempt 2 subsection, plus the
+close-out session's own Execution Record entry; `failure-log.md`. **Not merged** — merging it
+releases `M2-B10` (`depends_on: [M2-B03]`, currently `Blocked`).
