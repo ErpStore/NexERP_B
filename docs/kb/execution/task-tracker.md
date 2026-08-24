@@ -116,7 +116,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
 | M2-A07 | M2 | `GET /api/v1/me` | Backend | **Completed**³⁷ *(merged to `master` `80c209b` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 2 d | G2 |
 | M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | **Completed**²⁹˒³⁹ *(merged to `master` `380c805` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 3 d | G2 |
-| M2-A09 | M2 | Remove the two phantom screen names from `ScreenCatalogue` (R-65) | Security | **Ready**⁵⁸ | P0 | M2-A01-03 | 0.5 d | G2 |
+| M2-A09 | M2 | Remove the two phantom screen names from `ScreenCatalogue` (R-65) | Security | **Needs Review**⁶⁰ *(implemented and independently validated PASS 2026-08-24; unmerged)* | P0 | M2-A01-03 | 0.5 d | G2 |
 | M2-A10 | M2 | Seed administrator rights on the API login path (Q-28) | Security | **Ready**⁵⁸ | P1 | M2-A01-03 | 0.5 d | G2 |
 
 ### M2-B — API structure
@@ -264,10 +264,10 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**48 `Completed`, 2 `Needs Review`, 4 `Ready`, 36 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
+**48 `Completed`, 3 `Needs Review`, 3 `Ready`, 36 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
-*estimates*, not rows. (The `Ready` count corrects a stale "3" that predates this close-out —
-`M2-A09` and `M2-A10` were already `Ready` and simply not tallied.)
+*estimates*, not rows. (2026-08-24 close-out: `M2-A09` moved `Ready` → `Needs Review`,
+implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰.)
 
 **`M2-C13` `Completed` and merged** to `master` 2026-08-24 (`2328c94`; footnotes ⁵⁶ and ⁵⁷) —
 deferred the confirm-dialog host, initial bundle **711.75 kB → 571.20 kB raw**, no budget
@@ -280,11 +280,17 @@ per-action `[RequireRight(...)]`, proven by 45 new reflection-driven tests plus 
 `M2-A03` and `M2-B03` stay `Blocked` until it is merged to `master` — a `Needs Review` branch is
 not a satisfied Hard prerequisite.
 
-**Nothing is selectable. The pool is empty on dependency grounds, and every remaining path runs
-through a person.** The two remaining `Ready` rows both fail the five-part test: `M0-06`
-already has a branch, `M0-11` is a `Product Decision` (owner-only). `M2-A09` and `M2-A10`
-(both unblocked 2026-08-24 by the Q-28/R-65 decision, KB-109) remain genuinely `Ready` and
-selectable — see the next-task note below.
+**`M2-A09` implemented and independently validated `PASS`, closed `Needs Review` 2026-08-24**
+(footnote ⁶⁰) — the two phantom screen names deleted from `ScreenCatalogue.cs`, R-65 resolved,
+on `migration/M2-A09-screen-catalogue-phantoms` (tip `c3c595e`). **Not merged.** Nothing in the
+dependency graph names `M2-A09` as a prerequisite, so merging it releases no other task — its
+value is the fix itself.
+
+**One `Ready` row remains genuinely selectable: `M2-A10`.** `M0-06` already has a branch,
+`M0-11` is a `Product Decision` (owner-only) — both still fail the five-part test. `M2-A10`
+(unblocked 2026-08-24 by the Q-28/R-65 decision, KB-109; `depends_on: [M2-A01-03]` only, no
+file overlap with either `M2-A09` or `M2-A02`'s unmerged branches) is next — see the next-task
+note below.
 
 **Five decisions, in order of what they unblock:**
 
@@ -2690,3 +2696,23 @@ for the full validator transcript. **Closed `Needs Review`, not `Completed`** �
 repository owner may set `Completed` (KB-088 "Who may set Completed"); the branch is left for
 review, not merged, not pushed. **Releases nothing yet**: `M2-A03` and `M2-B03` need `M2-A02`
 *merged to `master`*, which a `Needs Review` branch does not satisfy.
+
+⁶⁰ **`M2-A09` implemented 2026-08-24 on `migration/M2-A09-screen-catalogue-phantoms` (tip
+`c3c595e`), independently validated `PASS`** (attempt 1 of 3, `scopeOk: true`,
+`failureCategory: none`, 0 escalations). Deleted `"Bill Pending List"` / `"Bill Paid List"`
+from `ScreenCatalogue.cs:146-147` (152 → 150 names); `ScreenRightStartupValidator`'s error
+message updated to cite 150. New test `A_deleted_phantom_screen_name_is_rejected`
+(`ScreenRightStartupValidatorTests.cs`) independently re-confirmed bidirectionally by the
+validator: swapped in master's pre-fix 152-name catalogue, ran the filtered test → **FAILED**
+(`No exception was thrown`), matching the implementer's claim; restored the fix, re-ran →
+**PASSED**. Full suites: API 313/313, Shared 90/91 (1 pre-existing unrelated skip). Build —
+`0` errors, `6693` warnings, exact gate-baseline match. `git diff --stat master...HEAD` — 5
+files, all within `V.SMART/V.SMART.Api/Authorization/`, `tests/V.SMART.Api.Tests/` and
+`docs/kb/`. R-65 marked resolved in `technical-debt-register.md` with the measured counts;
+`server-side-authorization-spec.md` §1.3 updated to match — both by the implementing session,
+in the same commit. See
+[`tasks/M2-A09.md` § Execution Record (2026-08-24)](tasks/M2-A09.md#execution-record-2026-08-24).
+**Closed `Needs Review`, not `Completed`** — only the repository owner may set `Completed`
+(KB-088 "Who may set Completed"); the branch is left for review, not merged, not pushed.
+**Releases nothing** — no task file names `M2-A09` in `depends_on`; its value is R-65 itself,
+closing the silent-lockout trap for any future `[RequireScreen]` annotation.
