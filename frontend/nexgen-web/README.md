@@ -210,6 +210,59 @@ server-side by each wave's `-03` step.
 Per-control usage, the keyboard model and the loading/empty/error triad each control owns are in
 [`src/app/shared/components/form/README.md`](src/app/shared/components/form/README.md).
 
+## Feedback and overlays
+
+`src/app/shared/components/overlay/` and `src/app/shared/components/feedback/`, built by
+**M2-C04-03** against
+[KB-051 §Overlays, §Feedback and §State patterns](../../docs/kb/frontend-new/design-system.md#overlays).
+Per-component detail: [`overlay/README.md`](src/app/shared/components/overlay/README.md) and
+[`feedback/README.md`](src/app/shared/components/feedback/README.md).
+
+| Component                                     | PrimeNG surface                   | Use it for                                               |
+| --------------------------------------------- | --------------------------------- | -------------------------------------------------------- |
+| `app-modal`                                   | `p-dialog`                        | A question or a short form. Sizes `sm/md/lg/full`.       |
+| `app-drawer`                                  | `p-drawer`                        | Record detail **without losing the list behind it**.     |
+| `app-confirm-dialog`                          | `p-confirmdialog`                 | Confirmation, optionally with a required reason.         |
+| `app-popover`                                 | `p-popover`                       | A small surface anchored to a control.                   |
+| `[appTooltip]`                                | `[pTooltip]`                      | A short label. Opens on **focus** as well as hover.      |
+| `app-context-menu`                            | `p-contextmenu`                   | Row and record actions, with a visible trigger.          |
+| `ToastService`                                | `p-toast`                         | Transient confirmation. The only message-service caller. |
+| `app-inline-alert`                            | `p-message`                       | A message next to the thing it is about.                 |
+| `app-busy-overlay`                            | `p-blockui` + `p-progressspinner` | A busy region. Full page only by explicit opt-in.        |
+| `app-skeleton`, `app-skeleton-table`, `-form` | `p-skeleton`                      | First load. Never a spinner on a blank page.             |
+| `app-progress-bar`                            | `p-progressbar`                   | Refetch and determinate progress.                        |
+| `app-empty-state`                             | own markup                        | "No data yet" **or** "no results for these filters".     |
+| `app-error-state`                             | own markup                        | Server message verbatim + `traceId` + Retry.             |
+| `app-permission-denied-state`                 | own markup                        | Which screen right is missing. No retry.                 |
+
+**Modal or drawer.** KB-051 §Do not: "Use modals for anything that needs the list behind it —
+use a drawer." If the operator will look back at the list while the overlay is open, it is a
+drawer. Everything else that must be answered before work continues is a modal.
+
+**Toast policy.** Success and info clear themselves after 4 s; **an error toast is sticky** and
+needs an explicit dismiss. A toast is never the only copy of something the user must act on —
+that goes in `app-inline-alert` next to the form, or `app-error-state` for the whole surface.
+`feedback/toast.service.ts` is the only file that imports PrimeNG's message service, so a
+future change of toast implementation touches one file.
+
+**Empty-state variants.** "No data yet" offers the create action; "no results for these
+filters" offers Clear filters. They are different situations and are never interchangeable.
+
+**No ERP business rule lives in either directory.** `app-confirm-dialog` provides the
+_capability_ BR-SO-003 needs — collect a mandatory reason — while the rule itself (when a
+reason is required, the downstream-transaction checks, the quantity reversion) stays
+server-side.
+
+**Bundle cost, measured.** The single `<p-toast>` and `<app-confirm-dialog>` hosts in
+`app.component.html` are eager by necessity, and they carry `p-dialog`, `p-confirmdialog`,
+`app-form-field` and `app-textarea` with them: initial total moved from 446.36 kB raw /
+106.63 kB gzip to **710.39 kB raw / 158.02 kB gzip** (`npm run build`, 2026-08-23). That is
+63 % of KB-050's `< 250 KB gzip` target but **over Angular's 600 kB raw warning budget**, so
+the build now prints one budget warning while still exiting 0. Importing the two hosts from
+their files rather than from the `shared/components` barrel is what keeps it at 710 kB rather
+than 1.31 MB — the barrel drags every form control and `decimal.js` into the initial chunk.
+Deferring the confirm-dialog host is the obvious next move and is recorded in KB-060.
+
 ## Structure
 
 `src/` follows [KB-050 §Project structure](../../docs/kb/frontend-new/react-architecture.md#project-structure):

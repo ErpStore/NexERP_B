@@ -322,6 +322,46 @@ column-configurable picker over an upstream document) · `QuickCreateDialog`
 `BusyOverlay` · `Skeleton` · `ProgressBar` · `EmptyState` (illustration + explanation +
 primary action) · `ErrorState` (message + `traceId` + retry) · `PermissionDeniedState`
 
+**Built by `M2-C04-03` (2026-08-23), Angular + PrimeNG, in
+`src/app/shared/components/overlay/` and `.../feedback/`.** All 14 shipped:
+`app-modal` (`p-dialog`), `app-drawer` (`p-drawer`), `app-confirm-dialog`
+(`p-confirmdialog` + `ConfirmationService`), `app-popover` (`p-popover`), `[appTooltip]`
+(`[pTooltip]`), `app-context-menu` (`p-contextmenu`), `ToastService` (`p-toast`),
+`app-inline-alert` (`p-message`), `app-busy-overlay` (`p-blockui` + `p-progressspinner`),
+`app-skeleton` / `-table` / `-form` (`p-skeleton`), `app-progress-bar` (`p-progressbar`),
+`app-empty-state`, `app-error-state`, `app-permission-denied-state`.
+`RecordPickerDialog` and `QuickCreateDialog` stay with `M2-C06` — they are *contents* placed
+inside this layer's modal and drawer.
+
+**Confirmed keyboard model** (asserted by test, not inherited from PrimeNG's defaults): the
+modal, drawer and confirm dialog move focus in on open, trap it, close on `Esc`, return focus
+to the exact invoking element and lock background scroll; the confirm dialog maps `Esc`, the
+backdrop and the close icon to **cancel** and disables Confirm until a required reason is
+non-empty after trim; the drawer resize handle is a focusable `role="separator"` driven by
+`←`/`→`/`Home`/`End`; the tooltip opens on focus; the context menu has a visible trigger and
+answers `Shift+F10`. Runtime `axe` scan over every overlay while open and every feedback
+component, in both themes: `overlay/a11y.spec.ts` and `feedback/a11y.spec.ts`, zero critical
+violations observed 2026-08-23. jsdom applies no stylesheet, so `color-contrast` cannot run
+there; contrast is `core/theme/contrast.spec.ts`.
+
+**Deviations, each with its reason:**
+
+| Deviation | Reason |
+|---|---|
+| `app-confirm-dialog` **disables** Confirm on an empty required reason, where `BsModal.razor:76-93` allows the click and answers with a toastr warning | Specified by the task. Same outcome, state visible before the click; the reason field is marked required and carries its own error so a screen-reader user is not left at an unexplained disabled button |
+| Toast announcement forced to `aria-live="polite"` through a PrimeNG pass-through | PrimeNG 22.1.0 hard-codes `role="alert" aria-live="assertive"` on every toast item; a success toast that interrupts a screen-reader user is worse than one heard a moment later |
+| `app-inline-alert` raises the shared `p-message` live region to `assertive` for errors only, instead of nesting its own | Two nested live regions double-announce |
+| `app-confirm-dialog` moves focus into the dialog itself, from `afterEveryRender` | Measured PrimeNG 22.1.2: `p-confirmdialog` sets `[focusOnShow]="false"` on the dialog it renders and relies on `pAutoFocus` on its own accept/reject buttons, which a custom footer replaces, so focus never enters and the focus trap has nothing to hold; it exposes no `(onShow)`, and `p-dialog` moves its wrapper to `document.body` as the transition starts, blurring anything focused earlier |
+| `app-drawer` implements `Esc` itself and drives close from `visible` rather than `(onHide)` | Measured PrimeNG 22.1.0 defects: `Drawer.onKeyDown` answers `Escape` with `hide(false)`, which never clears `visible`; `onHide` is not emitted for a programmatic close; `unbindDocumentEscapeListener()` calls itself |
+| `app-drawer` overwrites the drawer root's `role="complementary"` with `role="dialog"` + `aria-modal` + `aria-label` | PrimeNG hard-codes `complementary`; a modal record-detail overlay is a dialog and needs a name |
+| `aria-level` / `aria-setsize` / `aria-posinset` cleared from `p-contextmenu` items, and `aria-level` from `p-progressbar`, through pass-throughs | PrimeNG emits ARIA attributes those roles do not allow; axe rates both critical |
+| The overlay layer duplicates `form/jsdom-overlay-support.ts` rather than promoting it to a global `setupFiles` entry | `form/**` is outside this task's scope to edit and `setupFiles` is a build-configuration change; recorded in KB-060 |
+
+**Two token gaps reported, not filled** (`M2-C04-01` owns `tokens.css` and the preset):
+there is no z-index/stacking or scrim token, so overlays rely on PrimeNG's own layering; and
+`theme.preset.ts` has no `mask` key, so the dialog and drawer backdrop keeps Aura's
+untokenised default. Recorded in KB-004.
+
 ## State patterns
 
 | State | Presentation |

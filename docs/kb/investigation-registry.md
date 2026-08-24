@@ -4,7 +4,7 @@ title: Investigation Registry
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-23
+last_verified: 2026-08-24
 ---
 
 # Investigation Registry
@@ -386,6 +386,100 @@ Last verified:  2026-08-23
 `SubContractDCOutUpsert.razor:1471`, `SubConGRNUpsert.razor:2146`, `SubConSCNUpsert.razor:961`,
 `EstimationUpsert.razor:1125`). Correctly out of scope for M2-C04-02; a sizing signal for the
 `-03` extraction steps.
+
+### INV-006 amendment (2026-08-23, M2-C04-03) — what the feedback layer binds, and three superseded Razor components
+
+Added by **M2-C04-03** while building the overlay and feedback layers. The `ProblemDetails`
+field names were the task's single new check; every citation below was re-read in the working
+tree on 2026-08-23.
+
+```yaml
+Finding:        The SPA feedback layer binds the error state and the toast layer to the
+                ProblemDetails members shipped by M2-A06: the human-readable message is
+                `title` - NOT `detail` - and the correlation id is the RFC 7807 extension
+                member `traceId`, flat in the JSON body.
+                  * A 409 business-rule refusal carries the service's own sentence in
+                    `title`, verbatim (ApiProblems.cs:47-53), so app-error-state.message and
+                    app-inline-alert.message bind `title`; binding `detail` alone would
+                    render an empty panel for exactly the case an operator most needs.
+                  * `traceId` is set on every body at ApiProblems.cs:43, and again on the
+                    403 at :102 and the 400 ValidationProblemDetails at :155. Its value is
+                    Activity.Current?.Id ?? HttpContext.TraceIdentifier (CorrelationId.cs:22-33)
+                    and it is also returned in the X-Correlation-Id header
+                    (CorrelationId.cs:25).
+                  * The 403 screen-right body carries the extensions `screen`
+                    (ApiProblems.cs:100) and `right` (:101); those two map one-to-one onto
+                    app-permission-denied-state's two inputs, which is why that component
+                    needs no service.
+                  * Clients branch on `type` (ProblemTypes.cs:17-45), never on `title`.
+                BsModal.razor's optional-reason capability is reproduced by app-confirm-dialog
+                over PrimeNG's ConfirmationService - with one deliberate behaviour change:
+                the Razor original allows Confirm on an empty reason and answers with a
+                toastr warning "Please enter a valid reason before confirming."
+                (BsModal.razor:76-93), while app-confirm-dialog disables Confirm until the
+                reason is non-empty after trim. PrimeNG's own Confirmation.accept/reject
+                callbacks take no arguments (primeng/api), so the reason cannot travel back
+                through them; it is held in ConfirmDialogService and read by the callback
+                that resolves the promise.
+                ProcessingOverlay.razor - a full-page overlay with an animated logo, no ARIA
+                and no role (ProcessingOverlay.razor:5-33) - is replaced by a region-scoped
+                app-busy-overlay over p-blockui, with a fullPage escape hatch, per KB-051's
+                "saving never blocks the page".
+                UnsavedChangesModal.razor has THREE outcomes - Continue/Discard/Cancel, with
+                backdrop click mapped to Cancel (UnsavedChangesModal.razor:4, :43-52) - which
+                app-confirm-dialog's two-outcome contract does not cover. The dirty-form
+                guard (M2-C03/M2-C08) therefore composes app-modal, not app-confirm-dialog.
+Evidence:       V.SMART/V.SMART.Shared/Components/BsModal.razor:4,21-23,57-74,76-93 ;
+                V.SMART/V.SMART.Shared/Components/ProcessingOverlay.razor:5-33 ;
+                V.SMART/V.SMART.Shared/Components/UnsavedChangesModal.razor:4,43-52 ;
+                V.SMART/V.SMART.Api/Middleware/ApiProblems.cs:43,47-53,89-104,145-157 ;
+                V.SMART/V.SMART.Api/Middleware/CorrelationId.cs:14-33 ;
+                V.SMART/V.SMART.Api/Middleware/ProblemTypes.cs:17-45
+Business rule:  BR-SO-003 (capability only; the rule stays server-side)
+Confidence:     Confirmed
+Last verified:  2026-08-24
+```
+
+**Line-citation correction to the INV-040 amendment below.** That entry cites the `403`
+`traceId` at `ApiProblems.cs:86` and the `400` at `:131`. Current source has them at **`:102`**
+and **`:155`**; `:43` is still correct. The drift is explained by `AccountGateRefused` (`:68`)
+and `PayloadTooLarge` (`:111`) landing since. The substance of that amendment is unchanged.
+
+**Negative results, same pass, all `git grep -n --untracked` over
+`frontend/nexgen-web/src` on 2026-08-23:** `"An error occurred"` — **0 hits** (the server's
+own constant is `"An unexpected error occurred."`, `ApiProblems.cs:139`, which arrives as
+`title` and is rendered verbatim; the ban is on client-authored fallbacks);
+`"core/auth"` under `src/app/shared/components` — **0 hits**; `MessageService` — hits in
+`feedback/toast.service.ts` only.
+
+**Measured PrimeNG 22.1.0 behaviour, found by test rather than assumed** — recorded so no
+future session rediscovers it: `Drawer.onKeyDown` answers `Escape` with `hide(false)`, which
+never clears `visible`; `Drawer` emits `onHide` only from `close()`, never for a programmatic
+close; `Drawer`'s document escape fallback keys off the deprecated `event.which` and
+`unbindDocumentEscapeListener()` calls itself; the drawer root is hard-coded
+`role="complementary"`; the dialog and drawer close icons have no accessible name unless
+`closeAriaLabel`/`ariaCloseLabel` is set, and `p-confirmdialog` does not forward
+`closeAriaLabel` to the dialog it renders; `p-contextmenu` puts `aria-level`, `aria-setsize`
+and `aria-posinset` on `role="menuitem"`; `p-progressbar` writes `aria-level="42%"` and turns
+an unbound `value` into `aria-valuenow="NaN"`; `p-toast` items are `role="alert"
+aria-live="assertive"`. Each is worked around through `[pt]` or a small wrapper, never a fork.
+
+**Added 2026-08-24, and the most expensive of the set: `p-confirmdialog` never moves focus
+into itself.** It hard-codes `[focusOnShow]="false"` on the `p-dialog` it renders and depends
+on `pAutoFocus` sitting on *its own* accept/reject buttons; supplying a custom `#footer` —
+which any wrapper needing a reason field must — removes those buttons, so focus never enters
+the dialog and PrimeNG's focus trap holds nothing, because a trap only holds focus that is
+already inside. `p-confirmdialog` emits no `(onShow)`, and `p-dialog` **moves** its wrapper to
+`document.body` (`appendContainer()`) as the enter transition starts, blurring anything focused
+before the move — so focusing from a view-query effect does not survive. The fix used is
+`afterEveryRender`, which runs again after the move, with `focusFirstElementIn` a no-op once
+focus is inside. Evidence:
+`frontend/nexgen-web/src/app/shared/components/overlay/confirm-dialog.component.ts:82-118`,
+asserted by `confirm-dialog.component.spec.ts:153-192` (focus-in + `Tab` trap, focus restore,
+scroll lock), which fail against the pre-fix component — measured on 2026-08-24 by reverting
+it. **Generalisation for future overlay wrappers:** a PrimeNG overlay's focus contract is not
+inherited by a wrapper that replaces its templated buttons; assert it by test for every new
+overlay, as `overlay-focus.ts:5-9` warns.
 
 ### INV-042 — `role` in `GET /api/v1/me`, and what else belongs in the bootstrap response
 

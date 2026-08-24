@@ -454,6 +454,23 @@ Layers that implement the table:
 | Component | Grids and editors render an inline error surface rather than unmounting |
 | Global | An `ErrorHandler` override for unhandled *client-side* exceptions — distinct from server problems, and never presented as one |
 
+**The presentation half of that table now exists — M2-C04-03 (2026-08-23).** Every row has a
+component to land in; none of them parses a problem body, and none performs a request.
+
+| Row | Rendered by |
+|---|---|
+| **400** validation | `applyServerErrors` onto the controls (below); whatever matched no control goes to `app-inline-alert` at the top of the form |
+| **400 / 503** tenant | Login: `app-inline-alert`. Mid-request: `app-error-state` with Retry |
+| **401** | Nothing visible. The interceptor refreshes or logs out; there is deliberately no component for it |
+| **403** screen right | `app-permission-denied-state`, bound to the `screen` and `right` extensions. It reads no service and offers no retry |
+| **404** | `app-error-state` (route) or `app-inline-alert` (lookup) |
+| **409** business rule | `app-inline-alert` or `ToastService.error()`, both rendering the problem's **`title`** verbatim. `app-error-state`'s `message` binds to `title` for the same reason: a 409 puts the sentence there, so binding `detail` alone would render nothing |
+| **500** | `ToastService.error()` — sticky — and/or `app-error-state`, with the `traceId` shown and copyable |
+
+The `traceId` is an input on `app-error-state`; nothing in the component library reads a
+header or a body. The parsing stays exactly where this table puts it —
+`core/http/error.interceptor.ts`, M2-C02.
+
 **The mapping function exists — `applyServerErrors`, M2-C04-02 (2026-08-23).** It lives at
 `frontend/nexgen-web/src/app/shared/components/form/server-validation.ts` and is a **pure
 function, not a service**: it takes a `FormGroup` and a `ProblemDetails`, sets a `server` error

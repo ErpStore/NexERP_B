@@ -2,3 +2,5 @@
 export { ThemeToggleComponent } from './theme-toggle/theme-toggle.component';
 
 export * from './form';
+export * from './overlay';
+export * from './feedback';
