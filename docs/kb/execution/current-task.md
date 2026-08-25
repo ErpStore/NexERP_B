@@ -2,10 +2,16 @@
 doc_id: KB-089
 title: Current Task
 module: execution
-source_files: []
-entities: []
+source_files:
+  - V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs
+  - V.SMART/V.SMART.Shared/Migrations/ApplicationDbContextModelSnapshot.cs
+  - V.SMART/V.SMART.Shared/Services/MultiCompanyService/ITenantProvider.cs
+  - V.SMART/V.SMART.Shared/Services/MultiCompanyService/ITenantDbContextFactory.cs
+  - V.SMART/V.SMART.Shared/Services/MultiCompanyService/TenantDbContextFactory.cs
+  - V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/SalesService/MfgDcService.cs
+entities: [MfgQuote, MfgDc, MfgInv, DcRunningNumber, InvoiceAutoRunningNumber]
 api_endpoints: []
-database_tables: []
+database_tables: [MfgQuote, MfgDc, MfgInv, PurchPo, PurchaseGRN, DcRunningNumbers, InvoiceAutoRunningNumbers]
 business_rules: []
 status: active
 confidence: n/a
@@ -21,130 +27,81 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## No active task — the selectable pool is empty, 2026-08-25
+## Selected task: M2-B12-02 — Verify unique constraints in a live tenant database (Q-10)
 
-**`M0-04` is closed and merged.** Its branch `migration/M0-04-credential-rotation-runbook`
-was merged to `master` at `ad75915`. The ref still exists but is fully contained in
-`master` (`git branch --merged master` lists it), so it is not an open branch. The tracker row
-reads **`Blocked`** (footnote ⁷¹), which is the task's own designed terminal state — its
-*Target Result* says `Blocked`, not `Completed`, when nobody with production access rotates
-anything during the session, and nobody did. All four AI-deliverable artefacts are on
-`master`: `docs/runbooks/credential-rotation.md`, the credential inventory (`INV-052`), the
-unsigned §8 verification checklist, and the Q-19 confirmation. **Do not re-open or re-run it**
-— the document work is complete; what remains is human rotation, not a task.
-
-**Nothing on the tracker is self-selectable.** The only `Ready` row is **`M0-11`**, a
-`Product Decision`, which [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks)
-makes owner-only. Four consecutive runner passes have halted here (`3669d37`, `383cbba` and
-their predecessors). **A fifth pass will halt identically** — the constraint is decisions, not
-execution capacity. See [`runner-state.md`](runner-state.md) `Status` for the full trace.
-
-### What unblocks work, and who owns it
-
-| Needs | Owner | Releases |
-|---|---|---|
-| **Q-01** — the silent FIFO under-issue product decision | Vivek | `M0-11`, the only `Ready` row |
-| **Q-25 / Q-26** — is `UserId = 1` any tenant's only administrator, and how must provisioning avoid the seeded credential | Vivek | `M0-06`'s unmet criterion 2 |
-| **Q-84** — who redacts the SA and production passwords still at `HEAD` in `docs/kb/` | Vivek | `M0-05`'s scope |
-| **C-7** — the AES key/IV at `LicenseProductKey.cs:28-29` is public; the vendor must re-key | unassigned | `M0-04`'s C-5 |
-| A named signature on the runbook §8 checklist | the four roles below | `R-01`/`R-02` |
-
-### M0-04's rotation is blocked on four named human roles
-### What is blocked, and on whom
-
-Four named human roles, none of them a task that can land on `master`:
-
-| Role | Unblocks |
-|---|---|
-| `sysadmin` on `154.61.76.112,1533` and the dev SQLEXPRESS instance | C-1, C-2 |
-| Whoever can write to the master database's `Tenants` table | C-3 |
-| Whoever owns `V.SMART.Api`'s deployment configuration | C-4 |
-| Whoever owns the GST gateway / Bhargavi Soft-Tech licensing relationship | C-5, C-7 |
-
-Top escalation, in priority order (full detail in `task-tracker.md` footnote ⁷¹ and
-`tasks/M0-04.md`'s Execution Record):
-
-1. The repository is still public — re-verified today (unauthenticated REST → `200`); Q-19
-   already answered, owner's deliberate decision, so this is exposure, not a question.
-2. **New (`C-7`, not in any prior register):** the AES key/IV protecting every tenant's GST
-   gateway credential is hardcoded and public at
-   `V.SMART/V.SMART.Shared/E_Invoice/LicenseProductKey.cs:28-29`. Rotating the gateway
-   credential alone does not restore confidentiality — the vendor must re-key. No owner yet.
-3. The SA password, the plaintext production password
-   (`docs/kb/risks/technical-debt-register.md:44`), and the default `Jwt:Secret` are all still
-   at `HEAD` inside `docs/kb/` (5 files) — `M0-05`'s history purge alone will not remove them.
-   **Q-84** asks the owner who redacts them and when.
-
-### Delivered and committed on this branch
-
-`docs/runbooks/credential-rotation.md` (C-1…C-7, owner/blast-radius/window/procedure/
-rollback/verification per credential, plus the unsigned §8 human checklist);
-`docs/kb/investigation-registry.md` **INV-052** (credential-usage inventory, Complete);
-`docs/kb/open-questions.md` **Q-84**; `docs/kb/risks/technical-debt-register.md` (R-01/R-02
-stated explicitly to remain open until §8 is signed). **Not done:** the rotation itself; the
-`Tenants` row count and licence-key blast radius (need database access); any redaction of
-`docs/kb/` (Q-84, owner decision).
-
-**Do not re-run this task from scratch.** The documents are the deliverable and they exist.
-What is missing is a human performing the rotation and signing the checklist — that is not
-something a future session can do either; it is where a human picks up.
-
-### Historical selection reasoning (superseded by the outcome above, kept for provenance)
-
-Selected 2026-08-25 (select-only pass, tip `beee0f9` on `master`, tree clean).
+Full spec: [`tasks/M2-B12-02.md`](tasks/M2-B12-02.md). Selected 2026-08-25, select-only pass,
+tip `92e8b28` on `master`, tree clean. **Not yet dispatched — attempt 0.**
 
 ### Why this task, and why now
 
-`M0-04` was misclassified as blocked for three prior Select passes because the *rotation*
-needs production SQL Server / GST e-Invoice gateway access the owner confirmed is
-unavailable (2026-08-19 deferral). **That deferral describes the rotation, not the task.**
-Every one of `M0-04`'s acceptance criteria is a document — a rotation runbook, a complete
-credential-consumption inventory, a human verification checklist, and Q-19 raised. Its own
-*Target Result* states the task closes **`Blocked`**, not `Completed`, if no named human
-performs the actual rotation during the session (Step 10: *"Do not report Completed because
-the documents were written"*). Q-19 is already `ANSWERED` (2026-08-12), clearing the one
-prerequisite gating the document work.
+`M2-B12-01` merged to `master` at `f10b5fc` (`Completed`), which is `M2-B12-02`'s sole Hard
+prerequisite. `M2-B12-01` established what the **EF model** says: exactly one document-number
+unique index exists in it (`MfgQuote(QuoteNo, Suffix)`), and produced the per-series query
+inputs `M2-B12-02` needs (KB-100 §9). `M2-B12-02` answers what the **live tenant databases**
+actually enforce — the model is not proof of the deployed schema, since no migration-rollout
+procedure is documented anywhere (Q-02). [KB-081](task-tracker.md) released the row `Blocked`
+→ `Ready` at `92e8b28` the moment that merge landed; this pass independently re-ran the
+five-part "can actually be done" test rather than trust the commit message (recorded in full
+in [`runner-state.md`](runner-state.md) `Status`) — all five clear, and no other `Ready` row
+(`M0-11`, a `Product Decision`) does.
 
-**Part 5 of the five-part "can actually be done" test** — no sibling branch on this task's
-files — was cleared by renaming the stale, 324-commits-behind prior attempt
-(`migration/M0-04-credential-rotation-runbook`, one commit) to
-`archive/M0-04-runbook-stale-lineage` on 2026-08-25, preserving its 269-line runbook at
-`1f905db`. **That runbook is a starting point, not a merge candidate** — its procedures
-(least-privilege login alongside `sa`, update `Tenants` connection strings, verify before
-disabling, disable rather than drop) are sound and stack-independent, but its cited evidence
-is stale: it names `Jwt:Secret` at `appsettings.json:12` (now `:37`, value `""`, externalised
-by `M0-03`) and claims the Api project is untracked (tracked since `623b1e1`). Every
-Confirmed row in the new inventory must carry a `file:line` re-derived against current
-`master`, not copied from the archived branch.
+### The shape of this task — same pattern as M0-04
 
-### What this task will actually produce this session
+Deliberately split in two, per the task file's own *"The credential problem, stated
+honestly"* section:
 
-1. A rotation runbook — ordered, executable steps for a human with production access.
-2. A complete credential inventory across `M0-04`'s ten `source_files` (see `tasks/M0-04.md`
-   frontmatter) plus any non-file consumers (env vars, CI secrets, tenant DB rows).
-3. A verification checklist, per credential, objective and tickable.
-4. Confirmation that Q-19 is recorded as answered (it already is — 2026-08-12).
-5. **The actual rotation only if a human with production SQL / GST gateway access
-   participates in this session.** If nobody does, the honest close is `Blocked`, named to
-   an owner (Vivek) — not `Completed`.
+1. **Phase 1 (AI-deliverable, this session's actual scope):** a **read-only** SQL script that
+   checks `sys.indexes` for a unique constraint on every document-number series, **and**
+   scans for existing duplicate numbers under the correct scoping — plus a runbook telling a
+   named DBA exactly how to run it and what to send back.
+2. **Phase 2 (human, not this session):** a **named DBA**, using their own production
+   credentials, actually executes the script against at least one named tenant database and
+   returns the raw output.
+
+**If phase 2 does not happen during this session, the honest close is `Blocked`** (owner:
+Vivek, or whoever is named as the DBA) — **not** `Completed`, and not a failure. This is the
+task's own designed *Target Result*, identical in shape to `M0-04`'s.
+
+### What phase 1 must produce
+
+1. The SQL script — one `sys.indexes` check plus one duplicate-count query per document
+   series named in KB-100 §9, self-identifying its output (tenant name, run timestamp) so a
+   DBA doesn't have to annotate it, with the "awaiting DBA output" marker left in place until
+   phase 2 lands. Must account for two findings already on record: `DcRunningNumbers` /
+   `InvoiceAutoRunningNumbers` have no unique index on their own logical key in the model
+   either, and `Suffix` is stored **with a leading slash** (`/2025-26`) — a naive
+   `WHERE Suffix = '2025-26'` silently returns nothing.
+2. The runbook — names **the** DBA and **the** tenant database(s) requested, not generic
+   placeholders (reuse M0-02's tenant list/DBA contact if that task has already run).
+3. A results document (KB-101, to be created) with an empty results section and the
+   `<!-- awaiting DBA output -->` marker, ready for phase 2's verbatim paste.
+4. Two commits, per the task file's own plan — phase 1 (script + runbook) now, phase 3
+   (results + Q-10 answer + R-12 update) only if/when a DBA returns output.
 
 ### Classification (KB-091 §4)
 
-`task_type: Security` → base **HIGH** (§4.1, no further raise needed). Risk **HIGH** (§4.3 —
-`task_type: Security`, and the task concerns credentials directly). Per §5.1/§5.2: Investigate
-`opus`, Implement `opus`, Validate `opus` (risk HIGH forces `opus` for validation regardless
-of complexity).
+`task_type: Database` → base **MEDIUM** (§4.1). One raise applies: the task touches document
+numbering directly (§4.2) → **complexity HIGH**. Risk **MEDIUM** (§4.3 default — not
+`Security`/`Product Decision`, no schema change since the script is read-only, no
+secrets/credentials/`Program.cs`/`appsettings*` touched, `business_rules` empty in
+frontmatter, and phase 1 changes no code path a live Blazor user observes). Per §5.1
+HIGH-complexity routing: Investigate `opus`, Implement `opus`, Validate `opus`.
+
+`requiresHuman`: **the DBA-execution half (phase 2) needs production database access this
+session cannot provide** — flagged, not a start-blocker. Phase 1 is fully AI-executable.
 
 ### Carried forward — still true, unaffected by this selection
 
-- **`M0-06`** (`Ready`, P1) still fails part 5: sibling branch
-  `migration/M0-06-remove-default-admin` still exists, unmerged.
-- **`M0-11`** (`Ready`, P0) still fails part 2: `task_type: Product Decision`, owner-only,
-  never self-selectable.
-- **`M2-A03`** (`Blocked`) still needs a human to mark the `api-contract`/`build` CI job a
-  *required* status check on `master`, or accept it as a standing manual gate. Owner: Vivek.
-- **Q-71** (open-questions.md) is still open — untouched by this selection.
-- **R-43** (no `WebApplicationFactory` host in `tests/V.SMART.Api.Tests`) is still open.
-- Outstanding owner decisions unrelated to `M0-04` (`Q-38`, `Q-82`, merging the several
-  `Needs Review` branches — `M2-A02`, `M2-A09`, `M2-A10`, `M2-B10` at last check) are
-  unchanged — see `task-tracker.md` § Current state.
+- **`M0-11`** (`Ready`, P0) still fails part 2 of the five-part test: `task_type: Product
+  Decision`, owner-only, never self-selectable (KB-091 §8).
+- **`M0-04`** is closed `Blocked` (by design) and merged to `master` at `ad75915`. Do not
+  re-open or re-run it — its document deliverables are complete; what remains is human
+  rotation, named to Vivek and three other unassigned roles (see `task-tracker.md` footnote
+  ⁷¹ for the full escalation list: C-1…C-7, Q-84).
+- **`M2-C10`** (`Blocked`⁸⁵) is gated on **Q-85** (money-as-string vs. `double` over the
+  wire) — an API-contract decision, owner-only.
+- **`M0-06`** (`Blocked`) is gated on **Q-25/Q-26** (whether `UserId = 1` is any tenant's sole
+  administrator, and how provisioning must avoid the seeded credential) — owner-only.
+- Several `Needs Review` branches remain unmerged and awaiting owner integration
+  (`M2-A02`, `M2-A09`, `M2-A10`, `M2-B10`, and now the `M2-B12-01` lineage's own successor
+  chain) — see `task-tracker.md` § Current state for the current list.
