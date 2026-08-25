@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-24
+last_verified: 2026-08-25
 dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
@@ -64,7 +64,7 @@ its children are `Completed` — it is never worked directly.
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Completed**² | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed**⁵ | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Completed**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
-| M0-04 | M0 | Rotate the exposed credentials | Security | **Ready**⁴˒⁷⁰ | P0 | — | 1 d | G0 |
+| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁷¹ | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Completed**¹¹ | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
 | M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Completed**⁸ | P0 | M0-03-01 | 0.5 d | G0 |
@@ -3025,3 +3025,42 @@ before the task starts.
 > alongside `sa` rather than reusing it, update the `Tenants` rows whose connection strings embed
 > the old login, verify before disabling, disable rather than drop so rollback works. **Harvest
 > them; re-derive the evidence.** `git show 1f905db:docs/runbooks/credential-rotation.md`.
+
+⁷¹ **M0-04: `Ready` → `Blocked` 2026-08-25, session close-out on
+`migration/M0-04-credential-rotation-runbook` (`e437fe5`).** The document work footnote ⁷⁰
+predicted is done — all four AI-deliverable artefacts (`docs/runbooks/credential-rotation.md`,
+the credential inventory, the human verification checklist, and confirmation that Q-19 is
+already answered) are complete and committed. **This is the task's own designed terminal
+state, not a failure**: its *Target Result* says exactly this outcome is `Blocked`, not
+`Completed`, when nobody with production access rotates anything during the session — and
+nobody did. Full record: [`tasks/M0-04.md`](tasks/M0-04.md) § Execution Record (2026-08-25).
+
+**Blocked on four named human roles, distinct from any task dependency** — none of these are
+tasks that can land on `master`; each is a person:
+
+| Role | Unblocks |
+|---|---|
+| `sysadmin` on `154.61.76.112,1533` and the dev SQLEXPRESS instance | C-1, C-2 — rotate the SQL logins |
+| Whoever can write to the master database's `Tenants` table | C-3 — repoint every tenant's connection string in the same window |
+| Whoever owns `V.SMART.Api`'s deployment configuration | C-4 — deploy a new `Jwt:Secret` |
+| Whoever owns the GST gateway / Bhargavi Soft-Tech licensing relationship | C-5 (gateway credential reset) and C-7 (vendor must re-key `LicenseProductKey.cs:28-29`, hardcoded and public — new this session, no rotation owner today) |
+
+**Two escalations this session found that footnote ⁷⁰ did not anticipate, both recorded in
+full in `INV-052` and `Q-84`:**
+
+1. The exposure is no longer confined to `V.SMART/` — `git grep -l` for the SA password at
+   `HEAD` now returns **five files, all under `docs/kb/`**, and the plaintext production
+   password sits at `docs/kb/risks/technical-debt-register.md:44`. `M0-05`'s history purge
+   alone will not remove these; they are current content at `HEAD`, not history. **Q-84**
+   asks the owner who redacts the KB and when.
+2. **C-7, not in the original C-1…C-6 inventory:** the AES key and IV that protect every
+   tenant's GST gateway credential are hardcoded and public at
+   `V.SMART/V.SMART.Shared/E_Invoice/LicenseProductKey.cs:28-29`. Rotating the gateway
+   credential alone (C-5) does not restore confidentiality while that key stands — the vendor
+   must re-key. This is a source change, outside this task's "no source file may be modified"
+   constraint, and has no owner yet.
+
+Not blocked on the repository being public — **Q-19 is already answered** (2026-08-12, owner
+decision to keep it public) and was re-verified today by INV-034's method (unauthenticated
+REST → `200`). R-01/R-02 (`technical-debt-register.md`) stay explicitly **open** until the
+runbook's §8 checklist is signed by a named person with a date.
