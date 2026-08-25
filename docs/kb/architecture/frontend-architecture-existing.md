@@ -16,7 +16,7 @@ database_tables: [UserColumnPreference, UserThemePreference, PrintSetting]
 business_rules: []
 status: complete
 confidence: confirmed
-last_verified: 2026-08-12
+last_verified: 2026-08-25
 dependencies: [KB-010, KB-013]
 ---
 
@@ -39,6 +39,38 @@ dependencies: [KB-010, KB-013]
 
 Mixing MudBlazor and Bootstrap means two overlapping design languages in one app —
 a consistency problem the redesign removes by construction.
+
+### List grids are QuickGrid, not MudBlazor — Confirmed, re-measured 2026-08-25 (M2-C05-01)
+
+A widely repeated assumption is wrong and is corrected here rather than left to be
+rediscovered. **`MudDataGrid` and `MudTable` appear in zero `.razor` files.**
+
+| Measurement | Result | Command |
+|---|---|---|
+| `.razor` files containing `<QuickGrid` | **93** | `grep -rl '<QuickGrid' --include=*.razor V.SMART` |
+| `.razor` occurrences of `MudDataGrid` | **0** | `grep -rn 'MudDataGrid' --include=*.razor V.SMART` |
+| `.razor` occurrences of `MudTable` | **0** | `grep -rn 'MudTable' --include=*.razor V.SMART` |
+| MudBlazor package version | **8.11.0** | `V.SMART/V.SMART.Shared/V.SMART.Shared.csproj:62` |
+
+MudBlazor **is** referenced and **is** used — for navigation, dialogs and inputs, per the table
+above. It is simply not what renders a list. Every list screen is
+`Microsoft.AspNetCore.Components.QuickGrid` inside hand-written Bootstrap 5 markup; the
+reference implementation is
+`V.SMART/V.SMART.Shared/Pages/CashFlow_Pages/Payments_Pages/PaymentList.razor:134-238`.
+
+Two consequences the migration depends on:
+
+- **`<QuickGrid Items="vm.AsQueryable()">` materialises the whole collection in the Blazor
+  circuit before rendering** (`PaymentList.razor:134`). KB-050's 10,000-row / 60 fps target is
+  therefore unreachable in the current architecture — not a tuning problem.
+- **Column metadata already has a canonical shape**, `V.SMART/V.SMART.Shared/ViewModels/GridColumn.cs:3-13`:
+  `Title`, `Field`, `IsVisible`, `IsDate`, `Width` (default `"120px"`), `Align` (a Bootstrap
+  *class name*, `"text-center"`, not a value) and `IsDetailColumn`. `M2-C05-01`'s TypeScript
+  column model mirrors those concepts deliberately, so `M2-C05-02` can round-trip persisted
+  preferences without a translation table that drifts.
+
+Recorded as INV-053 in [`investigation-registry.md`](../investigation-registry.md); it refines
+INV-006 rather than competing with it.
 
 ## Routing
 
