@@ -161,7 +161,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Completed**⁵³˒⁵⁴ *(merged to `master` on owner instruction 2026-08-24; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
-| M2-C05-01 | M2 | — server-paged table core | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blockers are `M2-C04-02`, `M2-B02`)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
+| M2-C05-01 | M2 | — server-paged table core | Frontend | **Needs Review**⁷⁰ *(both Hard prerequisites reached `Completed` and merged, so the `Blocked` reading was stale; implemented 2026-08-25, unmerged)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
 | M2-C05-02 | M2 | — column preferences + persistence | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P1 | M2-C05-01 | 3 d | G2 |
 | M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C06 | M2 | `RecordPickerDialog` | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P0 | M2-C05-01 | 1 wk | G2 |
@@ -264,7 +264,8 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**53 `Completed`, 2 `Needs Review`, 2 `Ready`, 33 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
+**53 `Completed`, 3 `Needs Review`, 2 `Ready`, 32 `Blocked`, 2 `In Progress`, 33 `Not Started`**
+*(as of the 2026-08-25 `M2-C05-01` close-out — one row moved `Blocked` → `Needs Review`)*.
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
 *estimates*, not rows. (2026-08-24 close-out: `M2-A09` moved `Ready` → `Needs Review`,
 implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰. Later the same day,
@@ -282,6 +283,20 @@ and merged, so `M2-B10` stayed `Blocked` at that point.)* **Most recent event, a
 Review` — see footnote ⁶⁷. No row on the tracker now reads `Ready` and clears the five-part
 "can actually be done" test — `M0-06` and `M0-11` fail it as above, and no other row is `Ready`.
 No task is currently selectable.**
+
+**Correction and most recent event — 2026-08-25: `M2-C05-01` was never actually blocked.** Its
+row read `Blocked`⁴⁶ with the note *"real blockers are `M2-C04-02`, `M2-B02`"* — but `M2-B02`
+reached `Completed` and merged (`feec964`) on 2026-08-20 and `M2-C04-02` on 2026-08-23, and
+nothing moved the row. Its own task file's frontmatter still read `status: Not Started`, not
+`Blocked`, which is the tell. The five-part "can actually be done" test was re-run against it
+directly and it passes all five: both Hard prerequisites `Completed` **and merged**; `task_type:
+Frontend`, not `Product Decision`; no unanswered question in `open-questions.md` gating it; no ⛔
+banner (`M2-C12-03` re-specified it for Angular on 2026-08-22 and removed the banner in the same
+change); and no sibling branch on `frontend/nexgen-web/src/app/shared/components/data-grid/`
+(`git ls-remote --heads origin`, run 2026-08-25). It was therefore selected and executed — see
+footnote ⁷⁰. **The lesson worth carrying: a `Blocked` row whose stated blockers have since merged
+is a stale row, not a blocked task. Re-derive readiness from the prerequisites, not from the
+status column.** `M0-06` and `M0-11` are unchanged and still fail the test as above.
 
 **`M2-C13` `Completed` and merged** to `master` 2026-08-24 (`2328c94`; footnotes ⁵⁶ and ⁵⁷) —
 deferred the confirm-dialog host, initial bundle **711.75 kB → 571.20 kB raw**, no budget
@@ -2992,3 +3007,51 @@ disagreement was invisible until the remote said so. **This is a question for th
 defect to fix unilaterally:** either the PR rule is the intended workflow and execution sessions
 should be producing PRs rather than local merges, or the rule is vestigial and should be relaxed
 to match how the repository is actually operated. Raised as **Q-82** — `Q-77` was already taken; ids now run to `Q-81`, and `Q-82` was checked against `git branch --no-merged master` before claiming.
+
+⁷⁰ **`M2-C05-01` implemented 2026-08-25 on branch `claude/unblocked-task-execution-pjyouv`;
+`Needs Review`, unmerged.** The task file's Git Strategy names
+`migration/M2-C05-01-datagrid-core`; the branch actually used was the one this session was
+instructed to develop on by its harness, and that deviation is recorded here rather than
+silently reconciled.
+
+**Selected because the `Blocked` row was stale, not because the rule was bent.** See the
+*Correction* paragraph in § Current state: both Hard prerequisites were `Completed` and merged
+weeks before, and the task file's own frontmatter still read `status: Not Started`.
+
+**The measurement was run first, as the task file requires, and it passed.** A throwaway
+`p-table` fixture (10,000 rows, 8 columns, 36 px rows) under headless Chromium 141 gave **35
+rendered `<tr>`** at rest, **45** during a fling, a **16.7 ms median frame** and a 16.7–16.8 ms
+p95 in every scenario — the 60 fps target, met. Had it failed, the task file required escalation
+rather than a silent fall back to a second grid library; it did not. Recorded in
+[KB-050 § Performance targets](../frontend-new/react-architecture.md#performance-targets) and as
+**INV-052**. The fixture was deleted; it is not in the diff.
+
+**Delivered:** `DataGridComponent<TRow>` + `DataGridQueryState` + the query adapter, the header
+row, the pager and the keyboard model, in
+`frontend/nexgen-web/src/app/shared/components/data-grid/` (13 files, 3 of them specs). 47 new
+tests, covering all 15 the task file lists, including the `axe` scan on a populated and an empty
+grid in both themes. Seams for `M2-C05-02` (`columnVisibility`) and `M2-C05-03` (`#empty`,
+`#error`, `#toolbar`) are typed and reachable, each marked `TODO(<task id>)`.
+
+**Three deviations, each stated in the code and in `data-grid/README.md`:** the two selection
+checkboxes are native, because `app-checkbox` has no indeterminate state and adding one would
+edit M2-C04-02's file; `DataGridHeaderComponent`'s selector is `tr[appDataGridHeader]`, because a
+`<thead>` may contain only `<tr>`; stylesheets are `.scss`, not the `.css` the task file names,
+because `angular.json` sets `inlineStyleLanguage: scss` and every sibling directory is `.scss`.
+
+**Two findings recorded rather than worked around.** **INV-052:** M2-B10 generates the paged
+envelope **once per resource, never generically** — OpenAPI 3.0 has no generics — so a grid
+generic over `TRow` cannot import a generated envelope and declares a structurally identical
+`DataGridPage<TRow>` in its single adapter module. Not a defect in M2-B10, and no change is
+needed there. **R-76:** `npm run test:ci` is **already intermittently red on `master`** — proven
+by stashing this branch's tree and running the untouched `master` five times, two clean and three
+red, the named failure being DOM leaking between spec files. Not caused by this task and not
+fixable inside it; the fix belongs to whoever owns the frontend test harness, the same gap R-70
+records.
+
+**Bundle unchanged:** initial total **571.20 kB raw / 136.72 kB transfer**, byte-identical to the
+pre-task baseline, because nothing imports the `shared/components` barrel eagerly (R-69's lesson,
+held).
+
+**Not merged, and `Completed` is not this session's to set**
+([KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed)).

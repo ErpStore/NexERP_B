@@ -1,0 +1,97 @@
+@if (showSelectAll()) {
+  <th
+    scope="col"
+    class="app-data-grid__cell app-data-grid__cell--select"
+    role="columnheader"
+    [attr.tabindex]="tabIndexFor(0)"
+    [attr.data-row]="headerRow"
+    [attr.data-col]="0"
+    (focusin)="onCellFocus(0)"
+  >
+    <!--
+      A native checkbox, deliberately, and the one place this component departs
+      from M2-C04-02's control vocabulary. `app-checkbox` has no indeterminate
+      state (checkbox.component.html has no `indeterminate` binding), and
+      "some rows on this page are selected" has to be distinguishable from
+      "none are" - WAI-ARIA's own select-all pattern. Adding the input to
+      `app-checkbox` would edit a file this task does not own.
+    -->
+    <input
+      type="checkbox"
+      class="app-data-grid__select-all"
+      [checked]="allOnPageSelected()"
+      [indeterminate]="someOnPageSelected() && !allOnPageSelected()"
+      [attr.aria-label]="
+        allOnPageSelected() ? 'Deselect all rows on this page' : 'Select all rows on this page'
+      "
+      (change)="onSelectAll($event)"
+    />
+  </th>
+}
+@for (column of columns(); track column.field; let i = $index) {
+  <th
+    scope="col"
+    role="columnheader"
+    class="app-data-grid__cell app-data-grid__cell--header"
+    [class.app-data-grid__cell--frozen-left]="column.frozen === 'left'"
+    [class.app-data-grid__cell--frozen-right]="column.frozen === 'right'"
+    [class.app-data-grid__cell--numeric]="column.numeric === true"
+    [attr.data-priority]="column.priority ?? 'normal'"
+    [attr.data-field]="column.field"
+    [attr.aria-sort]="ariaSort(column)"
+    [attr.tabindex]="tabIndexFor(i + columnOffset())"
+    [attr.data-row]="headerRow"
+    [attr.data-col]="i + columnOffset()"
+    [style.text-align]="align(column)"
+    [style.width]="width(column)"
+    (focusin)="onCellFocus(i + columnOffset())"
+    (click)="onHeaderActivate(column, $event)"
+    (keydown.enter)="onHeaderActivate(column, $event)"
+    (keydown.space)="onHeaderActivate(column, $event)"
+  >
+    <span class="app-data-grid__header-label">{{ column.title }}</span>
+    @if (isSortable(column)) {
+      <span class="app-data-grid__sort-indicator" aria-hidden="true">
+        @switch (direction(column)) {
+          <!--
+            Literal glyphs, not numeric character references. A numeric
+            reference for one of these arrows is a hash followed by four
+            digits, which the R-22 scan in core/theme/no-raw-colour.spec.ts
+            reads as a hex colour - a false positive worth avoiding rather
+            than exempting.
+          -->
+          @case ('asc') {
+            <span>▲</span>
+          }
+          @case ('desc') {
+            <span>▼</span>
+          }
+          @default {
+            <span class="app-data-grid__sort-indicator--idle">◆</span>
+          }
+        }
+      </span>
+    }
+    @if (resizable()) {
+      <!--
+        Reachable with Tab from its own header cell and nowhere else: the ARIA
+        grid pattern keeps one tab stop for the grid, and Tab inside the
+        focused cell moves to the widgets that cell contains. A handle that was
+        always tabbable would add one tab stop per column.
+      -->
+      <span
+        class="app-data-grid__resize-handle"
+        role="separator"
+        aria-orientation="vertical"
+        [attr.aria-valuenow]="resizeWidth(column)"
+        [attr.aria-valuemin]="minWidthPx"
+        [attr.aria-valuemax]="maxWidthPx"
+        [attr.tabindex]="tabIndexFor(i + columnOffset())"
+        [attr.aria-label]="'Resize column ' + column.title"
+        (click)="$event.stopPropagation()"
+        (keydown)="onResizeKeydown(column, $event)"
+        (pointerdown)="onResizePointerDown(column, $event)"
+      ></span>
+    }
+  </th>
+}
