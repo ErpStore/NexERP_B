@@ -13,6 +13,50 @@ last_verified: 2026-08-25
 dependencies: [KB-089, KB-091, KB-092, KB-081]
 
 selection_note: |
+  2026-08-25 Select-only pass (this session), tip `701eef2` on `master`, tree clean
+  (`git status --porcelain` empty, `git branch --show-current` = `master`). `Status` row read
+  `STOPPED` (M0-06 merge record) — no human stop request found. `current-task.md` is stale
+  relative to this HEAD: it still describes the `M2-B10` close-out and does not mention the
+  `M0-06` merge (`b057ceb`/`701eef2`) or a branch discovered this pass, so step 2 ("current
+  task not finished, resume it") could not be trusted from that file alone and was checked
+  directly against git and the tracker instead.
+
+  Re-ran the five-part test against every `**Ready**` row in `task-tracker.md`: only two —
+  `M0-04` (line 67, footnote ⁴˒⁷⁰) and `M0-11` (line 86). `M0-06` is no longer `Ready`; the
+  merge (`b057ceb`) closed it `Blocked` on Q-25/Q-26 (tracker line 84), so it drops out of
+  consideration entirely, not just failing a part.
+
+  **`M0-11` still fails part 2** — `task_type: Product Decision`, owner-only, never
+  self-selectable (KB-091 §8).
+
+  **`M0-04` fails part 5, and this is a new finding this pass.** Tracker footnote ⁷⁰ reopened
+  `M0-04` `Blocked → Ready` at `beee0f9` after renaming the *prior* stale branch to
+  `archive/M0-04-runbook-stale-lineage`. But `git branch --no-merged master` (re-run this
+  pass) shows a **second, live** `migration/M0-04-credential-rotation-runbook` branch —
+  `git merge-base master migration/M0-04-credential-rotation-runbook` = `beee0f9` itself, i.e.
+  it was cut from that exact "now selectable" commit, not from the earlier stale point. Its
+  4 commits (`e437fe5`, `622cc9e`, `1133cfc`, `5b67161`) show a full M0-04 attempt already ran
+  there: all four AI-deliverable artefacts committed (`docs/runbooks/credential-rotation.md`,
+  the credential inventory, the verification checklist, Q-19 confirmed already answered), the
+  task closed in its own designed terminal state `BLOCKED` (no human with production access
+  participated — the task's own *Target Result* requires exactly this when that happens), and
+  that branch's own subsequent select-only passes (`1133cfc`, `5b67161`) independently found
+  nothing else dependency-ready either. None of this is merged into `master` — `git
+  merge-base --is-ancestor e437fe5 master` fails — so `master`'s tracker/footnote ⁷⁰ and
+  `current-task.md` are simply unaware of it; the two lineages diverged at `beee0f9` when
+  `master` went on to merge `M0-06` instead. Selecting `M0-04` again from `master` now would
+  cut a **second** branch duplicating work already done and already closed on the first one —
+  exactly the "sibling branch already open on the same files" condition part 5 exists to catch,
+  and exactly the runner-has-no-concurrency-control failure mode: re-running would not advance
+  the task, only fork it. **`M0-04`'s real status is the unmerged branch's `BLOCKED`, awaiting
+  owner review/merge, not `Ready` for a fresh attempt.**
+
+  No other tracker row reads `Ready`. **No task selected this pass — `nextTaskId` returned
+  empty.** `current-task.md` was not rewritten by this pass (selection-only instructions), but
+  it is now stale on three counts a future session should reconcile: the `M0-06` merge, the
+  `M0-04` branch's completed/`Blocked` outcome, and footnote ⁷⁰'s `Ready` label being
+  superseded by that outcome. Previous note, superseded by the above:
+
   2026-08-25 Select-only pass (this session), tip `5d7c8df` on `master`, tree clean
   (`git status --porcelain` empty, `git branch --show-current` = `master`). `Status` row
   already read `STOPPED` (not `STOP_REQUESTED`) — no human stop request found.
@@ -366,7 +410,9 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `STOPPED` — **`M0-06` merged to `master` 2026-08-25 on owner instruction (`b057ceb`, `--no-ff`); nothing pushed.** The branch was 240 commits behind `master`; **no code conflicted** — all 8 conflicts were `docs/kb/` bookkeeping. Resolutions: `task-tracker` took `master`'s `M0-10` (`Completed`) and the branch's `M0-06` (`Blocked`¹⁶); `runner-state` and `current-task` took `master`'s, 240 commits newer; `investigation-registry` took `master`'s with `INV-035`'s stale *reserved* row updated to `Complete` and `INV-038` released; `INDEX`, `open-questions`, `failure-log` and `prompt-template` were unioned. **One semantic break `git` could not detect:** the branch's new namespace `V.SMART.Shared.Tests.Data` shadowed the *relative* `Data.ApplicationDbContext` in `master`'s `UserRepositoryQrTokenTests` (added after the branch was cut), so the merged tree failed to compile until both references were qualified `global::V.SMART.Shared.Data.ApplicationDbContext`, matching `NoPagesReferenceFromDomainTests.cs:57`. **Verified on the merged tree:** `V.SMART.Shared` **0 errors**; Shared tests **96 passed / 0 failed / 1 skipped** (91 + 6 new `SeedDataTests`); Api tests **508 passed / 0 failed**, unchanged from the recorded baseline. **`M0-06` did NOT close `Completed`** — its acceptance criterion 2 is still unmet, so the tracker row moved `Ready` → `Blocked` on **Q-25** and **Q-26**, both owner-only. **Net effect on selection: the pool did not grow.** `Ready` is now exactly `M0-04` and `M0-11`, both of which still fail the five-part test (`M0-04` is `Blocked` in substance on its own branch; `M0-11` is a `Product Decision`). **Residual exposure, measured this pass:** the published PBKDF2 hash is still at `HEAD` in **109** `.cs` files under `Migrations/`; **1** of them (`20260217110637_InitialCreate.cs:7562`) is a real `InsertData` that provisioning replays — the other 108 are `.Designer.cs` snapshots. Removing the seed from the model does **not** remove it from the provisioning path; that is exactly what Q-26 asks the owner to decide. `nextTaskId`: none. |
+| **Status** | `BLOCKED` — **No dependency-ready task remains.** Select-only pass at master tip `701eef2` on `master`, tree clean (`git status --porcelain` empty, `git branch --show-current` = `master`). Re-ran the five-part "can actually be done" test against every `**Ready**` row in `task-tracker.md`: only `M0-04` (line 67) and `M0-11` (line 86) read `Ready`. `M0-11` fails part 2 (`task_type: Product Decision`, owner-only, never self-selectable per KB-091 §8). `M0-04` fails part 5: a **live, unmerged** `migration/M0-04-credential-rotation-runbook` branch (cut from `beee0f9`, the very commit that reopened `M0-04` as `Ready`) already ran the full task and closed it in its own designed terminal state `BLOCKED` (all four AI-deliverable artefacts committed: runbook, credential inventory, verification checklist, Q-19 confirmation), independently of `master`'s tracker/footnote ⁷⁰ which is simply unaware of that branch. Selecting `M0-04` again would fork a duplicate second attempt rather than advance the task. `M0-06` itself is no longer `Ready` at all (merged, closed `Blocked` on Q-25/Q-26). No other tracker row reads `Ready`. **Conclusion: nothing is dependency-ready and selectable this pass; `nextTaskId` is empty. Who can unblock it: owner Vivek** — must either merge the M0-04 branch with its BLOCKED outcome, or answer Q-25/Q-26 to unblock dependent tasks. See `selection_note` for the full evidence trail. `current-task.md` left unrewritten (selection-only pass) but is now stale on the `M0-06` merge, the `M0-04` branch's outcome, and footnote ⁷⁰. Previous status, superseded by the above: |
+
+| **Status (previous, superseded)** | `STOPPED` — **`M0-06` merged to `master` 2026-08-25 on owner instruction (`b057ceb`, `--no-ff`); nothing pushed.** The branch was 240 commits behind `master`; **no code conflicted** — all 8 conflicts were `docs/kb/` bookkeeping. Resolutions: `task-tracker` took `master`'s `M0-10` (`Completed`) and the branch's `M0-06` (`Blocked`¹⁶); `runner-state` and `current-task` took `master`'s, 240 commits newer; `investigation-registry` took `master`'s with `INV-035`'s stale *reserved* row updated to `Complete` and `INV-038` released; `INDEX`, `open-questions`, `failure-log` and `prompt-template` were unioned. **One semantic break `git` could not detect:** the branch's new namespace `V.SMART.Shared.Tests.Data` shadowed the *relative* `Data.ApplicationDbContext` in `master`'s `UserRepositoryQrTokenTests` (added after the branch was cut), so the merged tree failed to compile until both references were qualified `global::V.SMART.Shared.Data.ApplicationDbContext`, matching `NoPagesReferenceFromDomainTests.cs:57`. **Verified on the merged tree:** `V.SMART.Shared` **0 errors**; Shared tests **96 passed / 0 failed / 1 skipped** (91 + 6 new `SeedDataTests`); Api tests **508 passed / 0 failed**, unchanged from the recorded baseline. **`M0-06` did NOT close `Completed`** — its acceptance criterion 2 is still unmet, so the tracker row moved `Ready` → `Blocked` on **Q-25** and **Q-26**, both owner-only. **Net effect on selection: the pool did not grow.** `Ready` is now exactly `M0-04` and `M0-11`, both of which still fail the five-part test (`M0-04` is `Blocked` in substance on its own branch; `M0-11` is a `Product Decision`). **Residual exposure, measured this pass:** the published PBKDF2 hash is still at `HEAD` in **109** `.cs` files under `Migrations/`; **1** of them (`20260217110637_InitialCreate.cs:7562`) is a real `InsertData` that provisioning replays — the other 108 are `.Designer.cs` snapshots. Removing the seed from the model does **not** remove it from the provisioning path; that is exactly what Q-26 asks the owner to decide. `nextTaskId`: none. |
 
 | **Status (previous, superseded)** | `STOPPED` — **`M0-04` was unblocked 2026-08-25 and is now the selectable task; tip `b96e33b`.** Three prior Select passes correctly found nothing ready, but all of them — and several of this session's reports — treated `M0-04` as blocked on production access. **It is not.** Every one of its acceptance criteria is a document, and its *Target Result* states it closes **`Blocked`** if no human performs the rotation (step 10: *"Do not report Completed because the documents were written"*). The owner's 2026-08-19 deferral described the **rotation**, and was applied to the whole task. Q-19, its first step, was already answered 2026-08-12. **Part 5 cleared without waiving it:** the stale sibling `migration/M0-04-credential-rotation-runbook` (one commit, **324 behind `master`**) was renamed **`archive/M0-04-runbook-stale-lineage`**, preserving its 269-line runbook at `1f905db`. **That runbook is to be harvested, not merged** — its procedures are sound and stack-independent, but its evidence is stale (`Jwt:Secret` cited at `appsettings.json:12`; it is at `:37` with value `""` since `M0-03`, and the Api project has been tracked since `623b1e1`). Owner: **Vivek**. |
 | **Status (previous, superseded)** | `STOPPED` — **`M2-B10` merged 2026-08-25; `master` pushed to `origin` (164 commits, `2a45330..d4c9f60`).** G2 criterion 4 is **met**. `M2-B10` closed KB-114 §13's gaps rather than documenting them — 45 `[ProducesResponseType]` added, the 404 on `GET /currencies/{id}` and the 409 on `DELETE` now present — then committed `api/openapi.json` and 62 generated client files with a CI job that regenerates and diff-checks both. Verified on the merged result across both stacks: Api **0 errors / 6693 warnings**, **508 Api tests** (470 → 508), `typecheck`/`lint`/`format:check` clean, **309 frontend tests**, `build` exit 0, bundle **571.20 kB unchanged**. **Two findings from the push itself:** branch protection on `master` **exists** and requires pull requests (so `M2-A03`'s remaining item is an edit to an existing ruleset, not creating one — footnote ⁶⁹), and every merge in this run bypassed that rule with owner authority (**Q-82**). Owner: **Vivek**. |
