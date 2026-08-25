@@ -27,11 +27,36 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Selected task: M2-B12-02 — Verify unique constraints in a live tenant database (Q-10)
+## No active task — every remaining path needs a person, 2026-08-25
 
-Full spec: [`tasks/M2-B12-02.md`](tasks/M2-B12-02.md). Selected 2026-08-25, select-only pass,
-tip `92e8b28` on `master`, tree clean. **Not yet dispatched — attempt 0.**
+**`M2-B12-02` phase 1 is merged** (`02e4c7a`). The read-only census script
+(`docs/kb/execution/runbooks/Q-10-numbering-constraints.sql`, 51 series) and **KB-101**, its
+DBA runbook, are on `master`. The task is **`Blocked`**, not `Completed` — phases 2 and 3
+need a named DBA to run the script and return the output. **Do not re-run phase 1**; it is
+done, and `master` now says so, which is what stops a runner pass rebuilding it.
 
+**Nothing on the tracker is self-selectable.** The only `Ready` row is **`M0-11`**, a
+`Product Decision`, which [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks)
+makes owner-only. Seven consecutive runner passes have now halted at Select.
+
+> 🚩 **Two passes stopped on `M2-B12-02` without attempting phase 1**, each having stated in
+> its own stop reason that phase 1 was *"fully AI-executable"*. `requiresHuman` is being read
+> as a gate on **starting** a two-phase task; it is not one. The same pattern cost `M2-C10`
+> two days (footnote ⁸⁵). Phase 1 here was eventually delivered by an interactive session, not
+> by the runner. **This is a runner defect, not a task defect.**
+
+### What unblocks work, and who owns it
+
+| Needs | Owner | Releases |
+|---|---|---|
+| A **named DBA** in KB-101 §2, then §3 run against one named tenant | Vivek to name | `M2-B12-02` phases 2–3, then **Q-10** and **R-12**, then `M2-B12-03` |
+| **Q-01** — silent FIFO under-issue | Vivek | `M0-11`, the only `Ready` row |
+| **Q-85** — should money cross the wire as a string, not a JSON number? | Vivek | `M2-C10` |
+| **Q-25 / Q-26** — is `UserId = 1` any tenant's only admin; how must provisioning avoid the seed | Vivek | `M0-06`'s criterion 2 |
+| **Q-84** — who redacts the SA and production passwords still at `HEAD` in `docs/kb/` | Vivek | `M0-05`'s scope |
+| **C-7** — the AES key/IV at `LicenseProductKey.cs:28-29` is public; the vendor must re-key | unassigned | `M0-04`'s C-5 |
+
+### Reference — M0-04's rotation is blocked on four named human roles
 ### Why this task, and why now
 
 `M2-B12-01` merged to `master` at `f10b5fc` (`Completed`), which is `M2-B12-02`'s sole Hard
