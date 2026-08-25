@@ -130,7 +130,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B03 | M2 | Codify the controller template | Documentation | **Completed**⁶⁵˒⁶⁶ *(merged to `master` on owner instruction 2026-08-24 — KB-114)* | P0 | M2-A02, M2-B02 | 2 d | G2 |
 | M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Blocked**³¹ *(⛔ premise falsified — needs re-specification by the owner; no code written, no branch)* | P1 | M2-B07 | 2 d | G2 |
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Completed**³² ³⁵ *(merged to `master` 2026-08-21, `65d9666`)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
-| M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
+| M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | **Blocked**⁷³ *(attempt 1, 2026-08-25 — `environment`, no code written: the pinned .NET SDK 10.0.400 is unobtainable in the execution environment. Its **prerequisites are all satisfied**, R-04 included)* | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Completed**³⁴ *(merged to `master` `501b12d` on owner instruction 2026-08-21)* | P1 | **M2-B07**, M2-B02, M2-B01 | 3 d | G2 |
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | **Completed**⁶⁷˒⁶⁸ *(merged to `master` on owner instruction 2026-08-25)* | P0 | M2-B03 | 3 d | G2 |
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
@@ -3104,4 +3104,28 @@ is GitHub branch-protection configuration, outside this repository and unsettabl
 execution session. That is the single criterion keeping `M2-A03` itself at `Needs Review`
 (footnote ⁶³), owner **Vivek**, and it is tracked there rather than duplicated as a second
 blocked row here.
+
+⁷³ **`M2-B08` attempt 1 stopped `BLOCKED` (`environment`) 2026-08-25, before any code was
+written. Owner: Vivek.**
+
+It was selected from a sweep of **every** row rather than only the `Ready` ones, and the
+selection was sound: `M2-B07` and `M2-A01-03` are `Completed` and merged, G0 is passed by the
+owner's 2026-08-19 decision, the file carries no ⛔ banner, no sibling branch exists, and the
+ADR-005 *mandatory prerequisite* — R-04, "82 of 94 procedures unscripted" — **has since been
+discharged**: `db/stored-procedures/` holds 82 scripted procedures, captured 2026-08-13 by
+`M0-01-02`. That sentence in the task file's Dependencies table is now false and is flagged there.
+
+**What stopped it is the toolchain, and the finding is bigger than this task.** `global.json`
+pins SDK `10.0.400` (`rollForward: latestFeature`, so feature band ≥ 4xx). The highest SDK
+obtainable in this environment is **10.0.111** — installed, then rejected by `global.json`, which
+is the observed output, not a prediction. The 4xx binaries come only from
+`builds.dotnet.microsoft.com`, which the network policy **denies at CONNECT with 403**;
+`api.nuget.org` is reachable, so restore was never the problem.
+
+**Therefore every `Backend`, `Security` and `Database` task is unrunnable in this environment**,
+not just this one. Only `Frontend`, `Documentation`, `Investigation` and frontend-side `DevOps`
+work can proceed until the owner either allows the CDN host, bakes the SDK into the image, or
+runs backend tasks on the workstation `global.json` was written for. Full entry, with the three
+options spelled out: [`failure-log.md` § M2-B08 · attempt 1](failure-log.md).
+
 
