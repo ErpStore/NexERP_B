@@ -46,6 +46,117 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-051 | **Which TypeScript client generator, scored against the real committed \`api/openapi.json\`, and what does a \`decimal?\` become on the wire?** | Complete *(2026-08-24, M2-B10)* | \`api/openapi.json\` (18 operations, 6 controllers, produced by \`dotnet swagger tofile\`); \`frontend/nexgen-web/src/app/core/api/generated/\`; \`.github/workflows/ci.yml\` job \`api-contract\`; four generators installed and actually run against that document | **Chosen: \`ng-openapi-gen\` 1.0.5.** The only candidate emitting Angular \`HttpClient\` services, which is what puts every call through the SPA's auth interceptor: \`currencies.getCurrencies({ pageNumber: 1, pageSize: 20 })\` returns \`Observable<CurrencyVMPagedResult>\`, schema names survive verbatim (\`camelizeModelNames: false\`), \`ProblemDetails\` is a named interface with \`title?: string \| null\` so ADR-002 §4's verbatim 409 message reaches the UI, and output is byte-identical on repeated runs. **Rejected, with reasons: \`@hey-api/openapi-ts\` 0.99.0** — best error typing of the four (per-status unions) but fetch-only (\`@hey-api/client-angular\` does not exist, npm 404), so it bypasses Angular's interceptor chain; also pre-1.0. **\`openapi-typescript\` 7.13.0** — types only, no methods, so every call site would be hand-written against a path string. **\`@openapitools/openapi-generator-cli\`** — needs a JRE; \`java\` is not installed on this workstation (\`command not found\`), so it would add a Java dependency to every developer machine and to CI. **Costs of the choice, recorded not hidden:** every JSON operation is emitted twice (\`getCurrencies\` and \`getCurrencies$Plain\`), because MVC's formatters genuinely accept \`text/plain\`/\`text/json\` and the document says so truthfully; and \`HttpErrorResponse.error\` is \`any\`, to be narrowed once in the wrapper layer. **The decimal answer, measured with a temporary probe property and then reverted:** \`decimal?\` → \`{"type":"number","format":"double","nullable":true}\` → \`probeNullableMoney?: number \| null;\`; non-nullable \`decimal\` → \`probeMoney?: number;\` (optional, because Swashbuckle does not mark value types \`required\`). Money crosses the boundary as an IEEE-754 double — **flagged to [M2-C10](execution/tasks/M2-C10.md), deliberately not resolved here**. **Negative results:** \`dotnet swagger tofile\` DOES work in this repository (the yes/no the task asked for), but only with FOUR environment variables, and its failure without them is the misleading "a type named 'Startup' could not be found"; nothing in startup opens a database connection, so placeholders suffice; and before this task there was no \`api/\` directory, no \`.config/dotnet-tools.json\` and no generator dependency anywhere. | [KB-112](api/generated-client.md) — Confirmed | 2026-08-24 |
 | INV-028 | Row-level scoping via `User.StateCodesCsv`, and the account gates it sits beside | Complete *(performed 2026-08-20 by M2-A08)* | `Data/Master/Admin_Module/User.cs`, `BusinessLayer/BusinessService/LeadService/LeadService.cs`, `.../ILeadService.cs`, `Pages/SalesAndLabour_pages/Leads_Pages/LeadsList.razor`, `.../LeadsUpsert.razor`, `Pages/Master_Module_pages/Identity_Pages/Login.razor`, `.../QrLogin.razor`, `.../RegisterUpsert.razor`, `Repository/MasterRepository/Admins/UserRepository.cs`, `BusinessLayer/.../UserService.cs`, `V.SMART.Api/**` — **plus four negative greps, listed below** | [KB-108](architecture/row-scope-and-account-gates.md) | 2026-08-20 |
 | INV-052 | **Credential usage inventory — every location each exposed credential is consumed from, including the ones that are not files** | Complete | `V.SMART/V.SMART.Web/appsettings.json`, `V.SMART/V.SMART.Api/appsettings.json`, `V.SMART/V.SMART.Shared/Data/MigrationData/*`, `V.SMART/V.SMART/MauiProgram.cs`, `V.SMART/V.SMART.Shared/Data/TenantInfo.cs`, `V.SMART/V.SMART.Shared/Services/MultiCompanyService/TenantDbContextFactory.cs`, `V.SMART/V.SMART.Shared/Services/StartupConfigurationValidator.cs`, `V.SMART/V.SMART.Shared/E_Invoice/LicenseProductKey.cs`, `.../EInvoiceAPIService/{EinvoiceDatabaseService,EWayDatabaseService}.cs`, `V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs`, `docs/CONFIGURATION.md`, `.github/workflows/ci.yml`, `git grep`/`git log -S` over `HEAD` and history | [`docs/runbooks/credential-rotation.md`](../runbooks/credential-rotation.md) §2. **Headline: the exposure has moved out of `V.SMART/` and into `docs/kb/`.** Zero credential literals remain under `V.SMART/` (M0-03-01/-02), but at `HEAD` the SA password is in **5** KB files, the production password at `docs/kb/risks/technical-debt-register.md:44`, and the default `Jwt:Secret` in **4** KB files — so **the task file's recorded negative result, "the JWT signing secret is not present in committed history", is FALSE on current `master`** (M0-00 carried it into `docs/`). Raised as **Q-84**. History is **353** commits, not one: `git log -S` over `V.SMART/` gives `c12c5b2` (introduced), `a43e18d`, `e6e5295` (removed). **C-3 mechanism re-confirmed:** per-tenant connection strings live in the master database's `Tenants` table, not in any file — `TenantInfo.cs:8`, dereferenced without a null guard at `TenantDbContextFactory.cs:19`, so a botched rotation is an opaque 500. **C-5 Unknown answered:** the gateway username/password are AES-encrypted inside `Companies.APIEinvoiceLicenseKey` (`EinvoiceDatabaseService.cs:152`, `EWayDatabaseService.cs:85`; unwrapped by `LicenseProductKey.GetUserName()` `:113` / `GetUserNameEway()` `:127`), so rotating them is a per-tenant data change, not a config change — and a malformed key calls `Environment.Exit(1)` (`LicenseProductKey.cs:123,138`; `EinvoiceDatabaseService.cs:182`), i.e. it kills the host, not just e-Invoicing. **New credential C-7:** the AES key and IV protecting every licence key are hardcoded at `LicenseProductKey.cs:28-29`, tracked and public — vendor-owned, not rotatable by this project. **Machine guard, so the runbook cites enforcement rather than instruction:** `StartupConfigurationValidator.cs:40-64,66-71,73,132` refuses known-old connection strings and any JWT secret under 32 UTF-8 bytes, called from `V.SMART.Api/Program.cs:28`, `V.SMART.Web/Program.cs:187`, `Auth/JwtTokenService.cs:24`. **Negative results, recorded so nobody re-searches:** no `${{ secrets.* }}` in `.github/workflows/ci.yml` (only the comment at `:12`); no `.pubxml`/`PublishProfiles`/`web.config`/Docker/`.env` tracked; no Key Vault or secret-manager client under `V.SMART/`; both `appsettings.Development.json` hold a `Logging` section only; `V.SMART/V.SMART/appsettings.json` holds only `UpdateSettings:SetupPath`; `V.SMART.Api/wwwroot/config/tenant.json:2-5` is a name and a UNC path, not a credential. **Unknown, not guessed:** the `Tenants` row count and which login each embeds; how many tenants hold a licence key; whether the logins were used from hosts outside this repository (**Q-15**); whether the values were ever pushed from another clone. Each needs production access this session must not have. Repository visibility re-verified public 2026-08-25 by INV-034's method (unauthenticated REST → `200`); a plain `git ls-remote` remains an invalid test. Confidence: **Confirmed** except where marked Unknown. | 2026-08-25 |
+| INV-012 | Document numbering + financial-year suffixes | **Complete** (2026-08-20, `M2-B12-01`) — *moved here from the Scheduled table, which had it as "~20 `SELECT TOP 1 …` repositories", an undercount* | `V.SMART/V.SMART.Shared/Repository/**` (all 36 files containing `TOP 1`), `BusinessLayer/BusinessService/CommonService.cs:1845-2201`, `SalesService/{MfgDcService,MfgInvService,ExpInvService,MfgPoService,PerformaInvService,ContractReviewService}.cs`, `LabourServices/{LabourInvoiceService,LabourDcOutgoingService}.cs`, `OutSourcingService/SubContractDcOutService/SubConDcOutService.cs`, `Services/FinancialYearHelper.cs`, `Repository/UnitOfWork.cs:798-801`, `Data/ApplicationDbContext.cs:579-618`, `Repository/{DcRunningNoRep,InvoiceAutoRunnNo}/*.cs`, `Pages/**` (53 files calling `GetFinancialYearSuffix`) | See the five evidence blocks immediately below this table | [KB-100](modules/document-numbering.md) | 2026-08-20 |
+
+**INV-012 evidence (2026-08-20, `M2-B12-01`) — five findings, in the
+[KB-083 evidence format](execution/prompt-template.md#evidence-format-mandatory-for-new-findings).**
+Full treatment in [KB-100](modules/document-numbering.md).
+
+```yaml
+Finding:        Document numbers are allocated by three distinct mechanisms, not one:
+                38 raw-SQL "SELECT TOP 1 ... ORDER BY TRY_CAST(<col> AS INT) DESC"
+                sites across 36 repository files; lock-free LINQ last-number reads in
+                StaffLoanRepository, AttendanceRepository and three services; and
+                read-modify-write against the DcRunningNumbers /
+                InvoiceAutoRunningNumbers allocation tables in CommonService and
+                inline in six document services - MfgDcService, MfgInvService,
+                ExpInvService, LabourInvoiceService, LabourDcOutgoingService and
+                SubConDcOutService. (Corrected 2026-08-20: this block first said
+                "four"; the undercount missed LabourDcOutgoingService and
+                SubConDcOutService. Full 26-line write census in KB-100 §3.3.)
+Evidence:       V.SMART/V.SMART.Shared/Repository/SalesAndLabourRepository/SalesDCRepository/MfgDcRepository.cs:29-41;
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/CommonService.cs:1845-1963;
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/CommonService.cs:2078-2201;
+                V.SMART/V.SMART.Shared/Repository/HumanResourceRepository/EmployeeLoanRepository/StaffLoanRepository.cs:31-47;
+                the six inline services, re-derived 2026-08-20 — 20 of the 26
+                allocation-table write lines (the other 6 are in CommonService),
+                each of them inside the KB-100 section 3.3 table:
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/SalesService/MfgDcService.cs:380,832,837;
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/SalesService/MfgInvService.cs:457,462,985;
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/SalesService/ExpInvService.cs:259,1215,1220;
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/LabourServices/LabourInvoiceService.cs:279,284,648;
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/LabourServices/LabourDcOutgoingService.cs:608,2732,2737,4538,4543,5189;
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/OutSourcingService/SubContractDcOutService/SubConDcOutService.cs:234,1595
+Business rule:  BR-DOC-001 … BR-DOC-010
+Confidence:     Confirmed
+Last verified:  2026-08-20
+```
+
+```yaml
+Finding:        R-12's claim of "no lock, no UPDLOCK" is wrong. 37 of the 38 raw-SQL
+                numbering statements carry WITH (UPDLOCK, ROWLOCK). The hint does not
+                prevent the race - it is a row lock, not a range lock, and outside an
+                explicit transaction it is released at statement end - but it has
+                already misled at least one reader. Where an explicit transaction DOES
+                wrap the read and the insert (MfgDcService.cs:802), UnitOfWork opens it
+                at the default READ COMMITTED isolation, so the phantom is still
+                permitted.
+Evidence:       V.SMART/V.SMART.Shared/Repository/OutSourcingRepository/DebitNote_Repository/DebitNoteRepository.cs:32-41;
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/SalesService/MfgDcService.cs:802;
+                V.SMART/V.SMART.Shared/Repository/UnitOfWork.cs:798-801
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-20
+```
+
+```yaml
+Finding:        Negative result - grepped V.SMART/ for HOLDLOCK, sp_getapplock,
+                IsolationLevel, Serializable, CREATE SEQUENCE and HasSequence.
+                Zero matches for all six. There is no serializable transaction, no
+                application lock and no database sequence anywhere in the solution.
+                Also negative: no numbering query carries a tenant column (consistent
+                with database-per-tenant, KB-014), and V.SMART.Api exposes nothing in
+                this area - grep of V.SMART.Api/ for runningno|GetLast.*NoAsync|Suffix|
+                DcNo|InvNo returns zero.
+Evidence:       git grep over V.SMART/ , 2026-08-20;
+                V.SMART/V.SMART.Api/Controllers/ (AuthController.cs, CurrencyController.cs only)
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-20
+```
+
+```yaml
+Finding:        The EF model declares exactly one document-number unique index -
+                MfgQuote(QuoteNo, Suffix). ApplicationDbContext.cs contains exactly
+                three IsUnique() calls; the other two are AssmblyDef(AssmblyID, ItemId)
+                and AssemblyDefLabour(AssmblyID, ItemId). No other document series is
+                protected in the model - and neither allocation table has a unique
+                index on its own logical key.
+Evidence:       V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs:579-582 (comment :579,
+                statement :580-582), :595, :618
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-20
+```
+
+```yaml
+Finding:        The financial-year question is ANSWERED: FinancialYearHelper produces
+                every stored Suffix ("/{yyyy}-{yy}"); CommonService's rival
+                "{yy}-{yy}" implementation is DEAD - its financialYear local is
+                assigned at :1851 and :1971 and never read anywhere in the file. The
+                two agree on the boundary (Month >= 4 and Month > 3 are the same
+                predicate). The suffix is computed in Razor @code in 53 files and
+                passed into the services as a parameter, so it must be extracted
+                server-side before any Angular document screen replaces one.
+Evidence:       V.SMART/V.SMART.Shared/Services/FinancialYearHelper.cs:11-17;
+                V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/CommonService.cs:1849-1851, :1969-1971;
+                V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/SalesDC_Pages/MfgDcUpsert.razor:1447;
+                V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/ContractReviewMaster_Pages/ContractReviewCheckListUpsert.razor:629
+Business rule:  n/a (recorded as a constraint under the BR-DOC block in KB-030)
+Confidence:     Confirmed
+Last verified:  2026-08-20
+```
+
+**INV-012 Unknowns, recorded rather than resolved by assumption.** Whether the live databases
+match the EF model (that is **Q-10**, answered by [`M2-B12-02`](execution/tasks/M2-B12-02.md));
+whether document numbers are embedded in e-Invoice / e-Way payloads in a *shape-sensitive* way
+(**Q-87** — INV-015 remains *Scheduled* and was deliberately **not** run, though the coupling
+itself is Confirmed at `EInvoiceAPIService/EWayDatabaseService.cs:216,227,239,251`); whether
+the `+1`-omitting "separate series" branch is design or defect (**Q-88**); whether a tenant
+database can hold more than one `Company` row (**Q-89**); and whether a stored
+`LastNumber = 0` — written by the six unguarded gap-avoiding decrement blocks when the
+first document of a financial year is deleted — is handled on the next allocation, given
+that the allocator initialises to `1` (**Q-86**).
 
 
 ## INV-046 (M2-B11, 2026-08-21) — the audit trail, and the dead `#if` branch
@@ -1210,7 +1321,7 @@ before it is used.
 
 | ID | Topic | Primary sources | Scheduled for |
 |---|---|---|---|
-| INV-012 | Document numbering + financial-year suffixes | ~20 `SELECT TOP 1 …` repositories, `DcRunningNumber`, `InvoiceAutoRunningNumber`, `FinancialYearHelper.cs` | Phase 2 (blocks R-12) |
+| ~~INV-012~~ | ~~Document numbering + financial-year suffixes~~ | **MOVED to *Completed* 2026-08-20 by `M2-B12-01`** — see the Completed table above. The old wording here ("~20 `SELECT TOP 1 …` repositories") was an undercount and is superseded by [KB-100](modules/document-numbering.md) | — |
 | INV-013 | Balance-quantity derivation across `Ref*SubId` chains | services + `@code` | Phase 3.5 |
 | INV-014 | Payroll calculation | `HumanResourceService/PayrollService/SalaryService.cs` | Phase 4.9 |
 | INV-015 | e-Invoice / e-Way payload construction and error handling | `E_Invoice/**`, `EinvoiceDatabaseService.cs` (2,136 LOC) | Phase 4.5 |

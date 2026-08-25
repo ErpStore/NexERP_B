@@ -1104,13 +1104,22 @@ scheduled. Nothing prevents a future `using` other than the guard above.
 **Inferred (high confidence)** — the risk stands, but **the stated cause was wrong**; see the
 correction below.
 
+> **Full inventory: [KB-100 `modules/document-numbering.md`](../modules/document-numbering.md)**
+> — produced 2026-08-20 by `M2-B12-01` (INV-012, now Complete). Read it before acting on this
+> entry: it carries the complete call-site inventory, the format catalogue, the financial-year
+> rules, the ten `BR-DOC` series-sharing rules and the concurrency analysis.
+> **The classification stays `Inferred (high confidence)` and must not be upgraded here** —
+> reading code proves a race is *possible*, not that one has *occurred*. Only `M2-B12-02`'s
+> live-database duplicate census can upgrade it.
+
 ~~Inferred. ~20 repositories derive the next document number with `SELECT TOP 1 * … ORDER BY
 … DESC` and no lock, no `UPDLOCK`, no serializable transaction, no DB sequence.~~
 
 > **Corrected 2026-08-12 (Confirmed).** Two errors, one of them dangerous:
 >
-> **1. The lock hint is already there.** All **36** repository files that derive a next
-> number use `FROM <Table> WITH (UPDLOCK, ROWLOCK)`. Example —
+> **1. The lock hint is already there.** **37 of the 38** raw-SQL sites — spread over all
+> **36** repository files that derive a next number — use
+> `FROM <Table> WITH (UPDLOCK, ROWLOCK)`. Example —
 > `SalesAndLabourRepository/SalesDCRepository/MfgDcRepository.cs:31-36`:
 > ```sql
 > SELECT TOP 1 * FROM MfgDc WITH (UPDLOCK, ROWLOCK)
@@ -1140,24 +1149,63 @@ correction below.
 > **Two constraints on the remedy, discovered with it:**
 > - `MfgDcService.cs:377-381` **decrements** `LastNumber` on delete, to avoid gaps. That
 >   rules out a plain `CREATE SEQUENCE`, which cannot be decremented.
+>   **Widened 2026-08-20 (M2-B12-01, Confirmed): there are EIGHT such blocks in SIX services,
+>   not one** — `MfgDcService.cs:377-381`, `LabourDcOutgoingService.cs:596-609` and
+>   `:5177-5190`, `SubConDcOutService.cs:222-235` and `:1583-1596`,
+>   `MfgInvService.cs:982-985`, `ExpInvService.cs:256-259` and
+>   `LabourInvoiceService.cs:645-648`. **Every auto-allocated document type decrements on
+>   delete**, so the constraint binds the whole remedy, not four services. **Guard census
+>   corrected 2026-08-20 (M2-B12-01 attempt 2, Confirmed): TWO of the eight carry the
+>   `&& runningRow.LastNumber > 1` guard, not one** — `LabourDcOutgoingService.cs:5186` and
+>   `SubConDcOutService.cs:1592`, which are identical lines. The other **six** omit it and
+>   can write `LastNumber = 0` — see **Q-86**.
 > - `MfgDcService.IsDuplicateDcNoAsync:771-790` scopes uniqueness **by `CustId`**, so an
 >   unqualified `(DcNo, Suffix)` unique index would reject data the application currently
->   accepts.
+>   accepts. **Corrected 2026-08-20:** the census is **81 `IsDuplicate*Async` occurrences
+>   across 59 files**, not the 62/41 previously circulated; scoping varies by module and is
+>   tabulated in [KB-100](../modules/document-numbering.md) §7.
 >
 > **Related defect (Confirmed):** `CommonService.cs:1957-1961` swallows its exception and
 > returns `null`, so a failed allocation silently yields a null document number.
+> **Added 2026-08-20:** the invoice allocator does the same at `CommonService.cs:2195-2199`,
+> and `MfgPoService.GetNextSaleOrderNoAsync:1656-1659` **fails open** — its `catch` returns
+> the literal `"SO-0001"`, so a transient fault yields a number that very probably already
+> exists.
 >
-> **Related divergence (Confirmed):** there are **two** financial-year implementations with
-> the **same boundary but different output shapes** — `FinancialYearHelper.cs:13`
-> (`Month >= 4` → `"/{yyyy}-{yy}"`) and `CommonService.cs:1849-1851` (`Month > 3` →
-> `"{yy}-{yy}"`). Which one reaches the stored `Suffix` is **Unknown** and is M2-B12-01's
-> job. **M2-B12-03 is forbidden from unifying them** — the suffix is user-visible on
-> statutory documents.
+> **Related divergence — the open half is now ANSWERED (Confirmed, 2026-08-20, M2-B12-01).**
+> There are **two** financial-year implementations with the **same boundary but different
+> output shapes** — `FinancialYearHelper.cs:13` (`Month >= 4` → `"/{yyyy}-{yy}"`) and
+> `CommonService.cs:1849-1851` (`Month > 3` → `"{yy}-{yy}"`).
+> ~~Which one reaches the stored `Suffix` is **Unknown** and is M2-B12-01's job.~~
+> **`FinancialYearHelper` produces every stored `Suffix`; the `CommonService` version is dead
+> code** — its `financialYear` local is assigned at `:1851` and `:1971` and **never read**
+> (a `grep` over that file returns exactly those two lines, both assignments), and the
+> allocators scope on the `suffix` *parameter*, which 53 Razor pages populate from
+> `FinancialYearHelper`. The divergence is therefore **latent, not active**.
+> **M2-B12-03 is still forbidden from unifying them** — the suffix is user-visible on
+> statutory documents, and a refactor that routed the `{yy}-{yy}` shape into storage would
+> change how a statutory document reads.
+>
+> **4. A SECOND discriminator, with inverted values (Confirmed, 2026-08-20).** Alongside
+> `Company.BookTypeDc`, `GenerateInvoiceAutoRunningNoAsync` (`CommonService.cs:2078-2201`)
+> branches on `Company.BookTypeInvoice` — and **its values 1 and 2 mean the opposite of the
+> DC allocator's**. Ten branches in total, registered as `BR-DOC-001`…`BR-DOC-010` in
+> [KB-030](../business-rules/business-rule-inventory.md). A remedy that covers only
+> `BookTypeDc` misses half the rules.
+>
+> **5. ~7 of the 38 raw-SQL sites are DEAD CODE (Confirmed, 2026-08-20).** `GetLastDcNoAsync`
+> (3 repositories), `GetLastInvNoAsync`, `GetLastExpInvNoAsync`, `GetLastLabInvoiceNoAsync`
+> and `GetLastReqNoAsync` have **no live caller** — every remaining reference is a
+> commented-out line. **The remedy surface is 31 live sites, not 38.**
 **Impact.** Concurrent creation produces duplicate document numbers. Currently masked by
 low concurrency in Blazor Server; an API will increase concurrency.
-**Action.** Verify against the live schema for unique constraints (Q-10). Replace with a
-DB sequence or a `sp_getapplock`-guarded allocation. Add idempotency keys on create
-endpoints.
+**Action.** Verify against the live schema for unique constraints (Q-10) — `M2-B12-02`, whose
+input is [KB-100](../modules/document-numbering.md) §9. Then replace the allocation with a
+`sp_getapplock`-guarded or `HOLDLOCK`-ranged read+insert, or an atomic
+`UPDATE … SET LastNumber = LastNumber + 1 … OUTPUT` — **not a plain DB sequence**, which
+constraint 1 above rules out. Add idempotency keys on create endpoints.
+*(Corrected 2026-08-20: this line previously proposed "a DB sequence", contradicting the
+decrement-on-delete constraint recorded immediately above it.)*
 
 ### R-13 — Unknown index coverage under new load
 **Unknown.** Only one index-related migration (`AddInDexingToCustomer`). List screens run

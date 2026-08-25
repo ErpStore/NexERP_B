@@ -135,7 +135,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | **Completed**⁶⁷˒⁶⁸ *(merged to `master` on owner instruction 2026-08-25)* | P0 | M2-B03 | 3 d | G2 |
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
-| M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Blocked**²⁹˒⁸⁶ *(escalation budget exhausted, owner **Vivek**; on `migration/M2-B12-01-inv-012-numbering` `407d0ba`, unmerged — the earlier `PASS` was premature; **the pending fix `8a54f96` was independently re-verified 2026-08-25 — it holds**, see footnote ⁸⁶)* | P0 | M2-B07 | 2 d | G2 |
+| M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Completed**²⁹˒⁸⁶˒⁸⁷˒⁸⁸ *(owner exercised close-out option A and instructed the merge, 2026-08-25; merged `--no-ff`)* | P0 | M2-B07 | 2 d | G2 |
 | M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | Blocked | P0 | M2-B12-01 | 1 d | G2 |
 | M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked | P0 | M2-B12-02 | 3 d | G2 |
 
@@ -3183,3 +3183,83 @@ validator had **already** marked `MET`; only this one criterion was ever open.
 `master` — `tests/V.SMART.Shared.Tests` and `tests/V.SMART.Api.Tests`. That sentence, and the three
 other cosmetics the close-out lists as *"still owed"*, are documentation defects in the task file,
 **not** acceptance criteria, and would be worth fixing in the same touch as any merge.
+⁸⁸ **M2-B12-01: `Needs Review` → `Blocked` 2026-08-20 — escalation budget exhausted, awaiting
+owner Vivek's decision.** This corrects an earlier reading of this footnote that reported a
+`Needs Review`/validated-`PASS` status: that `PASS` (at tip `58e7bee`) was genuine for what it
+checked, but a **later** validation pass on the same branch caught a real defect it had not
+been asked to re-check — the true final state is `Blocked`, not `Needs Review`.
+
+Implemented on `migration/M2-B12-01-inv-012-numbering` (tip `8a54f96`) across seven commits,
+all tagged `M2-B12-01`. Produced
+[`docs/kb/modules/document-numbering.md`](../modules/document-numbering.md) (KB-100, new, 845
+lines, all ten required sections) and corrected R-12 (KB-060), Q-10 (KB-004),
+`BR-DOC-001`…`BR-DOC-010` (KB-030), and moved INV-012 to `Complete` in KB-003, adding
+Q-37/Q-38/Q-39/Q-40. **The `PASS` this footnote previously reported at tip `58e7bee` is not
+corroborated by `failure-log.md`** — that same tip's own recorded validation there returned
+`FAIL`, and no other validation of `58e7bee` exists in this repository. Treating it as an error
+by the session that wrote it, not as a real result a later `FAIL` superseded:
+
+- **`FAIL`** at tip `58e7bee`/`fa4a2ad` — INV-012's KB-003 evidence block still read *"inline in
+  four document services"* (`Confidence: Confirmed`) where source (`grep -rn "LastNumber"
+  V.SMART/V.SMART.Shared/BusinessLayer/`) shows **six** — `MfgDcService`, `MfgInvService`,
+  `ExpInvService`, `LabourInvoiceService`, `LabourDcOutgoingService`, `SubConDcOutService`. The
+  commits before that tip had corrected this same undercount in KB-100, KB-060 and KB-030 but
+  never opened KB-003 — the fifth document carrying the stale count.
+- **Escalated** (second recorded `FAIL` on this branch crosses `escalate_after_failures: 2`).
+  Diagnosed and fixed as `8a54f96` — KB-003's evidence block, `source_files` and Unknowns
+  corrected, plus a second live instance of the same stale count in KB-100 §2's taxonomy row
+  (line 99).
+- **Not yet re-validated.** `max_escalations: 1` is now fully spent for this task, so the
+  orchestrator stopped rather than spend its last attempt on an unsupervised re-validation.
+  **Attempts used: 2 of 3. Escalations: 1 of 1.**
+
+Full history: [`tasks/M2-B12-01.md` § Execution Record (2026-08-20) — Session Close-out:
+STOPPED, escalation budget exhausted](tasks/M2-B12-01.md#execution-record-2026-08-20--session-close-out-stopped-escalation-budget-exhausted),
+and `failure-log.md`'s entries for this branch.
+
+**Blocked on a human, not on another task.** Owner **Vivek** (repository owner) needs to
+either (A) review `8a54f96` directly and merge if it holds up, without requiring a fresh
+automated validation, (B) authorize a reset attempt/escalation budget so the orchestrator can
+re-validate under normal flow, or (C) send it back for another pass. Until one of these
+happens, **`M2-B12-02` stays correctly `Blocked`** — neither `Needs Review` nor `Blocked`
+satisfies a Hard prerequisite ([KB-082](dependency-graph.md#ready-task-selection-rule) step 1).
+Not merged, not pushed.
+
+⁸⁷ **M2-B12-01: `Blocked` → `Completed`, merged 2026-08-25 — the owner exercised option A.**
+The close-out (footnote ²⁹) offered three routes and named the owner. **A** was *"review `8a54f96`
+directly and, if it holds up, merge the branch himself — this does not require re-running the
+automated validator."* The owner instructed the merge after footnote ⁸⁶ verified the fix from
+source, so the sign-off is A, not a validator `PASS`. **This is recorded as the basis for
+`Completed` so it is auditable and not mistaken for an automated verdict:** the single open
+acceptance criterion was re-derived independently (`LastNumber` census — six inline document
+services plus the `CommonService` allocator, names matching exactly), and every other criterion
+had already been marked `MET` by the validator that produced the `FAIL`.
+
+**FOUR simultaneous id collisions, caught at merge — and `git` surfaced none of them.** The branch
+claimed **`Q-37`, `Q-38`, `Q-39` and `Q-40`** on 2026-08-20. `master` had since given **all four**
+to other tasks, each renumbered at its own merge: `Q-37` → `M2-A07` (TenantProvider host fallback),
+`Q-38` → `M2-C00` (what `M2-C11` is *for* — now cited ~30 times across `M2-C11`, `M2-C02`, `M2-C03`,
+`M2-C10`, `M2-C12*`), `Q-39` and `Q-40` → `M2-A08` (trial desktop exemption; device gate).
+**`open-questions.md` auto-merged cleanly**, silently producing four duplicate-id rows — no
+conflict, no warning. This is the failure mode this repository has now hit **ten** times across
+seven episodes, and the second time it passed `git` invisibly rather than surfacing as a conflict.
+A union merge of an append-only id table cannot detect it; only re-deriving the ids can.
+
+**Renumbered `Q-37/38/39/40` → `Q-87/88/89/86`**, applied per-line to the branch's own references
+only: `document-numbering.md` (×6), `investigation-registry.md` (×3, the INV-012 Unknowns block),
+`business-rule-inventory.md` (×2), `tasks/M2-B12-01.md` (×4), `technical-debt-register.md` (×1),
+`open-questions.md` (×4). **Deliberately left as `master`'s:** `technical-debt-register.md:1927`
+and `api-overview.md:183` (`Q-37`, the TenantProvider/R-44 pair), `row-scope-and-account-gates.md:355`
+(`Q-39`/`Q-40`, `M2-A08`), and every `Q-38` reference in the `M2-C11`/`M2-C12` tree. The task file's
+historical passages about *"the Q-40 ledger defect"* keep their original wording under an explicit
+id note — they describe the id the question held at the time. A **fifth** collision was found in the
+same merge: the branch's footnote **²⁸** clashed with `master`'s `M2-B04` footnote and was
+renumbered **⁸⁸**. KB-005's ledger is refreshed to **`Q-90` next free**; its older "Q-37"/"Q-65"
+figures were already stale before this merge and are marked as history.
+
+**The four residual defects the close-out listed as "still owed" are NOT fixed by this merge**
+and remain open in `tasks/M2-B12-01.md`: the stale "7" lock-free LINQ count, the *Verification
+Commands* `grep` that returns 485/15 from `bin/`/`obj/` instead of 0, the citation drift of 1–3
+lines in `document-numbering.md` §4.4, and the *Testing* section's **"no test project exists"**
+(×3) — now definitively wrong, since `tests/V.SMART.Shared.Tests` and `tests/V.SMART.Api.Tests`
+both exist. None is an acceptance criterion; all are documentation defects worth a later touch.
