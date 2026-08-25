@@ -5,7 +5,7 @@ module: frontend-new
 source_files: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-23
+last_verified: 2026-08-25
 dependencies: [KB-015, KB-050]
 ---
 
@@ -220,6 +220,54 @@ animation in grids.
   `Alt+↑/↓` = reorder. Per-row validation badge. Running totals in a sticky footer row.
 - `DetailPanel` · `KeyValueList` · `StatusBadge` · `Tag` · `Avatar` · `Timeline`
   (approval history) · `AttachmentList` · `AuditTrail`
+
+#### Built — the core, M2-C05-01 (2026-08-25)
+
+`DataGridComponent<TRow>` and `DataGridQueryState` live in
+`frontend/nexgen-web/src/app/shared/components/data-grid/`, standalone and `OnPush`, wrapping
+PrimeNG's `p-table` in `lazy` mode per [ADR-007](../decisions/ADR-007-angular-stack.md).
+Exported from the `shared/components` barrel; **nothing imports that barrel eagerly**, so the
+initial bundle is unchanged at 571.20 kB raw (R-69's lesson, held).
+
+What the core actually does, against the list above:
+
+| Requirement | State |
+|---|---|
+| Server-paged | **Built.** `[lazy]="true"`, `[lazyLoadOnInit]="false"`, `[paginator]="false"`; no `pSortableColumn` and no PrimeNG filter directive anywhere, so PrimeNG never holds a second opinion about the page number. A spec asserts a sort produces a *request*, not a local reorder. |
+| Sticky header | **Built.** The header row is `position: sticky` and stays outside the virtual window. |
+| Pinned left/right columns | **Built.** `frozen: 'left' \| 'right'` on the column model. |
+| Resizable | **Built.** Pointer drag, plus `←`/`→` on a focused `role="separator"` handle carrying `aria-valuenow`/`min`/`max`. Clamped to 48–1200 px. |
+| Per-user column show/hide | **Seam only — M2-C05-02.** The two-way `columnVisibility` input is typed and honoured; nothing persists it yet. |
+| Row selection | **Built.** `none` / `single` / `multiple`; the header checkbox selects **the current page only** and shows an explicit indeterminate state; selection is keyed by `getRowId` and survives a refetch. Owned by the caller as a two-way binding. |
+| Density toggle | **Built.** `comfortable` 36 px / `compact` 30 px, resolved from `--row-height-*`. |
+| Inline row actions | **Built.** A `#rowActions` template slot. |
+| Virtualised ≥ 500 rows | **Built and measured.** 10,000 rows → 35 rendered `<tr>`, 16.7 ms median frame. See [KB-050 §Performance targets](react-architecture.md#performance-targets). |
+| Horizontal scroll contained | **Built.** `overflow-x: auto` on the grid's own viewport; the page body never scrolls sideways. |
+| Empty / loading / error built in | **Seams only — M2-C05-03.** `#empty`, `#error` and `#toolbar` templates are typed and reachable; the default placeholder is `role="status"`, never an empty `<tbody>`; the `ProblemDetails` object reaches the error slot untouched. First load is a shape-matched skeleton, and a refetch keeps the previous page under a 2 px progress bar. |
+| CSV/Excel export via server endpoint | **Not built — M2-C05-03.** The `#toolbar` slot is where it lands. |
+
+Accessibility: `role="grid"` with one grid-level tab stop and a roving `tabindex`;
+`aria-rowcount`/`aria-colcount` from the **server** total; `aria-rowindex` absolute across pages;
+`aria-sort` on every sortable header; the full arrow / `Home` / `End` / `Ctrl+Home` / `Ctrl+End` /
+`PageUp` / `PageDown` model, with focus restored to the same cell coordinates after a refetch;
+`aria-live="polite"` announcement of the visible range. `axe` reports no critical violation on a
+populated or an empty grid in either theme.
+
+Two deviations, each with its reason:
+
+- **The two selection checkboxes are native `<input type="checkbox">`, not `app-checkbox`.**
+  `app-checkbox` (M2-C04-02) exposes no indeterminate state, and "some rows on this page are
+  selected" has to be distinguishable from "none are". Adding the input to `app-checkbox` would
+  edit a file this task does not own. The filter row and the page-size selector **do** use
+  M2-C04-02's controls, so there is no second input vocabulary.
+- **`DataGridHeaderComponent`'s selector is `tr[appDataGridHeader]`**, an attribute rather than
+  an `app-` element. A `<thead>` may contain only `<tr>`; an element between them is invalid
+  table markup that the browser hoists out of the table. The `component-selector` lint rule is
+  waived on that one line and nowhere else.
+
+The URL is the grid's state in route-bound mode — `?page=3&size=50&sort=name:desc&code=C1`,
+which round-trips and survives back/forward. A detached mode holds the same signals and never
+writes the URL, which is what **M2-C06**'s dialog needs.
 
 ### Forms
 `FormLayout` (1/2/3-column responsive) · `FormSection` · `FormField` (label, hint, error,

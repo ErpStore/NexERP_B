@@ -6753,3 +6753,105 @@ commit that could have produced a genuine `PASS`. `tasks/M2-B12-01.md`, `task-tr
 No file under `V.SMART/` was read or written in this close-out pass; no build or test command
 was re-run (nothing to verify — no source changed since attempt-4's build/test run, recorded
 above).
+
+---
+
+## M2-B08 · attempt 1 · pre-implementation stop · 2026-08-25 · `BLOCKED` (`environment`)
+
+| Field | Value |
+|---|---|
+| Runner state | BLOCKED |
+| Validator verdict | not reached — stopped before any code was written |
+| Failure category | environment |
+| Owner | **Vivek** |
+| Code changed | none |
+
+### Why this task was picked up at all
+
+A sweep of **every** tracker row — not only the rows whose status column reads `Ready` — was run
+after `M2-C05-01` proved that a `Blocked` status can outlive its blockers by days. `M2-B08` came
+out of that sweep as the one row whose stated prerequisites are genuinely satisfied:
+
+- `M2-B07` (`AddVSmartDomain()`) — `Completed` and merged.
+- `M2-A01-03` (per-request rights resolution) — `Completed` and merged.
+- **G0** — declared passed by owner decision 2026-08-19 with criteria 2 and 3 deferred
+  ([KB-080 § G0 deferral](README.md#g0-deferral--criteria-2-and-3-decided-by-the-repository-owner-2026-08-19)),
+  which is what unbars M2. `M2-A06`, `M2-B07` and `M2-C00` all carry a G0 dependency and are
+  `Completed`, so this is the established reading.
+- Its task file carries **no ⛔ banner**, its frontmatter reads `status: Not Started` (the same
+  tell `M2-C05-01` had), and no sibling branch exists for it.
+- **R-04 / M0-01** — the *ADR-005 mandatory prerequisite*, "82 of 94 procedures are unscripted".
+  **This has since been discharged**: `db/stored-procedures/` holds **82 `.sql` files**, captured
+  2026-08-13 by `M0-01-02` (`Completed`), against **94** distinct `Sp_*` names referenced in
+  code. The gap the dependency named is closed.
+
+### What stopped it — the toolchain, and it is not obtainable here
+
+`M2-B08` is a **Backend** task. Its required verification command is
+`dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` (`tasks/M2-B08.md:632`). It cannot run.
+
+**Observed, not inferred:**
+
+```
+$ dotnet --version
+A compatible .NET SDK was not found.
+Requested SDK version: 10.0.400
+global.json file: /home/user/NexERP_B/global.json
+Installed SDKs:
+  10.0.111 [/usr/lib/dotnet/sdk]
+```
+
+`global.json` pins `10.0.400` with `rollForward: latestFeature`, which accepts a feature band
+**greater than or equal to** `4xx`. The highest SDK obtainable in this environment is
+**10.0.111** — feature band `1xx` — so it is rejected.
+
+**Why 10.0.4xx cannot be fetched.** The 4xx binaries are served only from Microsoft's CDN, and
+this environment's network policy denies it at CONNECT:
+
+| Host | Result |
+|---|---|
+| `builds.dotnet.microsoft.com` | **403 at CONNECT** — the proxy's own `recentRelayFailures` records *"gateway answered 403 to CONNECT (policy denial)"* |
+| `dotnetcli.azureedge.net` | no route (000) |
+| `api.nuget.org` | 200 — package restore would have worked |
+| `packages.microsoft.com` | 200, but on Ubuntu 24.04 it defers to the distribution, which ships `10.0.111` |
+| `archive.ubuntu.com` (`dotnet-sdk-10.0`) | `10.0.104` / `10.0.111` only |
+
+Both apt sources were added and `dotnet-sdk-10.0` was actually installed before this was
+concluded; the rejection above is that installation being refused by `global.json`, not a
+prediction.
+
+**This is the same class as `M2-A03` attempt 1 and `M0-07` attempt 1** — a criterion that needs
+something outside the git tree, not a code defect. Nothing was implemented: writing C# that
+cannot be compiled, in a task whose *Acceptance Criteria* require a green build, would produce
+work no one can trust and would violate the standing rule against claiming an unobserved result.
+
+### What was verified anyway, since it needs no compiler
+
+The task file's figures are a hypothesis (CLAUDE.md § *Authority order*). Re-measured on `master`
+at `e9a8e7a`, 2026-08-25, with the task file's own commands:
+
+| Claim in `tasks/M2-B08.md` | Re-measured | Verdict |
+|---|---|---|
+| `find … wwwroot/templates -name "*.frx" \| wc -l` | **104** | recorded — the file quotes the command, not a number |
+| `grep -rhoE '"Sp_[A-Za-z0-9_]+"' … \| sort -u \| wc -l` | **94** | matches the "94 procedures" figure used throughout the KB |
+| *"`ReportService` has **three** public entry points, not one"* | **Confirmed** — `Generate_Report` (`:40`), `GenerateSalarySlipReport` (`:169`), `Generate_Attendance_Report` (`:292`) | **Confirmed** |
+| *"82 of 94 procedures are unscripted"* (the R-04 prerequisite) | **Stale — now 82 scripted** in `db/stored-procedures/`, captured 2026-08-13 by `M0-01-02` | **Corrected** |
+| `IReportExecutor` referenced in 40 sites | **39 files** reference it (files, not call sites — the two counts are not the same measure) | needs care, not a correction |
+
+### What the owner has to decide
+
+One of:
+
+1. **Make a 10.0.4xx SDK reachable** — allow `builds.dotnet.microsoft.com` through the network
+   policy, or bake the SDK into the execution image. This is the only option that lets *any*
+   backend task run in this environment; `M2-B08` is not the last one.
+2. **Relax `global.json`** to a feature band that is actually obtainable (`10.0.100`). That is a
+   repository change with consequences beyond this task and is not an execution session's to
+   make.
+3. **Run `M2-B08` somewhere with the pinned SDK** — the workstation `global.json` was written
+   for.
+
+Until one of those happens, **every `Backend`, `Security` and `Database` task in the tracker is
+unrunnable in this environment**, and only `Frontend`, `Documentation`, `Investigation` and
+`DevOps`-of-the-frontend work can proceed. That is a much larger fact than `M2-B08`, and it is
+the reason this entry is worth its length.

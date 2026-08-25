@@ -64,7 +64,7 @@ its children are `Completed` — it is never worked directly.
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Completed**² | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed**⁵ | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Completed**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
-| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁷¹ | P0 | — | 1 d | G0 |
+| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁹² | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Completed**¹¹ | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
 | M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Completed**⁸ | P0 | M0-03-01 | 0.5 d | G0 |
@@ -130,7 +130,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B03 | M2 | Codify the controller template | Documentation | **Completed**⁶⁵˒⁶⁶ *(merged to `master` on owner instruction 2026-08-24 — KB-114)* | P0 | M2-A02, M2-B02 | 2 d | G2 |
 | M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Blocked**³¹ *(⛔ premise falsified — needs re-specification by the owner; no code written, no branch)* | P1 | M2-B07 | 2 d | G2 |
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Completed**³² ³⁵ *(merged to `master` 2026-08-21, `65d9666`)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
-| M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | Blocked | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
+| M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | **Blocked**⁷³ *(attempt 1, 2026-08-25 — `environment`, no code written: the pinned .NET SDK 10.0.400 is unobtainable in the execution environment. Its **prerequisites are all satisfied**, R-04 included)* | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Completed**³⁴ *(merged to `master` `501b12d` on owner instruction 2026-08-21)* | P1 | **M2-B07**, M2-B02, M2-B01 | 3 d | G2 |
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | **Completed**⁶⁷˒⁶⁸ *(merged to `master` on owner instruction 2026-08-25)* | P0 | M2-B03 | 3 d | G2 |
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
@@ -161,7 +161,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Completed**⁵³˒⁵⁴ *(merged to `master` on owner instruction 2026-08-24; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
-| M2-C05-01 | M2 | — server-paged table core | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blockers are `M2-C04-02`, `M2-B02`)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
+| M2-C05-01 | M2 | — server-paged table core | Frontend | **Needs Review**⁷⁰ *(both Hard prerequisites reached `Completed` and merged, so the `Blocked` reading was stale; implemented 2026-08-25, unmerged)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
 | M2-C05-02 | M2 | — column preferences + persistence | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P1 | M2-C05-01 | 3 d | G2 |
 | M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C06 | M2 | `RecordPickerDialog` | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P0 | M2-C05-01 | 1 wk | G2 |
@@ -226,9 +226,9 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|---|---|---|---|
 | M5-01 | M5 | Unit tests for extracted business rules | Testing | *Continuous* | P0 | each `<W>-03` | — | G5 |
 | M5-02 | M5 | API integration tests per controller | Testing | *Continuous* | P0 | each `<W>-06` | — | G5 |
-| M5-03 | M5 | Component tests for design-system primitives | Testing | Blocked | P0 | M2-C04 | — | G5 |
+| M5-03 | M5 | Component tests for design-system primitives | Testing | *Continuous*⁷¹ *(corrected 2026-08-25 — was `Blocked`, which contradicted [KB-080 §13](README.md#13-m5--hardening) and the work already delivered)* | P0 | M2-C04 | — | G5 |
 | M5-04 | M5 | E2E per module critical path | Testing | *Continuous* | P0 | each `<W>-10` | — | G5 |
-| M5-05 | M5 | Permission-matrix testing (merge-blocking) | Testing | Blocked | P0 | M2-A03 | — | G5 |
+| M5-05 | M5 | Permission-matrix testing (merge-blocking) | Testing | *Continuous*⁷² *(corrected 2026-08-25 — the harness is on `master`; only the *merge-blocking* half is outstanding, and it is a GitHub setting, not work)* | P0 | M2-A03 | — | G5 |
 | M5-06 | M5 | Parity testing per module | Testing | *Continuous* | P0 | each `<W>-11` | — | G5 |
 | M5-07 | M5 | Performance: grids, documents, concurrency | Testing | Not Started | P1 | G4 | 2 wks | G5 |
 | M5-08 | M5 | Security: tenant isolation, IDOR, JWT, XSS | Security | Not Started | P0 | G4 | 2 wks | G5 |
@@ -264,18 +264,20 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**54 `Completed`, 2 `Needs Review`, 2 `Ready`, 34 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
+**54 `Completed`, 3 `Needs Review`, 1 `Ready`, 30 `Blocked`, 2 `In Progress`, 33 `Not Started`, 7 `Continuous`.**
 
-> **`Ready` re-verified 2026-08-25 across the `M0-06`, `M0-04` and `M2-B12-01` merges; the other five counts were not.**
-> The `Ready` set is now **`M0-11`** and **`M2-B12-02`** — enumerated from the rows, not carried forward.
-> `M2-B12-01` moved `Blocked` → `Completed` on merge (footnote ⁸⁷), which released `M2-B12-02`
-> `Blocked` → `Ready` (footnote ⁸⁹). **`M2-B12-02` is the first self-selectable task in six runner
-> passes**; `M0-11` remains a `Product Decision`, which
-> [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks) makes owner-only.
-> `Blocked` is the 2026-08-24 figure plus `M0-06` (footnote ¹⁶) and `M0-04` (footnote ⁷¹), less
-> `M2-B12-02`. The remaining counts are inherited from the 2026-08-24 recompute and had already
-> drifted before any of these merges — that recompute predates `M0-04`’s move to `Ready`. Treat the
-> rows as the authority, not this line.
+> **Recomputed at the 2026-08-26 push merge, which brought two lineages together.** `Ready`,
+> `Needs Review` and `Continuous` were **counted from the rows**; the rest are carried forward.
+> **The `Ready` set is exactly `M0-11`** — a `Product Decision`, owner-only per
+> [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks). **Nothing on this
+> tracker is self-selectable by a runner.**
+>
+> This merge reconciled the local lineage (`M0-06`, `M0-04`, `M2-B12-01`, `M2-B12-02` — all
+> moved to their true status, three of them merged) with `origin/master`'s (`M2-C05-01` →
+> `Needs Review`, `M5-03`/`M5-05` → `*Continuous*`, `M2-B08` → `Blocked`). **Both had been
+> correcting rows that had outlived what they summarised, independently and on the same day.**
+> `Blocked` falls from 34 to 30: `M5-03`/`M5-05` became `Continuous`, `M2-C05-01` became
+> `Needs Review`, and `M2-B08` joined. Treat the rows as the authority, not this line.
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
 *estimates*, not rows. (2026-08-24 close-out: `M2-A09` moved `Ready` → `Needs Review`,
 implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰. Later the same day,
@@ -293,6 +295,20 @@ and merged, so `M2-B10` stayed `Blocked` at that point.)* **Most recent event, a
 Review` — see footnote ⁶⁷. No row on the tracker now reads `Ready` and clears the five-part
 "can actually be done" test — `M0-06` and `M0-11` fail it as above, and no other row is `Ready`.
 No task is currently selectable.**
+
+**Correction and most recent event — 2026-08-25: `M2-C05-01` was never actually blocked.** Its
+row read `Blocked`⁴⁶ with the note *"real blockers are `M2-C04-02`, `M2-B02`"* — but `M2-B02`
+reached `Completed` and merged (`feec964`) on 2026-08-20 and `M2-C04-02` on 2026-08-23, and
+nothing moved the row. Its own task file's frontmatter still read `status: Not Started`, not
+`Blocked`, which is the tell. The five-part "can actually be done" test was re-run against it
+directly and it passes all five: both Hard prerequisites `Completed` **and merged**; `task_type:
+Frontend`, not `Product Decision`; no unanswered question in `open-questions.md` gating it; no ⛔
+banner (`M2-C12-03` re-specified it for Angular on 2026-08-22 and removed the banner in the same
+change); and no sibling branch on `frontend/nexgen-web/src/app/shared/components/data-grid/`
+(`git ls-remote --heads origin`, run 2026-08-25). It was therefore selected and executed — see
+footnote ⁷⁰. **The lesson worth carrying: a `Blocked` row whose stated blockers have since merged
+is a stale row, not a blocked task. Re-derive readiness from the prerequisites, not from the
+status column.** `M0-06` and `M0-11` are unchanged and still fail the test as above.
 
 **`M2-C13` `Completed` and merged** to `master` 2026-08-24 (`2328c94`; footnotes ⁵⁶ and ⁵⁷) —
 deferred the confirm-dialog host, initial bundle **711.75 kB → 571.20 kB raw**, no budget
@@ -3010,7 +3026,7 @@ defect to fix unilaterally:** either the PR rule is the intended workflow and ex
 should be producing PRs rather than local merges, or the rule is vestigial and should be relaxed
 to match how the repository is actually operated. Raised as **Q-82** — `Q-77` was already taken; ids now run to `Q-81`, and `Q-82` was checked against `git branch --no-merged master` before claiming.
 
-⁷⁰ **M0-04: `Blocked` → `Ready` 2026-08-25, on owner instruction, after re-reading what the task
+⁹¹ **M0-04: `Blocked` → `Ready` 2026-08-25, on owner instruction, after re-reading what the task
 actually asks for.** Three sessions of this run — including several of my own reports — described
 `M0-04` as blocked on production SQL / GST gateway access. **That is true of the rotation and
 false of the task.**
@@ -3081,8 +3097,8 @@ task file once Q-26 is answered). Full record: [`tasks/M0-06.md` § Execution Re
 [`open-questions.md`](open-questions.md) Q-25, Q-26;
 [`technical-debt-register.md`](risks/technical-debt-register.md) R-09, R-40.
 
-⁷¹ **M0-04: `Ready` → `Blocked` 2026-08-25, session close-out on
-`migration/M0-04-credential-rotation-runbook` (`e437fe5`).** The document work footnote ⁷⁰
+⁹² **M0-04: `Ready` → `Blocked` 2026-08-25, session close-out on
+`migration/M0-04-credential-rotation-runbook` (`e437fe5`).** The document work footnote ⁹¹
 predicted is done — all four AI-deliverable artefacts (`docs/runbooks/credential-rotation.md`,
 the credential inventory, the human verification checklist, and confirmation that Q-19 is
 already answered) are complete and committed. **This is the task's own designed terminal
@@ -3100,8 +3116,8 @@ tasks that can land on `master`; each is a person:
 | Whoever owns `V.SMART.Api`'s deployment configuration | C-4 — deploy a new `Jwt:Secret` |
 | Whoever owns the GST gateway / Bhargavi Soft-Tech licensing relationship | C-5 (gateway credential reset) and C-7 (vendor must re-key `LicenseProductKey.cs:28-29`, hardcoded and public — new this session, no rotation owner today) |
 
-**Two escalations this session found that footnote ⁷⁰ did not anticipate, both recorded in
-full in `INV-052` and `Q-84`:**
+**Two escalations this session found that footnote ⁹¹ did not anticipate, both recorded in
+full in `INV-054` and `Q-84`:**
 
 1. The exposure is no longer confined to `V.SMART/` — `git grep -l` for the SA password at
    `HEAD` now returns **five files, all under `docs/kb/`**, and the plaintext production
@@ -3323,3 +3339,121 @@ have — one parent, and the `df1d7401` it names is nobody's parent. Two task id
 is a reject. The branch was reset to `8ad9bd7` and this task re-committed alone; the mixed
 commit is preserved as tag **`salvage/M2-C05-01-mixed-commit`** so the `M2-C05-01` work can be
 cherry-picked onto a properly scoped branch. Nothing was discarded.
+⁷⁰ **`M2-C05-01` implemented 2026-08-25 on branch `claude/unblocked-task-execution-pjyouv`;
+`Needs Review`, unmerged.** The task file's Git Strategy names
+`migration/M2-C05-01-datagrid-core`; the branch actually used was the one this session was
+instructed to develop on by its harness, and that deviation is recorded here rather than
+silently reconciled.
+
+**Selected because the `Blocked` row was stale, not because the rule was bent.** See the
+*Correction* paragraph in § Current state: both Hard prerequisites were `Completed` and merged
+weeks before, and the task file's own frontmatter still read `status: Not Started`.
+
+**The measurement was run first, as the task file requires, and it passed.** A throwaway
+`p-table` fixture (10,000 rows, 8 columns, 36 px rows) under headless Chromium 141 gave **35
+rendered `<tr>`** at rest, **45** during a fling, a **16.7 ms median frame** and a 16.7–16.8 ms
+p95 in every scenario — the 60 fps target, met. Had it failed, the task file required escalation
+rather than a silent fall back to a second grid library; it did not. Recorded in
+[KB-050 § Performance targets](../frontend-new/react-architecture.md#performance-targets) and as
+**INV-052**. The fixture was deleted; it is not in the diff.
+
+**Delivered:** `DataGridComponent<TRow>` + `DataGridQueryState` + the query adapter, the header
+row, the pager and the keyboard model, in
+`frontend/nexgen-web/src/app/shared/components/data-grid/` (13 files, 3 of them specs). 47 new
+tests, covering all 15 the task file lists, including the `axe` scan on a populated and an empty
+grid in both themes. Seams for `M2-C05-02` (`columnVisibility`) and `M2-C05-03` (`#empty`,
+`#error`, `#toolbar`) are typed and reachable, each marked `TODO(<task id>)`.
+
+**Three deviations, each stated in the code and in `data-grid/README.md`:** the two selection
+checkboxes are native, because `app-checkbox` has no indeterminate state and adding one would
+edit M2-C04-02's file; `DataGridHeaderComponent`'s selector is `tr[appDataGridHeader]`, because a
+`<thead>` may contain only `<tr>`; stylesheets are `.scss`, not the `.css` the task file names,
+because `angular.json` sets `inlineStyleLanguage: scss` and every sibling directory is `.scss`.
+
+**Two findings recorded rather than worked around.** **INV-052:** M2-B10 generates the paged
+envelope **once per resource, never generically** — OpenAPI 3.0 has no generics — so a grid
+generic over `TRow` cannot import a generated envelope and declares a structurally identical
+`DataGridPage<TRow>` in its single adapter module. Not a defect in M2-B10, and no change is
+needed there. **R-76:** `npm run test:ci` is **already intermittently red on `master`** — proven
+by stashing this branch's tree and running the untouched `master` five times, two clean and three
+red, the named failure being DOM leaking between spec files. Not caused by this task and not
+fixable inside it; the fix belongs to whoever owns the frontend test harness, the same gap R-70
+records.
+
+**Bundle unchanged:** initial total **571.20 kB raw / 136.72 kB transfer**, byte-identical to the
+pre-task baseline, because nothing imports the `shared/components` barrel eagerly (R-69's lesson,
+held).
+
+**Not merged, and `Completed` is not this session's to set**
+([KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed)).
+
+⁷¹ **`M5-03` corrected `Blocked` → `*Continuous*`, 2026-08-25. No work was done; the row was
+wrong in two independent ways.**
+
+**First, it contradicted the roadmap.** [KB-080 §13](README.md#13-m5--hardening) states that
+**`M5-01`…`M5-06` have no standalone task files by design** — *"they are steps inside the module
+pattern (§10). Giving them separate files would let a wave ship untested and defer its tests to a
+phase that arrives months later."* Its four siblings — `M5-01`, `M5-02`, `M5-04`, `M5-06` — all
+read `*Continuous*` in this table. `M5-03` alone read `Blocked` at P0, which invites a session to
+try to select it, find no task file, and stop. That is the same class of stale row that cost
+three sessions before `M2-C05-01` (footnote ⁷⁰) — a status column disagreeing with the thing it
+is supposed to summarise.
+
+**Second, the work it names is already being delivered, continuously, exactly as §13 intends.**
+Measured on `master` 2026-08-25:
+
+| Evidence | Count |
+|---|---|
+| Spec files, `shared/components/form/` (M2-C04-02) | 21 |
+| Spec files, `shared/components/overlay/` (M2-C04-03) | 9 |
+| Spec files, `shared/components/feedback/` (M2-C04-03) | 9 |
+| Runtime `axe` scans (`*/a11y.spec.ts`) | 4 |
+| Token/theme specs (`core/theme/`, M2-C04-01) | 4 |
+
+309 frontend tests pass on `master`. Every design-system task since `M2-C04-01` has shipped its
+own component tests in the same commit as the component — which is what `M5-03` asks for.
+
+**Nothing here claims `M5-03` is finished.** It is `*Continuous*`, like its siblings: each new
+primitive owes its tests when it lands, and the obligation only discharges at G5. `M2-C05-01`'s
+`DataGrid` is the most recent instalment (45 tests, unmerged on
+[PR #2](https://github.com/ErpStore/NexERP_B/pull/2)).
+
+⁷² **`M5-05` corrected `Blocked` → `*Continuous*`, 2026-08-25. No work was done.** The row said
+`Blocked` on `M2-A03`, but [KB-080 §13](README.md#13-m5--hardening) already records this one as
+*"delivered 2026-08-24 by `M2-A03`"*, and the harness is on `master`: `d94d8ce` is an ancestor of
+`origin/master` (verified with `git merge-base --is-ancestor`), and
+`tests/V.SMART.Api.Tests/PermissionMatrix/` holds eight files including
+`PermissionMatrixHarness.cs`, `ApiEndpointDiscovery.cs` and `ExemptEndpointAllowList.cs`. It runs
+in CI inside the *Test — V.SMART.Api.Tests* step on every push and pull request.
+
+**What is genuinely outstanding is the two words "merge-blocking" in the task name, and they are
+not work.** `ci.yml` makes the suite a blocking *step*; whether the *job* is required for merge
+is GitHub branch-protection configuration, outside this repository and unsettable from any
+execution session. That is the single criterion keeping `M2-A03` itself at `Needs Review`
+(footnote ⁶³), owner **Vivek**, and it is tracked there rather than duplicated as a second
+blocked row here.
+
+⁷³ **`M2-B08` attempt 1 stopped `BLOCKED` (`environment`) 2026-08-25, before any code was
+written. Owner: Vivek.**
+
+It was selected from a sweep of **every** row rather than only the `Ready` ones, and the
+selection was sound: `M2-B07` and `M2-A01-03` are `Completed` and merged, G0 is passed by the
+owner's 2026-08-19 decision, the file carries no ⛔ banner, no sibling branch exists, and the
+ADR-005 *mandatory prerequisite* — R-04, "82 of 94 procedures unscripted" — **has since been
+discharged**: `db/stored-procedures/` holds 82 scripted procedures, captured 2026-08-13 by
+`M0-01-02`. That sentence in the task file's Dependencies table is now false and is flagged there.
+
+**What stopped it is the toolchain, and the finding is bigger than this task.** `global.json`
+pins SDK `10.0.400` (`rollForward: latestFeature`, so feature band ≥ 4xx). The highest SDK
+obtainable in this environment is **10.0.111** — installed, then rejected by `global.json`, which
+is the observed output, not a prediction. The 4xx binaries come only from
+`builds.dotnet.microsoft.com`, which the network policy **denies at CONNECT with 403**;
+`api.nuget.org` is reachable, so restore was never the problem.
+
+**Therefore every `Backend`, `Security` and `Database` task is unrunnable in this environment**,
+not just this one. Only `Frontend`, `Documentation`, `Investigation` and frontend-side `DevOps`
+work can proceed until the owner either allows the CDN host, bakes the SDK into the image, or
+runs backend tasks on the workstation `global.json` was written for. Full entry, with the three
+options spelled out: [`failure-log.md` § M2-B08 · attempt 1](failure-log.md).
+
+

@@ -18,7 +18,7 @@ database_tables: []
 business_rules: [BR-CALC-001, BR-STK-001, BR-SO-001, BR-SO-003, BR-AUTH-002]
 status: proposal
 confidence: n/a
-last_verified: 2026-08-23
+last_verified: 2026-08-25
 dependencies: [KB-013, KB-015, KB-040, KB-041, KB-051, KB-105, ADR-002, ADR-004, ADR-007]
 ---
 
@@ -499,7 +499,7 @@ server-side. See the INV-006 amendment of 2026-08-23 in [KB-003](../investigatio
 |---|---|
 | Initial JS (shell + login) | < 250 KB gzip |
 | Route chunk | < 150 KB gzip |
-| Grid: 10,000 rows | virtualised, 60 fps scroll |
+| Grid: 10,000 rows | virtualised, 60 fps scroll — **met, measured 2026-08-25 (M2-C05-01)** |
 | Line editor: 200 rows | typing latency < 50 ms |
 | Time to interactive on the app shell | < 2 s on a mid-range laptop |
 
@@ -526,6 +526,38 @@ the 85,068 B Inter latin-ext subset is fetched only when an extended-Latin glyph
 already Brotli-compressed, so gzip does not reduce it. Neither the `< 250 KB gzip` target above
 nor Angular's `initial` budget counts assets — but the bytes are real on a cold load, so they
 are recorded rather than left to be discovered.
+
+**Grid: 10,000 rows, measured 2026-08-25 by `M2-C05-01`. The target is met.** ADR-007 chose
+PrimeNG's table on the reasoning that *"PrimeNG's table covers `DataGrid`"*
+(`ADR-007-angular-stack.md:149`), and `M2-C05-01` was required to prove or refute that before
+building on it rather than after.
+
+*Method.* A throwaway fixture — plain `p-table`, 10,000 client-side rows, 8 columns, 36 px rows,
+`[virtualScroll]="true"`, `[virtualScrollItemSize]="36"`, `scrollHeight="600px"` — served by
+`ng serve` and driven by Playwright's bundled headless Chromium 141 at 1600×900, DPR 1. The
+scroller (`.p-virtualscroller`, `scrollHeight` 360,035 px) was moved by a fixed number of pixels
+per `requestAnimationFrame`, and the interval between consecutive `requestAnimationFrame`
+callbacks was recorded as the frame time. The fixture was deleted after the measurement; it is
+not in the repository.
+
+| Scenario | px/frame | frames | median | p95 | p99 | frames > 33 ms | max DOM rows |
+|---|---|---|---|---|---|---|---|
+| Idle (no scrolling) | 0 | 118 | 16.7 ms | 16.7 ms | 16.8 ms | 1 | 35 |
+| Slow scroll (1 row/frame) | 36 | 298 | 16.7 ms | 16.7 ms | 16.8 ms | 0 | 45 |
+| Fast fling (10 rows/frame) | 360 | 298 | 16.7 ms | 16.8 ms | 33.4 ms | 15 | 45 |
+| Extreme jump (100 rows/frame) | 3,600 | 88 | 16.7 ms | 16.8 ms | 33.3 ms | 3 | 45 |
+
+*Reading it.* 16.7 ms is one frame at 60 Hz, so the median and the p95 are the target exactly,
+in every scenario including a fling that crosses 3,000 rows a second. The dropped frames are
+doubled frames (33.4 ms ≈ 2 × 16.7 ms), 5 % of a fling and none at all at a realistic scroll
+speed. **35 rendered `<tr>` for 10,000 rows** at rest is the virtualisation working; the same
+number is reproduced in jsdom by `data-grid.component.spec.ts`, so a regression to client-side
+rendering fails CI rather than waiting for someone to notice a slow screen.
+
+*What this does not measure.* Headless Chromium in a container is not a user's laptop, and the
+rows were plain text with no cell templates. It is evidence that the **scroller** is not the
+bottleneck, which is the claim ADR-007 rests on — not a promise about any particular screen.
+`M2-D01` puts the first real screen on it.
 
 `angular.json`'s production budgets are necessarily expressed in **raw** bytes — Angular budgets
 cannot be set on transfer size — so the initial budget is 600 kB warning / 800 kB error, the raw
