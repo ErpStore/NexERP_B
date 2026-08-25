@@ -3012,7 +3012,7 @@ the rotation a short, rehearsed job instead of an improvisation against live ten
 before the task starts.
 
 > **Part 5 of the five-part test, handled explicitly rather than waived.**
-> `migration/M0-04-credential-rotation-runbook` exists and holds one commit (`1f905db`) with a
+> **Renamed to `archive/M0-04-runbook-stale-lineage` on 2026-08-25**, following the `archive/M0-03-03-attempt-stale-lineage` precedent — the work is preserved at `1f905db`, not deleted, and part 5 is cleared because no `migration/*` branch remains on these files. It holds one commit with a
 > **269-line runbook**, the inventory and the checklist. It is **324 commits behind `master`** and
 > no session is live on it, so it is stale work rather than a collision — which is what part 5
 > exists to prevent. **It is not to be merged as-is:** its inventory cites `Jwt:Secret` at
