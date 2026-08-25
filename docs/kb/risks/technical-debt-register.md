@@ -882,12 +882,44 @@ modal. An API makes it concurrently reachable by any HTTP client.
 refused".
 
 ### R-09 — Default administrator account with a committed password hash
-**Confirmed.** `ApplicationDbContext.cs:1136` seeds `UserName = "Administrator"` with a
-fixed PBKDF2 hash, `Role = Administrator`, `IsActive = true`, in **every** tenant database.
+
+**Status: PARTIALLY MITIGATED by M0-06 (2026-08-19). NOT CLOSED.**
+
+**Confirmed (historical).** `ApplicationDbContext.cs:1136-1148` seeded `UserName =
+"Administrator"` with a fixed PBKDF2 hash, `Role = Administrator`, `IsActive = true`, in
+**every** tenant database.
 **Impact.** A known default credential across all tenants. The plaintext is recoverable
-offline from the committed hash.
-**Action.** Force a password change on first login; or seed with a random per-deployment
-password; or disable the account after real users exist.
+offline from the committed hash, and the repository remote is public (INV-029), so the hash
+is *published*, not merely committed.
+
+#### What M0-06 fixed (Confirmed, 2026-08-19)
+
+- The `builder.Entity<User>().HasData(...)` block is **gone** from
+  `ApplicationDbContext.OnModelCreating`. A database created **from the model**
+  (`EnsureCreated`, or any future scaffolding) now starts with zero users. Pinned by
+  `tests/V.SMART.Shared.Tests/Data/SeedDataTests.cs` —
+  `Model_HasNoSeededUserWithKnownPasswordHash` asserts the design-time model carries **no**
+  `User` seed at all, so the row cannot be reintroduced with a different hash either.
+- The hash string appears nowhere in the working tree except the pre-existing historical
+  migration files under `V.SMART/V.SMART.Shared/Migrations/` (109 files — 108 `*.Designer.cs`
+  model snapshots plus the `InsertData` at `20260217110637_InitialCreate.cs:7562`). Those are
+  history and are never edited; **M0-05** is the task that removes them from git history.
+
+#### What remains open
+
+| # | Open item | Owner |
+|---|---|---|
+| 1 | The hash is in the **published** git history and must be assumed harvested. | **M0-05** |
+| 2 | **Every existing tenant database still contains the account.** M0-06's migration `20260819095649_RemoveDefaultAdministratorSeed` has a deliberately **empty** `Up()` — it removes nothing from any deployed database. Removal is a supervised per-tenant human procedure. | Deployment owner (Vivek) — [KB-104](../security/default-admin-removal-runbook.md) |
+| 3 | A database built by **replaying migrations** from `InitialCreate` still receives the row (`20260217110637_InitialCreate.cs:7562`), because migration history is never rewritten. **This is M0-06 acceptance criterion 2 unmet, and it is a deployment/architecture decision, not a coding defect** — a migration `Up()` cannot tell a freshly provisioned database from a live tenant, and an unconditional removal would strike existing tenants whose only administrator may be this account (Q-25, Unknown) and would cascade-delete their `UserRight`/`UserAuthority`/`UserThemePreference` rows (`InitialCreate.cs:7196-7200`, `:7232-7236` are `ReferentialAction.Cascade`). Escalated as **Q-26** in [KB-004](../open-questions.md) with the three options and their costs. | **Deployment owner (Vivek)** — decide Q-26; interim mitigation is [KB-104](../security/default-admin-removal-runbook.md) sections 1-3 and 5, run on newly provisioned tenants too |
+| 4 | **No bootstrap component exists** to create the first administrator on an empty database. Option A (runtime bootstrap from an explicitly supplied secret, failing startup loudly if absent) was chosen in principle but **deferred** — it needs coordination with M0-03-03's fail-fast startup validation and is larger than M0-06's budget. Until it exists, a from-model database has no way in. **Named follow-up: `M0-06-02` — "Bootstrap the first administrator from a supplied secret"** (id proposed by M0-06; the orchestrator must register it in [KB-081](../execution/task-tracker.md) and write its task file). It cannot be scoped until **Q-26** is answered, because Q-26 decides whether the bootstrap runs at startup or as an ops step, and whether the created administrator must take `UserId = 1` (see item 5). | `M0-06-02`, gated on Q-26 |
+| 5 | `UserId == 1` is a hard-coded superuser (auto-granted all 152 screen rights at login, `Login.razor:345-349`; immutable in the rights UI, `UserRights.razor:82-179`). A replacement administrator with a different `UserId` authenticates and then sees nothing, because rights are deny-by-default (`RightsHelper.cs:7-20`). | Recorded as R-40 below and in KB-104 section 4, Trap 2 |
+
+**Action (revised).** Execute [KB-104](../security/default-admin-removal-runbook.md) per tenant;
+land M0-05; **answer Q-26** (how a newly provisioned tenant avoids the credential — a deployment
+owner decision, and the reason M0-06 stopped where it did); then raise `M0-06-02`, the Option-A
+bootstrap task. **Do not close R-09** until all four are
+done.
 
 ### R-10 — ~~`ScreenCode` magic numbers with no typed definition~~ → **misidentified; the real magic number is `storeId`**
 > ⛔ **CORRECTED 2026-08-21 (INV-044). The central claim below — *"which callers pass as
@@ -1180,6 +1212,36 @@ The **restated** half of R-14 (large parts of the tree untracked) is *not* close
 keeps its High rating for the parts still outstanding; `V.SMART/V.SMART.Api/` and `docs/` are
 now tracked (commits `2c224b6`, M0-00), the `.sln` disposition remains M0-00's record.
 
+
+### R-40 — `UserId == 1` is an undeclared superuser; any other administrator starts with zero rights
+**Confirmed (M0-06, 2026-08-19).** Administrator capability in the Blazor UI is keyed on the
+**numeric** `UserId == 1`, never on the user name or the role, in three places:
+
+| Behaviour | Evidence |
+|---|---|
+| Every login by `UserId == 1` auto-creates `CanView`/`CanCreate`/`CanEdit`/`CanDelete` rows for **all 152 screens** | `Pages/Master_Module_pages/Identity_Pages/Login.razor:345-349` calling `BusinessLayer/BusinessService/MasterService/AdminService/UserRightService.cs:32-87` (inserts at `:62-78`) |
+| `UserId 1`'s rights are immutable from the UI — every checkbox disabled, save hidden | `Pages/Master_Module_pages/UserRights_Pages/UserRights.razor:82,92,102,112,122,132,146,163` and `:179` |
+| `TrialDays` and the whole User Device Settings section render only for `UserId 1` | `Pages/Master_Module_pages/Identity_Pages/RegisterUpsert.razor:426,:444` |
+
+No `UserRight` rows are seeded by `HasData` at all, and rights are **deny-by-default** — every
+accessor in `Shared/RightsHelper.cs:7-20` ends in `?? false`.
+
+**Impact.** An administrator created with any `UserId` other than 1 authenticates successfully
+(BR-AUTH-001 is satisfied) and then sees an application with **every screen denied**. It cannot
+grant rights to itself: `UserRights.razor:215` requires `CanEdit || CanCreate` to save.
+Recovery needs direct SQL. This is a lockout by a route entirely different from the one M0-06's
+task file anticipated, and it is why [KB-104](../security/default-admin-removal-runbook.md)
+section 4a insists the replacement administrator's rights are granted **and verified by an
+actual login** before the seeded account is touched.
+
+**Also note** `V.SMART.Api/Controllers/AuthController.cs:47` authenticates **without** calling
+`SyncRightsForUserAsync` — grep across `V.SMART/` returns exactly three hits for that method
+(`IUserRightService.cs:11`, `UserRightService.cs:32`, `Login.razor:348`) and none in the API.
+The rights-bootstrap hook is Blazor-only.
+
+**Action.** Replace the numeric superuser check with an explicit capability before any React
+screen relies on it (M2-A01 territory — ADR-004). Until then, treat "create a new administrator"
+as a two-step procedure: create the user, **then** grant rights explicitly.
 ---
 
 ### R-67 — `SaveCorresFileAsync` writes a zero-byte file and reports success

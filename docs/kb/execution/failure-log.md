@@ -1338,6 +1338,179 @@ it tightened alongside any other review feedback.
 [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks) trigger 5
 (environment unavailable) and trigger 7 (would require a push) both apply. Fourteen of the
 fifteen criteria are objectively met against independently re-run evidence.
+### M0-06 · attempt 1 · 2026-08-19
+
+| Field | Value |
+|---|---|
+| Runner state | ESCALATED |
+| Model in use | opus |
+| Validator verdict | FAIL |
+| Failure category | architecture |
+
+**What failed** — acceptance criterion 2, quoted from
+[`tasks/M0-06.md`](tasks/M0-06.md#acceptance-criteria): *"No default administrator credential is
+seeded into a newly created tenant database."* It holds only for a database created **from the
+model**. It does **not** hold for a database created by replaying the migrations, which is the
+only tenant-provisioning path this repository supports. Re-verified independently, not taken
+from the implementer's account:
+
+```
+$ sed -n '7560,7562p' V.SMART/V.SMART.Shared/Migrations/20260217110637_InitialCreate.cs
+                table: "Users",
+                columns: new[] { "UserId", ..., "UserName", "UserPassword" },
+                values: new object[] { 1, ..., "Administrator", "AQAAAAIAAYagAAAAEBDHR4whgjIYMVkEU8I4FUjARxtH1DI/eoKgzld07jJ5NSwY+iIDLIiFRt7Q1YxcYQ==" });
+```
+
+and `20260819095649_RemoveDefaultAdministratorSeed.cs:53-65` — `Up()` and `Down()` are both
+deliberately empty, so nothing ever removes that row again. A `rg` for
+`EnsureCreated|\.Migrate\(|MigrateAsync|CREATE DATABASE` across `V.SMART/` returns **exactly one
+hit, and it is a comment** inside that new migration — so the application creates no database
+itself, and the only mechanism the codebase offers (`dotnet ef database update`, or a script
+generated from these migrations) replays `InitialCreate` and inserts the published credential.
+R-09's primary attack surface — a newly provisioned tenant coming up with a known password —
+therefore survives this task on the path most likely to be used.
+
+**Every other criterion was verified met, by re-run evidence** (this is not a weak
+implementation): `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` →
+`Passed! - Failed: 0, Passed: 85, Skipped: 0, Total: 85`; `dotnet build
+V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-incremental` → `6694 Warning(s), 0 Error(s)` (the
+cold observation the implementer flagged as missing — it is under the 6,695 baseline);
+`dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj` → `0 Error(s)` (Blazor Server intact);
+`dotnet ef migrations has-pending-model-changes …` → *"No changes have been made to the model
+since the last migration"* (the committed snapshot genuinely matches the model, and no probe
+drift was left behind); the hash appears in 109 files, **all** under
+`V.SMART/V.SMART.Shared/Migrations/`, none of them touched by this branch and none of them the
+new `.Designer.cs`; `UserRepository.cs` is absent from the diff; the production diff is a single
+hunk that leaves the `Screens` seed and the `DeleteBehavior.Restrict` loop untouched.
+
+**Root cause** — the task's own constraints conflict: criterion 2 cannot be satisfied on the
+migration-replay path without either editing migration history (forbidden) or shipping DML in
+`Up()` that deletes `Users.UserId = 1` (which the implementer proved, correctly, would silently
+**cascade** — all three FKs to `Users` are `Cascade`, `InitialCreate.cs:7196-7200` and
+`:7232-7236`, contradicting the task file's `Restrict` premise — and could lock out a tenant).
+Resolving it is a provisioning/deployment decision (Q-02, still Unknown), not a coding defect.
+
+**Evidence** — `V.SMART/V.SMART.Shared/Migrations/20260217110637_InitialCreate.cs:7562`;
+`V.SMART/V.SMART.Shared/Migrations/20260819095649_RemoveDefaultAdministratorSeed.cs:53-65`;
+`V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs:1136-1152` (seed removed, comment in its
+place); `docs/kb/security/default-admin-removal-runbook.md:46` and `:286`, where the gap is
+stated honestly by the implementer itself; `docs/kb/risks/technical-debt-register.md` R-09 open
+item 3.
+
+**Disposition** — `escalate`. Not `retry`: a same-spec retry reproduces the same trade-off, and
+the only ways to close criterion 2 (guarded DML inside `Up()`; a documented from-model
+provisioning path; or landing the deferred Option-A bootstrap component first) are decisions the
+runner may not take alone. Two further loose ends the orchestrator should carry into that
+decision: the Option-A bootstrap component has **no task id** (R-09 open item 4), and the task's
+own `Dependencies` table lists *"a deployment owner"* as a **Hard** dependency that has never
+been satisfied. **No regression was found and the diff stayed in scope** — the work should be
+built on, not discarded.
+
+**Next attempt routed to** — `opus`, KB-091 §6.3 trigger 2 (an architecture decision is
+required) and trigger 7 (validator category `architecture`). Realistically this needs the
+repository owner: the decision is how tenant databases are provisioned (Q-02) and whether a
+migration may carry guarded DML against `Users`.
+
+---
+
+### M0-06 · attempt 1 · diagnosis · 2026-08-19
+
+*(Diagnosis pass over the validator's `FAIL` above — written by the debugger per
+[KB-091 §7](autonomous-runner.md#7-persistent-state--what-is-written-where). **No fix applied;
+no code, test or migration file touched.** The only file written by this pass is this log.)*
+
+| Field | Value |
+|---|---|
+| Runner state | ESCALATED |
+| Model in use | opus (diagnosis) |
+| Validator verdict | FAIL |
+| Failure category | architecture (confirmed — not re-classified) |
+
+**Reproduced** — yes, independently, on `migration/M0-06-remove-default-admin`, HEAD `5b12573`.
+Criterion 2's failing half is a source fact, so it reproduces without a database:
+
+```
+$ sed -n '7559,7562p' V.SMART/V.SMART.Shared/Migrations/20260217110637_InitialCreate.cs
+            migrationBuilder.InsertData(
+                table: "Users",
+                columns: new[] { "UserId", ..., "UserName", "UserPassword" },
+                values: new object[] { 1, ..., "Administrator", "AQAAAAIAAYag...YQ==" });
+
+$ cat V.SMART/V.SMART.Shared/Migrations/20260819095649_RemoveDefaultAdministratorSeed.cs
+    protected override void Up(MigrationBuilder migrationBuilder) { /* intentionally empty */ }
+    protected override void Down(MigrationBuilder migrationBuilder) { /* intentionally empty */ }
+
+$ grep -rn --include=*.cs --include=*.razor -E "EnsureCreated|\.Migrate\(|MigrateAsync|CREATE DATABASE" V.SMART/
+V.SMART/V.SMART.Shared/Migrations/20260819095649_RemoveDefaultAdministratorSeed.cs:48:  (a comment)
+      <- one hit, and it is prose. Nothing in the application creates or migrates a database.
+```
+
+So a tenant database built the only way this repository supports — replaying migrations — still
+receives `UserId = 1` / `"Administrator"` / the published hash, and nothing ever removes it.
+
+**The deliverable itself is intact** — re-run here, not taken from the report:
+
+```
+$ dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj
+Passed!  - Failed:     0, Passed:    85, Skipped:     0, Total:    85, Duration: 11 s
+
+$ git diff --stat master..HEAD   -> 15 files; production surface is ApplicationDbContext.cs (30 +/-)
+                                    plus the two new 20260819095649_* files and the snapshot.
+```
+
+**Root cause** — confirmed, and sharper than "the `Up()` is empty": **criterion 2 is
+unsatisfiable from inside a migration, for a structural reason, given this task's own
+constraints.** Three of the task's statements cannot all hold at once:
+
+| # | Statement | Where |
+|---|---|---|
+| 1 | *"No default administrator credential is seeded into a newly created tenant database."* | `tasks/M0-06.md:335` |
+| 2 | Any **existing** migration is never edited — `InitialCreate`'s `InsertData` stays. | `tasks/M0-06.md` § Files That Must Not Change; criterion 11 at :353 |
+| 3 | No option that disables the account may ship while some tenant's **only** administrator is the seeded one. | `tasks/M0-06.md:141-144` (Investigation Q4); Task Objective :43-46 |
+
+(2) means the row is re-inserted on every replay, so the only remaining lever is DML in the new
+migration's `Up()`. A migration cannot tell a **just-provisioned** database from an **existing**
+one: both present exactly the same `Users` state — one row, `UserId = 1`, the seeded values — at
+the moment `Up()` runs. So an unattended guarded `DELETE` either fires in both cases (violating
+(3): it locks out a lone-admin tenant) or fires in neither (leaving (1) unmet). Inverting the
+guard to "delete only when another administrator exists" satisfies (3) and re-fails (1) on the
+fresh-replay case, which is the case criterion 2 is about. There is no third setting.
+
+Compounding it, and **verified by me rather than inherited from the implementer**: the delete
+would not even fail safe. All FKs to `Users` are `Cascade` in the deployed schema —
+`InitialCreate.cs:7196-7200` (`FK_UserAuthority_Users_UserId`) and `:7232-7236`
+(`FK_UserRights_Users_UserId`), both `onDelete: ReferentialAction.Cascade` — and the global loop
+at `ApplicationDbContext.cs:1123-1132` only rewrites relationships that are **not** already
+`Cascade`/`NoAction`/`Restrict`, so it skips them. The task file's premise at :118-123 and
+*Existing Behavior* row 6 — that `DeleteBehavior.Restrict` would "very likely block the delete"
+— is **wrong**; the delete would succeed and silently cascade away every `UserRight` and
+`UserAuthority` of `UserId = 1`. The implementer caught this and recorded it correctly.
+
+Therefore the removal belongs in the **provisioning procedure**, not in migration DML — which is
+exactly **Q-02** (*how are EF migrations rolled out per tenant?*), still **Open**, owner **ops**,
+target **M6-06** (`open-questions.md:32`). The task's own `Dependencies` table names *"a
+deployment owner"* as a **Hard** dependency and says *"This task cannot silently choose on their
+behalf."* That dependency has never been satisfied. This is an architecture/ownership decision,
+not a coding defect.
+
+**Why no fix was applied** — every route to green is forbidden, unsafe, or dishonest:
+
+- **Guarded DML in `Up()`** — shown above to be either lock-out-causing or ineffective, and it
+  cascade-deletes rights either way. It is also the decision the *deployment owner* Hard
+  dependency exists to reserve.
+- **Editing `InitialCreate.cs`** — forbidden by *Files That Must Not Change* and by criterion 11;
+  it would also rewrite history and desynchronise every already-migrated tenant.
+- **Landing the Option-A bootstrap component here** — it does not close criterion 2 anyway (the
+  row still arrives from `InitialCreate`), and it is new startup-fail-fast surface coupled to
+  M0-03-03. Scope creep with no benefit to the failing criterion.
+- **Re-reading criterion 2 as "seeded *by the model*"** — defensible from the task's own *Testing*
+  table (:322-324 defines the fresh-database assertion via `EnsureCreated`/`HasData`), but that is
+  a specification decision. A debugger reinterpreting the criterion that failed is the "silently
+  adjusted check" this workflow forbids, and the security exposure would survive it.
+
+**Disposition** — `escalate`, agreeing with the validator. Not `retry`: a same-spec retry
+reproduces `5b12573` and stops at the identical structural wall. **No regression, no scope
+escape, no invented rule** — the work should be built on, not discarded. Attempts used: 1 of 3.
 
 **Decision the orchestrator needs from the repository owner** (one of, not for the debugger to
 choose):
@@ -5855,3 +6028,29 @@ complete and independently verified locally (470 tests, 106 of them this harness
 GitHub-side "required for merge" setting is outstanding, and it is a human action.
 
 **Next attempt routed to** - no model. Escalated to the owner.
+- **A** — define tenant provisioning as **model-based** (`EnsureCreated`/scaffolded schema) or as
+  *replay + a mandatory post-create removal step*, and record it against **Q-02**. Criterion 2 is
+  then met by the runbook step at KB-104 §5, which already exists. Cheapest; needs ops sign-off,
+  and the runbook step must become **mandatory and verified**, not advisory.
+- **B** — authorise guarded DML in the new migration's `Up()`, accepting the lone-admin lock-out
+  risk with a named pre-check owner. Contradicts `tasks/M0-06.md:141-144` as written, so that
+  clause must be amended in the same decision.
+- **C** — amend criterion 2 to the property actually achievable in this task's scope (*"the model
+  seeds no default administrator, and the replay path's residual exposure is carried by KB-104 and
+  R-09"*), and re-home the replay half onto the Option-A bootstrap task.
+
+Two loose ends to carry into that decision, both already surfaced by the implementer: the
+Option-A bootstrap component still has **no task id** (R-09 open item 4, and criterion 16 asks for
+a *named* follow-up), and R-09 correctly stays **open** pending M0-05.
+
+**Residual risk** — with option **A** or **C**, the exposure is real and only procedurally
+mitigated: any tenant provisioned by `dotnet ef database update` between now and the bootstrap
+task comes up with a published administrator password, and nothing in the codebase enforces the
+runbook's removal step. Q-12 (which tenants exist) is still Unknown, so the blast radius cannot be
+enumerated. Separately: **R-40** (`UserId == 1` behaves as an undeclared superuser —
+`Login.razor:345-349`, `RightsHelper.cs:7-20`) was recorded, not acted on, which is right for this
+task but means the seeded row is more privileged than its `UserRight` rows suggest.
+
+**Next attempt routed to** — no model. KB-091 §6.3 trigger 2 (an architecture decision is
+required) and trigger 7 (validator category `architecture`). A stronger model cannot decide how
+tenants are provisioned.

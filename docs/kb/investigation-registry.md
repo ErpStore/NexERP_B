@@ -34,6 +34,7 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-023 | Testing and CI | Complete *(historical — **superseded 2026-08-19**: the first test project landed with M0-12-01. Read this row as a statement about 2026-08-12, not about now)* | no test project in `.sln`; `.github/` has no workflows | [KB-010](architecture/system-overview.md#testing), R-05 | 2026-08-12 |
 | INV-031 | Test-harness feasibility: hosting `ApplicationDbContext` in a test process | Complete | `V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs`, `.../Data/HumanResource/Attendance/Attendance.cs`, `.../Data/Inspection/**`, `.../Data/Master/Inventory_module/Item.cs`, `.../Data/Inventory(Stock)/StockAdd.cs`, `.../Services/MultiCompanyService/{I,}TenantDbContextFactory.cs`, `.../Services/CurrentUserService.cs`, plus **executed** spikes under EF Core 9.0.5 InMemory and Sqlite | **InMemory works, Sqlite does not** — full findings below | 2026-08-19 |
 | INV-036 | Testing an EF-backed business service through `IUnitOfWork` — the general recipe | Complete | `V.SMART/V.SMART.Shared/Repository/Repository.cs:70-83,103-115,137-172,323-326`, `.../Repository/InventoryStockRepository/StockAddRepository.cs:20`, `.../Repository/IRepository/IUnitOfWork.cs:84,270-272`, `.../Repository/UnitOfWork.cs:485,672,793`, plus the executed suite in `tests/V.SMART.Shared.Tests/Services/StockManagerServiceCharacterisationTests.cs` (36/36 green, run twice) | **Recipe (Confirmed, M0-13):** mock `IUnitOfWork`, configure only the repository properties the service under test touches plus `SaveAsync`, and back each with the **real** repository over **one** real `ApplicationDbContext` (InMemory — INV-031). Two non-obvious constraints, each of which silently yields a test that asserts nothing if missed: **(1) `Repository<T>` never persists** — `CreateAsync` only calls `_dbSet.AddAsync` (`:70-83`), `UpdateAsync` only `_dbSet.Update` (`:103-115`), `DeleteAsync` only `_dbSet.Remove` (`:137-172`) — so the mock's `SaveAsync` **must** forward to `context.SaveChangesAsync()`, or nothing the service does reaches the store. **(2) One context instance for everything** — `GetQueryable()` returns `_dbSet.AsQueryable()` (`:323-326`), a *tracking* query, so the entities a service mutates are the instances a test asserts on, but only when repositories and assertions share one context; `TestDbContextFactory.CreateContext()` returns a fresh context per call over a shared database name, so call it once per test. Making the mock's `SaveAsync` throw on the *n*th call is also the only practical way to drive a non-`InvalidOperationException` into a service's `catch`, which is how the exception-translation paths were pinned. **Rejected alternative (Confirmed):** the real `UnitOfWork` over a fake `ITenantDbContextFactory` — its constructor (`UnitOfWork.cs:485`; `StockAdds` at `:672`, `SaveAsync` at `:793`) instantiates roughly 190 repositories per test and additionally needs `IPasswordHasher<User>`. **Negative results:** the InMemory provider cannot pin sort tie-breaking (it sorts stably, SQL Server does not), SQL null-equality semantics, or `[Precision]` rounding — keep test data clear of all three. | [KB-030](business-rules/business-rule-inventory.md), `tests/V.SMART.Shared.Tests/Infrastructure/StockScenarioBuilder.cs` | 2026-08-19 |
+| INV-035 | Default administrator seed: removal mechanics and per-tenant impact | Complete | `V.SMART/V.SMART.Shared/Data/ApplicationDbContext.cs:1136-1148` (pre-change), `.../Migrations/ApplicationDbContextModelSnapshot.cs`, `.../Migrations/20260217110637_InitialCreate.cs:7196-7200,7232-7236,7562`, `.../Repository/MasterRepository/Admins/UserRepository.cs:34-49`, `.../Pages/.../Login.razor:345-349`, `.../UserRights_Pages/UserRights.razor:82-215`, `.../Identity_Pages/RegisterUpsert.razor:426,444`, `.../AdminService/UserRightService.cs:32-87`, `.../Shared/RightsHelper.cs:7-20`, `V.SMART.Api/Controllers/AuthController.cs:47`, `.../Data/MasterDbContext.cs:5-9`, `.../Data/TenantInfo.cs:3-9`, plus **executed** `dotnet ef migrations add` probes (three, all reverted) | **Executed, not reasoned.** (1) Removing the `HasData` row **does** scaffold `DeleteData(table:"Users", keyColumn:"UserId", keyValue:1)` — and the generated `Down()` re-`InsertData`s the published hash. (2) It would **not** be blocked: all three FKs to `Users` are `Cascade`, so it would succeed and silently cascade-delete the user's rights/authorities/theme rows — the task file's `Restrict` premise was **wrong**. (3) A non-constant `HasData` value is **accepted** by the tooling but useless: two consecutive `migrations add` runs with `Guid.NewGuid()` emitted two different `UpdateData` literals, so "random per deployment" is impossible through `HasData`. (4) No must-change-password field exists. (5) `UserId == 1` is an undeclared superuser (R-40). Negative results and full detail below. | [KB-104](security/default-admin-removal-runbook.md), R-09, R-40 | 2026-08-19 |
 | INV-029 | Version-control state, repository visibility, and toolchain/build baseline | Complete *(visibility finding corrected 2026-08-12 by INV-034 — see below; do not cite INV-029 alone for visibility. **Solution-build gap closed 2026-08-17 by M0-15** — see below.)* | `git ls-remote`, `git log`, `git status --porcelain`, `git grep -l "<secret>" HEAD`, `dotnet --list-sdks`, `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`, `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj`, `dotnet build NexGen-ERP---2025-master.sln`, `dotnet workload list` | [KB-080 §6](execution/README.md#findings-from-this-planning-pass-that-changed-m0), [KB-083](execution/prompt-template.md#verified-repository-commands), [KB-086](execution/M0-15-build-baseline.md) | 2026-08-18 |
 | INV-039 | DI composition drift across `V.SMART.Api/Program.cs`, `V.SMART.Web/Program.cs`, `V.SMART/MauiProgram.cs`, ahead of `M2-B07` | Complete | All three composition roots read line-by-line 2026-08-19 (task file's own line numbers found stale — shifted by `M0-03-02`/`M0-03-03`): `V.SMART.Api/Program.cs` (125 lines, registers only `ICurrencyService`, no `IRepository<>`); `V.SMART.Web/Program.cs` (660 lines); `V.SMART/MauiProgram.cs` (652 lines, no call to `StartupConfigurationValidator` unlike the other two hosts) | **Drift is ~5x the task file's estimate**: 16 domain registrations diverge between Web and MAUI, not 3 — 8 services (`IContractReviewService`, `IRouteCardService`, `IRouteCardRepository`, `IRouteCardSubRepository`, `IProductionReturnAssyRepository`, `IProductionReturnAssySubRepository`, `IProductionSCNAssyRepository`, `IProductionSCNAssySubRepository`) are registered in MAUI's `MauiProgram.cs` but were missing from `V.SMART.Web/Program.cs`, so `/contractReviewMasterList` and `/routeCardList` and siblings threw a DI resolution error in the Blazor host (reachability of those routes in production not independently confirmed — Unknown). `IFileOpener`'s lifetime already diverges by host (Singleton in MAUI `:274`, Scoped in Web `:267`) — a pre-existing inconsistency (R-26), not something a shared composition root can silently resolve without a decision. `MasterDbContext` is registered in Api and Web via plain `AddDbContext` but **not** in MAUI, which instead reads `ConnectionStrings__MasterDb` from the environment first (M0-03-02 pattern, `MauiAppBuilder.Configuration` has no env-var provider by default). Host-coupled `V.SMART.Shared` services that a plain `AddVSmartDomain()` cannot safely resolve in the API without a decision: `IPathProvider`, `IFileOpener`, `IFileUploadService` (each host supplies its own implementation) — `ReportService`, `IUserService`, `IGSTITCService`, `IUserThemePreferenceService` transitively depend on one of these and stay unresolvable in `V.SMART.Api` even after this task, which is expected, not a defect. Authorization DI is explicitly out of scope per [KB-105 §6.2](architecture/server-side-authorization-spec.md) — it belongs in a sibling `AddVSmartApiAuthorization()` in the API host, never inside `AddVSmartDomain()`. **CORRECTIONS (Confirmed, `M2-B07` attempt 2, 2026-08-19 — the first pass above was measured by eye; this pass normalised and set-differenced every registration call in both files):** (1) **The MAUI-only set is 6, not 8.** `IContractReviewService` and `IRouteCardService` are registered in the Blazor host as well — `V.SMART/V.SMART.Web/Program.cs:467` and `:518` — and are merely *duplicated* inside `MauiProgram.cs` (`:364,474` and `:521,523`), which is what made them look one-sided. The dependent claim that `/contractReviewMasterList` and `/routeCardList` threw a DI error in Blazor is therefore **unsupported**; Q-31's premise was corrected accordingly. (2) **The drift is symmetric and the first pass saw only one side:** 7 registrations were Web-only and missing from MAUI — `IAssemblyDefLabourService`, `IEstimateService`, `IJobOrderRepository`, `IJobOrderSubRepository`, `ILabourTrackRepository`, `IPrPoRatingService`, `IToolCribServices`. 13 domain registrations diverge in total, not 16. (3) **Exact counts:** Web 242 matched lines → 240 distinct → 239 real (`:253` is commented out); MAUI 243 → 239 distinct; union 249. (4) **The host-coupled list is 6, not 4:** add `ICompanyService` (`CompanyService.cs:27` — `IFileUploadService` *and* a bare `HttpClient`) and `IItemService` (`ItemService.cs:35` — `IFileUploadService`). (5) **Two seams the first pass missed entirely**, both found by running `ValidateOnBuild`: `AuthenticationStateProvider` (taken by `CurrentUserService`, registered per-host in all three, including the API at `Program.cs:89`) and `IHttpClientFactory` (taken by `BankService`, `PaymentsService`, `ReceiptsService`, `AdvaceAdjustmentService`; supplied only by `AddHttpClient()`, which Web had and the API did not). (6) **`IExcelTemplateService` is domain, not host UI** despite sitting among the UI registrations in both former roots — `ExcelTemplateService.cs:27-32` takes only `IUnitOfWork`, `ICommonService`, `CurrentUserService`, `ILoggingService`, and 7 business services inject it. It was moved into `AddVSmartDomain()`. **Negative result:** with `IPathProvider`, `IFileUploadService`, `IFileOpener`, `IJSRuntime`, a bare `HttpClient`, `AuthenticationStateProvider` and `AddHttpClient()` supplied, the *entire* 249-registration graph passes `BuildServiceProvider(validateScopes: true, validateOnBuild: true)` — there is no other hole. | [KB-060 R-26](risks/technical-debt-register.md), [KB-105 §6.2](architecture/server-side-authorization-spec.md), `tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs` | 2026-08-19 |
 | INV-040 | How the service layer signals a business-rule refusal, and how the API maps it to `409` | Complete | `V.SMART.Api/Controllers/CurrencyController.cs:64,77,87`; `BusinessLayer/**` swept for refusal shapes: `CanDelete*Async` (79 implementation methods across 61 service files, e.g. `CurrencyService.cs:188`, `SalaryService.cs:206`, `StaffLoanService.cs:233`, `AttendanceService.cs:102`), `CanItemCancel*` (10, e.g. `PuchPoService.cs:151`, `PurchaseGRNService.cs:1064`, `MaterialReqService.cs:825`, `LabourGRNService.cs:1709`, `PurchaseQuoteService.cs:1134`), `ValidateDeleteAsync` (3: `SubConGRNService.cs:1454`, `ProductionReturnAssyService.cs:460`, `ProductionReturnCompService.cs:797`), `ServiceResult` (1, nested in `StoreService.cs:304-313`, used by `UpsertStoreAsync` at `:173`); `ICurrencyService.cs:14-15`; `CurrencyService.cs:77,85,110,114,120,123,129,153,188-211`; `throw new *Exception` counted across `BusinessLayer/**` | **Refusals are signalled by TUPLE RETURN, not by exception.** The pervasive form is the two-element delete guard `(bool CanDelete, string Message)` — **79 methods / 61 files**, spanning HR, Inventory, Master, Labour, Production and Outsourcing — plus three near-identical variants (`(bool CanItemCancel, string Message)` ×10, `(bool IsValid, string Message)` ×3, one nested `ServiceResult`). A returned value is invisible to middleware, so **the controller must do the mapping**. **Decision (M2-A06, binding on all 60–80 future controllers): a controller helper**, `ProblemResults.BusinessRuleProblem(message)` in `V.SMART/V.SMART.Api/Middleware/ProblemResults.cs` — *not* a domain exception type, because `V.SMART.Shared` is live under Blazor Server and must not change, and because exceptions are not a trustworthy refusal channel there (below). The boolean is the signal; the message is passed through untouched (BR-SO-001). **NEGATIVE RESULTS:** (1) the three-element create/update tuple `(bool Success, string Message, T? Entity)` is **unique to `CurrencyService`** (`ICurrencyService.cs:14-15`), added by `b8beb0d` for the API — sibling master interfaces (`ICostCenterService`, `IExpenseService`, `IIncomeService`) expose **no** Create/Update at all, so M2-B03's template must generalise the *delete-guard* tuple, not this one; (2) no `CanDelete…` method returns a bare `Task<bool>`; (3) there is **no domain-exception base type or marker interface** anywhere in `BusinessLayer/**`; (4) grepped `X-Correlation-Id`/`CorrelationId`/`TraceIdentifier` across `docs/`, `V.SMART.Api` and `tests/` before this task — two documentation hits, **zero implementation**. **TRAP for anyone copying the mapping:** `InvalidOperationException` is thrown 1,107 times in `BusinessLayer/**` and carries *both* meanings — a business refusal (`StockManagerService.cs:210` "No available stock to issue.") and an infrastructure fault rethrown from a `catch` (`StockManagerService.cs:345` "Failed to retrieve stock details.") — so no exception→status rule is safe; M2-A06 maps every escaping exception to `500`. Equally, the refusal tuple itself carries non-refusal meanings in two confirmed places (`CurrencyService.cs:197` not-found; `CurrencyService.cs:208-211` a caught fault) → **Q-34** | [KB-040 § Error contract](api/api-overview.md#error-contract-m2-a06), BR-SO-001, `V.SMART/V.SMART.Api/Middleware/ProblemResults.cs` | 2026-08-20 |
@@ -1043,6 +1044,143 @@ permission service, no rights directive, and its only guard checks authenticatio
 (`src/app/core/auth/auth.guard.ts:11-20`). The 152 × 5 matrix has to be built from nothing in
 `M2-C02`; there is no pilot code to adopt for it.
 
+### INV-035 — Default administrator seed: removal mechanics and per-tenant impact
+
+Produced by **M0-06**, 2026-08-19. Questions 1 and 2 below were **executed with the EF tooling**,
+not reasoned about; the exact output is quoted. Three probe migrations were generated and all
+three were deleted again, with `ApplicationDbContextModelSnapshot.cs` restored from git each
+time.
+
+**Tooling used (previously unverified in this repository — it works):**
+
+```bash
+export ConnectionStrings__DesignTimeTenantDb="<any value; no connection is opened>"
+dotnet ef migrations add <Name> \
+  --project V.SMART/V.SMART.Shared/V.SMART.Shared.csproj \
+  --framework net9.0 --context ApplicationDbContext
+```
+
+Both switches are required: `--framework net9.0` because `V.SMART.Shared` multi-targets, and
+`--context ApplicationDbContext` because the project has more than one `DbContext` (without it
+the tool exits with *"More than one DbContext was found. Specify which one to use."*).
+`dotnet-ef` 10.0.11 on SDK 10.0.400 drove the EF Core 9.0.5 model without complaint. **The
+connection string is never opened** by `migrations add`, so no credential is needed and none was
+committed — `Data/MigrationData/DesignTimeConnectionString.cs:23-62` merely requires the
+variable to be *set*.
+
+#### Finding 1 (Confirmed, executed) — removing `HasData` scaffolds a `DELETE`, and the `Down()` re-commits the hash
+
+With the seed block deleted, `migrations add RemoveDefaultAdministratorSeed` printed
+*"An operation was scaffolded that may result in the loss of data."* and generated, verbatim:
+
+```csharp
+protected override void Up(MigrationBuilder migrationBuilder)
+{
+    migrationBuilder.DeleteData(
+        table: "Users",
+        keyColumn: "UserId",
+        keyValue: 1);
+}
+
+protected override void Down(MigrationBuilder migrationBuilder)
+{
+    migrationBuilder.InsertData(
+        table: "Users",
+        columns: new[] { "UserId", ... 35 columns ... },
+        values: new object[] { 1, ..., "Administrator", "<the published PBKDF2 hash>" });
+}
+```
+
+Two consequences. The `Down()` would have re-committed the very hash the task exists to remove,
+and the `Up()` is not safe to ship (Finding 2). Both halves were therefore replaced by hand with
+documented no-ops; the migration is retained **only** to carry the updated model snapshot, so
+that the next unrelated `migrations add` does not silently scaffold that `DeleteData` into
+someone else's migration.
+
+#### Finding 2 (Confirmed) — the delete would NOT be blocked; it cascades silently. The task file's premise was wrong
+
+M0-06's task file (*Investigation Requirements* item 1, *Existing Behavior to Preserve* item 6)
+asserted that the global `DeleteBehavior.Restrict` loop would make `UserRight`/`UserAuthority`
+rows **block** the delete. The source says otherwise. Exactly three foreign keys reference
+`User` in the whole model, and all three are `Cascade`:
+
+| Relationship | Evidence (post-M0-06 snapshot) |
+|---|---|
+| `UserRight.User` | `ApplicationDbContextModelSnapshot.cs:25924-25928` — `OnDelete(DeleteBehavior.Cascade)`, `IsRequired()` |
+| `UserAuthority.User` | `:25937-25941` |
+| `UserThemePreference.User` | `:26422-26426` |
+
+The physical DDL agrees: `Migrations/20260217110637_InitialCreate.cs:7196-7200`
+(`FK_UserAuthority_Users_UserId`, `onDelete: ReferentialAction.Cascade`) and `:7232-7236`
+(`FK_UserRights_Users_UserId`, Cascade). The reason the global loop does not catch them is that
+it rewrites a relationship **only** when its behaviour is not already
+`Cascade`/`NoAction`/`Restrict`, and EF defaults a **required** FK to `Cascade`.
+
+**The failure mode is therefore silent data loss, not a loud abort** — the opposite of what the
+task anticipated, and worse. This is why KB-104's removal step deletes the dependants
+explicitly, inside a transaction, with the row counts reviewed before commit.
+
+#### Finding 3 (Confirmed, executed) — a non-constant `HasData` value is accepted but useless
+
+`UserPassword` was temporarily set to `System.Guid.NewGuid().ToString()` and `migrations add`
+was run **twice with no source change in between**. Neither run errored. The two generated
+migrations were:
+
+```csharp
+// M0_06_ProbeB_1
+migrationBuilder.UpdateData(table: "Users", keyColumn: "UserId", keyValue: 1,
+    column: "UserPassword", value: "91324d66-7aea-4e31-b2a0-e9630d0afbd7");
+
+// M0_06_ProbeB_2 — no source change between the two runs
+migrationBuilder.UpdateData(table: "Users", keyColumn: "UserId", keyValue: 1,
+    column: "UserPassword", value: "8c121da5-0005-4fd5-9a40-32a73fda66a4");
+```
+
+So EF Core 9 does **not** reject a non-deterministic `HasData` value, but the value is evaluated
+**once, at scaffold time**, and baked into the migration and the snapshot as a literal. Every
+deployment gets the *same* "random" password, it is committed to source, and every subsequent
+`migrations add` produces a spurious `UpdateData`. **"Random per-deployment password" is
+therefore not achievable through `HasData`.** It must be a runtime bootstrap component — which
+is Option A, and which M0-06 deferred rather than half-building.
+
+#### Finding 4 (Confirmed) — no must-change-password mechanism exists
+
+`Data/Master/Admin_Module/User.cs` has no `MustChangePassword`, no `PasswordChangedDate` and no
+equivalent. Option B ("keep the row, force a change at login") therefore needs a schema change
+plus a Blazor login-flow change, and was rejected on cost inside a 1-day task.
+
+#### Finding 5 (Confirmed) — `UserId == 1` is an undeclared superuser, and that is a second lockout route
+
+Recorded in full as **R-40** in `risks/technical-debt-register.md`, and as Trap 2 in
+[KB-104](security/default-admin-removal-runbook.md). Summary: `Login.razor:345-349` auto-grants
+`UserId 1` all 152 screen rights on every login via `UserRightService.cs:32-87`; no `UserRight`
+rows are seeded by `HasData` at all; rights are deny-by-default (`RightsHelper.cs:7-20`,
+`?? false`). A replacement administrator with a different `UserId` therefore authenticates and
+sees nothing, and cannot grant rights to itself (`UserRights.razor:215`).
+
+#### Negative results — recorded so nobody greps for these again
+
+| Searched for | Result |
+|---|---|
+| The committed PBKDF2 hash, across the whole repository (`git grep --untracked`) | **110 files before M0-06; 109 after** (measured with `git grep --untracked -l`). All 109 remaining are pre-existing historical migration files under `V.SMART/V.SMART.Shared/Migrations/` — 108 `*.Designer.cs` model snapshots plus the `InsertData` at `20260217110637_InitialCreate.cs:7562` (which also carries `admin@example.com`, `9999999999` and `Administrator` on that one line). History is never edited; **M0-05** owns removing it from git history. The single non-migration occurrence, `ApplicationDbContext.cs:1142`, is the one M0-06 deleted. |
+| Any other seeded credential — `AQAAAAIA` (the ASP.NET Identity v3 hash prefix) in `*.cs`/`*.razor`/`*.json`, excluding `Migrations/` and `ApplicationDbContext.cs` | **Zero hits.** There is no second seeded credential anywhere. |
+| `Entity<User>()` outside `Migrations/` | **Exactly one hit** — the block M0-06 removed. No second `User` seed exists, including in `MasterDbContext`. |
+| `admin@example.com` / `9999999999` outside `Migrations/` | One hit each, both in the removed block. (Other `999999999` matches are unrelated `[Range(0, 999999999999.999)]` attributes in `AssemblyDefVM.cs` / `AssemblyDefLabourVM.cs`.) |
+| The literal `"Administrator"` outside `Migrations/` | Six hits, **none of them a username lookup**: the removed seed (2), the `UserRole` enum member (`Data/Enum/UserRole.cs:5`), a filter-dropdown status string (`AdminService/UserService.cs:208-209`), and two `<AuthorizeView Roles="Administrator,…">` in `Layout/NavMenu.razor:36,148`. **No code anywhere queries `UserName == "Administrator"`.** Removing the row breaks nothing that matches on the name; the numeric `UserId == 1` checks (Finding 5) are the real dependency. |
+| `.Migrate()`, `MigrateAsync`, `EnsureCreated` across all of `V.SMART/` | **Zero hits.** Nothing applies migrations at startup. Independently re-verifies M0-01's finding and Q-02: a new migration reaches no tenant by itself. |
+| `SyncRightsForUserAsync` across `V.SMART/` | **Exactly three hits** — `IUserRightService.cs:11`, `UserRightService.cs:32`, `Login.razor:348`. **None in `V.SMART.Api`**: `AuthController.cs:47` authenticates without the rights-bootstrap hook. |
+| `DeleteData` against table `"Users"` anywhere in `Migrations/` | **Zero hits** — there was no precedent for deleting the admin row. (There *is* precedent for seed deletion generally: `20260228134840_…cs:128-136` and `20260304055613_…cs:34-42` each delete a `UserRights` seed row before the `Screens` row it depended on.) |
+
+#### Unknowns this investigation could not close
+
+- **How many real users each tenant has, and whether any tenant's only administrator is the
+  seeded account.** Requires database access. KB-104 section 3 gives the read-only query; the
+  deployment owner must run it. Raised as **Q-25**.
+- **Whether `UserId 1` has ever logged in in a given tenant** — decides whether the cascade
+  would destroy real rows. Same query, columns `RightsRowsForUser1` etc.
+- **Q-02** (per-tenant migration rollout) and **Q-12** (production tenant list) remain open.
+
+
 ## Partial
 
 | ID | Topic | Status | Gap | Doc |
@@ -1106,7 +1244,8 @@ different id, the table wins. Three independent sessions claimed INV-030 simulta
 | INV-036 | Testing an EF-backed business service through `IUnitOfWork` (moved to Completed table above) | M0-13 | Completed |
 | INV-037 | `UserRight`/`Screens` uniqueness, duplicate-row risk, and rights write sites | M2-A01-01 | **Claimed and complete 2026-08-18 — moved to the Completed table above** |
 | INV-039 | DI composition drift across the three hosts' `Program.cs`/`MauiProgram.cs` | M2-B07 | **Claimed and complete 2026-08-19 — moved to the Completed table above** |
-| **INV-035, INV-038** | **reserved for `M0-06`, not yet claimed — do not reuse** | M0-06 | Reserved (unmerged branch `migration/M0-06-remove-default-admin`) |
+| INV-035 | Default administrator seed: removal mechanics and per-tenant impact | M0-06 | **Claimed and `Complete` 2026-08-19 — moved to the Completed table above** (merged to `master` 2026-08-25). It disproved the task file's `Restrict` premise: all three FKs to `Users` are `Cascade`. |
+| **INV-038** | **no longer reserved** — `M0-06` claimed only INV-035; INV-038 was never used and is free | — | Free |
 | INV-040 | Business-rule refusal signalling across the service layer, and how a `409` is produced | M2-A06 | **Claimed and complete 2026-08-20 — moved to the Completed table above** |
 | INV-041 | Sort delivery to services whose ordering is hardcoded | M2-B02 | **Claimed and complete 2026-08-20 — moved to the Completed table above** |
 | INV-042 | What `role` means in `GET /api/v1/me`, and which user data belongs in the bootstrap response | M2-A07 | **Claimed and complete 2026-08-20 — moved to the Completed table above** |

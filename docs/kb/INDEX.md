@@ -4,7 +4,7 @@ title: Knowledge Base Index and RAG Strategy
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-24
+last_verified: 2026-08-25
 ---
 
 # Knowledge Base Index and RAG Strategy
@@ -66,6 +66,7 @@ last_verified: 2026-08-24
 | KB-113 | [Observability — Health Checks, Structured Logging and the Audit Trail](architecture/observability.md) | as-is | complete | confirmed | 2026-08-21 |
 | KB-114 | [**Controller Conventions — the frozen API contract**](api/controller-conventions.md) | api | active (**frozen at M2-B03**) | confirmed | 2026-08-24 |
 | KB-112 | [**OpenAPI Contract and Generated TypeScript Client**](api/generated-client.md) | api | active | confirmed | 2026-08-24 |
+| KB-104 | [Default Administrator Removal — Per-Tenant Runbook (R-09)](security/default-admin-removal-runbook.md) | as-is | complete | mixed | 2026-08-19 |
 
 ## doc_id allocation
 
@@ -168,6 +169,7 @@ Use this table before searching the repository.
 | Whether something has already been investigated | KB-003 |
 | What is still unknown | KB-004 |
 | Which stored procedures exist and which are missing | KB-102 |
+| How do I remove the seeded default `Administrator` account from a tenant? (R-09) | KB-104 |
 | Do stored procedures differ between tenants? (Q-14 drift check, method + tooling) | KB-103 |
 | **How is `[RequireScreen]`/`[RequireRight]` meant to behave** — the deny truth table, screen-name matching, duplicate rows, the `403`/`401` bodies, the rights cache key and TTL | **KB-105** |
 | Which exact screen-name strings may a controller declare? (the 152 seeded names) | KB-105 § Appendix A |

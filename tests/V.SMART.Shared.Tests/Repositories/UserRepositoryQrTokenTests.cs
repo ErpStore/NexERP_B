@@ -80,7 +80,7 @@ public class UserRepositoryQrTokenTests : IDisposable
         Assert.Null(await repository.GetUserByQrToken(unknown));
     }
 
-    private Data.ApplicationDbContext Seed(Guid token, DateTime? expiry)
+    private global::V.SMART.Shared.Data.ApplicationDbContext Seed(Guid token, DateTime? expiry)
     {
         var db = _factory.CreateContext();
         db.Users.Add(NewUser(token, expiry, isQrEnabled: true, isActive: true));
@@ -101,7 +101,7 @@ public class UserRepositoryQrTokenTests : IDisposable
             QrExpiryDate = expiry
         };
 
-    private static UserRepository Repository(Data.ApplicationDbContext db)
+    private static UserRepository Repository(global::V.SMART.Shared.Data.ApplicationDbContext db)
         => new(
             db,
             new PasswordHasher<User>(),
