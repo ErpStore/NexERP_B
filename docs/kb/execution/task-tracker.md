@@ -136,7 +136,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Completed**²⁹˒⁸⁶ *(owner reviewed fix `8a54f96` directly and merged, 2026-08-26 — see footnote ⁸⁶)* | P0 | M2-B07 | 2 d | G2 |
-| M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | Blocked | P0 | M2-B12-01 | 1 d | G2 |
+| M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | **Blocked**⁸⁷ *(phase 1 — read-only census script + DBA runbook — cherry-picked to `master` 2026-08-26; phase 2 in progress this session, owner holds direct DB access — see footnote ⁸⁷)* | P0 | M2-B12-01 | 1 d | G2 |
 | M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked | P0 | M2-B12-02 | 3 d | G2 |
 
 ### M2-C — Frontend foundation (Angular, per [ADR-007](../decisions/ADR-007-angular-stack.md))
@@ -3430,3 +3430,32 @@ contains real, apparently unstarted-on-`master` work: `ce93c6d` ("Add the Q-10 r
 census script and DBA runbook (phase 1)") for `M2-B12-02` itself, which may be worth
 cherry-picking once the duplicate M0-04/M0-06/M2-B12-01 merges beneath it are accounted for.
 
+⁸⁷ **`M2-B12-02`: phase 1 cherry-picked to `master`, 2026-08-26 — commit `ce93c6d`, taken
+from the stale duplicate lineage documented in footnote ⁸⁶ rather than merging that branch
+wholesale.** That branch's own copy of this commit is unusable as-is: it was written on top
+of a divergent M0-04 merge that never received this session's C-2 correction, and it names
+`154.61.76.112,1533` — now confirmed **not this project's host** — as *"the SQL Server
+instance"* to run the census against. Cherry-picked cleanly (two trivial bookkeeping
+conflicts in `INDEX.md`/this file, both id-ledger entries; the actual delivered files —
+`docs/kb/execution/runbooks/Q-10-numbering-constraints.sql`, its companion `.md` runbook
+(KB-101), `tasks/M2-B12-02.md`, `modules/document-numbering.md` §11 — applied without
+conflict), then corrected to point at the real, reachable instance this project actually
+has: `DESKTOP-FIIBE97\SQLEXPRESS`, database `NexGenErpDb` (the sole tenant, `Id=1`,
+`'localhost'` — the same one C-1/C-3 were rotated against, footnote ⁸⁵).
+
+**Delivered:** `Q-10-numbering-constraints.sql` — **3,745 lines**, generated programmatically
+from **KB-100 §9**, covering **51 series** with four query blocks each (constraint inventory;
+duplicate census under application scoping; duplicate census unqualified; format-shape
+census). **Read-only, independently re-verified in this session rather than trusted from the
+commit message:** the script contains **none** of `CREATE`/`ALTER`/`DROP`/`INSERT`/`UPDATE`/
+`DELETE`/`MERGE`/`TRUNCATE`/`EXEC`/`DBCC`, anywhere including comments — 0 matches on a
+case-insensitive substring grep, run fresh against the cherry-picked copy.
+
+**What changes now that this project actually has a reachable instance, unlike the branch's
+assumption:** the original close-out's designed terminal state — *"if no DBA execution was
+obtained, the task reports `Blocked`, which is an acceptable outcome"* — assumed a production
+DBA who does not exist in this repository. That is **not** this project's actual blocker: the
+owner holds direct access to the one instance this project has, demonstrated earlier this
+session (M0-04's C-1/C-3 rotation). Phase 2 (running the script) is attempted in this session
+rather than left for an unnamed DBA — see the current-task pointer / this session's own
+record for the outcome.
