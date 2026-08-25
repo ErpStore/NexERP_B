@@ -21,21 +21,35 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## `M0-04`: Rotate the exposed credentials — Blocked, session close-out 2026-08-25
+## No active task — the selectable pool is empty, 2026-08-25
 
-**Run State:** Attempt **1 of 4** executed on `migration/M0-04-credential-rotation-runbook`
-(tip `e437fe5`). Status **`BLOCKED`** — the implementer delivered all four AI-deliverable
-artefacts and stopped correctly, because rotating any credential requires production access
-no AI session has or should have. **This is the task's own designed terminal state** (its
-*Target Result* says so explicitly), not a validation failure — no validator ran
-(`"verdict": "none"`; nothing here is gated by tests). Escalations this attempt: 0. A human
-or a later run should **resume from here — not restart** the document work, which is
-complete and committed.
+**`M0-04` is closed and merged.** Its branch `migration/M0-04-credential-rotation-runbook`
+was merged to `master` at `ad75915`. The ref still exists but is fully contained in
+`master` (`git branch --merged master` lists it), so it is not an open branch. The tracker row
+reads **`Blocked`** (footnote ⁷¹), which is the task's own designed terminal state — its
+*Target Result* says `Blocked`, not `Completed`, when nobody with production access rotates
+anything during the session, and nobody did. All four AI-deliverable artefacts are on
+`master`: `docs/runbooks/credential-rotation.md`, the credential inventory (`INV-052`), the
+unsigned §8 verification checklist, and the Q-19 confirmation. **Do not re-open or re-run it**
+— the document work is complete; what remains is human rotation, not a task.
 
-**Full spec:** [`tasks/M0-04.md`](tasks/M0-04.md) § Execution Record (2026-08-25). Tracker:
-`task-tracker.md` row 67, footnotes ⁴, ⁷⁰, ⁷¹. Runner bookkeeping:
-[`runner-state.md`](runner-state.md) `Status` row.
+**Nothing on the tracker is self-selectable.** The only `Ready` row is **`M0-11`**, a
+`Product Decision`, which [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks)
+makes owner-only. Four consecutive runner passes have halted here (`3669d37`, `383cbba` and
+their predecessors). **A fifth pass will halt identically** — the constraint is decisions, not
+execution capacity. See [`runner-state.md`](runner-state.md) `Status` for the full trace.
 
+### What unblocks work, and who owns it
+
+| Needs | Owner | Releases |
+|---|---|---|
+| **Q-01** — the silent FIFO under-issue product decision | Vivek | `M0-11`, the only `Ready` row |
+| **Q-25 / Q-26** — is `UserId = 1` any tenant's only administrator, and how must provisioning avoid the seeded credential | Vivek | `M0-06`'s unmet criterion 2 |
+| **Q-84** — who redacts the SA and production passwords still at `HEAD` in `docs/kb/` | Vivek | `M0-05`'s scope |
+| **C-7** — the AES key/IV at `LicenseProductKey.cs:28-29` is public; the vendor must re-key | unassigned | `M0-04`'s C-5 |
+| A named signature on the runbook §8 checklist | the four roles below | `R-01`/`R-02` |
+
+### M0-04's rotation is blocked on four named human roles
 ### What is blocked, and on whom
 
 Four named human roles, none of them a task that can land on `master`:
