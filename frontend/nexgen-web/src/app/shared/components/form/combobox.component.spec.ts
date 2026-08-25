@@ -207,10 +207,96 @@ describe('app-combobox', () => {
     expect(input.getAttribute('aria-expanded')).toBe('true');
 
     await userEvent.keyboard('{Escape}');
+
+    // PrimeNG's hide() defers its state change through a 0 ms timeout "For
+    // ScreenReaders" (primeng-autocomplete.mjs:1372-1376), so asserting
+    // synchronously races it - the original form of this test was the R-76
+    // combobox flake.
+    await vi.waitFor(() => {
+      view.fixture.detectChanges();
+      expect(input.getAttribute('aria-expanded')).toBe('false');
+    });
+    expect(form.value.customer).toBeNull();
+  });
+
+  it('discards a search that resolves after the panel was dismissed', async () => {
+    // Each call hands its resolver out, so the test controls exactly when
+    // every response lands - the second one deliberately after Escape. The
+    // two result sets have different lengths so the assertion can tell a
+    // delivered late response from a discarded one.
+    const releases: ((value: readonly SelectOption<number>[]) => void)[] = [];
+    const loader = () =>
+      new Promise<readonly SelectOption<number>[]>((resolve) => {
+        releases.push(resolve);
+      });
+    const { view, combobox, input } = await setup(loader, 0);
+
+    await type(input, 'A');
+    await vi.waitFor(() => expect(releases).toHaveLength(1));
+    releases[0]?.([...CUSTOMERS]);
+    await vi.waitFor(() => expect(combobox.suggestions()).toHaveLength(2));
+    view.fixture.detectChanges();
+    expect(input.getAttribute('aria-expanded')).toBe('true');
+
+    // A second keystroke starts a search that stays in flight...
+    await type(input, 'c');
+    await vi.waitFor(() => expect(releases).toHaveLength(2));
+
+    // ...and the user dismisses the panel before it resolves.
+    await userEvent.keyboard('{Escape}');
+    await vi.waitFor(() => {
+      view.fixture.detectChanges();
+      expect(input.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    // The response arrives late. A dropdown the user closed must not force
+    // itself back open, so the response is discarded before it can reach
+    // PrimeNG - whose handleSuggestionsChange answers a suggestions change
+    // made while its loading flag is set with show()
+    // (primeng-autocomplete.mjs:772-778), and whose hide() never clears that
+    // flag (:1361-1376).
+    releases[1]?.([CUSTOMERS[0]!]);
+    await new Promise((resolve) => setTimeout(resolve, 20));
     view.fixture.detectChanges();
 
+    // Discarded means discarded: the one-item late result never landed.
+    expect(combobox.suggestions()).toHaveLength(2);
     expect(input.getAttribute('aria-expanded')).toBe('false');
-    expect(form.value.customer).toBeNull();
+    // And no stale in-flight state survives the dismissal.
+    expect(combobox.loading()).toBe(false);
+  });
+
+  it('a stale overlay enter-confirmation cannot resurrect a dismissed panel', async () => {
+    const { view, combobox, input } = await setup(() => Promise.resolve(CUSTOMERS), 0);
+
+    await type(input, 'Ac');
+    await vi.waitFor(() => expect(combobox.suggestions()).toHaveLength(2));
+    view.fixture.detectChanges();
+    expect(input.getAttribute('aria-expanded')).toBe('true');
+
+    await userEvent.keyboard('{Escape}');
+    await vi.waitFor(() => {
+      view.fixture.detectChanges();
+      expect(input.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    // p-overlay's enter transition begins asynchronously and, when it begins,
+    // confirms visibility back into the AutoComplete through its `visible`
+    // model (primeng-overlay.mjs:457-459,489-492 -> primeng-autocomplete.mjs
+    // `(visibleChange)="overlayVisible.set($event)"`). If Escape landed before
+    // the transition started, that late confirmation used to reopen the
+    // dismissed panel - the loaded-run half of the R-76 flake. Simulate the
+    // confirmation landing now, after the dismissal:
+    const overlay = view.fixture.debugElement
+      .query(By.directive(ComboboxComponent))
+      .query((node) => node.name === 'p-overlay')?.componentInstance as {
+      show: (overlayEl?: unknown, isFocus?: boolean) => void;
+    };
+    overlay.show(null, true);
+    view.fixture.detectChanges();
+
+    // A confirmation may confirm; it must never resurrect.
+    expect(input.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('moves the caret with Home and End - this one is a text entry, not a list', async () => {
