@@ -64,7 +64,7 @@ its children are `Completed` — it is never worked directly.
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Completed**² | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed**⁵ | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Completed**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
-| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴ | P0 | — | 1 d | G0 |
+| M0-04 | M0 | Rotate the exposed credentials | Security | **Ready**⁴˒⁷⁰ | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Completed**¹¹ | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
 | M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Completed**⁸ | P0 | M0-03-01 | 0.5 d | G0 |
@@ -2992,3 +2992,36 @@ disagreement was invisible until the remote said so. **This is a question for th
 defect to fix unilaterally:** either the PR rule is the intended workflow and execution sessions
 should be producing PRs rather than local merges, or the rule is vestigial and should be relaxed
 to match how the repository is actually operated. Raised as **Q-82** — `Q-77` was already taken; ids now run to `Q-81`, and `Q-82` was checked against `git branch --no-merged master` before claiming.
+
+⁷⁰ **M0-04: `Blocked` → `Ready` 2026-08-25, on owner instruction, after re-reading what the task
+actually asks for.** Three sessions of this run — including several of my own reports — described
+`M0-04` as blocked on production SQL / GST gateway access. **That is true of the rotation and
+false of the task.**
+
+**Every one of `M0-04`'s acceptance criteria is a document**, and its *Target Result* says so
+outright: a runbook, a credential inventory, a human verification checklist, and Q-19 filed —
+then *"if and only if a human with the right access performs the rotation during this task: the
+checklist filled in. If nobody does, the task's honest status is **Blocked**, not Completed."*
+Step 10 repeats it: *"Do not report Completed because the documents were written."* So the task is
+**designed** to be executed without the access and to close `Blocked` pending a named human. The
+owner's 2026-08-19 deferral — *"we dont have production SQL / GST gateway access"* — correctly
+described the rotation; it was applied to the whole task, which stalled the deliverable that makes
+the rotation a short, rehearsed job instead of an improvisation against live tenant databases.
+
+**Q-19 is already answered** (2026-08-12, owner decision), so acceptance criterion 1 is satisfied
+before the task starts.
+
+> **Part 5 of the five-part test, handled explicitly rather than waived.**
+> `migration/M0-04-credential-rotation-runbook` exists and holds one commit (`1f905db`) with a
+> **269-line runbook**, the inventory and the checklist. It is **324 commits behind `master`** and
+> no session is live on it, so it is stale work rather than a collision — which is what part 5
+> exists to prevent. **It is not to be merged as-is:** its inventory cites `Jwt:Secret` at
+> `appsettings.json:12` and states the Api project is untracked, both true when it was written and
+> both false now — the key is at `:37` with value `""` since `M0-03` externalised it, and the
+> project has been tracked since `623b1e1`. `M0-04` requires every Confirmed row to carry a
+> `file:line`, so that evidence must be re-derived against current `master`.
+>
+> **The procedures, however, are sound and stack-independent** — create a least-privilege login
+> alongside `sa` rather than reusing it, update the `Tenants` rows whose connection strings embed
+> the old login, verify before disabling, disable rather than drop so rollback works. **Harvest
+> them; re-derive the evidence.** `git show 1f905db:docs/runbooks/credential-rotation.md`.
