@@ -1,0 +1,200 @@
+<div class="app-data-grid" [attr.data-density]="density()">
+  @if (toolbarTemplate()) {
+    <!-- TODO(M2-C05-03): export lives here. This child only exposes the slot. -->
+    <div class="app-data-grid__toolbar">
+      <ng-container [ngTemplateOutlet]="toolbarTemplate()!" />
+    </div>
+  }
+
+  <!--
+    A refetch keeps the previous page on screen and says more is coming with a
+    thin bar (KB-051 State patterns). Blanking the table on every page change
+    is what the Blazor list does today and what this replaces.
+  -->
+  <div class="app-data-grid__progress" [class.app-data-grid__progress--idle]="!refetching()">
+    @if (refetching()) {
+      <app-progress-bar label="Loading rows" />
+    }
+  </div>
+
+  <!--
+    The keydown listener sits on the container and not on each cell: the ARIA
+    grid model is one handler over a moving focus, and 10,000 per-cell
+    listeners is the cost that model exists to avoid. `tabindex="-1"` makes the
+    container programmatically focusable without adding a tab stop - the grid
+    still has exactly one, on the roving cell.
+  -->
+  <div class="app-data-grid__viewport" tabindex="-1" (keydown)="onKeydown($event)">
+    <p-table
+      [value]="tableRows()"
+      [columns]="visibleColumns()"
+      [lazy]="true"
+      [lazyLoadOnInit]="false"
+      [paginator]="false"
+      [scrollable]="true"
+      [scrollHeight]="scrollHeight()"
+      [virtualScroll]="virtualised()"
+      [virtualScrollItemSize]="rowHeightPx()"
+      [totalRecords]="totalCount()"
+      [loading]="false"
+      [resizableColumns]="false"
+      [tableStyleClass]="'app-data-grid__table'"
+      [pt]="{
+        table: {
+          role: 'grid',
+          'aria-label': ariaLabel(),
+          'aria-rowcount': totalCount(),
+          'aria-colcount': visibleColumns().length + columnOffset(),
+        },
+      }"
+    >
+      <ng-template #header>
+        <tr
+          appDataGridHeader
+          [columns]="visibleColumns()"
+          [sort]="state().sort"
+          [focused]="focusedCell()"
+          [bounds]="bounds()"
+          [showSelectAll]="selectionMode() === 'multiple'"
+          [allOnPageSelected]="allOnPageSelected()"
+          [someOnPageSelected]="someOnPageSelected()"
+          [resizable]="resizableColumns()"
+          [columnWidths]="columnWidths()"
+          (sortToggle)="onSortToggle($event)"
+          (selectAllToggle)="onSelectAllToggle($event)"
+          (columnResize)="onResize($event)"
+          (cellFocus)="onCellFocus($event)"
+        ></tr>
+        @if (hasFilterRow()) {
+          <tr class="app-data-grid__filter-row">
+            @if (selectionMode() === 'multiple') {
+              <th scope="col" class="app-data-grid__cell app-data-grid__cell--select"></th>
+            }
+            @for (column of visibleColumns(); track column.field) {
+              <th scope="col" class="app-data-grid__cell app-data-grid__cell--filter">
+                @switch (column.filter ?? 'none') {
+                  @case ('text') {
+                    <app-text-input
+                      [ariaLabel]="'Filter by ' + column.title"
+                      [ngModel]="filterValue(column)"
+                      [ngModelOptions]="{ standalone: true }"
+                      (ngModelChange)="onFilterInput(column, $event)"
+                    />
+                  }
+                  @case ('date') {
+                    <app-date-picker
+                      [ariaLabel]="'Filter by ' + column.title"
+                      [ngModel]="filterDate(column)"
+                      [ngModelOptions]="{ standalone: true }"
+                      (ngModelChange)="onFilterDate(column, $event)"
+                    />
+                  }
+                }
+              </th>
+            }
+          </tr>
+        }
+      </ng-template>
+
+      <ng-template #body let-row let-rowIndex="rowIndex">
+        <tr
+          class="app-data-grid__row"
+          [class.app-data-grid__row--selected]="isSelected(row)"
+          [style.height.px]="rowHeightPx()"
+          [attr.aria-rowindex]="ariaRowIndexFor(rowIndex)"
+          [attr.aria-selected]="selectionMode() === 'none' ? null : isSelected(row)"
+          (dblclick)="onRowDblClick(row)"
+        >
+          @if (selectionMode() === 'multiple') {
+            <td
+              class="app-data-grid__cell app-data-grid__cell--select"
+              role="gridcell"
+              [attr.tabindex]="tabIndexFor(rowIndex, 0)"
+              [attr.data-row]="rowIndex"
+              [attr.data-col]="0"
+              (focusin)="onCellFocus({ row: rowIndex, col: 0 })"
+            >
+              <input
+                type="checkbox"
+                tabindex="-1"
+                [checked]="isSelected(row)"
+                [attr.aria-label]="'Select row ' + ariaRowIndexFor(rowIndex)"
+                (change)="toggleRow(row)"
+              />
+            </td>
+          }
+          @for (column of visibleColumns(); track column.field; let i = $index) {
+            <td
+              role="gridcell"
+              class="app-data-grid__cell"
+              [class.app-data-grid__cell--numeric]="column.numeric === true"
+              [class.app-data-grid__cell--frozen-left]="column.frozen === 'left'"
+              [class.app-data-grid__cell--frozen-right]="column.frozen === 'right'"
+              [attr.data-priority]="column.priority ?? 'normal'"
+              [attr.tabindex]="tabIndexFor(rowIndex, i + columnOffset())"
+              [attr.data-row]="rowIndex"
+              [attr.data-col]="i + columnOffset()"
+              [style.text-align]="align(column)"
+              [style.width]="width(column)"
+              (focusin)="onCellFocus({ row: rowIndex, col: i + columnOffset() })"
+            >
+              @if (hasRowActions() && $last) {
+                <span class="app-data-grid__cell-value">{{ cell(column, row) }}</span>
+                <span class="app-data-grid__row-actions">
+                  <ng-container
+                    [ngTemplateOutlet]="rowActions()!"
+                    [ngTemplateOutletContext]="{ $implicit: row }"
+                  />
+                </span>
+              } @else {
+                {{ cell(column, row) }}
+              }
+            </td>
+          }
+        </tr>
+      </ng-template>
+
+      <ng-template #emptymessage>
+        <tr>
+          <td [attr.colspan]="visibleColumns().length + columnOffset()">
+            @if (loading()) {
+              <!-- First load is a shape-matched skeleton, never a spinner on a blank page. -->
+              <div class="app-data-grid__skeleton" role="status" aria-label="Loading rows">
+                @for (index of skeletonIndices(); track index) {
+                  <span
+                    class="app-data-grid__skeleton-row"
+                    [style.height.px]="rowHeightPx()"
+                  ></span>
+                }
+              </div>
+            } @else if (error() && errorTemplate()) {
+              <!-- TODO(M2-C05-03): the real error state. The object arrives untouched. -->
+              <ng-container
+                [ngTemplateOutlet]="errorTemplate()!"
+                [ngTemplateOutletContext]="{ $implicit: error() }"
+              />
+            } @else if (emptyTemplate()) {
+              <!-- TODO(M2-C05-03): the real empty state. -->
+              <ng-container [ngTemplateOutlet]="emptyTemplate()!" />
+            } @else {
+              <p class="app-data-grid__placeholder" role="status">No rows to display</p>
+            }
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+
+  <app-data-grid-pagination
+    [page]="state().page"
+    [pageSize]="state().pageSize"
+    [totalCount]="totalCount()"
+    [pageSizeOptions]="pageSizeOptions()"
+    [disabled]="loading()"
+    (pageChange)="onPageChange($event)"
+    (pageSizeChange)="onPageSizeChange($event)"
+  />
+
+  <!-- Page and result-count changes are announced, not left to be discovered. -->
+  <p class="app-data-grid__announcement" role="status" aria-live="polite">{{ announcement() }}</p>
+</div>

@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-24
+last_verified: 2026-08-25
 dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 ---
 
@@ -21,88 +21,106 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## No task selectable — `M2-B10` closed this session, nothing behind it is ready
+## `M2-C05-01` closed `Needs Review` — the `DataGrid` core is built
 
-`M2-B10` (OpenAPI polish + generated TypeScript client in CI) was implemented and
-independently validated **`PASS`** on attempt 1 of 1, `scopeOk: true`, `failureCategory:
-none`, 0 escalations, and closed **`Needs Review`** (not `Completed` — owner integration
-required, [KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed)) on
-`migration/M2-B10-openapi-typescript-client` (tip `195daf3`, base `master` `c2a9140`).
+`M2-C05-01` (server-paged `DataGrid` core) was implemented and closed **`Needs Review`** (not
+`Completed` — owner integration required,
+[KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed)) on branch
+`claude/unblocked-task-execution-pjyouv`, unmerged.
 
-**Full record:** [`tasks/M2-B10.md`](tasks/M2-B10.md) § Execution Record (2026-08-24).
-Tracker: [`task-tracker.md`](task-tracker.md) row 135, footnote ⁶⁷. Runner bookkeeping:
-[`runner-state.md`](runner-state.md) `Status` row (session close-out).
+**Full record:** [`tasks/M2-C05-01.md`](tasks/M2-C05-01.md) § Execution Record (2026-08-25).
+Tracker: [`task-tracker.md`](task-tracker.md) row 164, footnote ⁷⁰.
+
+### The selection correction that matters more than the task
+
+**The tracker said `Blocked`. It was wrong, and had been for days.** The row read
+`Blocked`⁴⁶ with the note *"real blockers are `M2-C04-02`, `M2-B02`"* — but `M2-B02` reached
+`Completed` and merged (`feec964`) on **2026-08-20** and `M2-C04-02` on **2026-08-23**, and
+nothing moved the row. The task file's own frontmatter still read `status: Not Started`, which
+is the tell.
+
+Three consecutive sessions reported *"nothing is dependency-ready"* from that stale row. The
+five-part *"can actually be done"* test was re-run against the **prerequisites themselves**
+rather than the status column, and it passes all five.
+
+> **Carry this forward: a `Blocked` row whose named blockers have since merged is a stale row,
+> not a blocked task.** Re-derive readiness from the prerequisites. The same check should be run
+> over every other `Blocked` row before the next session concludes there is nothing to do — this
+> session only re-derived the rows it needed.
 
 ### What landed
 
-All three deliverables, at the corrected Angular locations (the task file was written for
-the pre-ADR-007 React stack and self-corrected in its own "Execution note" section):
+Eighteen files in `frontend/nexgen-web/src/app/shared/components/data-grid/`, exported through
+the `shared/components` barrel (which nothing imports eagerly, so the initial bundle is
+unchanged at **571.20 kB raw / 136.72 kB transfer**, byte-identical to the baseline).
 
-- **OpenAPI polish** — all 18 actions across 6 controllers (Auth, Currency, CurrencyExcel,
-  Files, Me, Reference) carry an explicit operation id, a resource tag, and
-  `[ProducesResponseType]` for every status they can return, per
-  [KB-114 §11](../api/controller-conventions.md). This closes the gap the previous session
-  had flagged (`CurrencyController` `GetAll`-only, `AuthController.Login` none).
-- **Committed spec** — `api/openapi.json`, produced by one reproducible command
-  (`bash tools/generate-api-client.sh`), recorded in
-  [KB-083](prompt-template.md#verified-repository-commands).
-- **Generated client** — `ng-openapi-gen` 1.0.5, generated into
-  `frontend/nexgen-web/src/app/core/api/generated/` (the path `M2-C01` reserved). `decimal?`
-  → `number | null`, flagged to `M2-C10`, not resolved silently — recorded in
-  [KB-112](../api/generated-client.md) / INV-051.
-- **CI job** — `api-contract` added to the single `.github/workflows/ci.yml`, drift-checked
-  and proven to fail on a deliberate contract break and on a hand-edited generated file, both
-  reverted after observing the failure.
+- **`DataGridComponent<TRow>`** over PrimeNG `p-table` in `lazy` mode — controlled, not
+  self-driving: it renders the state it is given and emits the state the user asked for next.
+  No `pSortableColumn`, no `p-paginator`, no PrimeNG filter directive, so PrimeNG never holds a
+  second opinion about the page number.
+- **`DataGridQueryState`** — page / size / sort / filter as signals, route-bound (the URL *is*
+  the state) or detached (M2-C06's dialog must not write the URL). `switchMap`ped requests, the
+  previous page retained until the next resolves, `ProblemDetails` exposed untouched.
+- **One adapter module knows the wire formats** — and there are two, deliberately different:
+  M2-B02's API contract (`pageNumber`, `pageSize`, `sort=-field`) and the browser URL
+  (`page`, `size`, `sort=field:dir`).
+- **45 tests**, covering all 15 the task file lists, including the `axe` scan on a populated and
+  an empty grid in both themes.
+- **Seams typed and reachable** for `M2-C05-02` (`columnVisibility`) and `M2-C05-03` (`#empty`,
+  `#error`, `#toolbar`), each marked `TODO(<task id>)`.
 
-### Next dependency-ready candidate — none
+**The `p-table` measurement was run first, as the task file requires, and it passed:** 10,000
+rows → **35 rendered `<tr>`**, **16.7 ms median frame** (60 fps) in headless Chromium. Full
+method and table in
+[KB-050 § Performance targets](../frontend-new/react-architecture.md#performance-targets),
+recorded as **INV-052**. Had it failed, escalation was required rather than a silent fallback.
 
-Re-ran the five-part "can actually be done" test
-([KB-082 § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule)) against
-every row currently `Ready` on the tracker:
+### Two things a reviewer must read before merging
 
-- **`M0-06`** — fails part 5: sibling branch `migration/M0-06-remove-default-admin` still
-  exists, unmerged.
-- **`M0-11`** — fails part 2: `task_type: Product Decision`, owner-only, never
-  self-selectable.
+1. **R-76 — `test:ci` is intermittently red, and this branch makes it fire more often.**
+   `feedback/busy-overlay.component.spec.ts` leaves a PrimeNG `BlockUI` mask attached to
+   `document.body`; spec files share one jsdom document, so its `role="progressbar"` and
+   `role="status"` descendants break later files' global role queries. **Proven pre-existing:**
+   this branch's tree was stashed so the tree was exactly `master` at `e9a8e7a`, and five
+   consecutive full runs gave two clean and three red. But because which files share a worker
+   depends on the file count, adding three spec files raises the hit rate — on the final tree,
+   three consecutive runs each had one or two failures, **a different pre-existing test each
+   time, never one of this task's**. The frontend CI job is blocking
+   (`.github/workflows/ci.yml:311-313`), so expect red that is not this branch's defect. The
+   one-line harness fix is written out in
+   [KB-060 R-76](../risks/technical-debt-register.md); it was **not** applied here because a
+   second task's spec file is not this branch's to edit.
+2. **INV-052 — M2-B10 generates the paged envelope per resource, never generically.** OpenAPI
+   3.0 has no generics, so a grid generic over `TRow` cannot import `CurrencyVMPagedResult`. The
+   adapter declares a structurally identical `DataGridPage<TRow>` instead. A limit of OpenAPI,
+   not a defect in M2-B10.
 
-No other row reads `Ready`. In particular:
+### What this releases, and what it does not
 
-- **`M2-D01`** (Currency end-to-end in Angular) names `M2-B10` as a Hard prerequisite, but
-  `M2-B10` is `Needs Review`, not `Completed` and merged — merging it releases `M2-D01`'s
-  `M2-B10` half (its other two prerequisites, `M2-C05-03` and `M2-A02`, are also not both
-  `Completed`-and-merged yet).
-- **`M2-A03`** stays `Blocked` on the named GitHub branch-protection gap (owner: Vivek),
-  unaffected by this task.
-
-**Nothing is selectable. This close-out starts no new task**, per its own instruction.
+`M2-C05-01` is the highest-fan-out frontend task in M2 — `M2-C05-02`, `M2-C05-03`, `M2-C06`,
+`M2-C07` and `M2-C09` all name it as a Hard prerequisite. **None of them is released yet**: it
+is `Needs Review`, and a `Needs Review` branch is not a satisfied Hard prerequisite. Merging it
+releases `M2-C05-02` and `M2-C05-03` immediately, and `M2-C05-03` in turn is one of `M2-D01`'s
+three prerequisites (the other two, `M2-A02` and `M2-B10`, are already `Completed` and merged).
 
 ### Carried forward — still true
 
-- **`M0-06`** (`Ready`) still fails part 5: sibling branch `migration/M0-06-remove-default-admin`
-  still exists, unmerged.
-- **`M0-11`** (`Ready`) still fails part 2: `task_type: Product Decision`, owner-only, never
-  self-selectable.
-- **`M2-A03`** (`Blocked`) still needs a human to mark the `api-contract`/`build` CI job a
-  *required* status check on `master` in GitHub repository settings, or to accept the
-  criterion as a standing manual gate, or to re-scope the criterion into a successor task.
-  Owner: Vivek.
-- **Q-71** (open-questions.md) is still open: whether/when to switch the production fail-open
-  direction on an unannotated controller (`ScreenRightAuthorizationFilter.cs:69-72`,
-  `ScreenRightStartupValidator.cs:83-88`). Untouched by `M2-B10`.
-- **R-43** (no `WebApplicationFactory` host in `tests/V.SMART.Api.Tests`) is still open —
-  401/403 proofs across the suite stop at the policy/`ObjectResult` level, not over the wire.
-- **`M2-C10`'s decimal wire format is now measured**, not merely reserved: `decimal?` →
-  `number | null` per the real committed `api/openapi.json` (INV-051, KB-112). `M2-C10`
-  itself remains `Blocked` on its own separate criterion — a reachable DB + credential for a
-  live `[Authorize]`d endpoint, or relaxing that criterion to static analysis; an owner
-  decision, unaffected by this task.
-- Outstanding owner decisions unrelated to `M2-B10` (`M0-04` credential rotation, `Q-38`,
-  merging `migration/M2-A02-currency-authorization` and other `Needs Review` branches) are
-  unchanged — see `task-tracker.md` § Current state.
-- **Unmerged branches worth a reviewer's attention, none to be merged by a session:**
-  `migration/M2-B10-openapi-typescript-client` (this task, `PASS`, `Needs Review`),
-  `migration/M2-A02-currency-authorization` (`PASS`, `Needs Review`),
-  `migration/M2-A03-permission-matrix-harness` (`FAIL`/`environment`, `Blocked` on a human),
-  `migration/M2-A09-screen-catalogue-phantoms` (`PASS`, `Needs Review`),
-  `migration/M2-A10-api-rights-seeding` (`PASS`, `Needs Review`), `migration/M0-06-remove-default-admin`
-  (unknown validation state — the reason `M0-06` is excluded from selection).
+- **`M0-06`** (`Ready`) still fails part 5: `migration/M0-06-remove-default-admin` exists on
+  `origin`, unmerged.
+- **`M0-11`** (`Ready`) still fails part 2: `task_type: Product Decision`, owner-only.
+- **`M2-A03`** (`Needs Review`) still needs a human to mark the CI job a *required* status check
+  on `master`, or to accept the criterion as a standing manual gate. Owner: Vivek.
+- **Q-71**, **Q-82**, **R-43**, **M0-04** credential rotation and **Q-38** are untouched by this
+  task.
+- **Unmerged branches worth a reviewer's attention:** this one, plus
+  `migration/M2-A03-permission-matrix-harness`, `migration/M0-06-remove-default-admin`,
+  `migration/M0-00-vcs-baseline`, `migration/M0-07-ci-pipeline` and
+  `migration/M0-12-01-test-project` (`git ls-remote --heads origin`, 2026-08-25).
+
+### Environment note for the next session on this workstation
+
+`node` here is **v22.22.2**; Angular CLI 22.1.5 requires `^22.22.3 || ^24.15.0 || >=26.0.0` and
+refuses to run at all, so `lint`, `test:ci` and `build` fail before doing any work while
+`typecheck` (plain `tsc`) passes. `package.json`'s `engines` and `frontend/nexgen-web/.nvmrc`
+already say Node 24, so the repository is not wrong. Everything above was run under **Node
+v24.19.0 / npm 11.17.0** (`nvm install 24`). No repository file was changed for this.
