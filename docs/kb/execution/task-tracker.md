@@ -136,7 +136,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Completed**²⁹˒⁸⁶˒⁸⁷˒⁸⁸ *(owner exercised close-out option A and instructed the merge, 2026-08-25; merged `--no-ff`)* | P0 | M2-B07 | 2 d | G2 |
-| M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | Blocked | P0 | M2-B12-01 | 1 d | G2 |
+| M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | **Ready**⁸⁹ | P0 | M2-B12-01 | 1 d | G2 |
 | M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked | P0 | M2-B12-02 | 3 d | G2 |
 
 ### M2-C — Frontend foundation (Angular, per [ADR-007](../decisions/ADR-007-angular-stack.md))
@@ -264,17 +264,18 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**53 `Completed`, 2 `Needs Review`, 1 `Ready`, 35 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
+**54 `Completed`, 2 `Needs Review`, 2 `Ready`, 34 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
 
-> **`Ready` re-verified 2026-08-25 across the `M0-06` and `M0-04` merges; the other five counts were not.**
-> The `Ready` set is now exactly **`M0-11`** — enumerated from the rows, not carried forward.
-> `Blocked` is the 2026-08-24 figure plus `M0-06` (footnote ¹⁶) and `M0-04` (footnote ⁷¹), both of
-> which moved `Ready` → `Blocked` as their branches merged. **Nothing on this tracker is now
-> self-selectable by a runner:** the single `Ready` row is a `Product Decision`, which
+> **`Ready` re-verified 2026-08-25 across the `M0-06`, `M0-04` and `M2-B12-01` merges; the other five counts were not.**
+> The `Ready` set is now **`M0-11`** and **`M2-B12-02`** — enumerated from the rows, not carried forward.
+> `M2-B12-01` moved `Blocked` → `Completed` on merge (footnote ⁸⁷), which released `M2-B12-02`
+> `Blocked` → `Ready` (footnote ⁸⁹). **`M2-B12-02` is the first self-selectable task in six runner
+> passes**; `M0-11` remains a `Product Decision`, which
 > [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks) makes owner-only.
-> The remaining counts are inherited from the 2026-08-24 recompute and had already drifted before
-> either merge — that recompute predates `M0-04`’s move to `Ready`, so its `2 Ready` counted a set
-> that no longer exists. Treat the rows as the authority, not this line.
+> `Blocked` is the 2026-08-24 figure plus `M0-06` (footnote ¹⁶) and `M0-04` (footnote ⁷¹), less
+> `M2-B12-02`. The remaining counts are inherited from the 2026-08-24 recompute and had already
+> drifted before any of these merges — that recompute predates `M0-04`’s move to `Ready`. Treat the
+> rows as the authority, not this line.
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
 *estimates*, not rows. (2026-08-24 close-out: `M2-A09` moved `Ready` → `Needs Review`,
 implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰. Later the same day,
@@ -3263,3 +3264,18 @@ Commands* `grep` that returns 485/15 from `bin/`/`obj/` instead of 0, the citati
 lines in `document-numbering.md` §4.4, and the *Testing* section's **"no test project exists"**
 (×3) — now definitively wrong, since `tests/V.SMART.Shared.Tests` and `tests/V.SMART.Api.Tests`
 both exist. None is an acceptance criterion; all are documentation defects worth a later touch.
+
+⁸⁹ **M2-B12-02: `Blocked` → `Ready` 2026-08-25, released by the `M2-B12-01` merge (`f10b5fc`).**
+Its row carried no footnote and named no blocker other than the dependency; its sole Hard
+prerequisite `M2-B12-01` is now `Completed` **and merged to `master`**, which is what
+[KB-082 step 1](dependency-graph.md#ready-task-selection-rule) requires — `Needs Review` would not
+have counted. Per this tracker's own legend (*"`Ready` = every prerequisite is `Completed` and the
+task can be opened now"*), the row was stale the moment that merge landed.
+
+**It is genuinely selectable, and the credential problem does not block starting it.** The task is
+deliberately split in two (`tasks/M2-B12-02.md` §*The credential problem, stated honestly*): step 1
+is a **read-only SQL script**, which is the AI-deliverable half; step 2 is *"a named DBA, using their
+own credentials"* executing it. That is the same shape as `M0-04`'s runbook — the document work can
+be completed without any database, and the task closes `Blocked` on the DBA only if nobody runs the
+script during the session. **Do not classify it `environment` before the script exists** — that was
+the error footnote ⁸⁵ records against `M2-C10`.
