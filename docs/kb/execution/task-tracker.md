@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-24
+last_verified: 2026-08-25
 dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
@@ -64,7 +64,7 @@ its children are `Completed` — it is never worked directly.
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Completed**² | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed**⁵ | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Completed**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
-| M0-04 | M0 | Rotate the exposed credentials | Security | **Ready**⁴˒⁷⁰ | P0 | — | 1 d | G0 |
+| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁷¹ | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Completed**¹¹ | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
 | M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Completed**⁸ | P0 | M0-03-01 | 0.5 d | G0 |
@@ -264,14 +264,17 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**53 `Completed`, 2 `Needs Review`, 2 `Ready`, 34 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
+**53 `Completed`, 2 `Needs Review`, 1 `Ready`, 35 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
 
-> **`Ready` re-verified 2026-08-25 at the `M0-06` merge; the other five counts were not.**
-> The `Ready` set is exactly **`M0-04`** and **`M0-11`** — enumerated from the rows, not carried
-> forward. `Blocked` is the prior figure plus `M0-06`, which this merge moved `Ready` → `Blocked`
-> (footnote ¹⁶). The remaining counts are inherited from the 2026-08-24 recompute and had already
-> drifted before this merge — that recompute predates `M0-04`'s move to `Ready`, so its `2 Ready`
-> counted a set that no longer exists. Treat the rows as the authority, not this line.
+> **`Ready` re-verified 2026-08-25 across the `M0-06` and `M0-04` merges; the other five counts were not.**
+> The `Ready` set is now exactly **`M0-11`** — enumerated from the rows, not carried forward.
+> `Blocked` is the 2026-08-24 figure plus `M0-06` (footnote ¹⁶) and `M0-04` (footnote ⁷¹), both of
+> which moved `Ready` → `Blocked` as their branches merged. **Nothing on this tracker is now
+> self-selectable by a runner:** the single `Ready` row is a `Product Decision`, which
+> [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks) makes owner-only.
+> The remaining counts are inherited from the 2026-08-24 recompute and had already drifted before
+> either merge — that recompute predates `M0-04`’s move to `Ready`, so its `2 Ready` counted a set
+> that no longer exists. Treat the rows as the authority, not this line.
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
 *estimates*, not rows. (2026-08-24 close-out: `M2-A09` moved `Ready` → `Needs Review`,
 implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰. Later the same day,
@@ -3076,3 +3079,42 @@ task file once Q-26 is answered). Full record: [`tasks/M0-06.md` § Execution Re
 1](failure-log.md#m0-06--attempt-1--2026-08-19) and its diagnosis entry;
 [`open-questions.md`](open-questions.md) Q-25, Q-26;
 [`technical-debt-register.md`](risks/technical-debt-register.md) R-09, R-40.
+
+⁷¹ **M0-04: `Ready` → `Blocked` 2026-08-25, session close-out on
+`migration/M0-04-credential-rotation-runbook` (`e437fe5`).** The document work footnote ⁷⁰
+predicted is done — all four AI-deliverable artefacts (`docs/runbooks/credential-rotation.md`,
+the credential inventory, the human verification checklist, and confirmation that Q-19 is
+already answered) are complete and committed. **This is the task's own designed terminal
+state, not a failure**: its *Target Result* says exactly this outcome is `Blocked`, not
+`Completed`, when nobody with production access rotates anything during the session — and
+nobody did. Full record: [`tasks/M0-04.md`](tasks/M0-04.md) § Execution Record (2026-08-25).
+
+**Blocked on four named human roles, distinct from any task dependency** — none of these are
+tasks that can land on `master`; each is a person:
+
+| Role | Unblocks |
+|---|---|
+| `sysadmin` on `154.61.76.112,1533` and the dev SQLEXPRESS instance | C-1, C-2 — rotate the SQL logins |
+| Whoever can write to the master database's `Tenants` table | C-3 — repoint every tenant's connection string in the same window |
+| Whoever owns `V.SMART.Api`'s deployment configuration | C-4 — deploy a new `Jwt:Secret` |
+| Whoever owns the GST gateway / Bhargavi Soft-Tech licensing relationship | C-5 (gateway credential reset) and C-7 (vendor must re-key `LicenseProductKey.cs:28-29`, hardcoded and public — new this session, no rotation owner today) |
+
+**Two escalations this session found that footnote ⁷⁰ did not anticipate, both recorded in
+full in `INV-052` and `Q-84`:**
+
+1. The exposure is no longer confined to `V.SMART/` — `git grep -l` for the SA password at
+   `HEAD` now returns **five files, all under `docs/kb/`**, and the plaintext production
+   password sits at `docs/kb/risks/technical-debt-register.md:44`. `M0-05`'s history purge
+   alone will not remove these; they are current content at `HEAD`, not history. **Q-84**
+   asks the owner who redacts the KB and when.
+2. **C-7, not in the original C-1…C-6 inventory:** the AES key and IV that protect every
+   tenant's GST gateway credential are hardcoded and public at
+   `V.SMART/V.SMART.Shared/E_Invoice/LicenseProductKey.cs:28-29`. Rotating the gateway
+   credential alone (C-5) does not restore confidentiality while that key stands — the vendor
+   must re-key. This is a source change, outside this task's "no source file may be modified"
+   constraint, and has no owner yet.
+
+Not blocked on the repository being public — **Q-19 is already answered** (2026-08-12, owner
+decision to keep it public) and was re-verified today by INV-034's method (unauthenticated
+REST → `200`). R-01/R-02 (`technical-debt-register.md`) stay explicitly **open** until the
+runbook's §8 checklist is signed by a named person with a date.
