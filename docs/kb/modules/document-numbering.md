@@ -831,6 +831,33 @@ Each of these rules out "it must be handled somewhere else", which is why they a
 
 ---
 
+## 11. Live-schema findings — see KB-101
+
+**Nothing in this document was read from a live database.** Every claim above is derived
+from source and from the EF model, which is what §1 says and what `M2-B12-01` was scoped to
+do. The live-schema half is [`KB-101`](../execution/runbooks/Q-10-numbering-constraints.md),
+produced by [`M2-B12-02`](../execution/tasks/M2-B12-02.md).
+
+**Status, 2026-08-25: the script exists, no tenant has been queried.** KB-101 carries a
+read-only SQL script generated directly from **§9 of this document** — four query blocks per
+series, 51 series — plus the runbook for a DBA to run it. Phases 2 and 3 (execution and
+interpretation) need a named DBA with production credentials, which no AI session has or may
+acquire. Until that happens:
+
+- **Q-10 stays open.** Whether the number columns carry unique constraints in the live
+  tenant databases is still Unknown. §9's *Unique in EF model?* column answers what the
+  **model** declares, and that is a different question.
+- **R-12 stays `Inferred (high confidence)`.** §8 proves the race is *possible*; only a
+  non-zero duplicate count from live data can make it `Confirmed`.
+- **§9's two allocation-table rows remain the sharpest open risk** — no unique key on
+  their logical key in the model, so `FirstOrDefaultAsync` may be picking one of several
+  duplicate rows. KB-101 measures that directly.
+
+When results arrive they are recorded in KB-101, not here; this section gains only the
+one-line outcome and a pointer.
+
+---
+
 ## Related documents
 
 - [KB-060 R-12](../risks/technical-debt-register.md) — the risk this document corrects and
