@@ -226,9 +226,9 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|---|---|---|---|
 | M5-01 | M5 | Unit tests for extracted business rules | Testing | *Continuous* | P0 | each `<W>-03` | — | G5 |
 | M5-02 | M5 | API integration tests per controller | Testing | *Continuous* | P0 | each `<W>-06` | — | G5 |
-| M5-03 | M5 | Component tests for design-system primitives | Testing | Blocked | P0 | M2-C04 | — | G5 |
+| M5-03 | M5 | Component tests for design-system primitives | Testing | *Continuous*⁷¹ *(corrected 2026-08-25 — was `Blocked`, which contradicted [KB-080 §13](README.md#13-m5--hardening) and the work already delivered)* | P0 | M2-C04 | — | G5 |
 | M5-04 | M5 | E2E per module critical path | Testing | *Continuous* | P0 | each `<W>-10` | — | G5 |
-| M5-05 | M5 | Permission-matrix testing (merge-blocking) | Testing | Blocked | P0 | M2-A03 | — | G5 |
+| M5-05 | M5 | Permission-matrix testing (merge-blocking) | Testing | *Continuous*⁷² *(corrected 2026-08-25 — the harness is on `master`; only the *merge-blocking* half is outstanding, and it is a GitHub setting, not work)* | P0 | M2-A03 | — | G5 |
 | M5-06 | M5 | Parity testing per module | Testing | *Continuous* | P0 | each `<W>-11` | — | G5 |
 | M5-07 | M5 | Performance: grids, documents, concurrency | Testing | Not Started | P1 | G4 | 2 wks | G5 |
 | M5-08 | M5 | Security: tenant isolation, IDOR, JWT, XSS | Security | Not Started | P0 | G4 | 2 wks | G5 |
@@ -264,7 +264,10 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**53 `Completed`, 2 `Needs Review`, 2 `Ready`, 33 `Blocked`, 2 `In Progress`, 33 `Not Started`.**
+**53 `Completed`, 2 `Needs Review`, 2 `Ready`, 31 `Blocked`, 2 `In Progress`, 33 `Not Started`,
+7 `Continuous`** *(2026-08-25: `M5-03` and `M5-05` corrected `Blocked` → `*Continuous*` —
+footnotes ⁷¹ and ⁷². Neither was ever blocked; both rows disagreed with
+[KB-080 §13](README.md#13-m5--hardening), and one of them with code already on `master`.)*
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
 *estimates*, not rows. (2026-08-24 close-out: `M2-A09` moved `Ready` → `Needs Review`,
 implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰. Later the same day,
@@ -2992,3 +2995,49 @@ disagreement was invisible until the remote said so. **This is a question for th
 defect to fix unilaterally:** either the PR rule is the intended workflow and execution sessions
 should be producing PRs rather than local merges, or the rule is vestigial and should be relaxed
 to match how the repository is actually operated. Raised as **Q-82** — `Q-77` was already taken; ids now run to `Q-81`, and `Q-82` was checked against `git branch --no-merged master` before claiming.
+
+⁷¹ **`M5-03` corrected `Blocked` → `*Continuous*`, 2026-08-25. No work was done; the row was
+wrong in two independent ways.**
+
+**First, it contradicted the roadmap.** [KB-080 §13](README.md#13-m5--hardening) states that
+**`M5-01`…`M5-06` have no standalone task files by design** — *"they are steps inside the module
+pattern (§10). Giving them separate files would let a wave ship untested and defer its tests to a
+phase that arrives months later."* Its four siblings — `M5-01`, `M5-02`, `M5-04`, `M5-06` — all
+read `*Continuous*` in this table. `M5-03` alone read `Blocked` at P0, which invites a session to
+try to select it, find no task file, and stop. That is the same class of stale row that cost
+three sessions before `M2-C05-01` (footnote ⁷⁰) — a status column disagreeing with the thing it
+is supposed to summarise.
+
+**Second, the work it names is already being delivered, continuously, exactly as §13 intends.**
+Measured on `master` 2026-08-25:
+
+| Evidence | Count |
+|---|---|
+| Spec files, `shared/components/form/` (M2-C04-02) | 21 |
+| Spec files, `shared/components/overlay/` (M2-C04-03) | 9 |
+| Spec files, `shared/components/feedback/` (M2-C04-03) | 9 |
+| Runtime `axe` scans (`*/a11y.spec.ts`) | 4 |
+| Token/theme specs (`core/theme/`, M2-C04-01) | 4 |
+
+309 frontend tests pass on `master`. Every design-system task since `M2-C04-01` has shipped its
+own component tests in the same commit as the component — which is what `M5-03` asks for.
+
+**Nothing here claims `M5-03` is finished.** It is `*Continuous*`, like its siblings: each new
+primitive owes its tests when it lands, and the obligation only discharges at G5. `M2-C05-01`'s
+`DataGrid` is the most recent instalment (45 tests, unmerged on
+[PR #2](https://github.com/ErpStore/NexERP_B/pull/2)).
+
+⁷² **`M5-05` corrected `Blocked` → `*Continuous*`, 2026-08-25. No work was done.** The row said
+`Blocked` on `M2-A03`, but [KB-080 §13](README.md#13-m5--hardening) already records this one as
+*"delivered 2026-08-24 by `M2-A03`"*, and the harness is on `master`: `d94d8ce` is an ancestor of
+`origin/master` (verified with `git merge-base --is-ancestor`), and
+`tests/V.SMART.Api.Tests/PermissionMatrix/` holds eight files including
+`PermissionMatrixHarness.cs`, `ApiEndpointDiscovery.cs` and `ExemptEndpointAllowList.cs`. It runs
+in CI inside the *Test — V.SMART.Api.Tests* step on every push and pull request.
+
+**What is genuinely outstanding is the two words "merge-blocking" in the task name, and they are
+not work.** `ci.yml` makes the suite a blocking *step*; whether the *job* is required for merge
+is GitHub branch-protection configuration, outside this repository and unsettable from any
+execution session. That is the single criterion keeping `M2-A03` itself at `Needs Review`
+(footnote ⁶³), owner **Vivek**, and it is tracked there rather than duplicated as a second
+blocked row here.
