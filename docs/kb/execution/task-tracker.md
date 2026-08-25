@@ -136,7 +136,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Completed**²⁹˒⁸⁶˒⁸⁷˒⁸⁸ *(owner exercised close-out option A and instructed the merge, 2026-08-25; merged `--no-ff`)* | P0 | M2-B07 | 2 d | G2 |
-| M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | **Ready**⁸⁹ | P0 | M2-B12-01 | 1 d | G2 |
+| M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | **Blocked**⁸⁹˒⁹⁰ *(phase 1 complete and committed on `migration/M2-B12-02-verify-unique-constraints`; phase 2 needs a **named DBA** — see footnote ⁹⁰)* | P0 | M2-B12-01 | 1 d | G2 |
 | M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked | P0 | M2-B12-02 | 3 d | G2 |
 
 ### M2-C — Frontend foundation (Angular, per [ADR-007](../decisions/ADR-007-angular-stack.md))
@@ -3279,3 +3279,47 @@ own credentials"* executing it. That is the same shape as `M0-04`'s runbook — 
 be completed without any database, and the task closes `Blocked` on the DBA only if nobody runs the
 script during the session. **Do not classify it `environment` before the script exists** — that was
 the error footnote ⁸⁵ records against `M2-C10`.
+
+⁹⁰ **M2-B12-02: phase 1 delivered, `Ready` → `Blocked` on a named DBA — 2026-08-25.**
+**This is the task's own designed terminal state, and its final acceptance criterion says so:**
+*"If no DBA execution was obtained, the task reports status `Blocked`, phase 1 artefacts are
+committed, and the blocker is named. This is an acceptable outcome; a fabricated result is
+not."* Run on the branch after the runner selected the task and then stopped **without
+attempting phase 1** — the error footnote ⁸⁹ warned against and footnote ⁸⁵ records against
+`M2-C10`.
+
+**Delivered:** `docs/kb/execution/runbooks/Q-10-numbering-constraints.sql` — **3,745 lines**,
+generated programmatically from **KB-100 §9**, covering **51 series** with four query blocks
+each (constraint inventory; duplicate census under application scoping; duplicate census
+unqualified; format-shape census) — plus **KB-101**, the DBA runbook, registered in KB-005's
+document table and its id-allocation table, and a new §11 in KB-100 pointing at it. The
+`runbooks/` directory was created for this task. Changes are `docs/` only.
+
+**Read-only, verified rather than asserted:** the script contains **none** of the ten write
+keywords — `CREATE`, `ALTER`, `DROP`, `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `TRUNCATE`,
+`EXEC`, `DBCC` — anywhere including comments, at **0 matches each** on a case-insensitive
+substring grep. That excludes ordinary prose containing them, so the comments were written
+around the constraint. KB-101 §6 hands the DBA the same command to re-run before trusting it.
+
+**One acceptance criterion is unmet, and recorded as unmet rather than papered over:** the
+runbook must name *the* DBA and *the* tenant databases. **Neither exists in this repository.**
+`M0-02` records the identical gap. KB-101 §2 leaves the field unfilled, explains why, and
+offers the `sysadmin` on `154.61.76.112,1533` as a **named role** while stating that a role is
+not a person; §2.1 then supplies a query against the master `Tenants` table so the DBA can
+**derive** the tenant list rather than work from a guess — which also partially answers **Q-12**.
+Inventing a name would have ticked the box and corrupted the document.
+
+**Deliberately not done:** Q-10 stays open and was **not** moved to the answered table; **R-12
+stays `Inferred (high confidence)`** — the criterion allows `Confirmed` only if duplicates are
+actually found, and none have been looked for; no repair `R-xx` row was written; KB-101 §5 is
+empty behind `<!-- awaiting DBA output -->`. **Unblocks on:** a named DBA running §3 against at
+least one named production tenant. `M2-B12-03` (race-safe allocation, R-12) stays `Blocked`
+behind it.
+
+**Process note — this branch was reset to rescue it.** A concurrent session wrote `1372b45`
+onto this branch at 22:52, bundling this task's phase 1 with unrelated `M2-C05-01`/`M2-B08`
+work (41 files, 8,691 insertions) in a single commit whose subject claims a merge it does not
+have — one parent, and the `df1d7401` it names is nobody's parent. Two task ids in one branch
+is a reject. The branch was reset to `8ad9bd7` and this task re-committed alone; the mixed
+commit is preserved as tag **`salvage/M2-C05-01-mixed-commit`** so the `M2-C05-01` work can be
+cherry-picked onto a properly scoped branch. Nothing was discarded.
