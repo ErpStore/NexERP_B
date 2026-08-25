@@ -153,7 +153,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Completed**⁴⁵ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Completed**⁴⁶ *(merged to `master` `27dfc5d` on owner instruction 2026-08-23)* | P0 | M2-C12-01…04 | 1 d | G2 |
 | M2-C13 | M2 | Defer the confirm-dialog host; bundle back inside budget (R-69) | Frontend | **Completed**⁵⁵˒⁵⁶˒⁵⁷ | P1 | M2-C04-03 | 1 d | G2 |
-| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Blocked**²⁶˒⁴⁶˒⁴⁷˒⁵² *(attempt 1 `FAIL`, category `environment` — its binding criterion needs a MEASURED wire format from a live `[Authorize]`d endpoint, and this workstation has empty `ConnectionStrings:MasterDb` and `Jwt:Secret`. Not a code defect. See footnote ⁵²)* | P0 | M2-C01 | 2 d | G2 |
+| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Blocked**²⁶˒⁴⁶˒⁴⁷˒⁵²˒⁸⁵ *(attempt 1 `FAIL` was classified `environment`; **that classification is superseded 2026-08-25** — the wire format is measured and committed, and the real blocker is the **Q-85** contract decision. See footnote ⁸⁵)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | **Completed**⁴⁶˒⁵⁴ *(parent — all three children `Completed` and merged)* | P0 | M2-C01 | 2 wks | G2 |
 | M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
@@ -3090,6 +3090,7 @@ primitive owes its tests when it lands, and the obligation only discharges at G5
 `DataGrid` is the most recent instalment (45 tests, unmerged on
 [PR #2](https://github.com/ErpStore/NexERP_B/pull/2)).
 
+<<<<<<< HEAD
 ⁷² **`M5-05` corrected `Blocked` → `*Continuous*`, 2026-08-25. No work was done.** The row said
 `Blocked` on `M2-A03`, but [KB-080 §13](README.md#13-m5--hardening) already records this one as
 *"delivered 2026-08-24 by `M2-A03`"*, and the harness is on `master`: `d94d8ce` is an ancestor of
@@ -3501,3 +3502,33 @@ SDK `10.0.400` is unobtainable in this execution environment (footnote ⁷³: on
 reachable, `builds.dotnet.microsoft.com` denied at `CONNECT` with `403`). Whether that same
 wall applies to `M2-B12-03` specifically has not been tested; a future selection pass should
 check it directly rather than assume either way.
+
+⁸⁵ **M2-C10: the `environment` blocker is stale, and was overstated when raised — diagnosed 2026-08-25.**
+Footnote ⁵² recorded `M2-C10` as `Blocked`/`environment` on 2026-08-23 because its binding criterion
+*"needs a MEASURED wire format from a live `[Authorize]`d endpoint"* and this workstation has empty
+`ConnectionStrings:MasterDb` and `Jwt:Secret`. **Three findings contradict that, all verifiable at `HEAD`:**
+
+1. **The criterion was never strictly unsatisfiable.** `tasks/M2-C10.md` reads *"INV-032 is recorded with
+   the measured wire format … **or an explicit `Unknown` plus a raised question in KB-004**"*. The
+   fallback clause was in the acceptance criterion the whole time and was not applied.
+2. **The measurement already exists, and post-dates the block by one day.** `INV-051` (Complete,
+   2026-08-24, `M2-B10`) measured `decimal` → `type: number, format: double` → TypeScript `number`, and
+   **explicitly routed the consequence to this task**: *"Money crosses the boundary as an IEEE-754
+   double — flagged to M2-C10, deliberately not resolved here."* The evidence is committed:
+   `api/openapi.json` (`GstRatesResponse.igst`/`cgstSgst`) and
+   `frontend/nexgen-web/src/app/core/api/generated/models/gst-rates-response.ts:12-13`.
+3. **The specific environment claim is refuted by `INV-051`'s own negative result:** *"nothing in
+   startup opens a database connection, so placeholders suffice"* — `dotnet swagger tofile` runs here
+   with four placeholder environment variables. An empty `MasterDb` never blocked capturing the contract.
+
+**The finding that matters more than the status.** Money reaches the browser as an IEEE-754 double, and
+`System.Text.Json` writes `decimal` losslessly as JSON *text* — so the wire is exact and the precision is
+lost at `JSON.parse`, **upstream of every line this task proposes to write**. A `decimal.js` module can
+guard arithmetic, but `fromApi(x: number)` receives digits that are already gone. **`M2-C10` as specified
+is necessary but not sufficient**, and the fix it would need (serialize money as a string) touches
+`V.SMART/`, which its own acceptance criteria forbid. Raised as **Q-85** — an API-contract decision for
+the owner, not a task detail, because `KB-114` is frozen at `M2-B03`.
+
+**Status stays `Blocked`, for a different and truthful reason:** not the environment, but Q-85. Re-running
+it unchanged would produce a module that cannot deliver what the task exists to guarantee. No code was
+written by this diagnosis; the branch `migration/M2-C10-decimal-handling` (`307141b`) is untouched.
