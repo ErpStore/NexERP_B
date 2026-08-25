@@ -135,7 +135,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | **Completed**⁶⁷˒⁶⁸ *(merged to `master` on owner instruction 2026-08-25)* | P0 | M2-B03 | 3 d | G2 |
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
-| M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Blocked**²⁹ *(escalation budget exhausted, owner **Vivek**; on `migration/M2-B12-01-inv-012-numbering` `407d0ba`, unmerged — the earlier `PASS` was premature)* | P0 | M2-B07 | 2 d | G2 |
+| M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Blocked**²⁹˒⁸⁶ *(escalation budget exhausted, owner **Vivek**; on `migration/M2-B12-01-inv-012-numbering` `407d0ba`, unmerged — the earlier `PASS` was premature; **the pending fix `8a54f96` was independently re-verified 2026-08-25 — it holds**, see footnote ⁸⁶)* | P0 | M2-B07 | 2 d | G2 |
 | M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | Blocked | P0 | M2-B12-01 | 1 d | G2 |
 | M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked | P0 | M2-B12-02 | 3 d | G2 |
 
@@ -3148,3 +3148,38 @@ the owner, not a task detail, because `KB-114` is frozen at `M2-B03`.
 **Status stays `Blocked`, for a different and truthful reason:** not the environment, but Q-85. Re-running
 it unchanged would produce a module that cannot deliver what the task exists to guarantee. No code was
 written by this diagnosis; the branch `migration/M2-C10-decimal-handling` (`307141b`) is untouched.
+
+⁸⁶ **M2-B12-01: the blocked fix was independently re-verified 2026-08-25 — it holds. Not a stale
+blocker; a genuine budget stop.** Unlike `M2-C10` (footnote ⁸⁵), nothing here went stale: the task
+spent **2 of 3 attempts and 1 of 1 escalations**, and the orchestrator stopped *deliberately* rather
+than spend its last attempt slot re-validating a fix no independent eye had seen. That was the right
+call. What it left open is a single question — **is `8a54f96` correct?** — and that question is now
+answered from source rather than from the branch's own record.
+
+**The one open acceptance criterion** was *"INV-012 is Complete in KB-003 with evidence rows in the
+KB-083 format"*, failing because the first evidence block read *"inline in **four** document
+services"* under `Confidence: Confirmed`. **Re-derived independently this session:**
+`grep -rln "LastNumber" V.SMART/V.SMART.Shared/BusinessLayer/` returns **seven** files —
+`CommonService`, `ExpInvService`, `LabourDcOutgoingService`, `LabourInvoiceService`, `MfgDcService`,
+`MfgInvService`, `SubConDcOutService`. `CommonService` is the **allocator**
+(`GenerateAutoRunningNoAsync`), not an inline copy, so the inline-copy count is **six** — and the six
+names match `8a54f96`'s correction **exactly**. The fix is right, and its exclusion of `CommonService`
+is right for the reason the task's own *Why This Task Exists* section gives: the allocator is where the
+worst race lives, and it is Mechanism C's *source*, not one of its copies.
+
+**Also confirmed:** `8a54f96` touches 2 files, both under `docs/kb/`; the branch as a whole is
+**docs-only** (`git diff --name-only` against the merge base returns nothing outside `docs/`); and
+KB-100 §2's taxonomy row now reads *"inline copies in **6** document services (§3.3)"*, closing the
+second live instance of the stale count that the original validator had not named.
+
+**Owner decision unchanged in form, but cheaper now.** Option **A** of the close-out (*review
+`8a54f96` directly and merge if it holds up*) is the one this verification supports — the diff is two
+files and the claim it turns on has been reproduced from source by a session that did not write it.
+Option **B** (reset the budget for a full re-validation) buys a second opinion on criteria the
+validator had **already** marked `MET`; only this one criterion was ever open.
+
+**One residual item has since become definitively wrong, not merely stale:** the task file's
+*Testing* section still says *"no test project exists"* (3 occurrences). Two test projects exist on
+`master` — `tests/V.SMART.Shared.Tests` and `tests/V.SMART.Api.Tests`. That sentence, and the three
+other cosmetics the close-out lists as *"still owed"*, are documentation defects in the task file,
+**not** acceptance criteria, and would be worth fixing in the same touch as any merge.
