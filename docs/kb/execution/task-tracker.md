@@ -160,23 +160,23 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C04-02 | M2 | — form controls + validation display | Frontend | **Completed**⁵¹˒⁵² *(merged to `master` on owner instruction 2026-08-23; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 4 d | G2 |
 | M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Completed**⁵³˒⁵⁴ *(merged to `master` on owner instruction 2026-08-24; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
-| M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
-| M2-C05-01 | M2 | — server-paged table core | Frontend | **Needs Review**⁷⁰ *(both Hard prerequisites reached `Completed` and merged, so the `Blocked` reading was stale; implemented 2026-08-25, unmerged)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
-| M2-C05-02 | M2 | — column preferences + persistence | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P1 | M2-C05-01 | 3 d | G2 |
-| M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P1 | M2-C05-01 | 2 d | G2 |
-| M2-C06 | M2 | `RecordPickerDialog` | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P0 | M2-C05-01 | 1 wk | G2 |
-| M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-C10`. Its table-technology evaluation is **Q-83**, owner-owned)* | P0 | M2-C05-01, M2-C10 | 2 wks | G2 |
+| M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | **In Progress**⁷⁴ *(parent — never worked directly; 1 of 3 children `Completed`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
+| M2-C05-01 | M2 | — server-paged table core | Frontend | **Completed**⁷⁰˒⁷⁴ *(merged to `master` `bf2b4cd` and signed off by the owner 2026-08-25)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
+| M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Ready**⁷⁴ *(released by the `M2-C05-01` sign-off; clears all five parts of the selection test)* | P1 | M2-C05-01 | 3 d | G2 |
+| M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Ready**⁷⁴ *(released by the `M2-C05-01` sign-off; clears all five parts. **Unblocks `M2-D01`** when it lands)* | P1 | M2-C05-01 | 2 d | G2 |
+| M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Ready**⁷⁴ *(released by the `M2-C05-01` sign-off; clears all five parts. Consumes the grid's **detached** query mode)* | P0 | M2-C05-01 | 1 wk | G2 |
+| M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | Blocked⁴⁶˒⁷⁴ *(re-specified by `M2-C12-04`; `M2-C05-01` cleared 2026-08-25, so the **only** remaining blocker is `M2-C10`. Its table-technology evaluation is **Q-83**, owner-owned)* | P0 | M2-C05-01, M2-C10 | 2 wks | G2 |
 | M2-C08 | M2 | `DocumentEditor` shell *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-04`)* | P0 | M2-C07 | 2 wks | G2 |
 | M2-C08-01 | M2 | — layout: header + lines + totals + commands | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C07`)* | P0 | M2-C07 | 4 d | G2 |
 | M2-C08-02 | M2 | — server-authoritative totals wiring | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)* | P0 | M2-C08-01 | 3 d | G2 |
 | M2-C08-03 | M2 | — workflow command pattern | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)* | P0 | M2-C08-01 | 3 d | G2 |
-| M2-C09 | M2 | `ReportPage` framework | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-B08`)* | P1 | M2-C05-01, M2-B08 | 1 wk | G2 |
+| M2-C09 | M2 | `ReportPage` framework | Frontend | Blocked⁴⁶˒⁷⁴ *(re-specified by `M2-C12-04`; `M2-C05-01` cleared 2026-08-25, so the **only** remaining blocker is `M2-B08` — itself blocked on the .NET SDK, footnote ⁷³)* | P1 | M2-C05-01, M2-B08 | 1 wk | G2 |
 
 ### M2-D — Vertical slice
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-05`; real blockers are `M2-C05-03`, `M2-A02`, `M2-B10`)* | P0 | M2-C05-03, M2-A02, M2-B10 | 3 d | G2 |
+| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | Blocked⁴⁶˒⁷⁴ *(re-specified for Angular by `M2-C12-05`; `M2-A02` and `M2-B10` are `Completed` and merged, so the **only** remaining blocker is `M2-C05-03` — now `Ready`)* | P0 | M2-C05-03, M2-A02, M2-B10 | 3 d | G2 |
 | M2-D02 | M2 | Customer Master *(parent)* | Migration | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-05`; real blocker is `M2-D01`)* | P0 | M2-D01 | 1.5 wks | G2 |
 | M2-D02-01 | M2 | — `@code` triage + logic extraction | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D01`. Allocates the `BR-CUST-*` series)* | P0 | M2-D01 | 4 d | G2 |
 | M2-D02-02 | M2 | — `CustomersController` + API tests | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D02-01`)* | P0 | M2-D02-01 | 3 d | G2 |
@@ -264,11 +264,14 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 
 ### Current state — 2026-08-24
 
-**53 `Completed`, 3 `Needs Review`, 2 `Ready`, 30 `Blocked`, 2 `In Progress`, 33 `Not Started`,
-7 `Continuous`** *(2026-08-25, after three row corrections in one day: `M2-C05-01` moved
-`Blocked` → `Needs Review` — footnote ⁷⁰; `M5-03` and `M5-05` moved `Blocked` → `*Continuous*` —
-footnotes ⁷¹ and ⁷². **None of the three was ever actually blocked.** Each row's status column
-had simply outlived the thing it summarised.)*
+**54 `Completed`, 2 `Needs Review`, 5 `Ready`, 26 `Blocked`, 3 `In Progress`, 33 `Not Started`,
+7 `Continuous`** *(2026-08-25. `M2-C05-01` is `Completed` — merged and owner-signed — and its
+sign-off moved `M2-C05-02`, `M2-C05-03` and `M2-C06` from `Blocked` to `Ready` and the `M2-C05`
+parent to `In Progress`; footnote ⁷⁴. Earlier the same day three rows were corrected rather than
+worked: `M5-03` and `M5-05` to `*Continuous*` (footnotes ⁷¹, ⁷²), and `M2-C05-01` itself out of a
+`Blocked` reading that had outlived its blockers by days (footnote ⁷⁰). **Five `Ready` rows is
+the most this project has had at once** — the first time since M2 opened that the frontend has a
+queue rather than a single candidate.)*
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
 *estimates*, not rows. (2026-08-24 close-out: `M2-A09` moved `Ready` → `Needs Review`,
 implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰. Later the same day,
@@ -3057,7 +3060,8 @@ pre-task baseline, because nothing imports the `shared/components` barrel eagerl
 held).
 
 **Not merged, and `Completed` is not this session's to set**
-([KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed)).
+([KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed)). — *Superseded 2026-08-25:
+merged as `bf2b4cd` and signed off by the repository owner; see footnote ⁷⁴.*
 
 ⁷¹ **`M5-03` corrected `Blocked` → `*Continuous*`, 2026-08-25. No work was done; the row was
 wrong in two independent ways.**
@@ -3128,4 +3132,34 @@ work can proceed until the owner either allows the CDN host, bakes the SDK into 
 runs backend tasks on the workstation `global.json` was written for. Full entry, with the three
 options spelled out: [`failure-log.md` § M2-B08 · attempt 1](failure-log.md).
 
+⁷⁴ **`M2-C05-01` signed off `Completed` by the repository owner, 2026-08-25 — and what that
+released.** Merged to `master` as `bf2b4cd` via PR #2 with all CI checks green, on a head that
+already carried the R-76 test-harness fix. `Completed` is the owner's to set
+([KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed)); this row records his
+instruction, it does not assume it.
 
+**Three rows moved `Blocked` → `Ready` on this one sign-off**, because `M2-C05-01` was their
+*only* prerequisite. Each was re-checked against all five parts of the *"can actually be done"*
+test rather than assumed ready — the trap this same task fell into from the other direction:
+
+| Released | Priority | Notes |
+|---|---|---|
+| `M2-C05-02` — column preferences | P1, 3 d | The `columnVisibility` seam is already typed and honoured in the merged component, marked `TODO(M2-C05-02)`. |
+| `M2-C05-03` — states + export | P1, 2 d | The `#empty` / `#error` / `#toolbar` slots are already typed, marked `TODO(M2-C05-03)`. **This is the one that matters most:** it is `M2-D01`'s last outstanding blocker. |
+| `M2-C06` — `RecordPickerDialog` | P0, 1 wk | Consumes the grid's **detached** query mode, which exists precisely so a dialog does not write the page's URL. |
+
+All three: prerequisite `Completed` **and** merged; `task_type: Frontend`, not `Product
+Decision`; no unanswered question in `open-questions.md` gating them; **no ⛔ banner** — each
+file carries only the *prose recording that its banner was removed* by `M2-C12-03` on
+2026-08-22, which is not the same thing and was checked, not skimmed; and `git ls-remote --heads
+origin` shows no sibling branch on any of them.
+
+**Three further rows lost `M2-C05-01` from their blocker list but stay `Blocked` on a second
+one** — recorded so nobody reads the fan-out as wider than it is: `M2-C07` now waits only on
+`M2-C10`; `M2-C09` only on `M2-B08` (itself blocked on the unobtainable .NET SDK, footnote ⁷³);
+`M2-D01` only on `M2-C05-03`, which is now `Ready`. The `M2-C05` **parent** moves to
+`In Progress`: 1 of its 3 children is `Completed`, and a parent is never worked directly.
+
+**No G2 criterion is ticked by this.** `M2-C05-01` sits on the critical path to criterion 1
+(Currency + Customer Master in Angular) but does not satisfy it — `M2-D01`/`M2-D02*` own that,
+and `M2-D01` is now one `Ready` task away.
