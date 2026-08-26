@@ -7,8 +7,8 @@ self-contained; it does not assume you have read the migration plan.
 `file:line`; none is quoted, and no replacement value is generated here.
 
 **Status of this document: the procedure, not the proof.** Writing this runbook rotates
-nothing. §8 is the only section that turns a plan into a fact, and it is unsigned as of the
-date below. Until it is signed, R-01 and R-02 in
+nothing. §8 is the only section that turns a plan into a fact, and it was **partially signed**
+2026-08-26 (items 1–3, C-1/C-3). Until every applicable row is signed, R-01 and R-02 in
 [`docs/kb/risks/technical-debt-register.md`](../kb/risks/technical-debt-register.md) remain
 **open**.
 
@@ -16,7 +16,7 @@ date below. Until it is signed, R-01 and R-02 in
 |---|---|
 | Written | 2026-08-25 (task M0-04) |
 | Evidence re-verified against | `master`, 353 commits, working tree at the date above |
-| Rotation performed | **Not yet — nobody with production access has executed this** |
+| Rotation performed | **Partial, 2026-08-26 — C-1 and C-3 done and verified (§8 items 1–3, signed by Kumar). C-2 is void (§2 correction). C-4 done on the developer workstation only, not deployment (still open). C-5, C-7 not started — vendor-dependent.** |
 
 ---
 
@@ -352,9 +352,9 @@ checkable: *"the old login cannot connect"* is checkable; *"credentials rotated"
 
 | # | Item | Signed off by (name) | Date | Evidence |
 |---|---|---|---|---|
-| 1 | The old SQL login (**C-1** — C-2 is void, see §2's correction note) can **no longer authenticate** to its instance — demonstrated by a failed connection attempt, not by inspection. | | | |
-| 2 | The new SQL login is **not `sa`** and holds least privilege only (no `sysadmin`, no server-level roles). | | | |
-| 3 | **Every row in `Tenants`** whose `ConnectionString` embedded the old login now uses the new one, and the application serves **every** affected tenant. Record the row count. | | | |
+| 1 | The old SQL login (**C-1** — C-2 is void, see §2's correction note) can **no longer authenticate** to its instance — demonstrated by a failed connection attempt, not by inspection. | Kumar | 2026-08-26 | `sqlcmd -S "DESKTOP-FIIBE97\SQLEXPRESS" -U sa -P '<old password>' -Q "SELECT 1"` → `Sqlcmd: Error: ... Login failed for user 'sa'. Reason: The account is disabled.` — SQL Server's own message, not an inference. `ALTER LOGIN [sa] DISABLE` run, not dropped (rollback stays `ALTER LOGIN [sa] ENABLE`). |
+| 2 | The new SQL login is **not `sa`** and holds least privilege only (no `sysadmin`, no server-level roles). | Kumar | 2026-08-26 | New login `nexgen_app_svc` created via `CREATE LOGIN`; granted `db_datareader`/`db_datawriter` only, on `NexGenErpDb_Master` and `NexGenErpDb` — no `sysadmin`, no server-level role grants issued. |
+| 3 | **Every row in `Tenants`** whose `ConnectionString` embedded the old login now uses the new one, and the application serves **every** affected tenant. Record the row count. | Kumar | 2026-08-26 | Exactly **1 row** (`Id=1`, `Name='localhost'`, the dev tenant) — confirmed by a full-instance sweep (`sp_MSforeachdb` over every database's `sys.tables`) rather than assumed; a second database, `M0_01_03_Drill_Master`, also has a `Tenants` table but is the M0-01-03 rebuild-drill artifact, not live, and was excluded. That one row's `ConnectionString` updated to `nexgen_app_svc`. Application verified serving it **after** disabling `sa` (not just after creating the new login): `dotnet build` clean (0 errors), API started with no `StartupConfigurationValidator` exception, `GET /health/ready` → `{"status":"Healthy","checks":[{"name":"master-db","status":"Healthy"},{"name":"tenant-db","status":"Healthy","detail":{"tenant-1":"Healthy"}}]}`. |
 | 4 | The old `Jwt:Secret` **no longer validates** a previously issued token (tried, and rejected). | | | |
 | 5 | The new `Jwt:Secret` is **at least 32 bytes and cryptographically generated**, is deployed, and the API starts cleanly with it. | | | |
 | 6 | The C-5 gateway credential was reset **through the provider's own process**, a new `APIEinvoiceLicenseKey` was applied to every affected tenant, and **one test e-Invoice succeeded**. | | | |

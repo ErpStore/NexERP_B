@@ -64,7 +64,7 @@ its children are `Completed` — it is never worked directly.
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Completed**² | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed**⁵ | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Completed**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
-| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴˒⁸¹˒⁸⁴ *(runbook merged 2026-08-26, `docs/runbooks/credential-rotation.md`; C-4 rotated on the developer workstation 2026-08-26 — **not** on a deployment; C-1/C-3/C-5/C-7 rotation not yet performed; C-2 is **void** — owner confirmed `154.61.76.112` is not this project's host, see footnote ⁸⁴)* | P0 | — | 1 d | G0 |
+| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴˒⁸¹˒⁸⁴˒⁸⁵ *(C-1 and C-3 rotated and verified 2026-08-26 — §8 items 1–3 signed, footnote ⁸⁵; C-2 is **void**, footnote ⁸⁴; C-4 rotated on the developer workstation only, not deployment; C-5/C-7 not started — vendor-dependent)* | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Completed**¹¹ | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
 | M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Completed**⁸ | P0 | M0-03-01 | 0.5 d | G0 |
@@ -3370,4 +3370,26 @@ corrections, immediately before this merge.
 the workstation rotation, footnote ⁸¹, doesn't count), C-5 (GST gateway account, vendor-
 owned) and C-7 (the AES key protecting C-5, vendor-owned, may not be actionable by this
 project at all) are all still to be rotated. §8's checklist stays unsigned until they are.
+
+⁸⁵ **C-1 and C-3 rotated and verified, 2026-08-26 (Kumar, in session) — runbook §8 items 1–3
+signed.** Sole tenant `Id=1` (`Name='localhost'`, the dev environment — confirmed the only
+live one via a full-instance `sp_MSforeachdb` sweep of every database's `sys.tables`; a second
+database, `M0_01_03_Drill_Master`, also carries a `Tenants` table but is the M0-01-03
+rebuild-drill artifact, excluded). New least-privilege login `nexgen_app_svc` created on
+`DESKTOP-FIIBE97\SQLEXPRESS` (`db_datareader`/`db_datawriter` only, on `NexGenErpDb_Master`
+and `NexGenErpDb` — no `sysadmin`, no server role), deployed via `dotnet user-secrets` to
+`V.SMART.Web`/`V.SMART.Api`/`V.SMART.Shared` and to the tenant row's `ConnectionString`.
+**Verified before disabling `sa`:** `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` — 0
+errors; API started with no `StartupConfigurationValidator` exception; `GET /health/ready` —
+`{"status":"Healthy","checks":[{"name":"master-db","status":"Healthy"},{"name":"tenant-db","status":"Healthy","detail":{"tenant-1":"Healthy"}}]}`.
+**Old login then disabled**, not dropped (`ALTER LOGIN [sa] DISABLE`) — rollback stays `ALTER
+LOGIN [sa] ENABLE`. **Verified after disabling:** the same build/start/`/health/ready`
+sequence repeated, identical Healthy result, proving the app has no residual dependency on
+`sa`; separately, `sqlcmd -U sa -P '<old password>'` against the instance returned SQL
+Server's own `Login failed for user 'sa'. Reason: The account is disabled.` — the old
+password used is the one already published at `technical-debt-register.md:41`, so testing
+with it created no new exposure. Full evidence: `docs/runbooks/credential-rotation.md` §8,
+items 1–3. **Remaining before M0-04 can close:** C-4 needs a deployment-side rotation (the
+workstation one, footnote ⁸¹, doesn't count); C-5/C-7 need the vendor (Bhargavi Soft-Tech);
+§8 items 4–9 stay unsigned until those land.
 
