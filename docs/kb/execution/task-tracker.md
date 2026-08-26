@@ -3090,7 +3090,6 @@ primitive owes its tests when it lands, and the obligation only discharges at G5
 `DataGrid` is the most recent instalment (45 tests, unmerged on
 [PR #2](https://github.com/ErpStore/NexERP_B/pull/2)).
 
-<<<<<<< HEAD
 ⁷² **`M5-05` corrected `Blocked` → `*Continuous*`, 2026-08-25. No work was done.** The row said
 `Blocked` on `M2-A03`, but [KB-080 §13](README.md#13-m5--hardening) already records this one as
 *"delivered 2026-08-24 by `M2-A03`"*, and the harness is on `master`: `d94d8ce` is an ancestor of
