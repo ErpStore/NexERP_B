@@ -164,7 +164,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C05-01 | M2 | — server-paged table core | Frontend | **Completed**⁷⁴ *(the `Needs Review`/"unmerged" reading was stale — `git log --first-parent` shows `bf2b4cd` "Merge M2-C05-01" on `master`'s own first-parent line, and all 18 files are present at `HEAD`; corrected 2026-08-26)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
 | M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Ready**⁷⁴ *(re-specified by `M2-C12-03`; its sole blocker `M2-C05-01` is now confirmed merged)* | P1 | M2-C05-01 | 3 d | G2 |
 | M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Ready**⁷⁴ *(re-specified by `M2-C12-03`; its sole blocker `M2-C05-01` is now confirmed merged)* | P1 | M2-C05-01 | 2 d | G2 |
-| M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Ready**⁷⁴ *(re-specified by `M2-C12-03`; its sole blocker `M2-C05-01` is now confirmed merged — selected, P0, 2026-08-26)* | P0 | M2-C05-01 | 1 wk | G2 |
+| M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Needs Review**⁷⁵ *(implemented and independently validated `PASS` 2026-08-26, unmerged — see footnote ⁷⁵)* | P0 | M2-C05-01 | 1 wk | G2 |
 | M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-C10`. Its table-technology evaluation is **Q-83**, owner-owned)* | P0 | M2-C05-01, M2-C10 | 2 wks | G2 |
 | M2-C08 | M2 | `DocumentEditor` shell *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-04`)* | P0 | M2-C07 | 2 wks | G2 |
 | M2-C08-01 | M2 | — layout: header + lines + totals + commands | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C07`)* | P0 | M2-C07 | 4 d | G2 |
@@ -263,6 +263,15 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 | M6 | 8 | 0 | G6 | ⬜ Not met |
 
 ### Current state — 2026-08-24
+
+**Most recent event, 2026-08-26: `M2-C06` moved `Ready` → `Needs Review`.** Implemented and
+independently validated `PASS` (attempt 2 of 5, `scopeOk: true`, `failureCategory: none`) — see
+footnote ⁷⁵. `RecordPickerDialog` composes `M2-C05-01`'s `DataGrid`, is server-paged and
+server-searched, preserves `DetailsModal.razor`'s selection-order behaviour verbatim, and adds
+no ERP business rule. Unmerged, left for owner review; nothing under `V.SMART/` touched. Row
+counts and paragraphs below predate this event and are superseded by it where they conflict.
+**Next selectable row: `M2-C05-03`** (P1) — `M2-C05-02` is a tied candidate, ranked below it
+because `M2-C05-03` sits on the critical path to `M2-D01`; neither has a sibling branch open.
 
 **53 `Completed`, 3 `Needs Review`, 2 `Ready`, 30 `Blocked`, 2 `In Progress`, 33 `Not Started`,
 7 `Continuous`** *(2026-08-25, after three row corrections in one day: `M2-C05-01` moved
@@ -3150,5 +3159,30 @@ session) touches none of the three tasks' `source_files`. `M2-C06` (P0) ranks ab
 `M2-C05-03` share two files — `DetailsModal.razor`, `ExcelExportService.cs` — so only one of the
 two should be dispatched at a time; that is a same-file-conflict note for the next selection
 pass, not a reason to disqualify either now).
+
+⁷⁵ **`M2-C06` implemented on `migration/M2-C06-record-picker-dialog` (tip `9709b74`) and closed
+`Needs Review` 2026-08-26** — independently validated `PASS` on attempt 2 of 5 (`scopeOk: true`,
+`failureCategory: none`, 0 escalations), all 17 acceptance criteria `MET`. Attempt 1 was
+independently validated `FAIL` (`test`) on two of the task's own spec files —
+`record-picker-dialog.component.spec.ts` drove the search box with `userEvent.type`, which
+awaits between keystrokes and overruns the host fixture's 5 ms debounce window
+(`test-fixtures.ts:105`), and both dialog-rendering spec files sat near vitest's 5 s default —
+neither defect was in the component. Diagnosed and fixed in two commits (`098e10a`, `9709b74`):
+keystrokes dispatched synchronously (the idiom `data-grid.component.spec.ts:167-170` already
+uses) and a file-scoped 30 s timeout ceiling; no assertion was weakened, widened or removed.
+Re-verified `npm run test:ci` × 3 consecutive clean on the committed tree: `Test Files 54 passed
+(54)` · `Tests 386 passed (386)`, exit 0 each time; `typecheck`, `lint`, `format:check`, `build`
+all pass. The 33/41-call-site survey is recorded as **INV-054** (investigation-registry.md), the
+`DetailsModal.razor:156-168` defect recorded not fixed, and three new open questions raised —
+**Q-91** (search-parameter wire name), **Q-92** (should server search still match hidden
+columns), **Q-93** (is any call site functionally single-pick) — plus **R-78** (`DataGrid` needs
+a `disabledRowIds`/`getCellState` capability; the picker decorates its rendered DOM from outside
+it as an interim measure) and a third occurrence noted on **R-70** (jsdom fixture duplication).
+Nothing under `V.SMART/` is in the diff; `DetailsModal.razor` keeps serving all 33 pages
+unchanged. **Not merged** — per KB-088 only the repository owner may set `Completed`. This
+releases nothing further: nothing in the dependency graph names `M2-C06` as a Hard prerequisite.
+The next selectable row is `M2-C05-03` (P1, `tiedCandidate` alongside `M2-C05-02`, ranked ahead
+of it on downstream reach — it sits on the critical path to `M2-D01`); no sibling branch touches
+either (`git branch --no-merged master`, re-run this session).
 
 

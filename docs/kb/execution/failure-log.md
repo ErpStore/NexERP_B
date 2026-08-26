@@ -5957,3 +5957,180 @@ Until one of those happens, **every `Backend`, `Security` and `Database` task in
 unrunnable in this environment**, and only `Frontend`, `Documentation`, `Investigation` and
 `DevOps`-of-the-frontend work can proceed. That is a much larger fact than `M2-B08`, and it is
 the reason this entry is worth its length.
+
+---
+
+## M2-C06 · attempt 1 · independent validation · 2026-08-26 · `FAIL` (`test`)
+
+| Field | Value |
+|---|---|
+| Runner state | FAILED |
+| Model in use | opus (validator) |
+| Validator verdict | **FAIL** |
+| Failure category | **test** |
+| Branch | `migration/M2-C06-record-picker-dialog` @ `82b70f2`, working tree clean |
+
+**What failed** — two acceptance criteria, both resting on the same observation:
+
+> "All 17 tests pass; `axe` reports no critical violations (test 17)."
+> "`npm run typecheck`, `npm run lint`, `npm run format:check`, `npm run test:ci` and
+> `npm run build` all pass."
+
+`npm run test:ci`, run from `frontend/nexgen-web/` on the committed branch with a clean
+working tree, **fails on every run**. Three consecutive runs:
+
+| Run | Result |
+|---|---|
+| 1 | `Test Files 1 failed | 53 passed (54)` · `Tests 1 failed | 385 passed (386)` · exit 1 |
+| 2 | `Test Files 1 failed | 53 passed (54)` · `Tests 2 failed | 384 passed (386)` · exit 1 |
+| 3 | `Test Files 1 failed | 53 passed (54)` · `Tests 1 failed | 385 passed (386)` · exit 1 |
+
+Failing test, all three runs — **test 2** of the task's own list:
+
+```
+FAIL  nexgen-web  src/app/shared/components/record-picker-dialog/record-picker-dialog.component.spec.ts
+      > app-record-picker-dialog > debounces typing into a server query and does not filter the result locally
+Error: Expected one matching request for criteria "Match by function: ", found 2 requests.
+ ❯ HttpClientTestingBackend.expectOne .../common/http/testing/src/backend.ts:101:12
+ ❯ expectPageRequest src/app/shared/components/record-picker-dialog/record-picker-dialog.component.spec.ts:71:20
+ ❯ src/app/shared/components/record-picker-dialog/record-picker-dialog.component.spec.ts:143:21
+```
+
+Additionally failing on run 2 only — **test 3**:
+
+```
+FAIL  > app-record-picker-dialog > keeps a selection made on page 1 while paging to page 3 and back
+Error: Test timed out in 5000ms.
+ ❯ src/app/shared/components/record-picker-dialog/record-picker-dialog.component.spec.ts:156:3
+```
+(observed at 5029 ms against vitest's default 5000 ms timeout; the same test took under the
+limit on runs 1 and 3.)
+
+The Execution Record appended to `docs/kb/execution/tasks/M2-C06.md:611` claims
+`npm run test:ci` → *"`Test Files 54 passed (54)` · `Tests 386 passed (386)`"*. That result
+was **not reproducible** here on any of three attempts.
+
+**Root cause** — the new spec drives a **300 ms real-timer debounce**
+(`record-picker-dialog.model.ts:104`, `record-picker-dialog.component.ts:321-325`) with
+`userEvent.type(…, 'zzz')` and then waits only 25 ms (`…component.spec.ts:64-68`, `:140-143`):
+in this jsdom environment a single keystroke plus change detection exceeds 300 ms, so the
+debounce commits more than once and more than one page request is outstanding when
+`expectOne` runs. The component's debounce itself is correct; the test's timing model is not.
+Test 3's timeout is the same slowness reaching vitest's 5 s default.
+
+**Evidence** — command output above, observed by the validator on 2026-08-26, Node v24.19.0 /
+npm 11.17.0, from `C:\Kumar\NexGen-ERP---2025-master\NexGen-ERP---2025-master\frontend\nexgen-web`.
+`frontend/nexgen-web/src/app/shared/components/record-picker-dialog/record-picker-dialog.component.spec.ts:64-68`
+(`settle(view, ms = 25)`), `:136-153` (test 2),
+`frontend/nexgen-web/src/app/shared/components/record-picker-dialog/record-picker-dialog.model.ts:104`
+(`RECORD_PICKER_SEARCH_DEBOUNCE_MS = 300`).
+
+**Everything else the validator checked passed**, and is recorded so a retry does not re-do it:
+
+| Check | Observed |
+|---|---|
+| `npm run typecheck` | exit 0, no diagnostics |
+| `npm run lint` | `All files pass linting.` exit 0 |
+| `npm run format:check` | `All matched files use Prettier code style!` exit 0 |
+| `npm run build` | `Application bundle generation complete. [9.778 seconds]`, initial total 571.20 kB / 136.72 kB, exit 0 |
+| `grep -rniE 'itemcode|utilqty|isnewitem|isqtychanged'` in the component directory | no hits, exit 1 |
+| `git diff --name-only master...HEAD -- V.SMART/ db/ frontend/vsmart-erp/ docs/kb/decisions/ …/data-grid/` | **0 files** — scope respected, Blazor untouched |
+| Survey counts re-derived independently | `git grep -l "<DetailsModal" -- "V.SMART/V.SMART.Shared/Pages/"` → **33** files; `git grep -c` summed → **41** instances; 5 files with >1 — INV-054's figures confirmed |
+| `Q-91`/`Q-92`/`Q-93`, `R-78`, `INV-054` id collisions | none across all local branches |
+| Test 5 (selection order, `selection-order.spec.ts`) and test 17 (`…a11y.spec.ts`) | pass in all three runs |
+
+**Not run by either party** — `npm ci`. It is listed under the task's *Verification Commands*
+but not among its *Acceptance Criteria*; the clean-install path is therefore unverified, not
+failed.
+
+**Disposition** — `retry`. The defect is confined to `record-picker-dialog.component.spec.ts`;
+the component under test, the scope, the survey and the documentation are all sound, and no
+regression was found in the other 53 spec files. The fix is to make the two tests
+timing-independent (fake timers, or drive the search input once and await the debounce
+explicitly, and raise test 3's timeout) — not to change the component.
+
+**Next attempt routed to** — same model. No KB-091 §6.3 escalation trigger applies: the
+category is `test`, the root cause is known, and it is attempt 1.
+
+## M2-C06 · attempt 1 · diagnosis · 2026-08-26 · `fixed` (test timing model)
+
+| Field | Value |
+|---|---|
+| Runner state | DIAGNOSING → FIXED |
+| Model in use | opus (diagnostician) |
+| Diagnosing | the `FAIL (test)` recorded in the entry above |
+| Failure category | **test** — implementation error in this task's own spec file |
+| Branch | `migration/M2-C06-record-picker-dialog` |
+
+**Reproduced.** `npm run test:ci` from `frontend/nexgen-web/` on `82b70f2`, clean tree:
+`Test Files 1 failed | 53 passed (54)` · `Tests 2 failed | 384 passed (386)`, both failures in
+`record-picker-dialog.component.spec.ts`:
+
+```
+× debounces typing into a server query and does not filter the result locally  1851ms
+  Error: Expected one matching request for criteria "Match by function: ", found 3 requests.
+× keeps a selection made on page 1 while paging to page 3 and back  5561ms
+  Error: Test timed out in 5000ms.
+```
+
+**The previous entry's root cause is wrong in its detail.** It attributes the first failure to a
+**300 ms** debounce being under-waited. The host fixture overrides it:
+`record-picker-dialog/test-fixtures.ts:105` binds `[searchDebounceMs]="5"`, so the window in
+play is **5 ms**, not 300 — which is why the count I observed was *three* requests (one per
+character of `zzz`), not two. The mechanism is the same either way and the component is not at
+fault: `userEvent.type` awaits between keystrokes, and one keystroke plus a change-detection
+pass over a PrimeNG dialog in jsdom costs far more than 5 ms, so the debounce commits once per
+character. The test measured machine speed, not debouncing.
+
+**Two defects, both in the task's own test code, neither in the component:**
+
+1. **The debounce test could not measure debouncing.** Fixed by dispatching the keystrokes
+   **synchronously** — `typeSearch('z', 'zz', 'zzz')`, one `input` event each, no `await`
+   between them — the idiom `DataGrid`'s own debounce test already uses
+   (`data-grid/data-grid.component.spec.ts:167-170`). A timer cannot interleave a synchronous
+   block, so three keystrokes must produce exactly one request however loaded the machine is.
+   The assertions are unchanged and unweakened: still one request, still
+   `params.search === 'zzz'`, still `pageNumber === 1`, still "whatever the server returns is
+   what is rendered". Test **15** had the identical latent flake (`userEvent.type(…, 'abc')`
+   into a single `expectOne`) and got the same treatment; it passed only by luck.
+2. **Every test in the file is marginal against vitest's 5 s default.** Not only test 3: with
+   defect 1 fixed, runs 5, 6 and 7 all timed out on **test 1** instead
+   (`opens with focus in the search field, and Escape closes it and restores focus`). The file
+   costs ~31 s for 16 tests here; which test goes red is decided by machine load. Fixed with a
+   file-scoped `vi.setConfig({ testTimeout: 30_000 })`. A timeout is a harness ceiling, not an
+   assertion — every `expect` still has to hold, and `a11y.spec.ts:30-31` already carries a
+   60 s ceiling for the same reason.
+
+**Also repaired** — the malformed `R-70` row this task appended to
+`docs/kb/risks/technical-debt-register.md:1841` (a fourth cell, no closing pipe, in a
+three-column table). The third-occurrence note now sits inside the description cell. Wording
+unchanged; one line changed.
+
+**Not touched:** the component, the fixture's 5 ms debounce, `DataGrid`, anything under
+`V.SMART/`, the schema, any ADR. `git diff --name-only` for the fix is two files:
+`frontend/nexgen-web/src/app/shared/components/record-picker-dialog/record-picker-dialog.component.spec.ts`
+and `docs/kb/risks/technical-debt-register.md`.
+
+**Re-validated** — all observed by me on 2026-08-26 from `frontend/nexgen-web/`:
+
+| Command | Result |
+|---|---|
+| `npm run test:ci` | **5 consecutive clean runs**, the last on the committed tree at `098e10a` — `Test Files 54 passed (54)` · `Tests 386 passed (386)`, exit 0 |
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | `All files pass linting.` exit 0 |
+| `npm run format:check` | `All matched files use Prettier code style!` |
+| `npm run build` | `Application bundle generation complete. [8.988 seconds]`, exit 0 |
+
+(The first `lint` after the fix failed on `@typescript-eslint/no-unnecessary-type-assertion` at
+`…component.spec.ts:104` — my `as HTMLInputElement`; `getByLabelText` infers the element type
+from the annotation. Replaced with a type annotation and re-run clean.)
+
+**Residual risk** — the 30 s ceiling makes a genuine hang in this file take 30 s to report
+instead of 5 s. `record-picker-dialog.a11y.spec.ts`'s three non-`axe` tests still run under the
+5 s default and render the same dialog; none has been observed to time out in 8 runs, so it was
+left alone rather than changed on speculation. The underlying cost — `userEvent` plus a full
+change-detection pass over a PrimeNG dialog in jsdom — belongs to the frontend test harness,
+not to this component; if a second spec file starts timing out, that is the thing to fix, and
+it wants a task of its own.
+
+**Not run** — `npm ci`. Still unverified, as the previous entry records.
