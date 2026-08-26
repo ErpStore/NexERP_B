@@ -176,7 +176,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | **Blocked**⁷⁸ *(dispatched 2026-08-26, stopped on arrival — own Prerequisites section names `M2-C02`/`M2-C03`/`M2-A04`/`M2-A05`, all `Blocked`; `depends_on` alone was insufficient — see `Q-97`)* | P0 | M2-C05-03, M2-A02, M2-B10 | 3 d | G2 |
+| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | **Blocked**⁷⁸˒⁷⁹ *(dispatched 2026-08-26, stopped on arrival — own Prerequisites section names `M2-C02`/`M2-C03`/`M2-A04`/`M2-A05`, all `Blocked`; `depends_on` alone was insufficient — see `Q-97`)* | P0 | M2-C05-03, M2-A02, M2-B10 | 3 d | G2 |
 | M2-D02 | M2 | Customer Master *(parent)* | Migration | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-05`; real blocker is `M2-D01`)* | P0 | M2-D01 | 1.5 wks | G2 |
 | M2-D02-01 | M2 | — `@code` triage + logic extraction | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D01`. Allocates the `BR-CUST-*` series)* | P0 | M2-D01 | 4 d | G2 |
 | M2-D02-02 | M2 | — `CustomersController` + API tests | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D02-01`)* | P0 | M2-D02-01 | 3 d | G2 |
@@ -3216,3 +3216,30 @@ on `M0-04`. **Named owner of the actual root blocker: repository owner Vivek** �
 is deferred by his own 2026-08-19 G0 decision; nothing downstream of it (`M2-A04` → `M2-A05` /
 `M2-C02` → `M2-C03` → `M2-D01`) can move until he acts on it or explicitly re-prioritises. No
 code was written; no file under `V.SMART/` or `frontend/` changed.
+
+⁷⁹ **Root cause of the wasted `M2-D01` dispatch: `depends_on` listed 3 of the 7 Hard
+dependencies the task's own *Dependencies* table declares — corrected 2026-08-26.**
+The selection was **not** a runner error. The five-part test reads frontmatter `depends_on`,
+which said `[M2-C05-03, M2-A02, M2-B10]` — all three `Completed` and merged, so part 1 passed
+legitimately, and at P0 `M2-D01` correctly outranked `M2-C05-02` (P1). The data was wrong, not
+the logic. The *Dependencies* table (`tasks/M2-D01.md:244-250`) declares **seven** `Hard` rows;
+four were missing from `depends_on`: `M2-C02`, `M2-A07`, `M2-A06`, `M2-B01`.
+
+**Only one of the four actually blocks:** `M2-A07`, `M2-A06` and `M2-B01` are all `Completed`.
+**`M2-C02` is `Blocked`**, and it supplies `PermissionService`, `requireScreen()` and
+`*appHasRight` — verified absent on disk, not merely inferred: `core/auth/`, `core/http/` and
+`layout/shell/` each contain **only `.gitkeep`**. Five acceptance criteria and requirements 10
+and 11 are unbuildable without stubbing precisely what the task forbids, so the implementer
+stopped correctly rather than faking it.
+
+`depends_on` now lists all seven, so the five-part test will exclude `M2-D01` until `M2-C02`
+lands. **Two corrections to the stop report itself:** it cited `tasks/M2-D01.md:160-177` for the
+prerequisites, which is the *Out of Scope* section — the real declarations are the Dependencies
+table at `:244-250` and the *Prerequisites* prose at `:210` (which lists only the same three as
+the old `depends_on`, and is itself now understated). And it named **`M2-C03`** among the
+blocking prerequisites; `M2-C03` is **not** a declared `Hard` dependency anywhere in the file.
+The substance held up — one genuinely blocking dependency, verified from disk — but the
+citations did not.
+
+**Still available and untouched: `M2-C05-02`** (P1), which this dispatch outranked. It remains
+the one self-selectable task.
