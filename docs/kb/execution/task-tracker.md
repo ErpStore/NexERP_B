@@ -128,7 +128,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Completed**³³ | P1 | M2-B07 | 1 d | G2 |
 | M2-B02 | M2 | Paging / sort / filter contract | Backend | **Completed**²⁴ | P0 | M2-A06 | 1 wk | G2 |
 | M2-B03 | M2 | Codify the controller template | Documentation | **Completed**⁶⁵˒⁶⁶ *(merged to `master` on owner instruction 2026-08-24 — KB-114)* | P0 | M2-A02, M2-B02 | 2 d | G2 |
-| M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Blocked**³¹ *(⛔ premise falsified — needs re-specification by the owner; no code written, no branch)* | P1 | M2-B07 | 2 d | G2 |
+| M2-B05 | M2 | Typed `StoreIds` constants (R-66, re-spec of `ScreenCodes`/R-10) | Backend | **Needs Review**³¹˒⁹⁴ *(re-specified and implemented 2026-08-26 — `ScreenCodes`/R-10 premise stays falsified, not reintroduced; `StoreIds` generated from the `Store` seed, all 55 confirmed `storeId` literals replaced, value-equality proven, both builds 0 errors. Live two-screen smoke test not done — no running Blazor instance available. See footnote ⁹⁴)* | P1 | — | 2 d | G2 |
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Completed**³² ³⁵ *(merged to `master` 2026-08-21, `65d9666`)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | **Blocked**⁷³˒⁹¹ *(attempt 1, 2026-08-25 — `environment`, no code written: the pinned .NET SDK 10.0.400 was unobtainable **in that session's environment**. **That specific finding is stale on this workstation, 2026-08-26** — see footnote ⁹¹. Its **prerequisites are all satisfied**, R-04 included)* | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Completed**³⁴ *(merged to `master` `501b12d` on owner instruction 2026-08-21)* | P1 | **M2-B07**, M2-B02, M2-B01 | 3 d | G2 |
@@ -3637,3 +3637,47 @@ wires it in. Left at `Needs Review` pending owner sign-off, per
 [KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed) — only the owner closes a
 task. **Owner confirmed `Completed` the same session** ("Mark it Completed", 2026-08-26). The
 `DECIMAL_PORT` gap above is not resolved by this closure; it remains open for a future task.
+
+⁹⁴ **`M2-B05`: re-specified and implemented 2026-08-26, in the same session as the owner's
+"Re-spec now as a StoreIds task" instruction.** The task under this id was originally
+*"Typed `ScreenCodes` constants generated from the Screens seed"*, `Blocked` since 2026-08-21
+on a falsified premise (`INV-044`: zero `screenCode` literals exist anywhere to replace).
+`INV-044` itself named the real hazard one parameter over — `storeId`, R-66 — as "the obvious
+candidate for M2-B05's re-specification," so that is what this file now specifies; the original
+`ScreenCodes` scope is not carried forward, and `R-10` stays in `KB-060` marked resolved by
+falsification, not by this task.
+
+**Independent re-measurement, not a re-use of the R-66 headline figure.** A fresh call-site
+inventory (`INV-059`) read all 273 lines matching the three `IStockManagerService` stock
+methods in context (27 of them multi-line), classified each by its actual `storeId` argument,
+and cross-checked with an independent regex sweep. Result: **24** literal `6`, **31** literal
+`7` — **55 total, exactly matching `INV-044`'s figure**, all in `AddOrUpdateStockAsync`, across
+7 files. Zero literal sites in `IssueOrUpdateStockAsync` or `GetQtyBalQtyByStockAddAsync`.
+
+**Delivered:** a generated `V.SMART/V.SMART.Shared/Utility_Constants/StoreIds.cs` (`const int`
+per `Store` row, from the 9-row `HasData` seed at `ApplicationDbContext.cs:1714-1723`) via a
+committed, self-tested Node generator (`tools/generate-store-ids/generate.mjs` +
+`test.mjs` — not a `.NET` tool, same standalone-guard precedent as
+`tools/test-migration-runner.mjs`, since no `.NET` generator/test project exists in the
+solution). All 55 literal sites now use `StoreIds.RejectionStore`/`StoreIds.ReworkStore`.
+
+**A mistake made and fully reverted before committing, not glossed over.** The first
+replacement pass matched the literal pattern across each file's raw text without excluding
+`//`-commented lines and produced 58 replacements — 3 of them inside calls already correctly
+classified `COMMENTED OUT` by `INV-059` (`SubConSCNService.cs:730`,
+`ProductionSCNCompService.cs:622,973`). All 7 touched files were reverted with `git checkout --`
+before anything was committed; the script was fixed to mask full-line comments before matching,
+and the corrected run produced exactly 55 replacements — independently matching `INV-044`'s and
+`INV-059`'s figures — on its first try.
+
+**Verified:** value-equality proven mechanically for all 55 `-`/`+` diff pairs (0 mismatches);
+`ApplicationDbContext.cs` unchanged (0-line diff); generator idempotent (byte-identical
+re-generation, checksum-verified); generator's four failure-mode assertions demonstrated against
+synthetic fixtures in-memory, not against a mutated copy of the real seed. `dotnet build` on
+both `V.SMART.Api` and `V.SMART.Web`: **0 errors**, baseline warning count (6,695) unchanged.
+
+**Left at `Needs Review`, not `Completed`.** The one acceptance item not satisfied: a live
+two-screen manual stock smoke test, which needs a running `V.SMART.Web` instance the executing
+session's environment did not have — recorded as not-done, not assumed passing. `R-66` closed
+in `technical-debt-register.md`; `KB-041` item B7 and `KB-012`'s `Store`/`ScreenCode` sections
+corrected to match. Full record: `tasks/M2-B05.md`.

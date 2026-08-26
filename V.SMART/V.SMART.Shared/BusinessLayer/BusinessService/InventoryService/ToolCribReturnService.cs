@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using V.SMART.Shared.Utility_Constants;
 using AutoMapper.QueryableExtensions;
 using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService;
 using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IInventoryService;
@@ -155,13 +156,13 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.InventoryService
 
                         if(sub.RejQty >0)
                         {
-                            await _stockManagerService.AddOrUpdateStockAsync(sub.ItemId.Value, 6, sub.RejQty,
+                            await _stockManagerService.AddOrUpdateStockAsync(sub.ItemId.Value, StoreIds.RejectionStore, sub.RejQty,
                                 1, null, screenCode, sub.TCReturnSubId, entity.TCReturnNo, entity.TCReturnDate,sub.RejRemark);
                         }
 
                         if(sub.RewQty >0)
                         {
-                            await _stockManagerService.AddOrUpdateStockAsync(sub.ItemId.Value, 7, sub.RewQty,
+                            await _stockManagerService.AddOrUpdateStockAsync(sub.ItemId.Value, StoreIds.ReworkStore, sub.RewQty,
                                 1, null, screenCode, sub.TCReturnSubId, entity.TCReturnNo, entity.TCReturnDate,sub.RewRemark);
                         }
                     }
@@ -257,13 +258,13 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.InventoryService
 
                     if (subVM.RejQty > 0)
                     {
-                        await _stockManagerService.AddOrUpdateStockAsync(subVM.ItemId.Value, 6, newSub.RejQty,
+                        await _stockManagerService.AddOrUpdateStockAsync(subVM.ItemId.Value, StoreIds.RejectionStore, newSub.RejQty,
                             1, null, screenCode, newSub.TCReturnSubId, existingtcr.TCReturnNo, existingtcr.TCReturnDate,subVM.RejRemark);
                     }
 
                     if (subVM.RewQty > 0)
                     {
-                        await _stockManagerService.AddOrUpdateStockAsync(subVM.ItemId.Value, 7, newSub.RewQty,
+                        await _stockManagerService.AddOrUpdateStockAsync(subVM.ItemId.Value, StoreIds.ReworkStore, newSub.RewQty,
                             1, null, screenCode, newSub.TCReturnSubId, existingtcr.TCReturnNo, existingtcr.TCReturnDate,subVM.RewRemark);
                     }
 
@@ -287,13 +288,13 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.InventoryService
 
                         if (subVM.RejQty > 0)
                         {
-                            await _stockManagerService.AddOrUpdateStockAsync(subVM.ItemId.Value, 6, subVM.RejQty.GetValueOrDefault(),
+                            await _stockManagerService.AddOrUpdateStockAsync(subVM.ItemId.Value, StoreIds.RejectionStore, subVM.RejQty.GetValueOrDefault(),
                                 1, null, screenCode, subVM.TCReturnSubId, existingtcr.TCReturnNo, existingtcr.TCReturnDate,subVM.RejRemark);
                         }
 
                         if (subVM.RewQty > 0)
                         {
-                            await _stockManagerService.AddOrUpdateStockAsync(subVM.ItemId.Value, 7, subVM.RewQty.GetValueOrDefault(),
+                            await _stockManagerService.AddOrUpdateStockAsync(subVM.ItemId.Value, StoreIds.ReworkStore, subVM.RewQty.GetValueOrDefault(),
                                 1, null, screenCode, subVM.TCReturnSubId, existingtcr.TCReturnNo, existingtcr.TCReturnDate,subVM.RewRemark);
                         }
 

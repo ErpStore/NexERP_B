@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using V.SMART.Shared.Utility_Constants;
 using DocumentFormat.OpenXml.InkML;
 using DocumentFormat.OpenXml.VariantTypes;
 using DocumentFormat.OpenXml.Vml.Office;
@@ -1483,7 +1484,7 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.ProductionService
                         await UpdateRouteCardSubRejQtyAsync(entity.ItemIdIn.GetValueOrDefault(), entity.ProcessId.GetValueOrDefault(), entity.RejQty, entity.RCProcessId.Value);
                         await _stockManagerService.AddOrUpdateStockAsync(
                             entity.ItemIdIn.Value,
-                            6,
+                            StoreIds.RejectionStore,
                             entity.RejQty,
                             entity.ProcessCost,
                             entity.BatchNo,
@@ -1510,7 +1511,7 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.ProductionService
                         {
                             await _stockManagerService.AddOrUpdateStockAsync(
                            RcsubDetails.ItemIdOut.Value,
-                           7,
+                           StoreIds.ReworkStore,
                            entity.RewQty,
                            entity.ProcessCost,
                            entity.BatchNo,
@@ -1531,7 +1532,7 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.ProductionService
                             {
                                 await _stockManagerService.AddOrUpdateStockAsync(
                               RcsubDetails.ItemIdOut.Value,
-                              7,
+                              StoreIds.ReworkStore,
                               entity.RewQty,
                               entity.ProcessCost,
                               entity.BatchNo,
