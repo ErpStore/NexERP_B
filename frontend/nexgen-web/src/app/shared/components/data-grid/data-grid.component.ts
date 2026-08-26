@@ -22,6 +22,8 @@ import { ProgressBarComponent } from '../feedback/progress-bar.component';
 import { DatePickerComponent } from '../form/date-picker.component';
 import { TextInputComponent } from '../form/text-input.component';
 import { DataGridHeaderComponent } from './data-grid-header.component';
+import { DataGridStatesComponent } from './data-grid-states.component';
+import { DATA_GRID_MAX_SKELETON_ROWS } from './data-grid-skeleton.component';
 import { DataGridPaginationComponent } from './data-grid-pagination.component';
 import {
   DATA_GRID_DEFAULT_COLUMN_WIDTH_PX,
@@ -86,6 +88,7 @@ import {
     TextInputComponent,
     DataGridHeaderComponent,
     DataGridPaginationComponent,
+    DataGridStatesComponent,
   ],
 })
 export class DataGridComponent<TRow> {
@@ -119,6 +122,20 @@ export class DataGridComponent<TRow> {
   readonly filterDebounceMs = input(DATA_GRID_FILTER_DEBOUNCE_MS);
 
   /**
+   * Whether any filter is **committed** - not whether one is being typed.
+   * This is what separates "nothing exists yet" from "your filters exclude
+   * everything" (M2-C05-03). Bind `DataGridQueryState.hasActiveFilters()`; the
+   * grid does not guess, and a wrong guess offers the wrong action.
+   */
+  readonly hasActiveFilters = input(false);
+  /** "No currencies yet" - name the thing. Only used when no `#empty` template is given. */
+  readonly emptyTitle = input('No rows to display');
+  readonly emptyDescription = input<string | undefined>(undefined);
+  /** The create action's label. Omitted, no primary action is offered. */
+  readonly emptyActionLabel = input<string | undefined>(undefined);
+  readonly filteredTitle = input('No results for these filters');
+
+  /**
    * Per-user column visibility, keyed by `field`.
    *
    * TODO(M2-C05-02): typed and honoured here, but nothing persists it yet -
@@ -132,14 +149,20 @@ export class DataGridComponent<TRow> {
   readonly stateChange = output<DataGridState>();
   /** `Enter` on the focused row, or a double click. */
   readonly rowActivate = output<TRow>();
+  /** The empty state's primary action - "New currency". */
+  readonly emptyAction = output<void>();
+  /** The filtered-empty state's **Clear filters**. Reset the query state here. */
+  readonly clearFilters = output<void>();
+  /** The error state's Retry. Re-issue the current query here. */
+  readonly retry = output<void>();
 
   /** Row-level action buttons, rendered in a trailing cell. */
   readonly rowActions = contentChild<TemplateRef<{ $implicit: TRow }>>('rowActions');
-  /** TODO(M2-C05-03): the empty state. Typed seam; the default placeholder stays accessible. */
+  /** Overrides the built-in empty state entirely. Optional - the default composes M2-C04-03's `app-empty-state`. */
   readonly emptyTemplate = contentChild<TemplateRef<unknown>>('empty');
-  /** TODO(M2-C05-03): the error state. The `ProblemDetails` object reaches it untouched. */
+  /** Overrides the built-in error state. The `ProblemDetails` object reaches it untouched. */
   readonly errorTemplate = contentChild<TemplateRef<{ $implicit: unknown }>>('error');
-  /** TODO(M2-C05-03): the toolbar slot, where export lands. */
+  /** The toolbar slot. `app-data-grid-toolbar` (export) and M2-C05-02's column control share it. */
   readonly toolbarTemplate = contentChild<TemplateRef<unknown>>('toolbar');
 
   readonly #focused = signal<GridCell>({ row: HEADER_ROW_INDEX, col: 0 });
@@ -227,7 +250,10 @@ export class DataGridComponent<TRow> {
    */
   readonly virtualised = computed(() => this.rows().length >= DATA_GRID_VIRTUAL_ROW_THRESHOLD);
   readonly scrollHeight = computed(() => (this.virtualised() ? this.height() : undefined));
-  readonly skeletonRows = computed(() => Math.min(this.state().pageSize, 10));
+  /** `min(pageSize, 12)` - M2-C05-03 requirement 6. */
+  readonly skeletonRows = computed(() =>
+    Math.min(this.state().pageSize, DATA_GRID_MAX_SKELETON_ROWS),
+  );
 
   // --- Selection ------------------------------------------------------------
 
@@ -464,7 +490,10 @@ export class DataGridComponent<TRow> {
   /** What a screen reader is told after a page, sort or filter change. */
   readonly announcement = computed(() => {
     if (this.loading()) {
-      return 'Loading rows';
+      // The skeleton owns the single "Loading results" announcement
+      // (M2-C05-03 requirement 6); a second live region here would
+      // double-announce the same fact.
+      return '';
     }
     const total = this.totalCount();
     if (total === 0) {
@@ -475,6 +504,9 @@ export class DataGridComponent<TRow> {
     const last = Math.min(state.page * state.pageSize, total);
     return `Showing rows ${first} to ${last} of ${total}`;
   });
+
+  /** `aria-busy` while anything is in flight - first load and refetch alike. */
+  readonly busy = computed(() => this.loading() || this.refetching());
 
   /** `p-table` types `value` as a mutable array; the grid's own input stays readonly. */
   readonly tableRows = computed(() => [...this.rows()]);

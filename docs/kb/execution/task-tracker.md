@@ -163,7 +163,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
 | M2-C05-01 | M2 | — server-paged table core | Frontend | **Completed**⁷⁴ *(the `Needs Review`/"unmerged" reading was stale — `git log --first-parent` shows `bf2b4cd` "Merge M2-C05-01" on `master`'s own first-parent line, and all 18 files are present at `HEAD`; corrected 2026-08-26)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
 | M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Ready**⁷⁴ *(re-specified by `M2-C12-03`; its sole blocker `M2-C05-01` is now confirmed merged)* | P1 | M2-C05-01 | 3 d | G2 |
-| M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Needs Review**⁷⁵ *(implemented, independently validated PASS, unmerged on `migration/M2-C05-03-grid-states-and-export`)* | P1 | M2-C05-01 | 2 d | G2 |
+| M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Completed**⁷⁵˒⁷⁶ *(owner instructed the merge 2026-08-26; merged `--no-ff`, verified on the merged result)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Needs Review**⁷⁵ *(implemented, independently validated PASS, unmerged on `migration/M2-C06-record-picker-dialog`)* | P0 | M2-C05-01 | 1 wk | G2 |
 | M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-C10`. Its table-technology evaluation is **Q-83**, owner-owned)* | P0 | M2-C05-01, M2-C10 | 2 wks | G2 |
 | M2-C08 | M2 | `DocumentEditor` shell *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-04`)* | P0 | M2-C07 | 2 wks | G2 |
@@ -3165,4 +3165,19 @@ its own close-out found that `M2-C05-02` cannot be dispatched alongside it — `
 abandoned. Both rows below corrected from `Ready` to `Needs Review`. **No row in the tracker
 now reads `Ready` that clears the five-part test** — `M0-06` and `M0-11` were already excluded
 (fails part 5 / part 2 respectively) and remain so. `nextTaskId` returned empty this pass.
+
+⁷⁶ **M2-C05-03: `Needs Review` → `Completed`, merged 2026-08-26 on owner instruction.**
+Merged `--no-ff` into `master`. **Verified on the merged result, not inherited from the branch:**
+`typecheck` exit 0 · `lint` *"All files pass linting"* · `test:ci` **436 passed / 55 files, 0
+failed** · `build` succeeds. Three conflicts, all `docs/kb/` bookkeeping — no code conflicted;
+the 21 `frontend/` files merged clean. All three resolved to `master`'s side, which carried the
+later runner correction (footnote ⁷⁵): the branch's own copy still read `M2-C06` as `Ready`⁷⁴,
+stale because it was cut before `M2-C06` finished.
+
+**What this releases: `M2-C05-02`.** It was the one task failing part 5 on a *genuine* same-file
+conflict — its expected changed files (`data-grid.component.ts`, `.html`, `.model.ts`) are
+exactly what this branch changed. With this merged, that conflict is gone and `M2-C05-02`
+becomes the first self-selectable task since `M2-C06`. **`M2-C06` stays `Needs Review`** on
+`migration/M2-C06-record-picker-dialog` (`a47d016`) — it releases nothing and no task names it
+as a Hard prerequisite, so it can be reviewed at leisure.
 

@@ -5,7 +5,7 @@ module: frontend-new
 source_files: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-25
+last_verified: 2026-08-26
 dependencies: [KB-015, KB-050]
 ---
 
@@ -422,6 +422,42 @@ untokenised default. Recorded in KB-004.
 | **Permission denied** | Inline panel explaining which screen right is missing |
 | **Saving** | Disable the footer actions, show inline spinner on the button; never block the page |
 | **Dirty form** | Footer shows "Unsaved changes"; navigation blocked via `useBlocker` (replaces `UnsavedChangesModal.razor`) |
+
+**Implemented for `DataGrid` on 2026-08-26 by `M2-C05-03`** — every row above except *Saving* and
+*Dirty form*, which belong to the form layer. The states compose M2-C04-03's primitives
+(`shared/components/feedback/`); nothing under `shared/components/data-grid/` re-implements an
+`EmptyState` or an `ErrorState`. What each row became, concretely:
+
+- **Loading (first)** — `app-data-grid-skeleton`: `min(pageSize, 12)` rows whose cells carry the
+  _resolved_ column widths, `aria-busy="true"` on the grid, and one visually-hidden
+  `role="status"` announcing _"Loading results"_ — not one per bar.
+- **Loading (refetch)** — the previous rows stay and a 2 px indeterminate `app-progress-bar` sits
+  above the header. The table is neither dimmed nor disabled and focus is not moved.
+- **Empty (no data yet) / Empty (filtered out)** — chosen by `DataGridQueryState.hasActiveFilters`,
+  a `computed` over the **committed** filter set, **never by guessing**. Reading the filter _draft_
+  instead would flip the state mid-keystroke.
+- **Error** — `403` renders the permission-denied panel inline (no redirect), `409` renders the
+  server's `title` **verbatim** in an inline alert, everything else renders `app-error-state` with
+  the message, the `detail`, the copyable `traceId` and Retry.
+
+**A deliberate behaviour change, recorded rather than assumed.** The Blazor generic picker renders
+a _single, undifferentiated_ spanning row reading **"No data found."** for both empty cases
+(`V.SMART/V.SMART.Shared/Components/DetailsModal.razor:75-82`, Confirmed, re-verified 2026-08-26).
+That conflates _"nothing exists yet"_ with _"your filters exclude everything"_ — two situations that
+need different words and different actions — so this table's split replaces it on purpose. The
+superseded evidence is kept here so the change reads as a decision, not a regression.
+
+**Two gaps this implementation could not close, both outside its scope.** The correlation id is read
+from the problem **body**'s `traceId` rather than the `X-Correlation-Id` header, and an exported file
+saves under a client-side fallback name, because `V.SMART/V.SMART.Api/Program.cs:165-171` exposes no
+CORS response headers (**R-79**, **Q-96**). And there is no HTTP error interceptor to normalise
+`ProblemDetails` — M2-C02 is Blocked — so the grid normalises once, locally (**Q-94**).
+
+**Export is not a state, but it lives here too.** `app-data-grid-toolbar` asks the server for the
+bytes and saves them; the client builds no spreadsheet, CSV or PDF (ADR-005), and
+`no-client-file-generation.spec.ts` fails the build if such a dependency is ever added. Only Excel is
+offered, because `xlsx` is the only format the export endpoint accepts
+(`V.SMART/V.SMART.Api/Controllers/CurrencyExcelController.cs:48`) — see **Q-95**.
 
 ## Status vocabulary
 

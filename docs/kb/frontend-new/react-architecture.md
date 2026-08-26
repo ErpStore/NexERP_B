@@ -18,7 +18,7 @@ database_tables: []
 business_rules: [BR-CALC-001, BR-STK-001, BR-SO-001, BR-SO-003, BR-AUTH-002]
 status: proposal
 confidence: n/a
-last_verified: 2026-08-25
+last_verified: 2026-08-26
 dependencies: [KB-013, KB-015, KB-040, KB-041, KB-051, KB-105, ADR-002, ADR-004, ADR-007]
 ---
 
@@ -470,6 +470,40 @@ component to land in; none of them parses a problem body, and none performs a re
 The `traceId` is an input on `app-error-state`; nothing in the component library reads a
 header or a body. The parsing stays exactly where this table puts it —
 `core/http/error.interceptor.ts`, M2-C02.
+
+**The table was confirmed against a working consumer — `DataGrid`, M2-C05-03 (2026-08-26).** Three
+rows were exercised end to end against fixtures built from the produced middleware, and **every one
+behaved as this table says**: `403` renders `app-permission-denied-state` inline, bound to the
+`screen` and `right` extensions, with no navigation; `409` renders the problem's `title`
+byte-for-byte in `app-inline-alert`, proven against the real BR-SO-001 sentence at
+`V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/SalesService/MfgPoService.cs:488`; everything
+else renders `app-error-state` with the message, the `detail`, a copyable `traceId` and Retry. No
+row needed correcting. Two clarifications the exercise produced, both recorded here because a
+future consumer will otherwise rediscover them:
+
+- **The `500` row's "message" is a constant.** `ApiProblems.cs:134-139` sets the fixed title
+  _"An unexpected error occurred."_ and `traceId`, in **every** environment. A consumer expecting an
+  exception message from a 500 is expecting something the server never sends.
+- **The `traceId` must be read from the body, not from the header.** `X-Correlation-Id` exists
+  (`Middleware/CorrelationId.cs:25`) but is not CORS-exposed — `V.SMART/V.SMART.Api/Program.cs:165-171`
+  declares no `WithExposedHeaders` — so it is unreadable on the cross-origin call the SPA actually
+  makes. Recorded as **R-79** / **Q-96**.
+
+**Where the parsing actually lives today, stated rather than implied.** This section says the
+single parse is `core/http/error.interceptor.ts` (M2-C02). That file does not exist:
+`src/app/core/http/` and `src/app/core/auth/` are **empty directories**, `src/app/app.config.ts:29`
+is `provideHttpClient(withInterceptors([]))`, and M2-C02 is Blocked. Until it lands, exactly two
+places read a problem body — `applyServerErrors` for forms and `toGridProblem`
+(`shared/components/data-grid/data-grid-error.component.ts`) for grids — and they **share one type**,
+`ProblemDetailsLike` (`shared/components/form/server-validation.ts:22`), rather than describing the
+contract three times. When M2-C02 lands it must call or replace those, not stack a third normaliser
+above them (**Q-94**).
+
+**One thing a `responseType: 'blob'` caller has to know.** An error body on a binary request arrives
+as a **`Blob`**, not as parsed JSON — XHR honours the requested response type for a 4xx exactly as it
+does for a 200. `GridExportService` reads and parses it before rendering; without that, the export
+endpoint's 409 (`Controllers/CurrencyExcelController.cs:112-116`) would reach the user as
+`[object Blob]`, which is precisely the generic-message failure the `409` row above forbids.
 
 **The mapping function exists — `applyServerErrors`, M2-C04-02 (2026-08-23).** It lives at
 `frontend/nexgen-web/src/app/shared/components/form/server-validation.ts` and is a **pure

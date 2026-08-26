@@ -8,7 +8,7 @@ import {
   type WritableSignal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, type Params } from '@angular/router';
 import { Subject, of } from 'rxjs';
 import { catchError, debounceTime, map, switchMap, tap } from 'rxjs/operators';
 
@@ -118,6 +118,23 @@ export class DataGridQueryState<TRow> {
   readonly sort = computed(() => this.state().sort);
   /** The **committed** filters - what the last request was made with. */
   readonly filters = computed(() => this.state().filters);
+  /**
+   * Is any filter committed? (M2-C05-03.)
+   *
+   * This is what lets a grid tell "nothing exists here yet" apart from "your
+   * filters exclude everything" - two situations the Blazor list conflates into
+   * one `"No data found."` row (`DetailsModal.razor:75-82`) and which need
+   * different words and different actions (KB-051 State patterns).
+   *
+   * Derived from {@link filters}, the **committed** set, and deliberately not
+   * from {@link filterDraft}: a half-typed filter has not excluded anything
+   * yet, and reading the draft would flip the empty state mid-keystroke. An
+   * empty-string value is not an active filter - `toWireQuery` drops it
+   * (`data-grid-query.adapter.ts:96-100`), so the server never saw it either.
+   */
+  readonly hasActiveFilters = computed(() =>
+    Object.values(this.state().filters).some((value) => value !== ''),
+  );
   /**
    * What the filter inputs display. Diverges from {@link filters} only for the
    * debounce window, so a keystroke is never swallowed or echoed back late.
@@ -251,7 +268,12 @@ export class DataGridQueryState<TRow> {
     this.#filterCommit$.next();
   }
 
-  /** Drop every filter. Immediate - a "clear filters" button is not typing. */
+  /**
+   * Drop every filter and return to page 1. Immediate - a "clear filters"
+   * button is not typing, so it is not debounced. In route-bound mode the
+   * commit navigates, so the URL's filter parameters are cleared with it and a
+   * refetch follows from the `queryParamMap` emission.
+   */
   clearFilters(): void {
     this.#filterDraft.set({});
     this.#commit({ ...this.#state(), filters: {}, page: 1 });
@@ -285,9 +307,31 @@ export class DataGridQueryState<TRow> {
     // rest. `merge` keeps query parameters this grid does not own.
     void this.#router!.navigate([], {
       relativeTo: this.#route!,
-      queryParams: toRouteParams(next),
+      queryParams: this.#routeParams(next),
       queryParamsHandling: 'merge',
     });
+  }
+
+  /**
+   * The URL parameters for a state, **including the ones being removed**.
+   *
+   * `queryParamsHandling: 'merge'` keeps any parameter the new object does not
+   * mention, and `toRouteParams` only mentions the filters that are still set.
+   * Without the explicit `null`s below, clearing a filter would leave it in the
+   * URL, the `queryParamMap` emission would read it straight back, and
+   * **Clear filters** would appear to do nothing (M2-C05-03). Only names this
+   * grid owns are nulled, so a `tab` or a `returnUrl` on the same route is
+   * still left alone.
+   */
+  #routeParams(next: DataGridState): Params {
+    const params = toRouteParams(next);
+    const owned = new Set([...this.#filterNames, ...Object.keys(this.#state().filters)]);
+    for (const name of owned) {
+      if (!(name in params)) {
+        params[name] = null;
+      }
+    }
+    return params;
   }
 
   #beginRequest(): void {
