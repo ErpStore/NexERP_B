@@ -176,7 +176,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | **Ready**⁷⁷ *(re-specified for Angular by `M2-C12-05`; all three Hard prerequisites — `M2-C05-03`, `M2-A02`, `M2-B10` — now `Completed` and merged)* | P0 | M2-C05-03, M2-A02, M2-B10 | 3 d | G2 |
+| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | **Blocked**⁷⁸ *(dispatched 2026-08-26, stopped on arrival — own Prerequisites section names `M2-C02`/`M2-C03`/`M2-A04`/`M2-A05`, all `Blocked`; `depends_on` alone was insufficient — see `Q-97`)* | P0 | M2-C05-03, M2-A02, M2-B10 | 3 d | G2 |
 | M2-D02 | M2 | Customer Master *(parent)* | Migration | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-05`; real blocker is `M2-D01`)* | P0 | M2-D01 | 1.5 wks | G2 |
 | M2-D02-01 | M2 | — `@code` triage + logic extraction | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D01`. Allocates the `BR-CUST-*` series)* | P0 | M2-D01 | 4 d | G2 |
 | M2-D02-02 | M2 | — `CustomersController` + API tests | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D02-01`)* | P0 | M2-D02-01 | 3 d | G2 |
@@ -3197,3 +3197,22 @@ merge, `39a9e11`), `M2-A02` (line 112, merged 2026-08-24 on owner instruction) a
 nothing. **`M2-D01` (P0) now outranks `M2-C05-02` (P1) on priority alone** and is the task
 selected this pass.
 
+
+⁷⁸ **`M2-D01`: `Ready` → `Blocked`, 2026-08-26 execution + close-out.** Dispatched this pass
+(footnote ⁷⁷) and stopped on arrival: its own *Prerequisites* section
+(`tasks/M2-D01.md:160-177`) names `M2-C02`, `M2-C03`, `M2-A04` and `M2-A05` as transitively
+required and instructs "stop and report Blocked. Do not stub the missing piece." All four
+remain `Blocked` (`M2-C02` line 157, `M2-C03` line 162, `M2-A04` line 114 on `M0-04`, `M2-A05`
+line 115), and their frontend artefacts are confirmed absent from disk —
+`frontend/nexgen-web/src/app/core/auth/`, `core/http/` and `layout/shell/` each hold only a
+`.gitkeep`. `M2-D01`'s three `depends_on` entries genuinely are `Completed` and merged — that
+half of footnote ⁷⁷'s selection was correct — but the five-part selectability test in
+`CLAUDE.md` only walks `depends_on`, not a task file's own narrative prerequisite table; this
+gap is recorded as `Q-97` in `open-questions.md` for the runner's selection rule to address, not
+for this task to work around. **Blocked-on-a-task, not blocked-on-a-human, at the immediate
+level** — `M2-C02`/`M2-C03` are themselves blocked on `M2-A04`/`M2-A07`, and `M2-A04` is blocked
+on `M0-04`. **Named owner of the actual root blocker: repository owner Vivek** — `M0-04`
+(rotate the exposed credentials, line 67) requires credential-rotation rights only he holds and
+is deferred by his own 2026-08-19 G0 decision; nothing downstream of it (`M2-A04` → `M2-A05` /
+`M2-C02` → `M2-C03` → `M2-D01`) can move until he acts on it or explicitly re-prioritises. No
+code was written; no file under `V.SMART/` or `frontend/` changed.
