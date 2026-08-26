@@ -1,6 +1,6 @@
 <div class="app-data-grid" [attr.data-density]="density()">
   @if (toolbarTemplate()) {
-    <!-- TODO(M2-C05-03): export lives here. This child only exposes the slot. -->
+    <!-- Export (`app-data-grid-toolbar`) and M2-C05-02's column control share this slot. -->
     <div class="app-data-grid__toolbar">
       <ng-container [ngTemplateOutlet]="toolbarTemplate()!" />
     </div>
@@ -45,6 +45,7 @@
           'aria-label': ariaLabel(),
           'aria-rowcount': totalCount(),
           'aria-colcount': visibleColumns().length + columnOffset(),
+          'aria-busy': busy(),
         },
       }"
     >
@@ -157,27 +158,37 @@
       <ng-template #emptymessage>
         <tr>
           <td [attr.colspan]="visibleColumns().length + columnOffset()">
-            @if (loading()) {
-              <!-- First load is a shape-matched skeleton, never a spinner on a blank page. -->
-              <div class="app-data-grid__skeleton" role="status" aria-label="Loading rows">
-                @for (index of skeletonIndices(); track index) {
-                  <span
-                    class="app-data-grid__skeleton-row"
-                    [style.height.px]="rowHeightPx()"
-                  ></span>
-                }
-              </div>
-            } @else if (error() && errorTemplate()) {
-              <!-- TODO(M2-C05-03): the real error state. The object arrives untouched. -->
+            @if (!loading() && error() && errorTemplate()) {
+              <!-- A caller may replace the error state. The object arrives untouched. -->
               <ng-container
                 [ngTemplateOutlet]="errorTemplate()!"
                 [ngTemplateOutletContext]="{ $implicit: error() }"
               />
-            } @else if (emptyTemplate()) {
-              <!-- TODO(M2-C05-03): the real empty state. -->
+            } @else if (!loading() && !error() && emptyTemplate()) {
+              <!-- A caller may replace the empty state entirely. -->
               <ng-container [ngTemplateOutlet]="emptyTemplate()!" />
             } @else {
-              <p class="app-data-grid__placeholder" role="status">No rows to display</p>
+              <!--
+                The five states, composed from M2-C04-03's primitives
+                (M2-C05-03). Nothing here re-implements one of them.
+              -->
+              <app-data-grid-states
+                [columns]="visibleColumns()"
+                [columnWidths]="columnWidths()"
+                [pageSize]="state().pageSize"
+                [rowHeightPx]="rowHeightPx()"
+                [leadingCells]="columnOffset()"
+                [loading]="loading()"
+                [error]="error()"
+                [hasActiveFilters]="hasActiveFilters()"
+                [emptyTitle]="emptyTitle()"
+                [emptyDescription]="emptyDescription()"
+                [emptyActionLabel]="emptyActionLabel()"
+                [filteredTitle]="filteredTitle()"
+                (emptyAction)="emptyAction.emit()"
+                (clearFilters)="clearFilters.emit()"
+                (retry)="retry.emit()"
+              />
             }
           </td>
         </tr>

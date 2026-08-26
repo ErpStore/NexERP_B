@@ -12,6 +12,33 @@ export { DataGridComponent } from './data-grid.component';
 export { DataGridHeaderComponent } from './data-grid-header.component';
 export { DataGridPaginationComponent } from './data-grid-pagination.component';
 
+/** The five states and server-side export (M2-C05-03). */
+export { DataGridStatesComponent } from './data-grid-states.component';
+export type { DataGridStateKind } from './data-grid-states.component';
+export {
+  DataGridSkeletonComponent,
+  DATA_GRID_MAX_SKELETON_ROWS,
+} from './data-grid-skeleton.component';
+export {
+  DataGridErrorComponent,
+  GRID_ERROR_FALLBACK_MESSAGE,
+  toGridProblem,
+} from './data-grid-error.component';
+export type { GridProblemDetails } from './data-grid-error.component';
+export {
+  DataGridToolbarComponent,
+  GRID_EXPORT_DEFAULT_FORMATS,
+} from './data-grid-toolbar.component';
+export type { GridExportFormat } from './data-grid-toolbar.component';
+export {
+  GRID_EXPORT_XLSX,
+  GridExportService,
+  contentDispositionFilename,
+  exportQuery,
+  fallbackFilename,
+} from './grid-export.service';
+export type { GridExportOperation, GridExportRequest } from './grid-export.service';
+
 export { DataGridQueryState, createDataGridQueryState } from './data-grid-query-state';
 export type {
   DataGridDataSource,
