@@ -81,7 +81,7 @@ its children are `Completed` — it is never worked directly.
 | M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | **Completed**¹³ | P0 | M0-12-01 | 3 d | G0 |
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | **Completed**¹⁵ | P1 | M0-12-01 | 0.5 d | G0 |
 | M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | **Completed**²⁹ *(merged to `master` `843a04e` on owner instruction 2026-08-21)* | P1 | M0-09 | 2 d | G0 |
-| M0-06 | M0 | Remove the seeded default Administrator credential | Security | **Ready** | P1 | M0-12-01 | 1 d | G0 |
+| M0-06 | M0 | Remove the seeded default Administrator credential | Security | **Blocked**⁹⁵ *(seed removed, empty-`Up()` migration, runbook written 2026-08-19; branch found unmerged and merged 2026-08-26 — see footnote ⁹⁵)* | P1 | M0-12-01 | 1 d | G0 |
 | M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Completed**¹⁰ | P2 | M0-03-01 | 0.5 d | G0 |
 | M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | **Ready**¹⁷ | P0 | M0-13 | decision | G0 |
 
@@ -409,6 +409,12 @@ baseline.
 > **red at the `Test - V.SMART.Shared.Tests` step**, green again — so criterion 8 would have
 > re-tested the *pipeline* rather than this task. **Both G0 characterisation tasks are now
 > done.**
+
+> **`M0-06` is no longer `Ready` — closed `Blocked`¹⁶ on 2026-08-19, on the repository owner
+> (Q-25/Q-26), not on engineering work.** Attempt 2 implemented and validated most of the
+> task (`FAIL`, `failureCategory: architecture`, `scopeOk: true`) but could not close
+> acceptance criterion 2 — see footnote 16. This does not unblock `M0-10`, which still needs
+> `M0-09` reviewed and merged.
 
 > **`M0-11` is released, and it is now blocked on *you*, not on a task.** Its sole Hard
 > prerequisite `M0-13` is `Completed`, so the dependency is genuinely clear. But `M0-11` is a
@@ -1478,7 +1484,13 @@ all list `M2-B02` as a Hard prerequisite. None moves to `Ready` on `Needs Review
 
 > **Fourth consecutive M2 task to close with nothing waived.** Re-verified before merging and again on `master` after: `dotnet build V.SMART.Api` **0 errors**; `dotnet test V.SMART.Api.Tests` **104 passed** (56 → +48); `dotnet test V.SMART.Shared.Tests` **84 passed**. Scope: `V.SMART.Api` only — no `Shared`, no Web, no MAUI, no `bin/`/`obj/`, **and no controller annotated**, which the task forbids.
 >
-> ### The D-5 / R-40 contradiction was not resolved by guessing
+> ### The D-5 / R-80 contradiction was not resolved by guessing
+>
+> *(Cited as `R-40` here when this footnote was written 2026-08-20 — the `UserId == 1`
+> undeclared-superuser risk was not yet in `technical-debt-register.md` under any id, because
+> the branch that defines it (`M0-06`) was still unmerged. `R-40` was independently claimed by
+> a different risk in the interim and the superuser risk landed as `R-80` when `M0-06` finally
+> merged, 2026-08-26. Corrected here rather than left dangling.)*
 >
 > This was the whole risk of the task, so it was checked directly rather than taken from the report — a plausible-looking compromise here would have baked an **undeclared superuser into the new API's security model**, and it would have read as reasonable in a diff.
 >
@@ -1486,7 +1498,7 @@ all list `M2-B02` as a Hard prerequisite. None moves to `Ready` on `Needs Review
 > - **KB-105's D-5 still reads *"No `Administrator` bypass. None. Anywhere."* verbatim.** The spec *was* touched, but **additively** — an implementation-status block recording two deliberate departures, which also corrects its own stale `Program.cs` line numbers. D-5 was **not** softened to fit the code.
 > - `T13_an_Administrator_with_no_row_is_denied` pins it: an identity carrying a `Role=Administrator` claim against an empty rights set is denied.
 >
-> **Why it did not fire — which matters more than that it didn't.** R-40's bypass lives in `Login.razor`'s **login** path, not in `RightsHelper` or the rights check. The filter reads `UserRight` rows and nothing else, so an administrator with no rows is denied, correctly. **The contradiction was never this task's to hit.** It stays live for **`M2-A02`**, and sharper there: an API-only administrator holds **zero rows**, because `AuthController.Login` never calls `SyncRightsForUserAsync` (**Q-28**). Implement `M2-A02` before settling Q-28 and the administrator authenticates into an empty UI.
+> **Why it did not fire — which matters more than that it didn't.** R-80's bypass lives in `Login.razor`'s **login** path, not in `RightsHelper` or the rights check. The filter reads `UserRight` rows and nothing else, so an administrator with no rows is denied, correctly. **The contradiction was never this task's to hit.** It stays live for **`M2-A02`**, and sharper there: an API-only administrator holds **zero rows**, because `AuthController.Login` never calls `SyncRightsForUserAsync` (**Q-28**). Implement `M2-A02` before settling Q-28 and the administrator authenticates into an empty UI.
 >
 > ### One security-relevant departure — recorded, not hidden
 >
@@ -3688,3 +3700,54 @@ closing it (`--no-ff`, matching every other `Completed` row's expectation of bei
 The smoke-test gap is **not** retroactively marked done — `tasks/M2-B05.md` Completion
 Conditions records the owner's decision to close over it explicitly, so a future reader does not
 mistake `Completed` for "runtime-verified."
+
+⁹⁵ **M0-06: branch `migration/M0-06-remove-default-admin` found unmerged 2026-08-26 and merged
+— content is from the original 2026-08-19 attempt, footnote renumbered from ¹⁶ (that number is
+now taken by an unrelated entry on `master`); doc/investigation ids renumbered per the
+collision this branch's own age created — `KB-104`→`KB-106`, `INV-035`→`INV-038`, its `R-40`→
+`R-80` (that number was independently claimed by a different, already-merged risk in the
+interim). Content otherwise unchanged from the original close-out below.**
+
+**`Blocked` on a human decision, not on a task — acceptance criterion 2 is structurally
+unsatisfiable inside a migration under this task's own constraints.** Implemented on
+`migration/M0-06-remove-default-admin` (`5b12573`, `4fb8781`), attempt 2 of 3, 1 escalation.
+Validator verdict **`FAIL`**, `scopeOk: true`, `failureCategory: architecture`. 14 of 16
+acceptance criteria independently re-verified `MET` (85/85 tests, `dotnet build V.SMART.Api
+--no-incremental` 6,694 warnings / 0 errors, hash confined to 109 pre-existing migration files,
+`UserRepository.cs` untouched, `Screens` seed and the `Restrict` loop byte-identical).
+**Criterion 2 — "no default administrator credential is seeded into a newly created tenant
+database" — is `NOT MET`** for the only tenant-provisioning path the repository actually
+supports: `InitialCreate.cs:7562` still inserts `UserId=1` / `"Administrator"` / the published
+PBKDF2 hash on every migration replay, migration history may never be edited, and nothing in
+`V.SMART/` calls `Migrate()`/`MigrateAsync()`/`EnsureCreated()` (Q-02, Unknown). A migration
+`Up()` cannot distinguish a freshly provisioned database from a live tenant, so an unconditional
+or guarded `DELETE` either strikes an existing tenant whose only administrator may be this
+account (Q-25, Unknown — forbidden by `tasks/M0-06.md:141-144`) or never fires on a fresh
+database, leaving the criterion unmet either way; it would also succeed and silently
+**cascade**-delete `UserRight`/`UserAuthority`/`UserThemePreference`, since all three FKs to
+`Users` are `Cascade` (`InitialCreate.cs:7196-7200`, `:7232-7236`), not `Restrict` as the task
+file assumed. This is the task's own **Dependencies** table naming *"a deployment owner"* as an
+unsatisfied **Hard** dependency the task "cannot silently choose on their behalf." Escalated as
+**Q-26** (`open-questions.md`) with three options (A: define tenant provisioning and make the
+`KB-106` runbook step mandatory; B: authorise guarded DML accepting the lock-out risk; C:
+re-scope criterion 2 to the model-only property and re-home the replay gap). **Owner: Vivek**
+(repository/deployment owner) — only he can answer Q-25/Q-26. Everything short of that
+criterion is real and should be built on, not discarded: the seed is gone from
+`ApplicationDbContext.cs` (single hunk), `SeedDataTests.cs` (6 tests) and an amended
+`DbFixtureTests` assertion are in the suite, `docs/kb/security/default-admin-removal-runbook.md`
+(`KB-106`) exists with a named owner and a read-only per-tenant diagnostic, and **R-80** (new,
+High) was discovered and recorded — `UserId == 1` is an undeclared superuser via
+`Login.razor:345-349`'s rights-sync hook, so a replacement administrator created with any other
+id would authenticate and see nothing. Deferred, not built: the Option-A runtime bootstrap
+component, proposed as follow-up **`M0-06-02`** (not yet registered in this tracker — needs a
+task file once Q-26 is answered). Full record: [`tasks/M0-06.md` § Execution Record
+(2026-08-19)](tasks/M0-06.md#execution-record-2026-08-19); [`failure-log.md` § M0-06 · attempt
+1](failure-log.md#m0-06--attempt-1--2026-08-19) and its diagnosis entry;
+[`open-questions.md`](open-questions.md) Q-25, Q-26;
+[`technical-debt-register.md`](risks/technical-debt-register.md) R-09, R-80.
+
+**Addendum, 2026-08-26 — merged.** Branch merged to `master` (`--no-ff`); id renumbering above
+applied across `INDEX.md`, `investigation-registry.md`, `open-questions.md`,
+`risks/technical-debt-register.md` and the runbook's own frontmatter/self-references. Left at
+`Blocked` — Q-25/Q-26 remain genuinely owner-only and unanswered as of the merge; see the tracker
+row above for current status.

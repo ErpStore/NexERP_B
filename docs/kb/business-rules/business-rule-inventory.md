@@ -350,6 +350,18 @@ the password with `IPasswordHasher<User>.VerifyHashedPassword`. Only
 **Evidence.** `Repository/MasterRepository/Admins/UserRepository.cs:34-49`.
 **Confidence.** Confirmed. **Disposition.** Preserve unchanged (existing hashes must keep working).
 
+> **Note added by M0-06, 2026-08-19 — the rule is unchanged; the seed data is not.**
+> `UserRepository.cs` was **not modified** and login behaviour is byte-for-byte identical.
+> What changed is the *data* a fresh tenant database starts with: the seeded default
+> `Administrator` account (`ApplicationDbContext.cs:1136-1148`, risk R-09) was removed from
+> `OnModelCreating`, so a database created from the model now has **no users at all** until one
+> is created. Existing hashes still verify — pinned by
+> `tests/V.SMART.Shared.Tests/Data/SeedDataTests.cs`: `Login_WithRealHash_StillSucceeds`,
+> `Login_WithWrongPassword_Fails` and `Login_WithInactiveUser_Fails` exercise `LoginAsync`
+> through the real `PasswordHasher<User>` and cover both halves of this rule.
+> Removal from **existing** tenant databases is a separate, human, per-tenant procedure —
+> [KB-106](../security/default-admin-removal-runbook.md).
+
 ### BR-AUTH-002 — Screen rights are deny-by-default and enforced only in the UI
 
 **Statement.** For each of the 152 catalogued screens, a user has `CanView`, `CanCreate`,

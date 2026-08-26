@@ -62,6 +62,7 @@ last_verified: 2026-08-26
 | KB-101 | [Q-10 — Numbering Constraints and Duplicate Census: DBA Runbook and Results](execution/runbooks/Q-10-numbering-constraints.md) | execution | **awaiting-execution** (phase 1 of 3) | n/a | 2026-08-25 |
 | KB-102 | [Stored-Procedure Inventory Reconciliation](architecture/stored-procedure-inventory.md) | as-is | complete | confirmed | 2026-08-13 |
 | KB-103 | [Stored-Procedure Drift Across Tenant Databases (Q-14)](architecture/stored-procedure-drift.md) | as-is | partial | mixed | 2026-08-17 |
+| KB-106 | [Default Administrator Removal — Per-Tenant Runbook (R-09)](security/default-admin-removal-runbook.md) | as-is | complete | mixed | 2026-08-19 |
 | KB-107 | [Milestone Review — M0 Stabilise (Gate G0)](execution/M0-milestone-review.md) | execution | active | — | 2026-08-19 |
 | KB-105 | [Server-Side Screen-Right Authorization — Implementation Spec](architecture/server-side-authorization-spec.md) | **proposal** | complete | — | 2026-08-18 |
 | KB-108 | [Row-Level Scoping and Account Gates (INV-028, Q-05…Q-08)](architecture/row-scope-and-account-gates.md) | architecture | complete | confirmed | 2026-08-20 |
@@ -74,31 +75,36 @@ last_verified: 2026-08-26
 Ranges are reserved so that concurrent sessions cannot collide. **Before claiming an id,
 `grep` this file for it.** Ids are never reused or renumbered.
 
-> ### ⚠ Id collision — half resolved 2026-08-19, half still live
+> ### ⚠ Id collision — fully resolved 2026-08-26 (was: half resolved 2026-08-19)
 >
 > Two unmerged branches each claimed the same ids, because `grep`-before-claim only sees
-> *merged* work and cannot see a sibling branch. **`M2-A01-01` renumbered and merged; `M0-06`
-> has not, and must renumber before it does.**
+> *merged* work and cannot see a sibling branch. **`M2-A01-01` renumbered and merged
+> 2026-08-19; `M0-06` sat unmerged for a further seven days and was found and merged
+> 2026-08-26 — this row records both renumberings as historical fact, not as outstanding work.**
 >
-> | Id claimed by both | `M2-A01-01` — **renumbered to** | `M0-06` — **must still renumber to** |
+> | Id claimed by both | `M2-A01-01` — **renumbered to** | `M0-06` — **renumbered to** |
 > |---|---|---|
-> | `KB-104` | **`KB-105`** ✔ merged | `KB-106` — *note it is also cited in an `ApplicationDbContext.cs` source comment, which must change with it* |
-> | `INV-035` | **`INV-037`** ✔ merged | `INV-038` |
-> | `Q-22` `Q-23` `Q-24` | **`Q-27` `Q-28` `Q-29`** ✔ merged | n/a — `M0-06` holds `Q-25`/`Q-26`, which do not collide |
-> | footnote `¹³` | **`¹⁸`** ✔ merged | `¹⁶` — does not collide, `master` skips 16 |
+> | `KB-104` | **`KB-105`** ✔ merged 2026-08-19 | **`KB-106`** ✔ merged 2026-08-26 — the `ApplicationDbContext.cs` source comment was updated with it |
+> | `INV-035` | **`INV-037`** ✔ merged 2026-08-19 | **`INV-038`** ✔ merged 2026-08-26 |
+> | `Q-22` `Q-23` `Q-24` | **`Q-27` `Q-28` `Q-29`** ✔ merged 2026-08-19 | n/a — `M0-06` holds `Q-25`/`Q-26`, which never collided |
+> | footnote `¹³` | **`¹⁸`** ✔ merged 2026-08-19 | **`⁹⁵`**, not `¹⁶` as this row originally planned — `¹⁶` was long taken by the time `M0-06` actually merged; renumbered against the tracker's *current* next-free footnote instead of the seven-day-stale plan |
+> | `R-40` *(found during the 2026-08-26 merge, not anticipated by this row)* | n/a | **`R-80`** — `M0-06`'s superuser-risk finding; `R-40` had been independently claimed by an unrelated risk in the interim |
 >
 > **The collision was wider than first recorded.** It was found as two ids; it was actually
-> **six** — three open questions and a tracker footnote were also duplicated, and merging blind
-> would have silently overwritten three of `master`'s open questions with three different ones
-> bearing the same numbers.
+> **six** in the 2026-08-19 pass — three open questions and a tracker footnote were also
+> duplicated — **plus a seventh (`R-40`) discovered only when `M0-06` finally merged**, because
+> a risk id it needed had by then been independently claimed. Merging blind at any point would
+> have silently overwritten `master` content bearing the same numbers.
 >
-> **This is a process defect, not a mistake by either session.** `grep`-before-claim only works
-> against what is *merged*; it cannot see a sibling branch. Two branches allocating from one
-> registry will collide again. Until the allocation rule accounts for in-flight branches —
-> reserving on branch creation, or partitioning ranges per workstream — **check
+> **This is a process defect, not a mistake by any session.** `grep`-before-claim only works
+> against what is *merged*; it cannot see a sibling branch, and the longer a branch sits
+> unmerged the more its planned renumbering goes stale — `M0-06`'s own plan above got one of its
+> four renumberings (the footnote) wrong by the time it was actually used, and found an id
+> collision it could not have anticipated. Until the allocation rule accounts for in-flight
+> branches — reserving on branch creation, or partitioning ranges per workstream — **check
 > `git branch --no-merged master` for competing claims before allocating an id**, not just this
-> file. `M0-06`'s runbook already cites KB-104 in a source comment
-> (`ApplicationDbContext.cs`), so renumbering that side means editing that comment too.
+> file, and **re-verify a stale branch's planned renumbering against current `master` at merge
+> time rather than trusting the plan it was cut with.**
 
 | Range | Purpose | Allocated |
 |---|---|---|
@@ -109,7 +115,7 @@ Ranges are reserved so that concurrent sessions cannot collide. **Before claimin
 | KB-087 | **Claimed 2026-08-17 by M0-07** — [ci-pipeline.md](execution/ci-pipeline.md) | allocated |
 | KB-088 – KB-090 | **Claimed 2026-08-16** — [workflow.md](execution/workflow.md), [current-task.md](execution/current-task.md), [task-template.md](execution/task-template.md) | allocated |
 | KB-091 – KB-093 | **Claimed 2026-08-16** — [autonomous-runner.md](execution/autonomous-runner.md), [failure-log.md](execution/failure-log.md), [runner-state.md](execution/runner-state.md) | allocated |
-| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** **KB-100 USED** (M2-B12-01, [modules/document-numbering.md](modules/document-numbering.md) — branch merged to `master` 2026-08-26) and **KB-101 USED** (M2-B12-02, [execution/runbooks/Q-10-numbering-constraints.md](execution/runbooks/Q-10-numbering-constraints.md) — phase-1 commit cherry-picked to `master` 2026-08-26), KB-102 (M0-01-01, [stored-procedure-inventory.md](architecture/stored-procedure-inventory.md)), KB-103 (M0-02, [stored-procedure-drift.md](architecture/stored-procedure-drift.md)), KB-110–112 reserved (M2-B08…B10); **KB-113 claimed and USED 2026-08-21 by M2-B11** ([observability.md](architecture/observability.md)), KB-105 (M2-A01-01, [server-side-authorization-spec.md](architecture/server-side-authorization-spec.md)). **KB-108 claimed 2026-08-20 by M2-A08** ([row-scope-and-account-gates.md](architecture/row-scope-and-account-gates.md)). **KB-109 claimed 2026-08-24** ([q28-r65-decision-brief.md](decisions/KB-109-q28-r65-decision-brief.md)). **KB-114 claimed and USED 2026-08-24 by M2-B03** ([controller-conventions.md](api/controller-conventions.md)). **KB-112 claimed and USED 2026-08-24 by M2-B10** ([generated-client.md](api/generated-client.md)) — it was the id reserved for that task, and it was still free. **KB-115 claimed 2026-08-25** ([owner-action-list.md](execution/owner-action-list.md)). **Next free: KB-116** only if `M2-B08` releases its reservation, otherwise **KB-115+** — KB-107 claimed 2026-08-19 by the M0 milestone review; `M0-06`'s unmerged branch still claims `KB-104`, which must become `KB-106` before it merges (its id is also cited in an `ApplicationDbContext.cs` source comment) |
+| **KB-100 +** | **Artefacts produced *by* tasks** — investigation outputs, `@code` triage reports, contract specs, decision briefs | **claimed:** **KB-100 USED** (M2-B12-01, [modules/document-numbering.md](modules/document-numbering.md) — branch merged to `master` 2026-08-26) and **KB-101 USED** (M2-B12-02, [execution/runbooks/Q-10-numbering-constraints.md](execution/runbooks/Q-10-numbering-constraints.md) — phase-1 commit cherry-picked to `master` 2026-08-26), KB-102 (M0-01-01, [stored-procedure-inventory.md](architecture/stored-procedure-inventory.md)), KB-103 (M0-02, [stored-procedure-drift.md](architecture/stored-procedure-drift.md)), KB-110–111 reserved (M2-B08/B09); **KB-113 claimed and USED 2026-08-21 by M2-B11** ([observability.md](architecture/observability.md)), KB-105 (M2-A01-01, [server-side-authorization-spec.md](architecture/server-side-authorization-spec.md)). **KB-106 claimed and USED 2026-08-26** by `M0-06` ([default-admin-removal-runbook.md](security/default-admin-removal-runbook.md) — renumbered from its original `KB-104`, which had since been independently claimed; the branch that wrote it sat unmerged from 2026-08-19 until this date). **KB-108 claimed 2026-08-20 by M2-A08** ([row-scope-and-account-gates.md](architecture/row-scope-and-account-gates.md)). **KB-109 claimed 2026-08-24** ([q28-r65-decision-brief.md](decisions/KB-109-q28-r65-decision-brief.md)). **KB-114 claimed and USED 2026-08-24 by M2-B03** ([controller-conventions.md](api/controller-conventions.md)). **KB-112 claimed and USED 2026-08-24 by M2-B10** ([generated-client.md](api/generated-client.md)) — it was the id reserved for that task, and it was still free. **KB-115 claimed 2026-08-25** ([owner-action-list.md](execution/owner-action-list.md)). KB-124 claimed 2026-08-21 by M2-B09 ([reference-data-and-caching.md](api/reference-data-and-caching.md)). KB-107 claimed 2026-08-19 by the M0 milestone review. **Next free: KB-116**, `KB-104` deliberately left retired/unused (see the collision note this row now resolves) |
 | ADR-nnn | Architecture decisions | ADR-001…ADR-005 and **ADR-007** (Angular stack, 2026-08-20, supersedes ADR-003). **ADR-006 is RESERVED by `M0-11`** for `ADR-006-fifo-under-issue.md` and must not be reused — ADR-007 skipped it deliberately, having checked `M0-11.md:185` first. **Next free: ADR-008** |
 | TASK-`<id>` | Task specification files under `execution/tasks/` | one per task |
 | INV-nnn | Investigation registry rows | through INV-040 (030–033 reserved; **INV-036** claimed 2026-08-19 by M0-13; **INV-037** by M2-A01-01, renumbered from 035 on merge; **INV-039** by M2-B07 (merged `ffbb1dd`); **INV-040** by M2-A06 (merged `76eca5d`) — *corrected 2026-08-20: this row previously credited INV-040 to M2-B07 as well, which was wrong. M2-B07 claimed INV-039 only. The registry was right and this row was not; M2-A06 read the registry, so no collision resulted*). **Next free: INV-051** — *this row had gone stale at INV-042; the* Reserved ids *table in [KB-003](investigation-registry.md) is the sole authority and had already reached INV-049.* **INV-050 claimed 2026-08-24 by M2-B03** (service-method → REST-verb mapping). INV-041 claimed 2026-08-20 by M2-B02 (sort delivery to services with hardcoded ordering). |
@@ -170,6 +176,7 @@ Use this table before searching the repository.
 | Whether something has already been investigated | KB-003 |
 | What is still unknown | KB-004 |
 | Which stored procedures exist and which are missing | KB-102 |
+| How do I remove the seeded default `Administrator` account from a tenant? (R-09) | KB-104 |
 | Do stored procedures differ between tenants? (Q-14 drift check, method + tooling) | KB-103 |
 | **How is `[RequireScreen]`/`[RequireRight]` meant to behave** — the deny truth table, screen-name matching, duplicate rows, the `403`/`401` bodies, the rights cache key and TTL | **KB-105** |
 | Which exact screen-name strings may a controller declare? (the 152 seeded names) | KB-105 § Appendix A |
