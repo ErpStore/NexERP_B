@@ -146,7 +146,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 |---|---|---|---|---|---|---|---|---|
 | M2-C00 | M2 | Rewrite KB-050 frontend architecture for Angular | Documentation | **Completed**²⁶˒³⁸ *(merged to `master` `0da6a35` on owner instruction 2026-08-21)* | P0 | G0 | 2 d | G2 |
 | M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Completed**²⁶˒⁴⁰ *(merged to `master` `2dd4e53` on owner instruction 2026-08-21)* | P0 | M2-C00 | 3 d | G2 |
-| M2-C11 | M2 | **Adopt** the Angular pilot as the app baseline | DevOps | Blocked²⁶˒³⁸ *(dependency cleared — `M2-C00` merged `0da6a35` 2026-08-21; now gated on **Q-38**, what `M2-C11` is for under ADR-007)* | P2 | M2-C00 | 0.5 d | G2 |
+| M2-C11 | M2 | Retire the Angular pilot (`frontend/vsmart-erp/`) | DevOps | **Needs Review**²⁶˒³⁸˒⁹⁷ *(Q-38 answered 2026-08-27, option (a) — pilot removed, 40 files, tag `pre-m2-c11-archive`; `nexgen-web` build independently confirmed unaffected. See footnote ⁹⁷)* | P2 | M2-C00 | 0.5 d | G2 |
 | M2-C12 | M2 | **Re-specify the superseded M2-C / M2-D tree for Angular** *(parent)* | Documentation | **Completed**⁴¹˒⁴⁶ *(parent — all five sub-tasks Completed and merged; 25 of 25 specs re-specified, zero ⛔ banners remain)* | P0 | M2-C00, M2-C01 | 4 d | G2 |
 | M2-C12-01 | M2 | — re-spec the design-system tree (M2-C04*) | Documentation | **Completed**⁴²˒⁴³ *(merged to `master` 2026-08-22 on owner instruction; the `FAIL` was a defect in criterion 7, not in the work — see footnote ⁴³)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-02 | M2 | — re-spec auth, routing, decimal, pilot-adoption | Documentation | **Completed**⁴¹ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
@@ -3759,3 +3759,26 @@ code; the procedure is mandatory by process, not enforced by any mechanism (opti
 runtime bootstrap component, was considered and not chosen). **This closes acceptance
 criterion 2's open half.** `M0-06` stays `Blocked` on **Q-25 alone** — existing-tenant removal
 still needs production database access nobody on this project has.
+
+⁹⁷ **`M2-C11`: implemented 2026-08-27, `Needs Review` — Q-38 answered, option (a).** The
+question ("what is `M2-C11` for, now that ADR-007 inverted the archive-vs-adopt framing")
+resolved to: port the pilot's *patterns*, not its directory. In practice this had already
+happened — `M2-C01` built `frontend/nexgen-web/` fresh a week before the decision, and every
+`M2-C` task since built on it — so the answer confirmed the status quo rather than requiring
+new work to reconcile it.
+
+**Delivered:** `frontend/vsmart-erp/` removed (40 tracked files), tag `pre-m2-c11-archive`
+marking the state immediately before, per the original spec's own tag-and-delete fallback.
+`frontend/nexgen-web/`'s build independently verified unaffected — `npm run build` before and
+after the removal produced byte-identical output (571.20 kB raw / 136.72 kB gzip initial, same
+chunk set), because nothing in `nexgen-web` ever referenced the pilot. `.github/workflows/ci.yml`
+already had no job for the pilot (a comment there already said so). `KB-015`'s pilot section and
+`R-34`'s risk entry were both corrected: each had briefly (2026-08-20–2026-08-27) described the
+*directory-adoption* reading of "adopt" that Q-38 ultimately rejected — stale text needing a
+second correction, not just the original pre-ADR-007 banner this decision was meant to settle.
+
+**Left at `Needs Review`, not `Completed`** — per
+[KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed), the removal of 40
+repository-visible files, even tagged and reversible, is the kind of change this task's own
+original spec called out as needing owner awareness before closing. Full record:
+[`tasks/M2-C11.md` § Close-out](tasks/M2-C11.md).

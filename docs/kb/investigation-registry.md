@@ -1163,6 +1163,15 @@ permission service, no rights directive, and its only guard checks authenticatio
 (`src/app/core/auth/auth.guard.ts:11-20`). The 152 × 5 matrix has to be built from nothing in
 `M2-C02`; there is no pilot code to adopt for it.
 
+**INV-021 final amendment (2026-08-27, `M2-C11`) — the pilot is removed; this registry entry
+and KB-050's tables are now the only surviving record of the `file:line` citations above.**
+Q-38 (what `M2-C11` was for) answered option (a): the pilot's *patterns* were the thing worth
+keeping, and they were already extracted as text by this entry and by `M2-C00`'s KB-050
+rewrite — the directory itself was never adopted verbatim. `frontend/vsmart-erp/` removed (40
+files, tag `pre-m2-c11-archive` marks the state before), `frontend/nexgen-web/`'s build
+independently confirmed unaffected (identical `npm run build` output before/after). `INV-021`
+needs no further re-verification — there is no code left to re-verify against.
+
 ## INV-054 (M2-C06, 2026-08-26) — the 33 `DetailsModal` call sites
 
 Run before `RecordPickerDialog`'s input surface was fixed, because the survey is what
