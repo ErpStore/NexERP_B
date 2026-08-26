@@ -27,7 +27,7 @@ entities: [DcRunningNumber, InvoiceAutoRunningNumber, MfgDc, MfgInv, ExpInv, Lab
 database_tables: [DcRunningNumbers, InvoiceAutoRunningNumbers, MfgDc, MfgInv, ExpInv, LabInv, MfgQuote, MfgPo, ContractReview, ProductionIssueAssy]
 business_rules: [BR-DOC-001, BR-DOC-002, BR-DOC-003, BR-DOC-004, BR-DOC-005, BR-DOC-006, BR-DOC-007, BR-DOC-008, BR-DOC-009, BR-DOC-010]
 confidence: mixed
-last_verified: 2026-08-20
+last_verified: 2026-08-27
 ---
 
 # Document Numbering and Financial-Year Suffixes (As-Is)
@@ -552,7 +552,8 @@ If no `DcRunningNumbers` row exists for (`dcType`, `Suffix`), one is **created**
 `LastNumber = startNumber` (`:1915-1925`); the `<= 0` fallback is only reached on the
 existing-row path.
 
-> **Defect or design? — Unknown, raised as Q-38.** BR-DOC-001 assigns `startNumber` **without
+> **Defect or design? — Unknown, raised as Q-104** *(renumbered from Q-38 on 2026-08-27; id
+> collision with the unrelated M2-C11/ADR-007 question)*. BR-DOC-001 assigns `startNumber` **without
 > `+1`** and then writes it straight back (`:1947`) and returns it (`:1955`). Under
 > `BookTypeDc == 1` the allocator therefore appears to return the **same number on every
 > call**. The `+1` exists on every other branch. The source states the behaviour but not the
@@ -793,7 +794,7 @@ so a query written as `WHERE Suffix = '2025-26'` returns nothing. The `Payments`
 |---|---|---|
 | **Q-10** *(pre-existing, stays open)* | Do the document-number columns carry unique constraints in the **live** tenant databases? | Requires database access — M2-B12-02. This document supplies §9 as its input. |
 | **Q-37** *(new)* | Do document numbers cross into e-Invoice / e-Way payloads in a **shape-sensitive** way? | The coupling is Confirmed — `EWayDatabaseService.cs:216,227,239,251` matches records by `DcNo + Suffix` / `InvNo + Suffix`. Whether a downstream government API *parses* that shape is INV-015's question (Scheduled, Phase 4.5), and this task is **forbidden** from running it. Recorded, not investigated. |
-| **Q-38** *(new)* | Is the "separate series" branch that omits the `+1` (`CommonService.cs:1883-1894`, `:2119-2128`) intended design or a duplicate-number defect? | The source states the behaviour, not the intent. Needs the owner, or M2-B12-02's duplicate census correlated against `Company.BookTypeDc`. |
+| **Q-104** *(renumbered from Q-38, 2026-08-27 — id collision with the unrelated M2-C11/ADR-007 question)* | Is the "separate series" branch that omits the `+1` (`CommonService.cs:1883-1894`, `:2119-2128`) intended design or a duplicate-number defect? | The source states the behaviour, not the intent. Needs the owner, or M2-B12-02's duplicate census correlated against `Company.BookTypeDc`. |
 | **Q-39** *(new)* | Can a tenant database hold **more than one `Company` row**? | If so, the unscoped `Companies…FirstOrDefaultAsync()` discriminator reads (`CommonService.cs:1855-1858`, `:2088-2091`) return an arbitrary company's setting. One `COUNT(*)` in M2-B12-02 settles it. |
 | **Q-40** *(new; guard census corrected on attempt 2)* | When the **first** document of a financial year is deleted, **six** of the eight decrement blocks write `LastNumber = 0`. Is `0` handled correctly, and is the other **two** blocks' extra `> 1` guard the intended behaviour or the accident? | Exactly two guard `&& runningRow.LastNumber > 1` — `LabourDcOutgoingService.cs:5186` and `SubConDcOutService.cs:1592`, identical lines; the other six omit it (§3.3(b)). Which is correct is not recoverable from source. Owner decision, or M2-B12-02 finding stored `LastNumber = 0` rows. **M2-B12-03 must not normalise the eight without answering it.** |
 
@@ -865,7 +866,7 @@ one-line outcome and a pointer.
   a race is *possible*, not that one has *occurred*. Only M2-B12-02's duplicate census can
   upgrade it.
 - [KB-030](../business-rules/business-rule-inventory.md) — BR-DOC-001 … BR-DOC-010.
-- [KB-004](../open-questions.md) — Q-10, Q-37, Q-38, Q-39, Q-40.
+- [KB-004](../open-questions.md) — Q-10, Q-37, Q-104 (renumbered from Q-38), Q-39, Q-40.
 - [KB-003](../investigation-registry.md) — INV-012 (closed by this document); INV-015
   (Scheduled, deliberately not run).
 - [KB-014](../architecture/multi-tenancy.md), [KB-011](../architecture/backend-architecture.md)

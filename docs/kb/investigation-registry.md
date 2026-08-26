@@ -4,7 +4,7 @@ title: Investigation Registry
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-26
+last_verified: 2026-08-27
 ---
 
 # Investigation Registry
@@ -157,7 +157,7 @@ match the EF model (that is **Q-10**, answered by [`M2-B12-02`](execution/tasks/
 whether document numbers are embedded in e-Invoice / e-Way payloads in a *shape-sensitive* way
 (**Q-37** — INV-015 remains *Scheduled* and was deliberately **not** run, though the coupling
 itself is Confirmed at `EInvoiceAPIService/EWayDatabaseService.cs:216,227,239,251`); whether
-the `+1`-omitting "separate series" branch is design or defect (**Q-38**); whether a tenant
+the `+1`-omitting "separate series" branch is design or defect (**Q-104**, renumbered from Q-38); whether a tenant
 database can hold more than one `Company` row (**Q-39**); and whether a stored
 `LastNumber = 0` — written by the six unguarded gap-avoiding decrement blocks when the
 first document of a financial year is deleted — is handled on the next allocation, given

@@ -30,7 +30,7 @@ database_tables: [Users, Currency, Tenants, UserRights, Screens]
 business_rules: [BR-AUTH-001, BR-AUTH-002, BR-TEN-002]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-24
+last_verified: 2026-08-27
 dependencies: [KB-013, KB-014]
 ---
 
@@ -616,8 +616,8 @@ This applies to every scoped resource, without exception.
 | Unresolved tenant | `400` | `…/tenant-unresolved` | unchanged (M2-A06) |
 | Bad credentials | `401` | `…/unauthenticated` | `"Invalid username or password."` |
 | **Trial expired** | **`403`** | `…/trial-expired` | `"Your trial period has expired. Please contact Administrator."` — verbatim from `Login.razor:273` |
-| **Device mismatch** | `403` | `…/device-not-recognised` | `"This account is already registered on another mobile device."` / `"…another desktop."` — **evaluator exists, NOT wired; Q-38** |
-| **Platform not allowed** | `403` | `…/platform-not-allowed` | `"Mobile login is not allowed."` / `"Desktop login is not allowed."` — **not wired; Q-38** |
+| **Device mismatch** | `403` | `…/device-not-recognised` | `"This account is already registered on another mobile device."` / `"…another desktop."` — **evaluator exists, NOT wired; Q-40** |
+| **Platform not allowed** | `403` | `…/platform-not-allowed` | `"Mobile login is not allowed."` / `"Desktop login is not allowed."` — **not wired; Q-40** |
 
 `403` and not `401` because the credential *was* accepted: re-prompting for a password, which
 is what a `401` tells a client to do, cannot resolve any of these. The messages are product UX

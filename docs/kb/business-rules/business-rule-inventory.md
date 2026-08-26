@@ -19,7 +19,7 @@ database_tables: [MfgPo, MfgPoSub, StockAdd, StockIssue, StockIssueTrack, Users,
 business_rules: [BR-CALC-001, BR-CALC-002, BR-STK-001, BR-STK-002, BR-SO-001, BR-SO-002, BR-SO-003, BR-AUTH-001, BR-AUTH-002, BR-APPR-001, BR-RPT-001, BR-TEN-001, BR-DOC-001, BR-DOC-002, BR-DOC-003, BR-DOC-004, BR-DOC-005, BR-DOC-006, BR-DOC-007, BR-DOC-008, BR-DOC-009, BR-DOC-010]
 status: partial
 confidence: mixed
-last_verified: 2026-08-21
+last_verified: 2026-08-27
 dependencies: [KB-011, KB-012, KB-013]
 ---
 
@@ -478,11 +478,12 @@ candidate high-water marks from `DcRunningNumbers` for the given `Suffix` — `m
 When no row exists for (`dcType`, `Suffix`) one is **created** with `LastNumber = startNumber`
 (`:1915-1925`); the `<= 0` fallback is reached only on the existing-row path.
 
-> **Open — Q-38.** BR-DOC-001 omits the `+1` that every other branch applies, then writes the
+> **Open — Q-104** *(renumbered from Q-38 on 2026-08-27; that id collided with the unrelated
+> M2-C11/ADR-007 question)*. BR-DOC-001 omits the `+1` that every other branch applies, then writes the
 > value back (`:1947`) and returns it (`:1955`), so under `BookTypeDc == 1` the allocator
 > appears to return the **same number on every call**. Whether that is an intended "manual
 > entry sets the mark" design or a duplicate-number defect **cannot be determined from
-> source** — see [`open-questions.md`](../open-questions.md) Q-38. It is recorded as observed
+> source** — see [`open-questions.md`](../open-questions.md) Q-104. It is recorded as observed
 > behaviour, not endorsed as intent.
 
 ### BR-DOC-006 … BR-DOC-010 — Invoice series sharing (`Company.BookTypeInvoice`)
