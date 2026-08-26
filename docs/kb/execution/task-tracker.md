@@ -153,7 +153,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Completed**⁴⁵ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Completed**⁴⁶ *(merged to `master` `27dfc5d` on owner instruction 2026-08-23)* | P0 | M2-C12-01…04 | 1 d | G2 |
 | M2-C13 | M2 | Defer the confirm-dialog host; bundle back inside budget (R-69) | Frontend | **Completed**⁵⁵˒⁵⁶˒⁵⁷ | P1 | M2-C04-03 | 1 d | G2 |
-| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Blocked**²⁶˒⁴⁶˒⁴⁷˒⁵²˒⁸⁵ *(attempt 1 `FAIL` was classified `environment`; **that classification is superseded 2026-08-25** — the wire format is measured and committed, and the real blocker is the **Q-85** contract decision. See footnote ⁸⁵)* | P0 | M2-C01 | 2 d | G2 |
+| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Blocked**²⁶˒⁴⁶˒⁴⁷˒⁵²˒⁸⁵˒⁸⁹ *(**Q-85 answered 2026-08-26**: money serializes as a JSON string. Real blocker now: that decision is not yet implemented — needs a backend `JsonConverter`, a `KB-114` amendment, and a client regeneration, none of which `M2-C10` itself may do. See footnote ⁸⁹)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | **Completed**⁴⁶˒⁵⁴ *(parent — all three children `Completed` and merged)* | P0 | M2-C01 | 2 wks | G2 |
 | M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
@@ -3531,3 +3531,23 @@ the owner, not a task detail, because `KB-114` is frozen at `M2-B03`.
 **Status stays `Blocked`, for a different and truthful reason:** not the environment, but Q-85. Re-running
 it unchanged would produce a module that cannot deliver what the task exists to guarantee. No code was
 written by this diagnosis; the branch `migration/M2-C10-decimal-handling` (`307141b`) is untouched.
+
+⁸⁹ **Q-85 answered 2026-08-26 by the repository owner, in session — option (a): money serializes as a
+JSON string.** Not implemented by this decision alone; it names new work that does not yet exist as a
+task. **What it requires, none of it `M2-C10`'s to do:**
+
+1. A `JsonConverter<decimal>` (or a `[JsonConverter]` attribute on the money-typed properties
+   specifically — a decision of its own, since not every `decimal` in the domain is money; `MfgQuote`
+   quantities and GST rates are `decimal` too and Q-85's options record (c) as the per-field
+   alternative, not chosen here) registered in `V.SMART.Api`'s JSON options.
+2. An amendment to the frozen `KB-114` recording the new convention — `KB-114` governs every
+   controller written since `M2-B03`, so this is a contract-wide change, not a one-endpoint fix.
+3. A regeneration of `api/openapi.json` and the Angular client (`M2-B10`'s pipeline,
+   `tools/generate-api-client.sh`) — every currently-generated `number`-typed money field becomes
+   `string`, which is a **breaking change** to every consumer of those fields, including
+   `M2-C05-01`'s `DataGrid` money-column formatting and any other Angular code already reading a
+   generated money field as a number.
+
+**Only after that lands does `M2-C10`'s own frontend module — parsing the now-exact string with
+`decimal.js` — become buildable as originally specified.** `M2-C10` stays `Blocked` on this new,
+unscoped work, not on Q-85 itself, which is now closed.
