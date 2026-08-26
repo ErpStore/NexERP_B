@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using V.SMART.Shared.Utility_Constants;
 using AutoMapper.QueryableExtensions;
 using DocumentFormat.OpenXml.Bibliography;
 using DocumentFormat.OpenXml.Drawing.Charts;
@@ -635,7 +636,7 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.OutSourcingService.Purcha
                             await _stockManager.IssueOrUpdateStockAsync(sub.ItemId,entity.StoreIssId.Value,sub.RejectQty,sub.UnitPrice,sub.BatchNo,
                                 screenCode,sub.SCNSubId,entity.SCNNo,entity.SCNDate,allowMultipleIssue: true);
 
-                            await _stockManager.AddOrUpdateStockAsync(sub.ItemId,6,sub.RejectQty,sub.UnitPrice,sub.BatchNo,screenCode,
+                            await _stockManager.AddOrUpdateStockAsync(sub.ItemId,StoreIds.RejectionStore,sub.RejectQty,sub.UnitPrice,sub.BatchNo,screenCode,
                                 sub.SCNSubId,entity.SCNNo,entity.SCNDate,null,allowMultipleAdd: true);
 
                             // For Rejection And rework Stock Adjustment
@@ -652,7 +653,7 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.OutSourcingService.Purcha
                             await _stockManager.IssueOrUpdateStockAsync(sub.ItemId, entity.StoreIssId.Value, sub.ReworkQty,
                                 sub.UnitPrice, sub.BatchNo, screenCode, sub.SCNSubId, entity.SCNNo, entity.SCNDate, allowMultipleIssue: true);
 
-                            await _stockManager.AddOrUpdateStockAsync(sub.ItemId, 7, sub.ReworkQty, sub.UnitPrice,
+                            await _stockManager.AddOrUpdateStockAsync(sub.ItemId, StoreIds.ReworkStore, sub.ReworkQty, sub.UnitPrice,
                                 sub.BatchNo, screenCode, sub.SCNSubId, entity.SCNNo, entity.SCNDate, null, allowMultipleAdd: true);
                         }
                     }
@@ -776,7 +777,7 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.OutSourcingService.Purcha
                         await _stockManager.IssueOrUpdateStockAsync(subVM.ItemId.Value, existingSCN.StoreIssId.Value, subVM.RejectQty.GetValueOrDefault(),
                             subVM.UnitPrice.GetValueOrDefault(), subVM.BatchNo, screenCode, newSub.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, allowMultipleIssue: true);
 
-                        await _stockManager.AddOrUpdateStockAsync(subVM.ItemId.Value, 6, subVM.RejectQty.Value, subVM.UnitPrice.GetValueOrDefault(),
+                        await _stockManager.AddOrUpdateStockAsync(subVM.ItemId.Value, StoreIds.RejectionStore, subVM.RejectQty.Value, subVM.UnitPrice.GetValueOrDefault(),
                                                                     subVM.BatchNo, screenCode, newSub.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, null, allowMultipleAdd: true);
 
                     }
@@ -786,7 +787,7 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.OutSourcingService.Purcha
                         await _stockManager.IssueOrUpdateStockAsync(subVM.ItemId.Value, existingSCN.StoreIssId.Value, subVM.ReworkQty.GetValueOrDefault(),
                             subVM.UnitPrice.GetValueOrDefault(), subVM.BatchNo, screenCode, newSub.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, allowMultipleIssue: true);
 
-                        await _stockManager.AddOrUpdateStockAsync(subVM.ItemId.Value, 7, subVM.ReworkQty.GetValueOrDefault(), subVM.UnitPrice.GetValueOrDefault(),
+                        await _stockManager.AddOrUpdateStockAsync(subVM.ItemId.Value, StoreIds.ReworkStore, subVM.ReworkQty.GetValueOrDefault(), subVM.UnitPrice.GetValueOrDefault(),
                                                                     subVM.BatchNo, screenCode, newSub.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, null, allowMultipleAdd: true);
                     }
                 }
@@ -826,7 +827,7 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.OutSourcingService.Purcha
                             await _stockManager.IssueOrUpdateStockAsync(subVM.ItemId.Value, existingSCN.StoreIssId.Value, subVM.RejectQty.GetValueOrDefault(),
                                 subVM.UnitPrice.GetValueOrDefault(), subVM.BatchNo, screenCode, subVM.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, allowMultipleIssue: true);
 
-                            await _stockManager.AddOrUpdateStockAsync(subVM.ItemId.Value, 6, subVM.RejectQty.GetValueOrDefault(), subVM.UnitPrice.GetValueOrDefault(),
+                            await _stockManager.AddOrUpdateStockAsync(subVM.ItemId.Value, StoreIds.RejectionStore, subVM.RejectQty.GetValueOrDefault(), subVM.UnitPrice.GetValueOrDefault(),
                                 subVM.BatchNo, screenCode, subVM.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, null, allowMultipleAdd: true);
                         }
 
@@ -835,7 +836,7 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.OutSourcingService.Purcha
                             await _stockManager.IssueOrUpdateStockAsync(subVM.ItemId.Value, existingSCN.StoreIssId.Value, subVM.ReworkQty.GetValueOrDefault(),
                                 subVM.UnitPrice.GetValueOrDefault(), subVM.BatchNo, screenCode, subVM.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, allowMultipleIssue: true);
 
-                            await _stockManager.AddOrUpdateStockAsync(subVM.ItemId.Value, 7, subVM.ReworkQty.GetValueOrDefault(), subVM.UnitPrice.GetValueOrDefault(),
+                            await _stockManager.AddOrUpdateStockAsync(subVM.ItemId.Value, StoreIds.ReworkStore, subVM.ReworkQty.GetValueOrDefault(), subVM.UnitPrice.GetValueOrDefault(),
                                 subVM.BatchNo, screenCode, subVM.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, null, allowMultipleAdd: true);
                         }
 
@@ -1492,7 +1493,7 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.OutSourcingService.Purcha
                         await _stockManager.IssueOrUpdateStockAsync(subItem.ItemId.Value, existingSCN.StoreIssId.Value, subItem.RejectQty.Value,
                             subItem.UnitPrice.Value, subItem.BatchNo, screenCode, subItem.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, allowMultipleIssue: true);
 
-                        await _stockManager.AddOrUpdateStockAsync(subItem.ItemId.Value, 6, (subItem.RejectQty.Value), subItem.UnitPrice.Value,
+                        await _stockManager.AddOrUpdateStockAsync(subItem.ItemId.Value, StoreIds.RejectionStore, (subItem.RejectQty.Value), subItem.UnitPrice.Value,
                             subItem.BatchNo, screenCode, subItem.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, null, allowMultipleAdd: true);
                     }
 
@@ -1501,7 +1502,7 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.OutSourcingService.Purcha
                         await _stockManager.IssueOrUpdateStockAsync(subItem.ItemId.Value, existingSCN.StoreIssId.Value, subItem.ReworkQty.Value,
                             subItem.UnitPrice.Value, subItem.BatchNo, screenCode, subItem.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, allowMultipleIssue: true);
 
-                        await _stockManager.AddOrUpdateStockAsync(subItem.ItemId.Value, 7, (subItem.ReworkQty.Value), subItem.UnitPrice.Value,
+                        await _stockManager.AddOrUpdateStockAsync(subItem.ItemId.Value, StoreIds.ReworkStore, (subItem.ReworkQty.Value), subItem.UnitPrice.Value,
                             subItem.BatchNo, screenCode, subItem.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, null, allowMultipleAdd: true);
                     }
                 }
@@ -1618,7 +1619,7 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.OutSourcingService.Purcha
                             await _stockManager.IssueOrUpdateStockAsync(sub.ItemId, existingSCN.StoreIssId.Value, sub.RejectQty,
                                 sub.UnitPrice, sub.BatchNo, screenCode, sub.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, allowMultipleIssue: true);
 
-                            await _stockManager.AddOrUpdateStockAsync(sub.ItemId, 6, (sub.RejectQty), sub.UnitPrice,
+                            await _stockManager.AddOrUpdateStockAsync(sub.ItemId, StoreIds.RejectionStore, (sub.RejectQty), sub.UnitPrice,
                                 sub.BatchNo, screenCode, sub.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, null, allowMultipleAdd: true);
                         }
 
@@ -1627,7 +1628,7 @@ namespace V.SMART.Shared.BusinessLayer.BusinessService.OutSourcingService.Purcha
                             await _stockManager.IssueOrUpdateStockAsync(sub.ItemId, existingSCN.StoreIssId.Value, sub.ReworkQty,
                                 sub.UnitPrice, sub.BatchNo, screenCode, sub.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, allowMultipleIssue: true);
 
-                            await _stockManager.AddOrUpdateStockAsync(sub.ItemId, 7, (sub.ReworkQty), sub.UnitPrice,
+                            await _stockManager.AddOrUpdateStockAsync(sub.ItemId, StoreIds.ReworkStore, (sub.ReworkQty), sub.UnitPrice,
                                 sub.BatchNo, screenCode, sub.SCNSubId, existingSCN.SCNNo, existingSCN.SCNDate, null, allowMultipleAdd: true);
                         }
                     }

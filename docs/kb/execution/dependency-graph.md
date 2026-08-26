@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-16
+last_verified: 2026-08-26
 dependencies: [KB-080, KB-081, KB-088]
 ---
 
@@ -91,7 +91,7 @@ API preserves behaviour.
 BACKEND STREAM
   M2-B07 ──┬──► M2-B04 (decouple Pages refs)
            ├──► M2-B01 (/api/v1)
-           ├──► M2-B05 (ScreenCodes)
+           ├──► M2-B05 (StoreIds, R-66 — re-spec of ScreenCodes/R-10, falsified 2026-08-21)
            └──► M2-B12-01 ──► M2-B12-02 ──► M2-B12-03 ═► [M2-B12]
 
   M2-A06 ──┬──► M2-B02 ──► M2-B03 ──► M2-B10 ──────────────┐

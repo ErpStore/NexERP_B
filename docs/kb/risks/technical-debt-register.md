@@ -1003,10 +1003,22 @@ literals actually are.**
 
 ---
 
-### R-66 — Hardcoded `storeId` literals `6` and `7` in stock movements
-**Confirmed by measurement, 2026-08-21 (INV-044).** *(Id `R-66` follows **R-65**; **R-64** is
-held by the unmerged `migration/M0-10-candelete-guard-audit` branch — checked with
-`git branch --no-merged master`.)*
+### R-66 — Hardcoded `storeId` literals `6` and `7` in stock movements — RESOLVED
+**Confirmed by measurement, 2026-08-21 (INV-044). Resolved 2026-08-26 by `M2-B05`
+(re-specified — see [`tasks/M2-B05.md`](../execution/tasks/M2-B05.md)).**
+
+> **Closed.** A generated `StoreIds` constants class
+> (`V.SMART/V.SMART.Shared/Utility_Constants/StoreIds.cs`, from
+> `tools/generate-store-ids/generate.mjs`, parsing the `Store` `HasData` seed at
+> `ApplicationDbContext.cs:1714-1723`) now supplies `StoreIds.RejectionStore` (`6`) and
+> `StoreIds.ReworkStore` (`7`). All **55** call sites that passed the bare literal — 24 of `6`,
+> 31 of `7`, across 7 files, independently re-measured and matching `INV-044`'s figure exactly
+> — now pass the named constant. Value-equality proven mechanically for every one of the 55
+> sites (see `INV-059`). `dotnet build` on both `V.SMART.Api` and `V.SMART.Web`: 0 errors,
+> baseline warning count (6,695) unchanged. **Not done as part of this closure:** a live
+> two-screen stock smoke test — no running Blazor instance was available in the executing
+> session's environment, so this is recorded as `Unknown`/deferred, not assumed. See
+> `tasks/M2-B05.md` Close-out for the full record.
 
 This is the risk **R-10 was reaching for and misfiled**. `AddOrUpdateStockAsync`'s second
 parameter is `storeId`, and **55 call sites pass a bare `6` or `7`**:
