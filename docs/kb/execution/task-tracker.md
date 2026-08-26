@@ -136,8 +136,8 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Completed**²⁹˒⁸⁶ *(owner reviewed fix `8a54f96` directly and merged, 2026-08-26 — see footnote ⁸⁶)* | P0 | M2-B07 | 2 d | G2 |
-| M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | **Needs Review**⁸⁷ *(all three phases run against `NexGenErpDb`, the sole reachable tenant, 2026-08-26 — Q-10 answered for it; owner review pending before `Completed`. See footnote ⁸⁷ and KB-101 §5)* | P0 | M2-B12-01 | 1 d | G2 |
-| M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked | P0 | M2-B12-02 | 3 d | G2 |
+| M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | **Completed**⁸⁷ *(owner reviewed and closed 2026-08-26, merged `2cb9925`; Q-10 answered for `NexGenErpDb`. See footnote ⁸⁷ and KB-101 §5)* | P0 | M2-B12-01 | 1 d | G2 |
+| M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked⁸⁸ *(Hard prerequisite `M2-B12-02` now `Completed` — part 1 of the five-part test clears. Not re-derived as `Ready` by this pass: it is a `Backend` task, the same class M2-B08 found `Blocked` on the pinned .NET SDK 10.0.400 being unobtainable in this execution environment, footnote ⁷³ — untested here whether that wall applies to this task too)* | P0 | M2-B12-02 | 3 d | G2 |
 
 ### M2-C — Frontend foundation (Angular, per [ADR-007](../decisions/ADR-007-angular-stack.md))
 
@@ -3485,3 +3485,19 @@ independently verified in this session, but per
 closes a task. Branch `migration/M2-B12-02-verify-unique-constraints` (cut fresh from
 `master`) holds this work; not merged by this pass — a separate decision, same as every other
 merge in this session.
+
+**Update, same session:** the owner reviewed the results and instructed the merge. Branch
+merged `--no-ff` to `master` as `2cb9925`. Owner then reviewed the close-out itself and
+instructed the status change to `Completed` — see `tasks/M2-B12-02.md` § Owner sign-off.
+Releases `M2-B12-03`'s Hard prerequisite (footnote ⁸⁸ records that this alone does not make
+`M2-B12-03` selectable).
+
+⁸⁸ **`M2-B12-03`: Hard prerequisite cleared by `M2-B12-02`'s close-out (footnote ⁸⁷), 2026-08-26
+— not re-run through the five-part "can actually be done" test by this pass.** Recorded so
+part 1 (prerequisite `Completed` and merged) is known to be satisfied without re-deriving it,
+while flagging the thing most likely to still block it: `M2-B12-03` is a `Backend` task
+touching `.NET` allocation logic, the same class `M2-B08` was found `Blocked` on — the pinned
+SDK `10.0.400` is unobtainable in this execution environment (footnote ⁷³: only `10.0.111`
+reachable, `builds.dotnet.microsoft.com` denied at `CONNECT` with `403`). Whether that same
+wall applies to `M2-B12-03` specifically has not been tested; a future selection pass should
+check it directly rather than assume either way.
