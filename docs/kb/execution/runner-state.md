@@ -11,10 +11,77 @@ status: active
 confidence: n/a
 last_verified: 2026-08-26
 dependencies: [KB-089, KB-091, KB-092, KB-081]
-model_routing_this_run: { investigate: opus, implement: opus, validate: opus }
+model_routing_this_run: none — select-only pass, no candidate cleared the five-part test
+
+## Status — 2026-08-26 (this session, latest)
+
+**STOPPED** — no dependency-ready task remains
+
+**Stop reason (verbatim):**
+no dependency-ready task remains: Read runner-state.md (KB-093): Status was RUNNING, not STOP_REQUESTED, no human stop pending. Read current-task.md (KB-089): it pointed to M2-C05-02 "not yet dispatched", but that pointer was stale — master's own history (commits 4a8b61a then c0341db, both on master tip, current branch clean) shows M2-C05-02 was dispatched and closed Blocked at implement time (task-tracker.md:165, footnote 79): its Dependencies table names M2-C02 (Blocked), and implementation additionally found the required endpoint pair does not exist and no real fixture capture was possible. That dispatch also raised Q-102: 34 task files have frontmatter depends_on that omits at least one Hard dependency their own Dependencies table declares. Re-ran the five-part 'can actually be done' test from dependency-graph.md against every Ready row in task-tracker.md (only M0-06 and M0-11) plus the two most recently investigated non-Ready rows (M2-C05-02, M2-D01): M0-06 fails part 5 (sibling branch migration/M0-06-remove-default-admin already open, unmerged, itself Blocked on Q-25/Q-26 — verified via git branch -a); M0-11 fails part 2 (Product Decision, owner-only); M2-C05-02 fails part 1 (now Blocked, corrected depends_on names Blocked M2-C02); M2-D01 fails part 1 (same M2-C02 blocker). No candidate clears the test, so per the selection rule taskId is empty.
+
+**Current task:** empty (no task dispatched)
+
+**Last validation result:** N/A
+
+**Attempts used:** N/A
+
+**Escalations:** 0
+
+**Next dependency-ready task:** empty
+
+**Requires human decision:** YES
+
+**Human decision needed:**
+- Owner: Vivek
+- Decisions: (1) Merge or reject the open branch `migration/M0-06-remove-default-admin` (Blocked on Q-25/Q-26 owner decisions); (2) Make owner decision on Q-01 (M0-11 is a Product Decision); (3) Resolve Q-102 — decide on the 34-file `depends_on` frontmatter defect (options: regenerate mechanically, make selection read Dependencies table instead, or fix case-by-case); (4) Unblock M2-C02 (currently Blocked) — it blocks M2-D01, M2-C05-02, and any future task depending on it.
 
 selection_note: |
-  2026-08-26 Select-only pass (this session, latest), master tip `2281740` (two commits past
+  2026-08-26 Select-only pass (this session, latest), master tip `c0341db` (two commits past
+  the inherited `2281740` pointer: `4a8b61a` "Select M2-C05-02 — M2-D01 excluded, M2-C02
+  dependency Blocked" recorded that pass's selection and dispatch, and `c0341db` "M2-C05-02
+  Blocked; audit finds the depends_on defect in 34 files" closed that dispatch). Tree clean
+  (`git status --porcelain` empty), `git branch --show-current` = `master`.
+
+  The inherited `current-task.md` pointer ("`M2-C05-02`, attempt 0, not yet dispatched") was
+  stale: `c0341db` shows `M2-C05-02` was in fact dispatched and stopped at implement time —
+  its own corrected `depends_on` (three Hard rows, one of which, `M2-C02`, is `Blocked`) plus
+  two further problems found only at implementation (the endpoint pair the task needs does not
+  exist, and no real fixture capture was possible) — recorded on `task-tracker.md:165`,
+  footnote ⁷⁹. That dispatch also raised **`Q-102`**: an audit of every file under
+  `execution/tasks/` found 34 where frontmatter `depends_on` omits at least one Hard
+  dependency the file's own Dependencies table declares (worst: `M2-D02-02` declares 9, lists
+  1). Only `M2-D01` and `M2-C05-02` — the two tasks actually dispatched and burned on this
+  defect — have been corrected individually; the other 32 files are unaudited by this pass and
+  their `depends_on` cannot be trusted at face value until an owner decision on `Q-102` (options:
+  regenerate all mechanically, make selection read the Dependencies table instead, or keep
+  fixing case by case at one wasted dispatch per file).
+
+  Re-ran the five-part test against every row `task-tracker.md` (master) marks `Ready` (only
+  two rows: `M0-06`, `M0-11`) plus the two most recently investigated non-`Ready` rows
+  (`M2-C05-02`, `M2-D01`), confirming none is newly selectable:
+  1. **`M0-06`** — fails part 5: sibling branch `migration/M0-06-remove-default-admin` is
+     still open (unmerged; verified via `git branch -a`), itself closed `Blocked` on
+     `Q-25`/`Q-26`. Unchanged from every prior pass.
+  2. **`M0-11`** — fails part 2: `Product Decision` (`Q-01`), owner-only. Unchanged from every
+     prior pass.
+  3. **`M2-C05-02`** — fails part 1: `task-tracker.md:165` now reads `Blocked`, not
+     `Completed`/`Ready`; its corrected `depends_on` names `M2-C02`, which is itself `Blocked`.
+  4. **`M2-D01`** — fails part 1, unchanged: corrected `depends_on` (by `2281740`) names
+     `M2-C02`, `Blocked`.
+
+  No row clears the five-part test this pass. `nextTaskId` is empty, matching the runner's
+  documented behaviour when no candidate is dependency-ready
+  ([`autonomous-runner.md`](autonomous-runner.md) / KB-091). The binding constraint across
+  `M0-06`, `M2-C05-02` and `M2-D01` remains the same one prior passes already named: `M2-C02`
+  (`Blocked`) and the owner-only decisions `Q-01`/`Q-25`/`Q-26`/`M0-04` credential rotation —
+  none of which this select-only pass has authority to resolve. `Q-102` is now an additional,
+  independent blocker on trusting any *other* `Ready`-adjacent row without re-verifying its
+  Dependencies table by hand.
+
+  --- prior note, retained for lineage ---
+
+  2026-08-26 Select-only pass (this session, prior), master tip `2281740` (two commits past
   the inherited `39a9e11` pointer: `e978c12` selected `M2-D01`, and `2281740` "Correct
   `M2-D01`'s `depends_on` on master — 3 of 7 Hard deps were listed"). Tree clean (`git status
   --porcelain` empty, `git branch --show-current` = `master`). The inherited `current-task.md`
@@ -533,7 +600,8 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `RUNNING` — **Select-only pass, master tip `2281740` (two commits past the inherited `39a9e11` pointer, correcting `M2-D01`'s `depends_on` to reveal a Blocked prerequisite). `M2-D01` excluded (fails part 1 — `M2-C02` Blocked); `M2-C05-02` selected instead, attempt 0, not yet dispatched.** See `selection_note` for detail. |
+| **Status** | `RUNNING` — **Select-only pass, master tip `c0341db` (two commits past the inherited `2281740` pointer: `4a8b61a` selected `M2-C05-02` and dispatched it, `c0341db` closed it `Blocked` after the dispatch failed at implement time). Tree clean, branch `master`. No candidate clears the five-part test this pass: `M0-06` fails part 5 (sibling branch `migration/M0-06-remove-default-admin` still open, unmerged, closed `Blocked`); `M0-11` fails part 2 (`Product Decision`, owner-only); `M2-C05-02` is now `Blocked` (fails part 1 — see `task-tracker.md:165` footnote ⁷⁹: the endpoint pair it needs does not exist and `M2-C02` it also needs is `Blocked`); `M2-D01` stays excluded (fails part 1, `M2-C02` `Blocked`, unchanged from the prior pass). `nextTaskId` empty; also raised `Q-102` (systemic `depends_on` under-listing, 34 files) — owner decision needed before further selection passes can trust frontmatter `depends_on` alone.** See `selection_note` for detail. |
+| **Status (previous, superseded)** | `RUNNING` — **Select-only pass, master tip `2281740` (two commits past the inherited `39a9e11` pointer, correcting `M2-D01`'s `depends_on` to reveal a Blocked prerequisite). `M2-D01` excluded (fails part 1 — `M2-C02` Blocked); `M2-C05-02` selected instead, attempt 0, not yet dispatched.** Superseded: `M2-C05-02` was dispatched on its own branch (`4a8b61a`) and closed `Blocked` there after implement stopped on missing endpoints and a `Blocked` co-dependency `M2-C02` (`c0341db`). See `selection_note` for detail. |
 | **Status (previous, superseded)** | `RUNNING` — **Select-only pass, master tip `39a9e11` (one merge past the prior pass's `fae70dd`: Vivek's owner-instructed merge of `migration/M2-C05-03-grid-states-and-export`). `M2-D01` selected, attempt 0, not yet dispatched.** Superseded: dispatched on its own branch and closed `Blocked` there (unmerged); master's own `depends_on` correction (`2281740`) independently confirms exclusion. See `selection_note` for detail. |
 | **Status (previous, superseded)** | `STOPPED` — **Select-only pass, master tip `fae70dd`, tree clean. Confirms the prior pass's conclusion unchanged: no merges since, three `Ready` rows (`M0-06`, `M0-11`, `M2-C05-02`), all still fail the five-part test, `nextTaskId` empty.** |
 | **Status (previous, superseded)** | `STOPPED` — **Select-only pass, master tip de90ec0 → 65f078b, tree clean.** `current-task.md`'s inherited pointer (`M2-C06`, "attempt 0, not yet dispatched") was stale: this runner has **no concurrency control** (see memory), and two other sessions had already dispatched from the pool footnote ⁷⁴ released, each on its own unmerged branch, each closing `Needs Review` with an independently validated `PASS` that never reached `master`'s bookkeeping. Verified directly: `git log` shows `migration/M2-C06-record-picker-dialog` (tip `a47d016`, "Session close-out — record independently validated PASS", attempt 2 of 5, all 17 acceptance criteria `MET`) and `migration/M2-C05-03-grid-states-and-export` (tip `2da7723`, "Session close-out - record PASS"). Re-ran the five-part 'can actually be done' test against every row reading `Ready` in `task-tracker.md`: `M0-06` fails part 5 (separate closed-out `Blocked` outcome on an unmerged branch, `5c9b34c`); `M0-11` fails part 2 (`Product Decision`, owner-only); `M2-C05-02` fails part 5 on a genuine same-file conflict — its own *Expected changed files* (`data-grid.component.ts`, `data-grid.component.html`, `data-grid.model.ts`) are exactly what `M2-C05-03`'s still-open branch changed, confirmed via `git diff --stat`; `M2-C05-03` and `M2-C06` themselves fail part 5 as duplicates of already-finished `PASS` work sitting on open branches. No other row reads `Ready`. **No task clears the test — `nextTaskId` is empty.** Corrected `task-tracker.md` (`M2-C05-03` and `M2-C06` rows `Ready` → `Needs Review`, new footnote ⁷⁵), rewrote `current-task.md` with the full record and a standing instruction for the next session to check for owner merges first, updated `runner-state.md` Status and `selection_note` — all committed to `master` as docs-only bookkeeping (65f078b), not pushed. **Not a safety stop:** tree clean, nothing dispatched this pass, `requiresHuman`: false. Previous note, superseded by the above:
