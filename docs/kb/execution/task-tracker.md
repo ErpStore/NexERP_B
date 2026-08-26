@@ -3246,3 +3246,30 @@ declares 9 Hard rows and lists 1 — raised as **Q-102**. Only the two that were
 dispatched have been corrected; the other 32 stand, so this will recur until the owner picks
 an option in Q-102.
 
+⁸⁰ **Q-102 answered option (a): every `depends_on` corrected from its own Dependencies table —
+2026-08-26, on owner instruction. 33 files, 72 dependencies added.**
+
+**No task changed status.** All **8** tasks whose newly-added dependency is not `Completed`
+were **already `Blocked`** — `M2-C08`, `M2-C08-01`, `M2-C08-02`, `M2-C09`, `M2-D02-02`,
+`M2-D02-03`, `M2-D03`, `M3-1-01`. The fix is **preventive, not corrective**: it does not close
+anything, it stops the selection step passing tasks whose real prerequisites are unmet and
+burning a dispatch to find out at implement time. That happened twice on 2026-08-26 —
+`M2-D01` (footnote ⁷⁸) and `M2-C05-02` (footnote ⁷⁹), roughly 900k subagent tokens between them.
+
+**Method, so it can be re-run or audited.** For each file in `execution/tasks/`, every row of a
+Dependencies table matching `| <TASK-ID> … | Hard |` was collected and any id absent from
+frontmatter `depends_on` appended, preserving the original order and leaving the existing
+entries untouched. Each edited line carries an inline `# Q-102, 2026-08-26: added …` comment
+naming exactly what was appended and why. **Verified after:** re-audit reports **0** of 44 files
+with a Dependencies table still missing a `Hard` row, and **87** `depends_on` lines parse inside
+valid frontmatter, **0** malformed.
+
+**Worst offenders, for scale:** `M2-D02-02` declared **9** `Hard` rows and listed **1**;
+`M2-C08` declared 7, listed 1; `M2-C09` declared 7, listed 2.
+
+**What this does not do.** It does not touch the *Prerequisites* prose sections, which in at
+least one file (`M2-D01:210`) understate the dependencies in the same way — the tables are now
+authoritative and the prose is not. It also cannot catch a Hard dependency that a task file
+never declares anywhere; `M2-C03` was cited as blocking `M2-D01` but appears in no Dependencies
+table, so no mechanical pass would find it.
+
