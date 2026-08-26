@@ -135,7 +135,7 @@ request in the same way.
 
 | Setting | Location | Notes |
 |---|---|---|
-| `ConnectionStrings:MasterDb` | `V.SMART.Web/appsettings.json`, `V.SMART.Api/appsettings.json` | **Contains live SA credentials in source control.** A production host (`154.61.76.112,1533`, db `IQSmartDb_Master`, user `bspl`) is present as a commented line. |
+| `ConnectionStrings:MasterDb` | `V.SMART.Web/appsettings.json`, `V.SMART.Api/appsettings.json` | **Contains live SA credentials in source control.** A host presumed for years to be this project's own production database (`154.61.76.112,1533`, db `IQSmartDb_Master`, user `bspl`) is present as a commented line — **owner-confirmed 2026-08-26 it is a third party's host, not ours**; see `risks/technical-debt-register.md` R-01. |
 | `Jwt:Secret` / `Issuer` / `Audience` / `ExpiresMinutes` | `V.SMART.Api/appsettings.json` | Secret committed. `ExpiresMinutes: 480`. |
 | `AppEnvironment` | injected in-memory in `V.SMART.Web/Program.cs` as `"Web"` | Host discriminator |
 | Tenant fallback | `wwwroot/config/tenant.json` | Used by MAUI and API when host lookup fails |

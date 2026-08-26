@@ -47,6 +47,32 @@ the `Tenants` table.
 **Impact.** Anyone with repository access has database credentials, including for what
 appears to be a live internet-reachable host.
 
+> **Correction, 2026-08-26 (owner statement, Kumar) — the `154.61.76.112` host does not
+> belong to NexGen ERP / this project's infrastructure.** Every prior mention of it in this
+> KB as "the production host" was an unverified inference from context (it sat alongside the
+> `sa` credential, was commented rather than deleted, and used a production-shaped database
+> name) — nobody had confirmed which organisation actually operates it. The owner has now
+> confirmed directly: **this IP is not ours**, and **the `bspl` password quoted above is
+> correct** — i.e. this is a real, live, currently-valid credential for a **third party's**
+> system, not a decommissioned or fabricated value. **Consequences:**
+> - There is no login on `154.61.76.112` that this project, or task **M0-04**, can rotate —
+>   nobody on this side of the work holds access to disable or replace it. It is removed from
+>   **C-2** of the M0-04 credential inventory as an action item for that reason (see
+>   `tasks/M0-04.md` and the runbook), not because the exposure is resolved.
+> - **The exposure itself is not resolved by this correction — it is reclassified.** A valid
+>   third-party credential remains published in a public repository at `HEAD` (§0a of the
+>   runbook: the literal is also quoted in several KB files, not just in `V.SMART/`). Whoever
+>   actually operates `154.61.76.112` has an exposure they do not know about. This project has
+>   no channel to that operator and no obligation this KB can discharge on their behalf; it is
+>   recorded here so the gap is visible rather than silently dropped.
+> - **Recommended, not yet done:** redact the literal `154.61.76.112` / `bspl` / the quoted
+>   password from every KB file that still carries it (§0a's list plus this entry), the same
+>   redaction motion already open as **Q-84** for the SA/JWT literals — continuing to publish a
+>   real third party's credential is worse than publishing a dead one of our own.
+> - Where this leaves R-01: the **SA password** (`DESKTOP-FIIBE97\SQLEXPRESS`) and the
+>   per-tenant plaintext connection strings (C-1, C-3) are unaffected by this correction and
+>   remain this project's own exposure to rotate under M0-04.
+
 > **Escalation, 2026-08-12 (INV-029, Confirmed), item 1 CORRECTED then SUPERSEDED same
 > day (INV-034 + owner decision):**
 >
