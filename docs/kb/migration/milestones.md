@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-24
+last_verified: 2026-08-26
 dependencies: [KB-020, KB-041, KB-050, KB-052, KB-060, KB-070, ADR-001, ADR-002, ADR-003, ADR-004, ADR-005]
 ---
 
@@ -68,17 +68,53 @@ afterthought.
 
 ## Position
 
-> **Status refreshed 2026-08-24.** The block below was written 2026-08-12 and said *"M0 —
-> Stabilise (not started)"* with *"M2 and everything after"* blocked. Both were true then and
-> neither is now. [KB-081](../execution/task-tracker.md) remains the authority on task status;
-> this is a milestone-level summary and will go stale again.
+> **Status refreshed 2026-08-26.** [KB-081](../execution/task-tracker.md) remains the authority
+> on task status; this is a milestone-level summary and will go stale again.
 
 | | |
 |---|---|
 | **Completed** | M1 — Repository understanding |
-| **Current** | **M2 — Foundation**, 23 of 59 tasks `Completed` (39%). M0 is 17 of 24 and its gate is **passed with exceptions** |
-| **Blocked** | M3–M6, behind G2. Within M2, the `M2-A` security chain stops at `M2-A04` |
-| **Next decisions needed from the product owner** | **`M0-04`** (rotate exposed credentials — gates `M2-A04` → `M2-A05` → `M2-C02`, and G0 criteria 2/3); **`M2-C10`'s environment** (a database credential, or relax its measured-wire-format criterion); **Q-28 + R-65** (gate `M2-A02`); **Q-38** (what `M2-C11` is for) |
+| **Current** | **M2 — Foundation**, **33 of 62** tasks `Completed` (53%). M0 is 17 of 24, gate **passed with exceptions**. Across the whole backlog: 55 `Completed`, 28 `Blocked`, 3 `Needs Review`, 2 `Ready`, 14 `Not Started`, 7 `Continuous`. |
+| **Blocked** | M3–M6, behind G2. Within M2, the security chain stops at **`M2-A04` — refresh tokens and a token revocation list**, and the whole Angular application chain stops behind **`M2-C02` — the auth foundation: login, token refresh, route guards and the permission store**. |
+| **Nothing is self-selectable** | Of the two `Ready` rows, **`M0-11`** is a *product decision* (whether a stock issue may silently take less than requested under FIFO — `Q-01`) and is owner-only; **`M0-06`** (remove the seeded default `Administrator` account) is finished on an unmerged branch. Ten consecutive runner passes on 2026-08-26 found nothing to do. |
+
+### The one change that would restart the most work
+
+**Rotate `Jwt:Secret`** — the signing key for API access tokens. It is `M0-04`'s criterion C-4,
+and it is the *only* part of that credential-rotation programme the Angular chain waits on.
+
+The key's historical value is published in this repository's git history, so any token signed
+with it is forgeable. That is why **`M2-A04` (refresh tokens + revocation) is correctly
+`Blocked`**: a refresh token and a revocation list signed with a known key manufacture the
+*appearance* of hardened sessions without the substance — a forged refresh token appears on no
+revocation list. Building it first would be worse than today's short-lived access tokens.
+
+**It is a much smaller job than `M0-04` as a whole.** `M0-04` also covers the SQL Server logins,
+every tenant's connection string, the GST e-Invoice gateway account and a vendor re-key — none
+of which this chain needs. C-4 alone is: generate a new secret of at least 32 bytes, set it in
+the API's deployment environment, restart. The groundwork is already done —
+`V.SMART.Api/appsettings.json:37` holds `"Secret": ""` since `M0-03` externalised it, and
+`StartupConfigurationValidator` already fails closed on a null, empty, short or known-default
+value. It needs **one person with API deployment-config access** — not the DBA, not the gateway
+vendor.
+
+**What it releases, in order:** `M2-A04` (refresh tokens) → `M2-A05` (CORS and tenant resolution
+for a cross-origin SPA) → **`M2-C02` (auth foundation)** → and behind that the six tasks whose
+dependency tables name `M2-C02`: `M2-C03` (the app shell — header, permission-filtered sidebar),
+`M2-D01` (the Currency screen end-to-end vertical slice), `M2-C05-02` (grid column preferences),
+`M2-C08`/`M2-C08-01` (master-data screens), `M2-C09` and `M2-D02-03`.
+
+### Other decisions the owner still owns
+
+| Decision | What it is | Releases |
+|---|---|---|
+| **`Q-01`** | Should a stock issue be allowed to silently issue less than requested when FIFO layers run short? | `M0-11`, the only `Ready` P0 row |
+| **`Q-85`** | Should a `decimal` cross the HTTP wire as a JSON string rather than a number? Money currently arrives as an IEEE-754 double, losing precision at `JSON.parse` before any application code sees it. | `M2-C10` (banning float money arithmetic in the SPA) |
+| **A named DBA** | KB-101's runbook needs one name; the read-only census script is written and waiting | `Q-10` (do live tenant databases carry unique constraints on document numbers?) → `R-12` (the numbering race) → `M2-B12-03` (race-safe allocation) |
+| **`Q-25`/`Q-26`** | Is the seeded `Administrator` any tenant's only admin, and how must a newly provisioned tenant avoid the published credential? | `M0-06`'s unmet criterion |
+| **`Q-84`** | Who redacts the SA and production passwords still sitting at `HEAD` inside `docs/kb/`? | `M0-05` (purging secrets from git history) |
+| **`C-7`** | The AES key and IV protecting every tenant's GST gateway credential are hardcoded and public; the vendor must re-key | `M0-04`'s gateway half |
+
 
 ### Milestone map
 
@@ -86,7 +122,7 @@ afterthought.
 |---|---|---|---|---|
 | **M0** | Stabilise — safety net | 2–3 wks | G0 | ⚠️ **Passed with exceptions** 2026-08-19 — 17/24 done; criteria **2 and 3 unsatisfied**, deferred by owner. `M0-04`/`M0-05` `Blocked` |
 | **M1** | Repository understanding | — | G1 | ✅ Complete (rolling) |
-| **M2** | Foundation — API + Angular shell + vertical slice | 6–8 wks | G2 | 🔄 **OPEN** — 23/59 (39%). Backend API slice done; Angular workspace, design tokens and form controls live |
+| **M2** | Foundation — API + Angular shell + vertical slice | 6–8 wks | G2 | 🔄 **OPEN** — **33/62 (53%)**. The backend API and the Angular component library are well advanced; the **application** layer (auth, shell, screens) is stopped behind `M2-C02` — see *Position* above. |
 | **M3** | Core modules — masters → sales order | 12–16 wks | G3 | ⬜ Blocked by G2 |
 | **M4** | Advanced modules | 16–22 wks | G4 | ⬜ Blocked by G3 |
 | **M5** | Hardening sweep | 6–8 wks (overlapped) | G5 | ⬜ Runs from M2 |
@@ -95,9 +131,14 @@ afterthought.
 > **The "do not start M2 frontend work before G0 passes" rule below was overridden by the owner
 > on 2026-08-19**, who closed G0 with criteria 2 and 3 deferred specifically to unbar M2. The
 > paragraph is kept because its *reason* still stands and is still unresolved: the stored-procedure
-> DDL gap is what makes a fresh environment unbuildable, and it is the same gap now blocking
-> `M2-C10` — that task cannot be validated here because no database is reachable. The rule was
-> waived, not satisfied.
+> DDL gap is what makes a fresh environment unbuildable. The rule was **waived, not satisfied**.
+>
+> **Correction, 2026-08-26.** This paragraph previously also cited `M2-C10` (the task banning
+> float arithmetic on money in the SPA) as blocked by the same missing-database gap. **That was
+> wrong and is withdrawn.** `M2-C10` was re-diagnosed on 2026-08-25: its wire format was already
+> measured and committed by `M2-B10` (`api/openapi.json` plus the generated TypeScript client),
+> so no live database was ever needed. Its real blocker is **`Q-85`** — whether money should
+> cross the wire as a string. See `task-tracker.md` footnote ⁸⁵.
 
 ---
 
