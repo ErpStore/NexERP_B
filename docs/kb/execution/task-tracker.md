@@ -136,7 +136,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Completed**²⁹˒⁸⁶ *(owner reviewed fix `8a54f96` directly and merged, 2026-08-26 — see footnote ⁸⁶)* | P0 | M2-B07 | 2 d | G2 |
-| M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | Blocked | P0 | M2-B12-01 | 1 d | G2 |
+| M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | **Needs Review**⁸⁷ *(all three phases run against `NexGenErpDb`, the sole reachable tenant, 2026-08-26 — Q-10 answered for it; owner review pending before `Completed`. See footnote ⁸⁷ and KB-101 §5)* | P0 | M2-B12-01 | 1 d | G2 |
 | M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked | P0 | M2-B12-02 | 3 d | G2 |
 
 ### M2-C — Frontend foundation (Angular, per [ADR-007](../decisions/ADR-007-angular-stack.md))
@@ -3430,3 +3430,58 @@ contains real, apparently unstarted-on-`master` work: `ce93c6d` ("Add the Q-10 r
 census script and DBA runbook (phase 1)") for `M2-B12-02` itself, which may be worth
 cherry-picking once the duplicate M0-04/M0-06/M2-B12-01 merges beneath it are accounted for.
 
+⁸⁷ **`M2-B12-02`: phase 1 cherry-picked to `master`, 2026-08-26 — commit `ce93c6d`, taken
+from the stale duplicate lineage documented in footnote ⁸⁶ rather than merging that branch
+wholesale.** That branch's own copy of this commit is unusable as-is: it was written on top
+of a divergent M0-04 merge that never received this session's C-2 correction, and it names
+`154.61.76.112,1533` — now confirmed **not this project's host** — as *"the SQL Server
+instance"* to run the census against. Cherry-picked cleanly (two trivial bookkeeping
+conflicts in `INDEX.md`/this file, both id-ledger entries; the actual delivered files —
+`docs/kb/execution/runbooks/Q-10-numbering-constraints.sql`, its companion `.md` runbook
+(KB-101), `tasks/M2-B12-02.md`, `modules/document-numbering.md` §11 — applied without
+conflict), then corrected to point at the real, reachable instance this project actually
+has: `DESKTOP-FIIBE97\SQLEXPRESS`, database `NexGenErpDb` (the sole tenant, `Id=1`,
+`'localhost'` — the same one C-1/C-3 were rotated against, footnote ⁸⁵).
+
+**Delivered:** `Q-10-numbering-constraints.sql` — **3,745 lines**, generated programmatically
+from **KB-100 §9**, covering **51 series** with four query blocks each (constraint inventory;
+duplicate census under application scoping; duplicate census unqualified; format-shape
+census). **Read-only, independently re-verified in this session rather than trusted from the
+commit message:** the script contains **none** of `CREATE`/`ALTER`/`DROP`/`INSERT`/`UPDATE`/
+`DELETE`/`MERGE`/`TRUNCATE`/`EXEC`/`DBCC`, anywhere including comments — 0 matches on a
+case-insensitive substring grep, run fresh against the cherry-picked copy.
+
+**What changed once this project's actual reachable instance was used, unlike the branch's
+assumption:** the original close-out's designed terminal state — *"if no DBA execution was
+obtained, the task reports `Blocked`, which is an acceptable outcome"* — assumed a production
+DBA who does not exist in this repository. That was never this project's real blocker: the
+owner holds direct access to the one instance this project actually has, demonstrated earlier
+this session (M0-04's C-1/C-3 rotation). Phases 2 and 3 were run in this session rather than
+left for an unnamed DBA.
+
+**Phase 2 (run), 2026-08-26 — against `NexGenErpDb`, the sole tenant.** `sqlcmd` under
+Windows Integrated Authentication (`DESKTOP-FIIBE97\Admin`, confirmed `sysadmin` first, so no
+permission gap could hide a result). One tooling fix needed mid-run: `BLOCK1-CONSTRAINTS`
+failed on `Msg 1934` (`QUOTED_IDENTIFIER` off by `sqlcmd` default) until `-I` was added.
+Full raw output (1,100 lines) committed verbatim as
+`docs/kb/execution/runbooks/Q-10-output-NexGenErpDb.txt`.
+
+**Phase 3 (interpret), 2026-08-26 — full write-up in [KB-101 §5](../runbooks/Q-10-numbering-constraints.md#5-results),
+independently re-derived from the raw file rather than read once and trusted.** Headline: **Q-10
+answered for this tenant** — of 202 live unique constraints, exactly one sits on a
+document-number pair (`MfgQuote(QuoteNo, Suffix)`), matching KB-100's EF-model finding
+precisely; neither allocation table has one beyond its surrogate key. **Zero duplicates found
+across 46 of 51 series — but this does not move R-12**, because only 4 series hold any data
+at all in this tenant (one row each); a near-empty database cannot exercise the race. **3 of
+51 series (`PurchPo`, `StockIssueRequest`, `Receipts`) failed on a wrong column name in the
+generated script** — a script defect (typo, wrong guess), not live schema drift; recorded
+with the fix needed for the next tenant run. `Q-10` updated in `open-questions.md` to reflect
+all of this. **R-12 stays `Inferred (high confidence)`, unchanged** — confirming or refuting
+it needs a tenant with real transaction volume, whose identity is Q-12, still open.
+
+**Status left as `Needs Review`, not `Completed`** — the findings are complete and
+independently verified in this session, but per
+[KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed) only the repository owner
+closes a task. Branch `migration/M2-B12-02-verify-unique-constraints` (cut fresh from
+`master`) holds this work; not merged by this pass — a separate decision, same as every other
+merge in this session.
