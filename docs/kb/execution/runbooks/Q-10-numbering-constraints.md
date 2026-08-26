@@ -9,27 +9,32 @@ entities: [MfgQuote, MfgDc, MfgInv, DcRunningNumber, InvoiceAutoRunningNumber]
 api_endpoints: []
 database_tables: [MfgQuote, MfgDc, MfgInv, PurchPo, PurchaseGRN, DcRunningNumbers, InvoiceAutoRunningNumbers]
 business_rules: []
-status: awaiting-execution
-confidence: n/a
-last_verified: 2026-08-25
+status: partial  # phase 1-3 done for the one known tenant (NexGenErpDb); other tenants Unknown pending Q-12
+confidence: mixed  # constraint census Confirmed; duplicate census Confirmed-but-thin (near-empty tenant)
+last_verified: 2026-08-26
 dependencies: [KB-100, KB-004, KB-060, KB-014]
 ---
 
 # Q-10 — Numbering constraints and duplicate census
 
-> **Phase 1 of 3 is complete. Phases 2 and 3 need a human.**
+> **All three phases are done for the one tenant this project can currently reach. Other
+> tenants remain unknown pending Q-12.**
 >
 > | Phase | Who | State |
 > |---|---|---|
 > | 1 — write the script and this runbook | an AI session | **Done**, 2026-08-25 |
-> | 2 — run the script against named tenants | **a named DBA, using their own credentials** | **Not done** |
-> | 3 — paste the raw output here and interpret it | an AI session or the owner | **Not started** |
+> | 2 — run the script against named tenants | the repository owner, in session, `NexGenErpDb` only | **Done**, 2026-08-26 — see §5 |
+> | 3 — paste the raw output here and interpret it | an AI session, verified against the raw file | **Done**, 2026-08-26 — see §5 |
 >
-> No result in this document is real until phase 2 happens. The *Results* section
-> below is deliberately empty. **A fabricated result would be worse than no result**,
-> because [`M2-B12-03`](../tasks/M2-B12-03.md) will change how document numbers are
-> allocated on the strength of what lands here, and document numbers appear on tax
-> invoices, delivery challans and e-way bills.
+> **The original plan assumed a named production DBA who does not exist in this repository**
+> (§2, as originally written). That assumption changed: `154.61.76.112` — the host this
+> document and `M0-04`'s runbook both once called "production" — is confirmed **not this
+> project's infrastructure** (see §2's correction note). The only database this project
+> actually operates is `NexGenErpDb` on `DESKTOP-FIIBE97\SQLEXPRESS`, and the owner holds
+> direct access to it — demonstrated in the same session that rotated its credentials
+> (`task-tracker.md` footnote ⁸⁵). Running phase 2 there, now, answers a real question about
+> a real database this project owns, rather than waiting indefinitely on a DBA for a host
+> that was never this project's to query.
 
 ## 1. What this answers, and why it matters
 
@@ -156,23 +161,115 @@ the stored form is what appears in the output.
 
 ## 5. Results
 
-<!-- awaiting DBA output -->
+**Executed 2026-08-26** against tenant `NexGenErpDb` (`Tenants.Id=1`, `Name='localhost'`),
+the sole tenant on this project's only reachable SQL Server instance
+(`DESKTOP-FIIBE97\SQLEXPRESS`) — see §2's correction. Run via `sqlcmd` under Windows
+Integrated Authentication (`DESKTOP-FIIBE97\Admin`, confirmed `sysadmin` before running,
+so no permission gap could hide a result). Full raw output, verbatim, is committed
+alongside this file: [`Q-10-output-NexGenErpDb.txt`](Q-10-output-NexGenErpDb.txt) (1,100
+lines). Re-verified independently against that file before writing anything below —
+every count here was re-derived with `grep`/`awk`, not read once and trusted.
 
-*Nothing has been run. When output arrives, it is pasted here **verbatim**, one subsection
-per tenant, before any interpretation is written.*
+**One tooling correction needed to get a complete run:** the script's `BLOCK1-CONSTRAINTS`
+query failed on the first pass with `Msg 1934 ... 'QUOTED_IDENTIFIER'` — `sqlcmd` defaults
+that session setting `OFF`, and the query's `STUFF()`/subquery construction needs it `ON`.
+Re-run with `-I` added; every other flag matches §3 exactly. Recorded so the next tenant run
+does not lose the same block.
 
-### 5.1 Duplicate census
+### 5.1 Constraint inventory (Block 1) — Q-10's direct answer
 
-*One row per series per tenant. **Zeros are written as `0`, never left blank** — a blank
-cell is indistinguishable from "not measured", and the difference matters here.*
+**Confirms KB-100 §9 exactly, not merely "consistent with it."** Of every unique index and
+unique-key constraint in the live database (202 rows total, `Q-10-output-NexGenErpDb.txt`
+lines tagged `BLOCK1-CONSTRAINTS`), **exactly one** sits on a document-number-shaped column
+pair: `MfgQuote` — `IX_MfgQuote_QuoteNo_Suffix`, `NONCLUSTERED`, `IsUnique=1`,
+`IsPrimaryKey=0`, key `(QuoteNo, Suffix)`. Every other row in the 202 is a surrogate-key
+`PK_*` (a numeric `Id`/`SlNo`, never the document number itself) or an unrelated index
+(`Users.EmailId`, `Users.UserName`, the two `AssmblyDef*` composite indexes). **Neither
+allocation table carries a unique index beyond its own surrogate key**: `DcRunningNumber`
+→ `PK_DcRunningNumber(Id)` only; `InvoiceAutoRunningNumber` → `PK_InvoiceAutoRunningNumber(Id)`
+only — confirming R-12's premise that the allocation tables themselves have no constraint on
+their logical key (`DcType+Suffix` / `InvoiceType+Suffix`).
 
-| Tenant | Series | Unique constraint present? | Block 2 groups (app scoping) | Block 3 groups (unqualified) | Gap (3 − 2) | Distinct shapes |
-|---|---|---|---|---|---|---|
-| *(awaiting execution)* | | | | | | |
+**Q-10 is answered, for this tenant:** the EF model is not merely silent about live
+constraints elsewhere — it is *complete*. What the model shows is what the database has.
 
-### 5.2 Interpretation
+### 5.2 Duplicate census (Blocks 2–3)
 
-*Per tenant, written only after the raw output is pasted above.*
+**46 of 51 series ran successfully; every one reports 0 duplicate groups**, under both
+application scoping (Block 2) and the unqualified `(number, suffix)` scoping (Block 3) — the
+gap the task file flags as worth watching (§1) is `0` everywhere it could be measured.
+
+**This is not the strong result it looks like, and §7 item 5 already says why: this measures
+data, not the race.** The reason every count is zero is visible in Block 4 (below) — this
+tenant has almost no transactional data. Only **4 of 51 series hold any row at all**
+(`MfgQuote`, `PerformaInv`, `MfgPo`, `EnquirySales` — one row each); the other 42 checked
+series are empty tables. A duplicate cannot occur in an empty table, so a zero result here is
+expected regardless of whether the underlying race exists. **R-12 stays `Inferred (high
+confidence)`, exactly as before** — this result does not move it, per §7 item 5's own rule
+("it becomes `Confirmed` only on a non-zero one"). What this genuinely rules out: this
+specific tenant's historical data contains no duplicate, which is a fact worth having, just
+not the fact Q-10/R-12 were ultimately chasing. **Confirming or refuting R-12 needs a tenant
+with real transaction volume**, which — per Q-12 — this project does not yet know the
+identity of.
+
+### 5.3 Format-shape census (Block 4)
+
+Only 4 series produced any row (matching §5.2's finding that only those 4 tables hold data):
+
+| Series | Shape | Rows | Example |
+|---|---|---|---|
+| `MfgQuote.QuoteNo` | `#` | 1 | `1` |
+| `PerformaInv.InvNo` | `#` | 1 | `1` |
+| `MfgPo.PONo` | `#` | 1 | `1020` |
+| `EnquirySales.EnquiryNo` | `#` | 1 | `1021` |
+
+Single shape, single row each — no historical format drift to report from this tenant. Not
+informative beyond confirming the pattern is purely numeric here; a tenant with real history
+is needed to actually exercise this block's purpose (catching a series that changed format
+mid-life).
+
+### 5.4 Script defects found — corrected for the next run, not silently worked around
+
+**Three of 51 series failed with `Msg 207, Invalid column name`** — a defect in the
+generated script's column names, not schema drift in the live database (the live schema is
+internally consistent; the script guessed wrong):
+
+| Series | Script assumed | Live database actually has |
+|---|---|---|
+| `PurchPo.PONo /scope:...+RevesionNo` | `RevesionNo` (misspelled) | `RevisionNo` |
+| `StockIssueRequest.IssueNo` | `IssueNo` | `RequestNo` |
+| `Receipts.PaymentNo` | `PaymentNo` | `ReceiptNo` (also has `ChequeNo`) |
+
+**These three series were not counted in §5.2's 46 — they are neither confirmed zero nor
+confirmed non-zero.** `PurchPo` and `Receipts` are live series (not flagged dead in KB-100
+§3.4); `StockIssueRequest` is one of the series KB-100 §3.4 already records as dead, so its
+gap matters least of the three, per §7 item 6.
+
+**Separately, the two allocation-table series (50/51) reported `SERIES-ABSENT`** — the
+script's `IF OBJECT_ID('dbo.DcRunningNumbers', 'U')` (and the invoice equivalent) checked the
+**plural** table name; the live tables are singular: `DcRunningNumber`,
+`InvoiceAutoRunningNumber` (confirmed in §5.1's Block 1 output, which scans `sys.tables`
+generically and is unaffected by this). No information was actually lost — Block 1 already
+answers the allocation tables' constraint question directly — but the per-series duplicate
+check for these two never ran under either name and should be fixed before the next tenant.
+
+**Recommended before this script is trusted for another tenant:** fix these four table/column
+names in `Q-10-numbering-constraints.sql` (series 22 for `PurchPo`, 43 for
+`StockIssueRequest`, 49 for `Receipts`, 50–51 for the allocation tables), and re-run against
+this tenant to close the 3-series gap.
+
+### 5.5 Interpretation
+
+**Q-10's constraint question is answered, confidently, for this tenant**: the live database
+matches the EF model exactly — one protected series (`MfgQuote`), everything else
+unprotected, including both allocation tables. **Q-10's duplicate-history question is
+answered too, but the answer is "none found in a dataset too small to have produced one"**,
+not "none found despite real exposure" — per §7 item 5, this cannot and does not close R-12.
+**The practical blocker on actually confirming or refuting R-12 is now Q-12** (the production
+tenant list is Unknown) combined with the fact that this project's only currently reachable
+database is a near-empty dev environment. `M2-B12-03` (race-safe allocation) should proceed
+on R-12's existing `Inferred (high confidence)` rating — this census neither raises nor
+lowers that confidence, it only rules out one specific, thin dataset.
 
 ## 6. Verifying the script is read-only before you run it
 
