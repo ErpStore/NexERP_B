@@ -774,3 +774,17 @@ had already ended**, most recently claiming `RUNNING` on `M2-C10` after that tas
 writing the transition themselves**, in the same turn. A `RUNNING` row over a clean tree with no
 live agent means this loop, not a killed run — the killed-run signature is `RUNNING` over a
 *dirty* tree (see **Process note — an orphaned working tree**).
+
+## Status — 2026-08-26 (select-only pass, latest — re-confirmed at master tip `dba6c34`)
+
+**STOPPED** — no dependency-ready task remains
+
+**This pass:** Selection-only invocation (no implementation performed). Started from master
+tip `dba6c34` (KB-071 milestone-naming refresh, docs-only, unrelated to task status), tree
+clean (`git status --porcelain --branch` empty, `ahead 17`), current branch `master`. Re-ran
+`grep -n "\*\*Ready\*\*" task-tracker.md` — still exactly the same two rows, unchanged: `M0-06`
+(line 84) and `M0-11` (line 86). Re-ran the five-part test on both, same results as every
+prior pass: `M0-06` fails part 5 (`git log --oneline master..migration/M0-06-remove-default-
+admin` still shows unmerged tip `5c9b34c`, closed `Blocked` on `Q-25`/`Q-26`); `M0-11` fails
+part 2 (`task_type: Product Decision`, `Q-01`, owner-only). No commit landed on `master`
+since `dba6c34` that changes this outcome. `nextTaskId` empty; no edit made to task-tracker.md.
