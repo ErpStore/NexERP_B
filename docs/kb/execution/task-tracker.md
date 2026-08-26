@@ -146,7 +146,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 |---|---|---|---|---|---|---|---|---|
 | M2-C00 | M2 | Rewrite KB-050 frontend architecture for Angular | Documentation | **Completed**²⁶˒³⁸ *(merged to `master` `0da6a35` on owner instruction 2026-08-21)* | P0 | G0 | 2 d | G2 |
 | M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Completed**²⁶˒⁴⁰ *(merged to `master` `2dd4e53` on owner instruction 2026-08-21)* | P0 | M2-C00 | 3 d | G2 |
-| M2-C11 | M2 | Retire the Angular pilot (`frontend/vsmart-erp/`) | DevOps | **Needs Review**²⁶˒³⁸˒⁹⁷ *(Q-38 answered 2026-08-27, option (a) — pilot removed, 40 files, tag `pre-m2-c11-archive`; `nexgen-web` build independently confirmed unaffected. See footnote ⁹⁷)* | P2 | M2-C00 | 0.5 d | G2 |
+| M2-C11 | M2 | Retire the Angular pilot (`frontend/vsmart-erp/`) | DevOps | **Completed**²⁶˒³⁸˒⁹⁷ *(Q-38 answered and owner-confirmed Completed 2026-08-27, option (a) — pilot removed, 40 files, tag `pre-m2-c11-archive`; `nexgen-web` build independently confirmed unaffected. See footnote ⁹⁷)* | P2 | M2-C00 | 0.5 d | G2 |
 | M2-C12 | M2 | **Re-specify the superseded M2-C / M2-D tree for Angular** *(parent)* | Documentation | **Completed**⁴¹˒⁴⁶ *(parent — all five sub-tasks Completed and merged; 25 of 25 specs re-specified, zero ⛔ banners remain)* | P0 | M2-C00, M2-C01 | 4 d | G2 |
 | M2-C12-01 | M2 | — re-spec the design-system tree (M2-C04*) | Documentation | **Completed**⁴²˒⁴³ *(merged to `master` 2026-08-22 on owner instruction; the `FAIL` was a defect in criterion 7, not in the work — see footnote ⁴³)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-02 | M2 | — re-spec auth, routing, decimal, pilot-adoption | Documentation | **Completed**⁴¹ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
@@ -3777,8 +3777,9 @@ already had no job for the pilot (a comment there already said so). `KB-015`'s p
 *directory-adoption* reading of "adopt" that Q-38 ultimately rejected — stale text needing a
 second correction, not just the original pre-ADR-007 banner this decision was meant to settle.
 
-**Left at `Needs Review`, not `Completed`** — per
-[KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed), the removal of 40
+Left at `Needs Review` pending owner sign-off, per
+[KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed) — the removal of 40
 repository-visible files, even tagged and reversible, is the kind of change this task's own
-original spec called out as needing owner awareness before closing. Full record:
-[`tasks/M2-C11.md` § Close-out](tasks/M2-C11.md).
+original spec called out as needing owner awareness before closing. **Owner confirmed
+`Completed` the same session** ("Mark it completed", 2026-08-27). Branch merged to `master`
+as part of closing it. Full record: [`tasks/M2-C11.md` § Close-out](tasks/M2-C11.md).
