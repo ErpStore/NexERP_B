@@ -84,6 +84,14 @@ namespace V.SMART.Api.Tests.PermissionMatrix
                 ["ReferenceController.GetCurrencies"] = new(
                     "GET /api/v1/reference/currencies",
                     "Reference lookup: no single screen owns it (M2-B03; ReferenceController.cs:33)."),
+
+                ["ReportsController.GetCatalogue"] = new(
+                    "GET /api/v1/reports",
+                    "Metadata only - lists registered report slugs, display names, parameter shapes and which " +
+                    "screen gates each one. Executes no stored procedure and returns no report row, so nothing " +
+                    "here can leak report data; each report's own endpoint (e.g. HsnSummaryReportController.Get) " +
+                    "still independently enforces its own [RequireScreen] when actually called (M2-B08; " +
+                    "ReportsController.cs)."),
             };
 
         /// <summary>Both lists together — every key that is allowed to be ungated.</summary>

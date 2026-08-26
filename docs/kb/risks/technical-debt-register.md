@@ -604,6 +604,17 @@ other work** — it is cheap and it is currently a single-point-of-failure for t
 > succeeds on a later attempt) — not on the strength of the tooling existing and looking
 > correct on inspection.
 
+> **R-04 now has a live downstream consumer, 2026-08-27 (M2-B08).** The API report/print
+> endpoints (`GET /api/v1/{resource}/{id:int}/print`, `GET /api/v1/reports/{slug}`) call the
+> exact procedures R-04 is about. All 7 procedures the M2-B08 seed registries reference were
+> independently confirmed to exist and execute without error against the local tenant
+> database (`INV-060`) — a real exercise of the DDL R-04 tracks, not just a grep. This does
+> not change R-04's own status (still open on the 4-genuinely-absent-procedure gap and the
+> unexecuted rebuild drill, both unrelated to the 7 procedures M2-B08 happens to use) — it is
+> recorded here because "unscripted procedures break API reporting in any fresh environment"
+> is no longer hypothetical; it is what M2-B08's own endpoints would hit if R-04's remaining
+> gap ever included one of these 7.
+
 ### R-05 — No automated tests, no CI
 **Confirmed, and still open.** A test project and a CI pipeline now exist; *coverage* does not.
 
