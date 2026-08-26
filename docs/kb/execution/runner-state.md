@@ -11,9 +11,67 @@ status: active
 confidence: n/a
 last_verified: 2026-08-26
 dependencies: [KB-089, KB-091, KB-092, KB-081]
+model_routing_this_run: { investigate: opus, implement: opus, validate: opus }
 
 selection_note: |
-  2026-08-26 Select-only pass (this session, latest), master tip `39a9e11` (one merge past
+  2026-08-26 Select-only pass (this session, latest), master tip `2281740` (two commits past
+  the inherited `39a9e11` pointer: `e978c12` selected `M2-D01`, and `2281740` "Correct
+  `M2-D01`'s `depends_on` on master — 3 of 7 Hard deps were listed"). Tree clean (`git status
+  --porcelain` empty, `git branch --show-current` = `master`). The inherited `current-task.md`
+  pointer ("`M2-D01`, attempt 0, not yet dispatched") was stale: `git log --all` shows
+  `M2-D01` was in fact dispatched on its own branch (`migration/M2-D01-currency-end-to-end`),
+  stopped on arrival, and closed `Blocked` there (`99885fe` "Session close-out — record
+  Blocked outcome in tracker and runner state", footnotes ⁷⁸/⁷⁹ on that branch's copy of
+  `task-tracker.md`) — but that branch is **unmerged**, so master's own `task-tracker.md` row
+  for `M2-D01` still read `Ready` and `current-task.md` still read "not yet dispatched" until
+  this pass. `2281740`, which **is** on master, independently confirms the same finding: it
+  corrects `tasks/M2-D01.md`'s `depends_on` from `[M2-C05-03, M2-A02, M2-B10]` (3 entries) to
+  all seven Hard rows the file's own Dependencies table declares
+  (`[M2-C05-03, M2-A02, M2-B10, M2-C02, M2-A07, M2-A06, M2-B01]`), of which `M2-C02` is
+  `Blocked` (`task-tracker.md:157`) — verified independently on disk: `frontend/nexgen-web/
+  src/app/core/auth/`, `core/http/` and `layout/shell/` each hold only a `.gitkeep`, confirming
+  `PermissionService`/`requireScreen()`/`*appHasRight` (which `M2-C02` supplies) do not exist.
+  Re-running the five-part test on `M2-D01` with the corrected `depends_on` now on master:
+  fails part 1 (`M2-C02` not `Completed`). `M2-D01` is excluded this pass, correctly, without
+  needing to merge its unmerged close-out branch.
+
+  Re-ran the five-part test against every row `task-tracker.md` (master) marks `Ready`:
+  `M0-06` fails part 5 (sibling branch `migration/M0-06-remove-default-admin` already open,
+  unmerged, itself closed `Blocked` on `Q-25`/`Q-26` — `5c9b34c`); `M0-11` fails part 2
+  (`Product Decision`, owner-only, `Q-01`); `M2-D01` fails part 1 (above). **`M2-C05-02`**
+  clears all five: (1) its sole Hard prerequisite `M2-C05-01` is `Completed` and merged
+  (`task-tracker.md:164`, `bf2b4cd` on master's first-parent line); (2) `task_type: Frontend`,
+  not `Product Decision`; (3) grepped `open-questions.md` for `M2-C05-02`, no hit; (4)
+  `tasks/M2-C05-02.md` carries no ⛔ banner — re-specified for Angular by `M2-C12-03` on
+  2026-08-22, banner removed in that same change; (5) checked `git diff --stat master...
+  <branch> -- <its column-preference source files>` for every currently unmerged branch
+  (`migration/M0-04-credential-rotation-runbook`, `migration/M0-06-remove-default-admin`,
+  `migration/M2-B12-01-inv-012-numbering`, `migration/M2-B12-02-verify-unique-constraints`,
+  `migration/M2-C06-record-picker-dialog`, `migration/M2-C10-decimal-handling`,
+  `migration/M2-D01-currency-end-to-end`, `integration/2026-08-25-session-merges`) — no hit in
+  any; `M2-C05-03`, the branch that previously conflicted on the same files, is already merged
+  (ancestor of master's `HEAD`). `M2-C05-02` is this pass's selection.
+
+  Classification per KB-091 §4 (task file carries no explicit `complexity`/`risk` override):
+  `task_type: Frontend` → base MEDIUM. Raises: `estimate: 3 d` ≥ 3 d (yes, one raise);
+  `depends_on` names only one task and only one other task names `M2-C05-02` (no); `business_
+  rules: []` (no); `source_files` are all under `V.SMART/V.SMART.Shared/` — one project, not
+  two or more (no); does not touch authentication, authorisation, tenancy, document numbering
+  or calculation logic (no); `risk` not HIGH (no). One raise → **Complexity: HIGH** (MEDIUM +
+  1 raise). **Risk: MEDIUM** (default — not Security/Product Decision, no schema change, no
+  secrets/`Program.cs`/`appsettings*`, `business_rules: []`, does not change what a live
+  Blazor user observes — the Blazor `ColumnMenu.razor` path is untouched and both persistence
+  mechanisms stay byte-compatible per the task file's own framing). Routing (KB-091 §5.1,
+  complexity HIGH): Investigate/Implement/Validate all route to `opus`.
+
+  Not a safety stop: tree clean, master tip verified at `2281740`, branch to be cut fresh from
+  `master`. Not `requiresHuman`: no DBA/credential/environment need, not a `Product Decision`,
+  no pending architecture decision.
+
+  --- superseded note below (previous pass) ---
+  2026-08-26 Select-only pass (superseded — see note above; its `M2-D01` pick did not account
+  for the file's own Dependencies table naming four more Hard deps, one Blocked), master tip
+  `39a9e11` (one merge past
   `fae70dd`: Vivek's owner-instructed `--no-ff` merge of `migration/M2-C05-03-grid-states-and-
   export`, confirmed via `git log -1 39a9e11`, author `kumarag595@outlook.com`). Tree clean
   (`git status --porcelain` empty, `git branch --show-current` = `master`). The prior pass's
@@ -475,7 +533,8 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `RUNNING` — **Select-only pass, master tip `39a9e11` (one merge past the prior pass's `fae70dd`: Vivek's owner-instructed merge of `migration/M2-C05-03-grid-states-and-export`). `M2-D01` selected, attempt 0, not yet dispatched.** See `selection_note` for detail. |
+| **Status** | `RUNNING` — **Select-only pass, master tip `2281740` (two commits past the inherited `39a9e11` pointer, correcting `M2-D01`'s `depends_on` to reveal a Blocked prerequisite). `M2-D01` excluded (fails part 1 — `M2-C02` Blocked); `M2-C05-02` selected instead, attempt 0, not yet dispatched.** See `selection_note` for detail. |
+| **Status (previous, superseded)** | `RUNNING` — **Select-only pass, master tip `39a9e11` (one merge past the prior pass's `fae70dd`: Vivek's owner-instructed merge of `migration/M2-C05-03-grid-states-and-export`). `M2-D01` selected, attempt 0, not yet dispatched.** Superseded: dispatched on its own branch and closed `Blocked` there (unmerged); master's own `depends_on` correction (`2281740`) independently confirms exclusion. See `selection_note` for detail. |
 | **Status (previous, superseded)** | `STOPPED` — **Select-only pass, master tip `fae70dd`, tree clean. Confirms the prior pass's conclusion unchanged: no merges since, three `Ready` rows (`M0-06`, `M0-11`, `M2-C05-02`), all still fail the five-part test, `nextTaskId` empty.** |
 | **Status (previous, superseded)** | `STOPPED` — **Select-only pass, master tip de90ec0 → 65f078b, tree clean.** `current-task.md`'s inherited pointer (`M2-C06`, "attempt 0, not yet dispatched") was stale: this runner has **no concurrency control** (see memory), and two other sessions had already dispatched from the pool footnote ⁷⁴ released, each on its own unmerged branch, each closing `Needs Review` with an independently validated `PASS` that never reached `master`'s bookkeeping. Verified directly: `git log` shows `migration/M2-C06-record-picker-dialog` (tip `a47d016`, "Session close-out — record independently validated PASS", attempt 2 of 5, all 17 acceptance criteria `MET`) and `migration/M2-C05-03-grid-states-and-export` (tip `2da7723`, "Session close-out - record PASS"). Re-ran the five-part 'can actually be done' test against every row reading `Ready` in `task-tracker.md`: `M0-06` fails part 5 (separate closed-out `Blocked` outcome on an unmerged branch, `5c9b34c`); `M0-11` fails part 2 (`Product Decision`, owner-only); `M2-C05-02` fails part 5 on a genuine same-file conflict — its own *Expected changed files* (`data-grid.component.ts`, `data-grid.component.html`, `data-grid.model.ts`) are exactly what `M2-C05-03`'s still-open branch changed, confirmed via `git diff --stat`; `M2-C05-03` and `M2-C06` themselves fail part 5 as duplicates of already-finished `PASS` work sitting on open branches. No other row reads `Ready`. **No task clears the test — `nextTaskId` is empty.** Corrected `task-tracker.md` (`M2-C05-03` and `M2-C06` rows `Ready` → `Needs Review`, new footnote ⁷⁵), rewrote `current-task.md` with the full record and a standing instruction for the next session to check for owner merges first, updated `runner-state.md` Status and `selection_note` — all committed to `master` as docs-only bookkeeping (65f078b), not pushed. **Not a safety stop:** tree clean, nothing dispatched this pass, `requiresHuman`: false. Previous note, superseded by the above:
 

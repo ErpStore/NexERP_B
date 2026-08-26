@@ -162,7 +162,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
 | M2-C05-01 | M2 | — server-paged table core | Frontend | **Completed**⁷⁴ *(the `Needs Review`/"unmerged" reading was stale — `git log --first-parent` shows `bf2b4cd` "Merge M2-C05-01" on `master`'s own first-parent line, and all 18 files are present at `HEAD`; corrected 2026-08-26)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
-| M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Ready**⁷⁴˒⁷⁷ *(genuine same-file conflict with `M2-C05-03` resolved now that `M2-C05-03` merged; ranks below `M2-D01` on priority)* | P1 | M2-C05-01 | 3 d | G2 |
+| M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Ready**⁷⁴˒⁷⁸ *(genuine same-file conflict with `M2-C05-03` resolved now that `M2-C05-03` merged; `M2-D01` no longer outranks it — selected this pass)* | P1 | M2-C05-01 | 3 d | G2 |
 | M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Completed**⁷⁵˒⁷⁶ *(owner instructed the merge 2026-08-26; merged `--no-ff`, verified on the merged result)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Needs Review**⁷⁵ *(implemented, independently validated PASS, unmerged on `migration/M2-C06-record-picker-dialog`)* | P0 | M2-C05-01 | 1 wk | G2 |
 | M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-C10`. Its table-technology evaluation is **Q-83**, owner-owned)* | P0 | M2-C05-01, M2-C10 | 2 wks | G2 |
@@ -176,7 +176,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | **Ready**⁷⁷ *(re-specified for Angular by `M2-C12-05`; all three Hard prerequisites — `M2-C05-03`, `M2-A02`, `M2-B10` — now `Completed` and merged)* | P0 | M2-C05-03, M2-A02, M2-B10 | 3 d | G2 |
+| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | **Blocked**⁷⁸ *(`depends_on` corrected `2281740`: 4 more Hard deps beyond the original 3, one — `M2-C02` — still `Blocked`)* | P0 | M2-C05-03, M2-A02, M2-B10, M2-C02, M2-A07, M2-A06, M2-B01 | 3 d | G2 |
 | M2-D02 | M2 | Customer Master *(parent)* | Migration | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-05`; real blocker is `M2-D01`)* | P0 | M2-D01 | 1.5 wks | G2 |
 | M2-D02-01 | M2 | — `@code` triage + logic extraction | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D01`. Allocates the `BR-CUST-*` series)* | P0 | M2-D01 | 4 d | G2 |
 | M2-D02-02 | M2 | — `CustomersController` + API tests | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D02-01`)* | P0 | M2-D02-01 | 3 d | G2 |
@@ -3196,4 +3196,20 @@ merge, `39a9e11`), `M2-A02` (line 112, merged 2026-08-24 on owner instruction) a
 `integration/2026-08-25-session-merges`) for anything touching `Currency`/currency and found
 nothing. **`M2-D01` (P0) now outranks `M2-C05-02` (P1) on priority alone** and is the task
 selected this pass.
+
+⁷⁸ **`M2-D01`: `Ready` → `Blocked`, 2026-08-26 select-only pass (following footnote ⁷⁷'s
+selection).** `M2-D01` was dispatched on `migration/M2-D01-currency-end-to-end` and stopped on
+arrival: its own *Dependencies* table (`tasks/M2-D01.md:244-250`) declares seven Hard rows, but
+`depends_on` (the field the five-part test actually reads) listed only three — `M2-C05-03`,
+`M2-A02`, `M2-B10` — all `Completed`/merged, which is why footnote ⁷⁷'s test passed it
+legitimately. The other four are `M2-C02`, `M2-A07`, `M2-A06`, `M2-B01`; three of those
+(`M2-A07`, `M2-A06`, `M2-B01`) are `Completed`, but **`M2-C02` is `Blocked`** (line 157) and
+supplies `PermissionService`, `requireScreen()` and `*appHasRight` — verified absent on disk,
+not merely inferred: `frontend/nexgen-web/src/app/core/auth/`, `core/http/` and `layout/shell/`
+each hold only a `.gitkeep`. That dispatch's full close-out (Blocked outcome, all detail) lives
+on the unmerged `migration/M2-D01-currency-end-to-end` branch and is not duplicated here; commit
+`2281740` on master applies only the corrected `depends_on` so the next selection pass excludes
+`M2-D01` on part 1 without needing to merge that branch. **Root blocker chain, for the record:**
+`M0-04` (credential rotation, owner-only, `Q-26`) → `M2-A04` → `M2-C02` → `M2-D01`.
+**`M2-C05-02` (P1) is now the only self-selectable row** and is the task selected this pass.
 
