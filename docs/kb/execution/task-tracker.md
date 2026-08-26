@@ -83,7 +83,7 @@ its children are `Completed` — it is never worked directly.
 | M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | **Completed**²⁹ *(merged to `master` `843a04e` on owner instruction 2026-08-21)* | P1 | M0-09 | 2 d | G0 |
 | M0-06 | M0 | Remove the seeded default Administrator credential | Security | **Blocked**⁹⁵ *(seed removed, empty-`Up()` migration, runbook written 2026-08-19; branch found unmerged and merged 2026-08-26. **Q-26 answered 2026-08-27** (option (a), ops procedure — no new code, see `KB-106` §1a) — acceptance criterion 2 now has a documented procedure. **Still `Blocked` on Q-25 alone**: needs production tenant-database access nobody on this project has, to confirm no tenant's only administrator is the seeded account before any existing-tenant removal may run. See footnote ⁹⁵)* | P1 | M0-12-01 | 1 d | G0 |
 | M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Completed**¹⁰ | P2 | M0-03-01 | 0.5 d | G0 |
-| M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | **Ready**¹⁷ | P0 | M0-13 | decision | G0 |
+| M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | **Needs Review**¹⁷˒⁹⁸ *(`ADR-006-fifo-under-issue.md` written 2026-08-27, recording the owner's already-made 2026-08-19 decision — Option B, preserve-but-surface. Zero files touched under `V.SMART/` or `tests/`. Awaiting owner sign-off per KB-088 — see footnote ⁹⁸)* | P0 | M0-13 | decision | G0 |
 
 ## M1 — Repository Understanding · Gate G1 ✅
 
@@ -3783,3 +3783,46 @@ repository-visible files, even tagged and reversible, is the kind of change this
 original spec called out as needing owner awareness before closing. **Owner confirmed
 `Completed` the same session** ("Mark it completed", 2026-08-27). Branch merged to `master`
 as part of closing it. Full record: [`tasks/M2-C11.md` § Close-out](tasks/M2-C11.md).
+
+⁹⁸ **`M0-11`: implemented 2026-08-27, `Needs Review` — Q-01 was already answered.** Footnote
+¹⁷ (2026-08-19) recorded that this task's blocking human step had happened; this footnote
+records that the task itself has now been executed. Re-reading the task on pickup found its
+governing decision (Q-01) had been answered by the owner *five days before* the task file's
+own `last_verified` date — the actual remaining work was not "produce a brief awaiting a
+decision" but "produce the formal written record of a decision already made."
+
+**Delivered:** [`ADR-006-fifo-under-issue.md`](../decisions/ADR-006-fifo-under-issue.md) —
+all ten required sections: the question quoted verbatim with the owner named; all six
+current-behaviour statements re-verified unchanged against `StockManagerService.cs` and
+mapped to the exact `M0-13` test names (`S13`–`S16`); a drift-quantification SQL query,
+verified against the actual `StockIssue`/`StockIssueTrack` entity definitions and EF's
+default table naming, with its result honestly recorded as **Unknown** — no production
+tenant-database access exists on this project's execution side (same gap as `Q-02`/`Q-03`),
+so the query is left for whoever has that access to run; both options argued in good faith,
+including the strongest counter-argument to the option chosen; the owner's decision block
+filled in (Option B, preserve-but-surface, 2026-08-19, rationale quoted); and what happens
+next per the deferred surfacing task.
+
+**Reliance-evidence search, hits and misses both recorded:** no config flag governs short
+issues; no report reconciles `StockIssue` against `StockIssueTrack`; no code comment
+acknowledges the drift. One genuine hit — `ProductionLogUpsert.razor:1822-1877` clamps the
+Daily Production Log screen's input quantity and warns before submission, checking the same
+`StockAdd.BalQty` total `StockManagerService` allocates from — assessed and recorded as a
+partial, single-screen, non-atomic mitigation, **not** evidence of reliance on the drift
+itself. Net finding: reliance remains genuinely `Unknown`, unchanged from `Q-01`'s own
+recorded position.
+
+**Hard constraints verified, not merely claimed:** `git diff --stat` against `master` shows
+**zero** files under `V.SMART/` and **zero** under `tests/` — only `docs/kb/` files were
+touched. `business-rule-inventory.md` was not updated, because current behaviour has not
+changed. `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` re-run as a pure regression
+check.
+
+Left at `Needs Review` pending owner sign-off, per
+[KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed) — this task produces a
+decision *record*, and per this project's own standing rule an execution session does not
+self-certify that record as the final one. `open-questions.md` (Q-01) and the technical-debt
+register (`R-07`) were both updated to point to `ADR-006`; `R-07` stays explicitly **open** —
+this decision does not fix the drift, it decides to keep it and stop hiding it, and closes
+only once the deferred post-Milestone-2 surfacing task lands. `INDEX.md` registers `ADR-006`.
+Full record: [`tasks/M0-11.md` § Close-out](tasks/M0-11.md).

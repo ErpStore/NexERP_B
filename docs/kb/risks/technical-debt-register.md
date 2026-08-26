@@ -748,6 +748,14 @@ service so both UIs benefit. Add tests first.
 > `StockIssue` row is committed at `:154-155` *before* tracking runs, so even the *refusal*
 > case leaves an orphan `StockIssue` for the full quantity with zero `StockIssueTrack` rows.
 > M0-11's brief should cover this as well as the drift.
+>
+> **Status 2026-08-27 (M0-11) — decision recorded, risk stays OPEN.**
+> [`ADR-006`](../decisions/ADR-006-fifo-under-issue.md) formally records the owner's 2026-08-19
+> decision: **Option B, preserve the allocation behaviour, add visibility into the shortfall.**
+> Nothing in `StockManagerService.cs` changed by this decision — the drift itself is not fixed,
+> only decided to be kept and (once a not-yet-created post-Milestone-2 task implements it)
+> stopped being silent. **R-07 does not close here.** It closes only when that surfacing task
+> lands. The orphan-row behaviour noted above is likewise decided-to-remain, not fixed.
 
 ### R-08 — Copy-paste defects in delete guards — **RESOLVED (first action item only)**
 **Confirmed (the defect, until 2026-08-19).** `MfgPoService.cs:504` tested `hasInvoice`
