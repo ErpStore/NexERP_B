@@ -137,8 +137,9 @@ Not a safety stop: tree clean, `master` tip verified at `2281740`, branch to be 
   human with production access participated. A merge decision, not a selection one.
 - **`M0-06`** (fails part 5, unmerged `Blocked` branch) and **`M0-11`** (fails part 2, `Product
   Decision`, owner-only) remain excluded, unchanged from every prior pass.
-- **`M2-A03`** (`Needs Review`) still needs a human to make the CI job a *required* status check
-  on `master`. Owner: Vivek.
+- **`M2-A03`** — closed **`Completed`** 2026-08-26: the owner added the required status check
+  ("Restore, build and gate analyzer warnings", the `ci.yml` `build` job) to `master` branch
+  protection in session. See tracker footnote ⁸².
 - **`M2-B08`**, **`M2-B12-01`**, **`M2-C10`** stay `Blocked` on environment/escalation-budget
   grounds already recorded — untouched by this pass.
 - `Q-71, Q-81, Q-82, Q-83, Q-84, Q-91, Q-92, Q-93, Q-97` and `R-43, R-76, R-77, R-78, R-79`

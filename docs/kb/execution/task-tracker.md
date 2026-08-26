@@ -110,7 +110,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | **Completed**²⁵ | P0 | M2-A01-01 | 3 d | G2 |
 | M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Completed**²⁷ | P0 | M2-A01-02 | 2 d | G2 |
 | M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Completed**⁵⁹˒⁶² *(merged to `master` on owner instruction 2026-08-24)* | P0 | M2-A01-03 | 1 d | G2 |
-| M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | **Needs Review**⁶³˒⁶⁴ *(harness merged to `master` `d94d8ce` 2026-08-24 on owner instruction; stays open on one criterion only — an owner setting in GitHub branch protection)* | P0 | M2-A02 | 3 d | G2 |
+| M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | **Completed**⁶³˒⁶⁴˒⁸² *(the last criterion closed 2026-08-26 — owner added the required status check in GitHub branch protection; see footnote ⁸²)* | P0 | M2-A02 | 3 d | G2 |
 | M2-A04 | M2 | Refresh tokens + revocation | Security | **Blocked**⁴⁸ *(correctly — on **M0-04**, not on `M2-A01-02`; ruled 2026-08-23)* | P0 | M2-A01-02, **M0-03/M0-04** | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
@@ -256,7 +256,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | **17** | G0 | ⚠️ **Passed with exceptions** 2026-08-19 — criteria **2 and 3 are not satisfied**, deferred by owner decision; `M0-04`/`M0-05` stay `Blocked`. See [KB-080 § G0 deferral](README.md#g0-deferral--criteria-2-and-3-decided-by-the-repository-owner-2026-08-19) |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | **62** | **31** | G2 | **OPEN** — 31 of 62 done (50%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
+| M2 | **62** | **32** | G2 | **OPEN** — 32 of 62 done (52%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -3309,4 +3309,22 @@ with C-1…C-7 and the §8 verification checklist — are **not on `master`**. T
 `migration/M0-04-credential-rotation-runbook` and on `integration/2026-08-25-session-merges`,
 both unmerged. This footnote is recorded here because `master` is what the selection step reads;
 the checklist entry belongs in the runbook when that branch merges.
+
+⁸² **`M2-A03`: `Needs Review` → `Completed`, 2026-08-26 — the owner made the branch-protection
+setting that was the one unmet criterion.** In the GitHub UI (`ErpStore/NexERP_B` → Settings →
+Branches → `master` rule), *Require status checks to pass before merging* is enabled and the
+check for the CI job **"Restore, build and gate analyzer warnings"** (`ci.yml` job `build`,
+which runs `V.SMART.Api.Tests` — the permission-matrix harness — with an explicit exit-code
+gate) was added as required. Owner-confirmed in session, 2026-08-26; **not independently
+verifiable from this workstation** (branch protection has no representation in the git tree and
+`gh` is not installed — same limitation footnote ⁶³ recorded). One correction to footnote ⁶⁴'s
+instruction worth keeping: it named the *step* `Test - V.SMART.Api.Tests` as the thing to add,
+but GitHub's required-status-check picker only accepts **job-level** check names — the step name
+finds nothing. The correct name is the job's `name:` value, `Restore, build and gate analyzer
+warnings` (`.github/workflows/ci.yml:73-74`). With this, all 18 of 18 acceptance criteria are
+met and the code was already merged (`d94d8ce`), so per
+[KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed) the owner's in-session
+confirmation closes the task. Releases nothing in the dependency graph (nothing lists `M2-A03`
+as a Hard prerequisite); its value is that a permission regression can no longer merge to
+`master`. `M5-05` (release-gate check, `*Continuous*`) now has its standing CI gate in place.
 
