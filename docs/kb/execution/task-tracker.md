@@ -163,7 +163,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
 | M2-C05-01 | M2 | — server-paged table core | Frontend | **Completed**⁷⁴ *(the `Needs Review`/"unmerged" reading was stale — `git log --first-parent` shows `bf2b4cd` "Merge M2-C05-01" on `master`'s own first-parent line, and all 18 files are present at `HEAD`; corrected 2026-08-26)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
 | M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Ready**⁷⁴ *(re-specified by `M2-C12-03`; its sole blocker `M2-C05-01` is now confirmed merged)* | P1 | M2-C05-01 | 3 d | G2 |
-| M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Ready**⁷⁴ *(re-specified by `M2-C12-03`; its sole blocker `M2-C05-01` is now confirmed merged)* | P1 | M2-C05-01 | 2 d | G2 |
+| M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Needs Review**⁷⁵ *(implemented and independently validated `PASS` 2026-08-26, unmerged on `migration/M2-C05-03-grid-states-and-export`)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Ready**⁷⁴ *(re-specified by `M2-C12-03`; its sole blocker `M2-C05-01` is now confirmed merged — selected, P0, 2026-08-26)* | P0 | M2-C05-01 | 1 wk | G2 |
 | M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-C10`. Its table-technology evaluation is **Q-83**, owner-owned)* | P0 | M2-C05-01, M2-C10 | 2 wks | G2 |
 | M2-C08 | M2 | `DocumentEditor` shell *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-04`)* | P0 | M2-C07 | 2 wks | G2 |
@@ -3150,5 +3150,28 @@ session) touches none of the three tasks' `source_files`. `M2-C06` (P0) ranks ab
 `M2-C05-03` share two files — `DetailsModal.razor`, `ExcelExportService.cs` — so only one of the
 two should be dispatched at a time; that is a same-file-conflict note for the next selection
 pass, not a reason to disqualify either now).
+
+⁷⁵ **`M2-C05-03` implemented and independently validated `PASS` 2026-08-26, unmerged on
+`migration/M2-C05-03-grid-states-and-export` (commit `a3a8ff5`).** All acceptance criteria met:
+five distinct, tested grid states; `hasActiveFilters` derived from the committed filter set, not
+a guess; `clearFilters()` now resets the route params too (a real pre-existing defect fixed);
+skeleton sized to real columns; refetch retains rows with no focus loss; 403/409/500 render
+inline with the server's own text, BR-SO-001 byte-for-byte; export carries sort+filter as one
+request, filename from `Content-Disposition` with a tested fallback; no client-side file-
+generation library entered `package.json`; axe reports no critical violations across all five
+states; `typecheck`/`lint`/`format:check`/`test:ci`/`build` all pass, observed
+(`Tests 436 passed (436)`); nothing under `V.SMART/` in the diff. Two real gaps recorded, not
+papered over: `Content-Disposition` is not exposed by the API's CORS policy so the filename
+cannot be demonstrated cross-origin today (Q-96/R-79), and M2-C02's interceptor the task file
+told this grid to consume does not exist, so the grid normalises `ProblemDetails` once locally
+(Q-94). Full record: [`tasks/M2-C05-03.md`](tasks/M2-C05-03.md) § Execution Record
+(2026-08-26). **Left `Needs Review`, not `Completed`** — the task's own Completion Conditions
+reserve that step for the repository owner ([KB-088](workflow.md#who-may-set-completed)).
+**Releases nothing further on its own**: `M2-D01` still also needs `M2-A02` and `M2-B10`
+merged, and this branch itself is not yet on `master`, so `M2-D01` stays `Blocked`. `M2-C05-02`
+remains `Ready` in name only — dispatching it now would edit `data-grid.component.ts`/`.html`,
+the same files this now-`Needs Review` branch changed and left unmerged, a same-file conflict
+per *Same-file conflicts — never parallelise* in `dependency-graph.md`; it becomes genuinely
+selectable once this branch merges or is abandoned.
 
 

@@ -13,6 +13,38 @@ last_verified: 2026-08-26
 dependencies: [KB-089, KB-091, KB-092, KB-081]
 
 selection_note: |
+  2026-08-26 `M2-C05-03` close-out (this session), branch
+  `migration/M2-C05-03-grid-states-and-export` off `master` `de90ec0`, working tree clean
+  (`git status --porcelain` empty at close-out). Implemented and independently validated:
+  **PASS**, attempt 1 of 4, 0 escalations. Recorded `Needs Review` in `task-tracker.md`, not
+  `Completed` — only the repository owner may set that, and this task's own Completion
+  Conditions name the human step. Full acceptance detail, evidence and the four
+  non-acceptance-criteria gaps (tracker/task-file bookkeeping, Excel-only export menu, no
+  interceptor to consume, no live-API run) are in the task file's own Execution Record
+  (`tasks/M2-C05-03.md`) and were already carried into `investigation-registry.md` (INV-056),
+  `open-questions.md` (Q-94, Q-95, Q-96) and `technical-debt-register.md` (R-79) by the
+  implementing session's own commit (`a3a8ff5`) — not re-derived or duplicated here.
+
+  **Next-task selection: nothing dependency-ready.** Swept every row in `task-tracker.md`
+  reading `Ready`: `M0-06`, `M0-11`, `M2-C05-02`, `M2-C06` (this task's own row moves to `Needs
+  Review` by this close-out). `M0-11` fails part 2 (`Product Decision`, owner-only). `M0-06`
+  fails part 5: `git log --oneline master..migration/M0-06-remove-default-admin` shows three
+  commits ending `5c9b34c "M0-06: Close out session — record Blocked status on Q-25/Q-26"` — a
+  sibling branch already carried this task to a closed (`Blocked`) outcome, unmerged; dispatching
+  it again would duplicate that work, per the standing note that this runner has no concurrency
+  control. `M2-C06` fails part 5 the same way: `git log --oneline master..migration/M2-C06-record-picker-dialog`
+  ends `a47d016 "M2-C06: Session close-out — record independently validated PASS"`, with the full
+  `RecordPickerDialog` implementation in the diff — already done, unmerged, by a concurrent
+  session; re-dispatching it would duplicate a finished PASS. `M2-C05-02` fails part 5 on a
+  genuine same-file conflict, not a duplicate: its own task file's *Expected changed files* row
+  (`tasks/M2-C05-02.md:588`) names `data-grid.component.ts`, `data-grid.component.html` and
+  `data-grid.model.ts` — exactly the files this session's `M2-C05-03` branch changed and left
+  unmerged (`git diff --name-status master...HEAD`) — so opening `M2-C05-02` now would edit the
+  same files a still-open sibling branch already edited, the case *Same-file conflicts — never
+  parallelise* in `dependency-graph.md` forbids. No other tracker row reads `Ready` (grepped the
+  whole file). `current-task.md` rewritten to record this — no task selected, and why — rather
+  than left pointing at the now-closed `M2-C06`. Previous note, superseded by the above:
+
   2026-08-26 Select-only pass (this session), tip `df1d740` on `master` (clean tree —
   `git status --porcelain` empty, `git branch --show-current` = `master`). The launch snapshot
   claimed branch `migration/M0-04-credential-rotation-runbook`; that was stale — the checked-out
@@ -410,7 +442,7 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `RUNNING` — **`M2-C06` selected this pass (2026-08-26, tip `df1d740` on `master`, tree clean).** Build `RecordPickerDialog`, the `DetailsModal` replacement. Selected because `M2-C05-01` — this file's own inherited narrative called it "unmerged" — is in fact merged (`bf2b4cd` on `master`'s first-parent line, all 18 files present at `HEAD`; tracker row and task-file frontmatter were simply never updated after the merge, corrected in `task-tracker.md` footnote ⁷⁴). That releases `M2-C05-02`, `M2-C05-03` and `M2-C06`; `M2-C06` wins on priority (P0 vs P1), not a tie. Classification: `task_type: Frontend` → MEDIUM base, one raise (`estimate: 1 wk`) → **complexity HIGH**; **risk MEDIUM** (no Security/schema/secrets trigger, `business_rules: []`, live Blazor app explicitly unchanged). Routing: Investigate/Implement/Validate all `opus` (HIGH complexity). Not a safety stop; `requiresHuman`: false. Full detail in `selection_note`. **Attempt 0, not yet dispatched.** Previous note, superseded by the above:
+| **Status** | `STOPPED` — **`M2-C05-03` closed out this pass (2026-08-26), branch `migration/M2-C05-03-grid-states-and-export`, unmerged, left for review.** Final validator verdict: **PASS** (attempt 1 of 4, 0 escalations). All acceptance criteria met; no regressions; no invented business rules. Recorded `Needs Review` in `task-tracker.md` — not `Completed`, since only the repository owner may set that ([KB-088](workflow.md#who-may-set-completed)) and this task's Completion Conditions name that step explicitly. **No dependency-ready task found — the run stops here.** Every row still reading `Ready` on `master` fails the five-part "can actually be done" test: `M0-06` (Security, P1) already has a full, separately-closed-out `Blocked` outcome sitting unmerged on `migration/M0-06-remove-default-admin` (part 5 — a sibling branch already did this work); `M0-11` is a `Product Decision` (part 2, owner-only); `M2-C05-02` (P1) would edit `data-grid.component.ts`/`.html`, the same files this session's own still-unmerged `M2-C05-03` branch changed (part 5 — same-file conflict, checked via `git diff --name-status` against both branches and `M2-C05-02.md`'s own *Expected changed files* row); `M2-C06` (P0) already has a full, independently-validated-PASS close-out sitting unmerged on `migration/M2-C06-record-picker-dialog` (part 5 — a sibling branch already did this work, dispatched by a concurrent session per the memory note that this runner has no concurrency control). No other row anywhere in the tracker reads `Ready`. `current-task.md` left pointing at nothing selectable, with all of the above recorded so the next session does not re-derive it or re-dispatch a task that is already done on an unmerged sibling. Full detail in `selection_note`. Previous note, superseded by the above:
 
 | **Status (previous, superseded)** | `STOPPED` — **`M2-C05-01` executed and closed `Needs Review`, 2026-08-25, on branch `claude/unblocked-task-execution-pjyouv`, unmerged.** The immediately preceding select-only pass concluded "nothing dependency-ready" **from a stale tracker row**: `M2-C05-01` read `Blocked` with the note *"real blockers are `M2-C04-02`, `M2-B02`"*, but `M2-B02` merged 2026-08-20 (`feec964`) and `M2-C04-02` on 2026-08-23, and nothing moved the row — its own task file still read `status: Not Started`. Re-running the five-part test against the **prerequisites** rather than the status column showed all five parts pass, so the task was selected and executed. The `p-table` virtual-scroll measurement the task file mandates **before** building was run first and **passed** (10,000 rows → 35 rendered `<tr>`, 16.7 ms median frame): ADR-007's PrimeNG-table premise is now measured, not asserted. Delivered 18 files and 45 tests; `typecheck`, `lint`, `format:check` and `build` all clean, bundle unchanged at 571.20 kB. **One thing a reviewer must know:** `npm run test:ci` is intermittently red **and was before this branch** — proven by stashing the tree to plain `master` (`e9a8e7a`) and running five times, two clean and three red — root cause **R-76**, a `BlockUI` mask left in `document.body` by `feedback/busy-overlay.component.spec.ts`; adding three spec files raises its hit rate, and none of this task's tests fail. **`nextTaskId` empty — nothing else is selectable**, and merging this releases `M2-C05-02` and `M2-C05-03`. Previous note, superseded by the above: |
 | **Status (previous, superseded)** | `STOPPED` — **Select-only pass, 2026-08-25, tip `9f2a750` on `master`, tree clean.** Re-ran the five-part "can actually be done" test against every `**Ready**` row in `task-tracker.md` (lines 84, 86 only): `M0-06` still fails part 5 (sibling branch `migration/M0-06-remove-default-admin` still unmerged); `M0-11` still fails part 2 (`Product Decision`, owner-only). Checked whether `M2-B10`'s merge released `M2-D01`: it did not — `M2-C05-03` (one of `M2-D01`'s three Hard prerequisites) still reads `Blocked`. **No task selected — `nextTaskId` empty.** See `selection_note` for detail. Previous note, superseded by the above: |
