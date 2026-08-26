@@ -4,7 +4,7 @@ title: REST API layer, contract conventions, and tenant resolution for the SPA
 module: decisions
 status: accepted
 confidence: n/a
-last_verified: 2026-08-20
+last_verified: 2026-08-26
 dependencies: [KB-014, KB-040, KB-041]
 ---
 
@@ -138,6 +138,39 @@ The chosen mechanism keeps the sort **allow-list in two places that must agree**
 per-resource list (the 400) and the service's `*SortBuilder` switch (the SQL). Drift fails
 **loudly** — the service throws `ArgumentException` naming the permitted values rather than
 ignoring the term — which is the property option 2 could not offer.
+
+#### 2b. Addendum — money is a JSON string, not a JSON number (Q-85, 2026-08-26)
+
+This addendum refines §2; it does not replace anything above. It was raised by the `M2-C10`
+diagnosis and decided by the repository owner. Full measurement:
+[`Q-85`](../open-questions.md); the mechanism: [KB-114 §8a](../api/controller-conventions.md).
+
+**The problem.** `System.Text.Json` writes a `decimal` losslessly as JSON number *text* — the
+wire itself is exact. But a JSON *number*, once read by a browser's own `JSON.parse`, becomes
+an IEEE-754 double, and that conversion silently discards precision beyond what a double can
+hold. This happens before any client code — including a `decimal.js`-based guard — ever sees
+the value, so no amount of frontend arithmetic care fixes a value already rounded on arrival.
+
+**The decision.** A money-typed `decimal`/`decimal?` property is annotated
+`[JsonConverter(typeof(MoneyJsonConverter))]` (`V.SMART.Api/Contracts/MoneyJsonConverter.cs`)
+and crosses the wire as a JSON string — `"1234.56"`, never `1234.56`. The client parses the
+exact string instead of trusting a value a browser's own parser already rounded.
+
+**Deliberately narrow, not a blanket rule for every `decimal`.** GST rates and quantities are
+`decimal` too and are **not** money — they stay plain JSON numbers. Three options were on the
+table: (a) string for money specifically — **chosen**; (b) accept the double everywhere and
+confine `M2-C10` to post-parse arithmetic, documenting the precision bound — rejected, because
+it leaves the underlying loss uncorrected for the one kind of value (money on a tax invoice)
+where exactness actually matters; (c) an even finer per-field split — folded into (a), since
+"money" already is the per-field line being drawn. Which specific properties count as money is
+a controller-by-controller judgement, not something the type system infers — see KB-114 §8a's
+worked example.
+
+**Not yet a breaking change.** No live endpoint exposes a money field as of this decision
+(verified 2026-08-26: the only `decimal`s reachable through any of the six controllers are the
+GST rate arrays, which are rates). This is adopted ahead of the first controller that needs
+it — the `M2-C05`+ document series — so that controller ships with the exact contract from the
+start rather than a `number` that has to be widened to a `string` later.
 
 ### 3. Workflow commands are server-side and atomic
 

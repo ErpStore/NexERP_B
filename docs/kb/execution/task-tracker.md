@@ -130,14 +130,15 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B03 | M2 | Codify the controller template | Documentation | **Completed**⁶⁵˒⁶⁶ *(merged to `master` on owner instruction 2026-08-24 — KB-114)* | P0 | M2-A02, M2-B02 | 2 d | G2 |
 | M2-B05 | M2 | Typed `ScreenCodes` constants (R-10) | Backend | **Blocked**³¹ *(⛔ premise falsified — needs re-specification by the owner; no code written, no branch)* | P1 | M2-B07 | 2 d | G2 |
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Completed**³² ³⁵ *(merged to `master` 2026-08-21, `65d9666`)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
-| M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | **Blocked**⁷³ *(attempt 1, 2026-08-25 — `environment`, no code written: the pinned .NET SDK 10.0.400 is unobtainable in the execution environment. Its **prerequisites are all satisfied**, R-04 included)* | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
+| M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | **Blocked**⁷³˒⁹¹ *(attempt 1, 2026-08-25 — `environment`, no code written: the pinned .NET SDK 10.0.400 was unobtainable **in that session's environment**. **That specific finding is stale on this workstation, 2026-08-26** — see footnote ⁹¹. Its **prerequisites are all satisfied**, R-04 included)* | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Completed**³⁴ *(merged to `master` `501b12d` on owner instruction 2026-08-21)* | P1 | **M2-B07**, M2-B02, M2-B01 | 3 d | G2 |
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | **Completed**⁶⁷˒⁶⁸ *(merged to `master` on owner instruction 2026-08-25)* | P0 | M2-B03 | 3 d | G2 |
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
 | M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Completed**²⁹˒⁸⁶ *(owner reviewed fix `8a54f96` directly and merged, 2026-08-26 — see footnote ⁸⁶)* | P0 | M2-B07 | 2 d | G2 |
 | M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | **Completed**⁸⁷ *(owner reviewed and closed 2026-08-26, merged `2cb9925`; Q-10 answered for `NexGenErpDb`. See footnote ⁸⁷ and KB-101 §5)* | P0 | M2-B12-01 | 1 d | G2 |
-| M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked⁸⁸ *(Hard prerequisite `M2-B12-02` now `Completed` — part 1 of the five-part test clears. Not re-derived as `Ready` by this pass: it is a `Backend` task, the same class M2-B08 found `Blocked` on the pinned .NET SDK 10.0.400 being unobtainable in this execution environment, footnote ⁷³ — untested here whether that wall applies to this task too)* | P0 | M2-B12-02 | 3 d | G2 |
+| M2-B13 | M2 | — money-as-string JSON convention (Q-85) | Backend | **Completed**⁹⁰ *(implements the `M2-C10` diagnosis's decision — `MoneyJsonConverter`, `KB-114` §8a, `ADR-002` §2b, 6 new tests, full suite 514/514 passing. See footnote ⁹⁰)* | P0 | — | 0.5 d | G2 |
+| M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked⁸⁸˒⁹¹ *(Hard prerequisite `M2-B12-02` now `Completed` — part 1 of the five-part test clears. **`M2-B08`'s SDK-unobtainable environment finding is itself stale on this workstation** — `dotnet --version` reports `10.0.400`, the exact pin, installed and working, verified building/testing `V.SMART.Api` repeatedly this session. See footnote ⁹¹)* | P0 | M2-B12-02 | 3 d | G2 |
 
 ### M2-C — Frontend foundation (Angular, per [ADR-007](../decisions/ADR-007-angular-stack.md))
 
@@ -3551,3 +3552,33 @@ task. **What it requires, none of it `M2-C10`'s to do:**
 **Only after that lands does `M2-C10`'s own frontend module — parsing the now-exact string with
 `decimal.js` — become buildable as originally specified.** `M2-C10` stays `Blocked` on this new,
 unscoped work, not on Q-85 itself, which is now closed.
+
+⁹⁰ **`M2-B13` — money-as-string JSON convention — `Completed` 2026-08-26, implemented in
+session immediately after Q-85 was decided.** New standalone task (no existing task fit: it is
+backend/contract work `M2-C10` is explicitly forbidden from doing). Delivered:
+`MoneyJsonConverter` (`V.SMART.Api/Contracts/`, a `JsonConverterFactory` handling both
+`decimal` and `decimal?`, applied via `[JsonConverter(typeof(MoneyJsonConverter))]` per
+property — opt-in, not global); `KB-114` §8a (the convention, with the explicit finding that
+**no live endpoint carries a money field today**, so this is not a breaking change to
+anything currently generated); `ADR-002` §2b (the addendum `KB-114` §1's own rule requires for
+a post-freeze contract decision). **Six new tests**
+(`tests/V.SMART.Api.Tests/MoneyJsonConverterTests.cs`), including one that proves the actual
+failure mode being fixed: a 20-significant-digit value round-trips exactly through the
+converter, and the same test asserts that casting it through `double` first — the precise
+thing `JSON.parse` would do to a plain JSON number — does **not** reproduce the original.
+Verified: `dotnet build V.SMART.Api` 0 errors, baseline warnings unchanged; full API suite
+**514/514 passed** (was 508; 6 new, 0 regressions). Releases `M2-C10`'s real blocker.
+
+⁹¹ **The .NET SDK "unobtainable" finding (footnote ⁷³, `M2-B08`, 2026-08-25) does not hold on
+this workstation, 2026-08-26 — found while implementing `M2-B13`, which builds and tests
+`V.SMART.Api` repeatedly in this same session.** `dotnet --version` reports `10.0.400` — the
+exact version `global.json` pins (`rollForward: latestFeature`) — and `dotnet --list-sdks`
+shows it installed alongside `10.0.300`. `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`
+and `dotnet test tests/V.SMART.Api.Tests/` both ran clean multiple times this session (most
+recently: 514/514 tests passing). **This does not itself re-open `M2-B08`** — that attempt's
+own finding was specific to *that* session's environment (`10.0.111` was the highest
+obtainable there, and `builds.dotnet.microsoft.com` was denied at `CONNECT`), and this
+workstation is not confirmed to be the same execution context every future session will run
+in. It is recorded so the next session checks `dotnet --version` directly, first, rather than
+trusting footnote ⁷³'s finding as still current — the same lesson footnote ⁸⁵ already taught
+about `M2-C10`'s stale environment classification.
