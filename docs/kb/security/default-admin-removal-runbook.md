@@ -18,7 +18,7 @@ database_tables: [Users, UserRights, UserAuthority, UserThemePreference, Tenants
 business_rules: [BR-AUTH-001, BR-AUTH-002]
 status: complete
 confidence: mixed
-last_verified: 2026-08-19
+last_verified: 2026-08-27
 dependencies: [KB-060, KB-030, KB-013, KB-014, KB-004, KB-003]
 ---
 
@@ -49,15 +49,40 @@ judgement call that only the deployment owner holds.
 **not** remove the account from any database that already exists, nor from any database built by
 replaying migrations. That removal is the human procedure below.
 
-> **This is an acceptance criterion M0-06 did not meet, and it is escalated, not papered over.**
-> The task required that *"no default administrator credential is seeded into a newly created
-> tenant database"*. That holds for a database created from the EF **model**, and does **not**
-> hold for one created by replaying the **migrations** — which is the only provisioning path this
-> repository supports (Q-02: nothing calls `Migrate()`, `MigrateAsync()` or `EnsureCreated()`).
-> Closing it requires a decision only the deployment owner can take; that decision is written out
-> as **Q-26** in [KB-004](../open-questions.md). Until it is taken, treat a **newly provisioned**
-> tenant exactly like an existing one: run section 3, then section 5, **before** the tenant is
-> reachable by anyone.
+> **This was an acceptance criterion M0-06 could not meet on its own, and it was escalated, not
+> papered over.** The task required that *"no default administrator credential is seeded into a
+> newly created tenant database"*. That holds for a database created from the EF **model**, and
+> does **not** hold for one created by replaying the **migrations** — which is the only
+> provisioning path this repository supports (Q-02: nothing calls `Migrate()`, `MigrateAsync()`
+> or `EnsureCreated()`). Closing it needed a decision only the deployment owner could take; that
+> decision was written out as **Q-26** in [KB-004](../open-questions.md) and **answered
+> 2026-08-27** — see §1a immediately below.
+
+### 1a. Provisioning a new tenant — the mandatory procedure (Q-26, answered 2026-08-27)
+
+**Decision: option (a), an ops procedure. No new code.** `dotnet ef database update` alone is
+**never** sufficient to bring up a tenant — it is step 1 of 2, always:
+
+1. **Provision as today.** Run the migrations (`dotnet ef database update`, or whatever
+   deployment mechanism Q-02 eventually names). The resulting database holds the published
+   `UserId = 1` / `"Administrator"` credential — unavoidably, since `InitialCreate.cs:7562` is
+   history and history is never rewritten.
+2. **Immediately afterward, before the tenant is reachable by anyone:** follow **§4a** below to
+   create a real administrator and verify it with an **actual login** (do not skip the login —
+   see Trap 2), then follow **§5** to remove or deactivate `UserId = 1`.
+
+This is exactly the existing §4a→§5 sequence, unmodified — §5's own guard
+(`OtherActiveAdministrators >= 1`) is satisfied by §4a's freshly-created and verified
+administrator, so nothing about those two sections needed to change for this case. §3's
+pre-check is trivially known for a brand-new database (nothing has happened yet: zero rights
+rows, zero authority rows, one user) and may be skipped for step 2 above, but must still be run
+in full for every **existing** tenant per §3 and §5's own preconditions.
+
+**What this decision does not do.** It makes the procedure *mandatory*, not *self-enforcing* —
+nothing in the codebase currently refuses to serve a tenant where an operator skipped step 2.
+That is precisely what the rejected option (b), a runtime bootstrap component failing loudly at
+startup, would have added. It was not chosen; if the procedural gap proves to matter in
+practice, option (b) remains available as a future task, not reopened here.
 
 ---
 
@@ -70,7 +95,7 @@ All four are flagged, not assumed away.
 | **Q-02 — how are EF migrations rolled out per tenant?** | **Unknown.** Re-verified 2026-08-19: `git grep --untracked` across all of `V.SMART/` for `.Migrate()`, `MigrateAsync` and `EnsureCreated` returns **zero** hits. Nothing in the application applies migrations at startup. | A new migration **does not reach any tenant by itself**. Whatever mechanism actually deploys schema changes — manual `dotnet ef database update`, a DBA script, or nothing — is unknown to the repository. The owner must state it before section 5 is scheduled. |
 | **Q-12 — which tenants are in production?** | **Unknown contents; the enumeration mechanism is Confirmed.** `MasterDbContext.cs:5-9` declares `DbSet<TenantInfo> Tenants`; `TenantInfo.cs:3-9` gives `Id`, `Name`, `Hostname`, `ConnectionString`. The list is a table in the master database. | Section 3's pre-check must be run against **every row** of that table. The repository cannot tell you how many rows there are. |
 | **Q-25 — does any tenant still depend on the seeded `Administrator` account?** | **Unknown pending execution of section 3.** Raised by M0-06; see `open-questions.md` (KB-004). | This is the question that decides whether section 5 may run at all. |
-| **Q-26 — how must a newly provisioned tenant database avoid the credential?** | **Unknown — DECISION REQUIRED of the deployment owner.** Raised 2026-08-19 by M0-06 (attempt 2); see `open-questions.md` (KB-004). | This is the one thing M0-06 could **not** deliver. Provisioning replays `InitialCreate.cs:7562`, so a brand-new tenant database still comes up holding the published credential, and nothing in the repository may edit migration history to change that. Until the owner picks a provisioning path — ops procedure, runtime bootstrap component, or authorised guarded DML — **section 5 below is the only removal mechanism, and it must be run on newly provisioned tenants too, not just existing ones.** |
+| **Q-26 — how must a newly provisioned tenant database avoid the credential?** | **ANSWERED 2026-08-27 — option (a), the ops procedure in §1a above.** Raised 2026-08-19 by M0-06 (attempt 2); see `open-questions.md` (KB-004). | Provisioning is now a documented two-step procedure: run the migrations, then **immediately** run §4a→§5 before the tenant is reachable. No new code. The procedure is mandatory but not self-enforcing — see §1a's closing note. |
 
 ---
 

@@ -22,7 +22,7 @@ source_files:
   - V.SMART/V.SMART.Web/Services/WebFileUploadService.cs
 status: complete
 confidence: mixed
-last_verified: 2026-08-26
+last_verified: 2026-08-27
 dependencies: [KB-011, KB-012, KB-013, KB-040, KB-102]
 ---
 
@@ -976,15 +976,15 @@ is *published*, not merely committed.
 |---|---|---|
 | 1 | The hash is in the **published** git history and must be assumed harvested. | **M0-05** |
 | 2 | **Every existing tenant database still contains the account.** M0-06's migration `20260819095649_RemoveDefaultAdministratorSeed` has a deliberately **empty** `Up()` — it removes nothing from any deployed database. Removal is a supervised per-tenant human procedure. | Deployment owner (Vivek) — [KB-106](../security/default-admin-removal-runbook.md) |
-| 3 | A database built by **replaying migrations** from `InitialCreate` still receives the row (`20260217110637_InitialCreate.cs:7562`), because migration history is never rewritten. **This is M0-06 acceptance criterion 2 unmet, and it is a deployment/architecture decision, not a coding defect** — a migration `Up()` cannot tell a freshly provisioned database from a live tenant, and an unconditional removal would strike existing tenants whose only administrator may be this account (Q-25, Unknown) and would cascade-delete their `UserRight`/`UserAuthority`/`UserThemePreference` rows (`InitialCreate.cs:7196-7200`, `:7232-7236` are `ReferentialAction.Cascade`). Escalated as **Q-26** in [KB-004](../open-questions.md) with the three options and their costs. | **Deployment owner (Vivek)** — decide Q-26; interim mitigation is [KB-106](../security/default-admin-removal-runbook.md) sections 1-3 and 5, run on newly provisioned tenants too |
-| 4 | **No bootstrap component exists** to create the first administrator on an empty database. Option A (runtime bootstrap from an explicitly supplied secret, failing startup loudly if absent) was chosen in principle but **deferred** — it needs coordination with M0-03-03's fail-fast startup validation and is larger than M0-06's budget. Until it exists, a from-model database has no way in. **Named follow-up: `M0-06-02` — "Bootstrap the first administrator from a supplied secret"** (id proposed by M0-06; the orchestrator must register it in [KB-081](../execution/task-tracker.md) and write its task file). It cannot be scoped until **Q-26** is answered, because Q-26 decides whether the bootstrap runs at startup or as an ops step, and whether the created administrator must take `UserId = 1` (see item 5). | `M0-06-02`, gated on Q-26 |
+| 3 | A database built by **replaying migrations** from `InitialCreate` still receives the row (`20260217110637_InitialCreate.cs:7562`), because migration history is never rewritten. This was **M0-06 acceptance criterion 2 unmet**, a deployment/architecture decision, not a coding defect. **Resolved procedurally 2026-08-27: Q-26 answered, option (a).** Provisioning is now a mandatory two-step ops sequence — migrate, then immediately run [KB-106](../security/default-admin-removal-runbook.md) §4a→§5 before the tenant is reachable — no new code. The removal step itself still cascade-deletes `UserRight`/`UserAuthority`/`UserThemePreference` if run against an **existing** tenant without first confirming another administrator exists, which is why §5's guard and Q-25 still gate existing-tenant removal specifically. | **Closed by owner decision.** Interim/ongoing mitigation is [KB-106](../security/default-admin-removal-runbook.md) §1a, followed for every new tenant |
+| 4 | **No bootstrap component exists** to create the first administrator on an empty database. Option A **(the runtime-bootstrap option — labelled (b) in the final Q-26 decision, not to be confused with the chosen option (a))** was considered and **not chosen**: Q-26 was answered 2026-08-27 with the ops-procedure path instead, which needs no bootstrap component. **`M0-06-02` is therefore not needed and is not being registered.** If the ops procedure in [KB-106](../security/default-admin-removal-runbook.md) §1a proves insufficient in practice (nothing currently enforces it beyond process), the runtime-bootstrap option remains available as a fresh task at that point. | Closed — superseded by the Q-26 decision |
 | 5 | `UserId == 1` is a hard-coded superuser (auto-granted all 152 screen rights at login, `Login.razor:345-349`; immutable in the rights UI, `UserRights.razor:82-179`). A replacement administrator with a different `UserId` authenticates and then sees nothing, because rights are deny-by-default (`RightsHelper.cs:7-20`). | Recorded as R-80 below and in KB-106 section 4, Trap 2 |
 
-**Action (revised).** Execute [KB-106](../security/default-admin-removal-runbook.md) per tenant;
-land M0-05; **answer Q-26** (how a newly provisioned tenant avoids the credential — a deployment
-owner decision, and the reason M0-06 stopped where it did); then raise `M0-06-02`, the Option-A
-bootstrap task. **Do not close R-09** until all four are
-done.
+**Action (revised, 2026-08-27).** ~~answer Q-26~~ **done** (option (a), procedural — see open
+item 3 above). Remaining: execute [KB-106](../security/default-admin-removal-runbook.md) §3+§5
+per **existing** tenant (needs Q-25, production access); land M0-05 (purge the hash from git
+history). `M0-06-02` is **not** being raised — the bootstrap-component option Q-26 could have
+required was not the one chosen. **Do not close R-09** until both remaining items are done.
 
 ### R-10 — ~~`ScreenCode` magic numbers with no typed definition~~ → **misidentified; the real magic number is `storeId`**
 > ⛔ **CORRECTED 2026-08-21 (INV-044). The central claim below — *"which callers pass as

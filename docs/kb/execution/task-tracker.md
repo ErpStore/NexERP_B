@@ -81,7 +81,7 @@ its children are `Completed` — it is never worked directly.
 | M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | **Completed**¹³ | P0 | M0-12-01 | 3 d | G0 |
 | M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | **Completed**¹⁵ | P1 | M0-12-01 | 0.5 d | G0 |
 | M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | **Completed**²⁹ *(merged to `master` `843a04e` on owner instruction 2026-08-21)* | P1 | M0-09 | 2 d | G0 |
-| M0-06 | M0 | Remove the seeded default Administrator credential | Security | **Blocked**⁹⁵ *(seed removed, empty-`Up()` migration, runbook written 2026-08-19; branch found unmerged and merged 2026-08-26 — see footnote ⁹⁵)* | P1 | M0-12-01 | 1 d | G0 |
+| M0-06 | M0 | Remove the seeded default Administrator credential | Security | **Blocked**⁹⁵ *(seed removed, empty-`Up()` migration, runbook written 2026-08-19; branch found unmerged and merged 2026-08-26. **Q-26 answered 2026-08-27** (option (a), ops procedure — no new code, see `KB-106` §1a) — acceptance criterion 2 now has a documented procedure. **Still `Blocked` on Q-25 alone**: needs production tenant-database access nobody on this project has, to confirm no tenant's only administrator is the seeded account before any existing-tenant removal may run. See footnote ⁹⁵)* | P1 | M0-12-01 | 1 d | G0 |
 | M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Completed**¹⁰ | P2 | M0-03-01 | 0.5 d | G0 |
 | M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | **Ready**¹⁷ | P0 | M0-13 | decision | G0 |
 
@@ -3751,3 +3751,11 @@ applied across `INDEX.md`, `investigation-registry.md`, `open-questions.md`,
 `risks/technical-debt-register.md` and the runbook's own frontmatter/self-references. Left at
 `Blocked` — Q-25/Q-26 remain genuinely owner-only and unanswered as of the merge; see the tracker
 row above for current status.
+
+**Addendum, 2026-08-27 — Q-26 answered.** Owner decision: option (a), the ops procedure —
+provisioning a tenant is now a mandatory two-step sequence (migrate, then immediately run
+`KB-106` §4a→§5 before the tenant is reachable), documented in the runbook's new §1a. No new
+code; the procedure is mandatory by process, not enforced by any mechanism (option (b), a
+runtime bootstrap component, was considered and not chosen). **This closes acceptance
+criterion 2's open half.** `M0-06` stays `Blocked` on **Q-25 alone** — existing-tenant removal
+still needs production database access nobody on this project has.
