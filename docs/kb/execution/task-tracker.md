@@ -64,7 +64,7 @@ its children are `Completed` — it is never worked directly.
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Completed**² | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed**⁵ | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Completed**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
-| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴ | P0 | — | 1 d | G0 |
+| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴˒⁸¹ *(C-4, the JWT signing key, rotated on the developer workstation 2026-08-26 — **not** on a deployment; see footnote ⁸¹)* | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Completed**¹¹ | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
 | M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Completed**⁸ | P0 | M0-03-01 | 0.5 d | G0 |
@@ -3272,4 +3272,41 @@ least one file (`M2-D01:210`) understate the dependencies in the same way — th
 authoritative and the prose is not. It also cannot catch a Hard dependency that a task file
 never declares anywhere; `M2-C03` was cited as blocking `M2-D01` but appears in no Dependencies
 table, so no mechanical pass would find it.
+
+⁸¹ **`Jwt:Secret` — the JWT signing key — rotated on the developer workstation, 2026-08-26.**
+**This does NOT satisfy `M0-04` criterion C-4, and the row stays `Blocked`.** C-4 asks for the
+key to be rotated in the **deployed** API's configuration. **There is no deployed API** — the
+owner confirmed on 2026-08-26 that `V.SMART.Api` runs only on his own machine. So there is
+currently no live host issuing tokens signed with the published key, and nothing in production
+to rotate. C-4 becomes *applicable* at first deployment, not before.
+
+**What was actually done.** A fresh 48-byte random value was generated and stored via
+`dotnet user-secrets set "Jwt:Secret"` against `V.SMART.Api` (`UserSecretsId`
+`a2a4232e-…`, already present in the `.csproj`). The value lives in the per-user secret store,
+outside the repository, so it cannot be committed by accident. **Verified against the three
+rules `StartupConfigurationValidator` enforces**, without printing the value: **64 UTF-8 bytes**
+(floor is 32) · **not** the known-leaked digest
+`48426b20…926732` · not empty or whitespace. The old published value no longer signs anything on
+this machine.
+
+**The stronger fact, which pre-dates this rotation and matters more.** `M0-03-03`'s
+`StartupConfigurationValidator` (`V.SMART/V.SMART.Shared/Services/StartupConfigurationValidator.cs`)
+carries a **SHA-256 digest of the exact leaked secret** and throws `InvalidOperationException` at
+startup if it sees it — also on null, empty, whitespace, or under 32 UTF-8 bytes. **A future
+deployment therefore cannot boot with the compromised key**; it stops and names `Jwt__Secret` as
+the fix. That is a structural guarantee, stronger than any one rotation, and it is already in
+place. The digest is stored so the plaintext never re-enters source control.
+
+**Consequence for `M2-A04` (refresh tokens and a token revocation list): unchanged, still
+`Blocked`.** Footnote ⁴⁸'s ruling stands — signing refresh tokens and a revocation list with a
+key whose value is published makes them forgeable, and a forged refresh token appears on no
+revocation list. A workstation rotation does not answer that; a deployment with a fresh secret
+would. **Whether the fail-closed validator alone now discharges the concern is an owner
+decision, not a bookkeeping one**, and is deliberately not taken here.
+
+**Note on where the runbook is.** `M0-04`'s own artefacts — `docs/runbooks/credential-rotation.md`
+with C-1…C-7 and the §8 verification checklist — are **not on `master`**. They live on
+`migration/M0-04-credential-rotation-runbook` and on `integration/2026-08-25-session-merges`,
+both unmerged. This footnote is recorded here because `master` is what the selection step reads;
+the checklist entry belongs in the runbook when that branch merges.
 
