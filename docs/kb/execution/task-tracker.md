@@ -135,7 +135,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | **Completed**⁶⁷˒⁶⁸ *(merged to `master` on owner instruction 2026-08-25)* | P0 | M2-B03 | 3 d | G2 |
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
 | M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
-| M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Blocked**²⁹ *(escalation budget exhausted, owner **Vivek**; on `migration/M2-B12-01-inv-012-numbering` `407d0ba`, unmerged — the earlier `PASS` was premature)* | P0 | M2-B07 | 2 d | G2 |
+| M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Completed**²⁹˒⁸⁶ *(owner reviewed fix `8a54f96` directly and merged, 2026-08-26 — see footnote ⁸⁶)* | P0 | M2-B07 | 2 d | G2 |
 | M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | Blocked | P0 | M2-B12-01 | 1 d | G2 |
 | M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked | P0 | M2-B12-02 | 3 d | G2 |
 
@@ -3392,4 +3392,41 @@ with it created no new exposure. Full evidence: `docs/runbooks/credential-rotati
 items 1–3. **Remaining before M0-04 can close:** C-4 needs a deployment-side rotation (the
 workstation one, footnote ⁸¹, doesn't count); C-5/C-7 need the vendor (Bhargavi Soft-Tech);
 §8 items 4–9 stay unsigned until those land.
+
+⁸⁶ **`M2-B12-01`: `Blocked` → `Completed`, `migration/M2-B12-01-inv-012-numbering` merged to
+`master` 2026-08-26 on owner instruction — decision option A from the branch's own close-out
+(review the fix directly, no fresh automated validation pass).** The branch's second `FAIL`
+(INV-012's evidence undercounted the allocation-table-write pattern as "four document
+services" when it is six) crossed the escalation threshold; the diagnosed fix, `8a54f96`, was
+never re-validated because the escalation budget was fully spent and a second `FAIL` would
+have left the task with no automated path forward. Before the owner decided, this session
+independently re-verified the fix's central claim against current source rather than trusting
+the commit message: `grep -rlE "DcRunningNumbers|InvoiceAutoRunningNumbers"
+V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/` returns exactly 7 files —
+`CommonService.cs` plus the six the fix names — and three of its cited `file:line` rows were
+spot-checked and each lands exactly on the claimed allocation-table write. Merge itself
+conflicted in five docs/kb files (`INDEX.md`, `business-rule-inventory.md`, `failure-log.md`,
+`investigation-registry.md`, `open-questions.md` auto-merged clean) — all resolved by keeping
+`master`'s newer content and folding in the branch's unique additions (its INV-012 entry,
+already correcting four→six per `8a54f96`; `Q-37`–`Q-40`; `failure-log.md`'s own attempt/
+escalation/close-out records for this branch, 708 lines, appended with a note explaining why
+they sit chronologically out of order). `INDEX.md`'s id-allocation bookkeeping table was found
+already stale independent of this merge — re-verified against the actual file contents rather
+than trusted (`Q-103` and `R-79` are the true current highs, not the `Q-37`/`R-37` the table
+claimed). Releases `M2-B12-02`'s Hard prerequisite.
+
+**Separate finding surfaced by this merge, not part of it — a parallel duplicate lineage
+exists.** `migration/M2-B12-02-verify-unique-constraints` independently merges
+`migration/M2-B12-01-inv-012-numbering` (`f10b5fc`) and `migration/M0-04-credential-rotation-
+runbook` (`ad75915`) and `migration/M0-06-remove-default-admin` (`b057ceb`) on a history that
+shares **no** commits with `master` past `5b67161` — confirmed via `git merge-base --is-
+ancestor`, both `NO`. This is the same class of defect the KB already tracks under the
+`archive/*-stale-lineage` branches (KB-093's standing note: this runner has no concurrency
+control). Its M0-04 merge is missing the C-2 correction (`154.61.76.112` is a third party's
+host, not this project's) that this session made with the owner — confirmed by reading that
+branch's own copy of `docs/runbooks/credential-rotation.md`, which still reads "production
+host". **Not archived or merged by this pass — flagged for owner decision.** The branch also
+contains real, apparently unstarted-on-`master` work: `ce93c6d` ("Add the Q-10 read-only
+census script and DBA runbook (phase 1)") for `M2-B12-02` itself, which may be worth
+cherry-picking once the duplicate M0-04/M0-06/M2-B12-01 merges beneath it are accounted for.
 
