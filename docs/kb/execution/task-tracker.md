@@ -64,7 +64,7 @@ its children are `Completed` — it is never worked directly.
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Completed**² | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed**⁵ | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Completed**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
-| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴˒⁸¹ *(C-4, the JWT signing key, rotated on the developer workstation 2026-08-26 — **not** on a deployment; see footnote ⁸¹)* | P0 | — | 1 d | G0 |
+| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴˒⁸¹˒⁸⁴ *(runbook merged 2026-08-26, `docs/runbooks/credential-rotation.md`; C-4 rotated on the developer workstation 2026-08-26 — **not** on a deployment; C-1/C-3/C-5/C-7 rotation not yet performed; C-2 is **void** — owner confirmed `154.61.76.112` is not this project's host, see footnote ⁸⁴)* | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Completed**¹¹ | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
 | M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Completed**⁸ | P0 | M0-03-01 | 0.5 d | G0 |
@@ -3341,4 +3341,33 @@ sides' additions — the branch's `INV-054` (the 33-call-site `DetailsModal` sur
 registry's next-free row advanced to `INV-057` (`INV-055` remains claimed on an unmerged
 branch). Releases nothing: no task names `M2-C06` as a Hard prerequisite (its validated PASS
 record is footnote ⁷⁵). Frontend test/build run post-merge — see the merge commit.
+
+⁸⁴ **`migration/M0-04-credential-rotation-runbook` merged to `master` 2026-08-26 on owner
+instruction — the runbook, inventory and checklist are delivered; nothing is rotated yet.**
+Adds `docs/runbooks/credential-rotation.md` (C-1…C-7, per-credential owner/blast-radius/
+window/procedure/rollback/verification, and the unsigned §8 human checklist) and
+`docs/kb/execution/owner-action-list.md`. Its credential-usage investigation is `INV-057`
+*(renumbered at this merge from the branch's own `INV-052`, which collided with
+`M2-C05-01`'s already-merged claim on that id — no content changed, only the id)*.
+
+**Corrected as part of this merge, not carried over as written: C-2 is void.** The runbook
+and every KB file that touched it recorded `154.61.76.112,1533` as "the production host" —
+an inference from context (it sat beside the real `sa` credential, was commented rather than
+deleted, used a production-shaped database name) that nobody had actually confirmed. The
+owner stated in session, 2026-08-26: **that host is not this project's**, and the `bspl`
+password quoted for it is **correct** — a real, live, third-party credential, not a stale or
+fabricated one. There is no login on that host for this project to rotate; C-2 is struck from
+the runbook's §3 procedure and its checklist item 1 (both now read as C-1 only). The exposure
+is reclassified, not resolved — raised as **Q-103**, asking whether to redact the literal
+ahead of the general **Q-84** cleanup and whether to attempt notifying the actual operator.
+Corrected everywhere else this was stated as fact: `risks/technical-debt-register.md` R-01
+(primary record), `00-executive-summary.md`, `architecture/system-overview.md`, and this
+task's own `execution/tasks/M0-04.md` C-2 row — see the standalone commit that made those
+corrections, immediately before this merge.
+
+**Remaining scope, unaffected by the C-2 correction:** C-1 (local/dev `sa` login), C-3
+(per-tenant plaintext connection strings in `Tenants`), C-4 (deployment-side JWT rotation —
+the workstation rotation, footnote ⁸¹, doesn't count), C-5 (GST gateway account, vendor-
+owned) and C-7 (the AES key protecting C-5, vendor-owned, may not be actionable by this
+project at all) are all still to be rotated. §8's checklist stays unsigned until they are.
 

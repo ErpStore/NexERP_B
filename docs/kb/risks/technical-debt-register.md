@@ -208,6 +208,31 @@ Encrypt the `Tenants` connection-string column. Use least-privilege SQL logins, 
 > `migration/M0-03-03-startup-config-validation` (merged to `master` 2026-08-18) — see
 > [`tasks/M0-03-03.md` § Execution Record](../execution/tasks/M0-03-03.md#execution-record-2026-08-18).
 
+> **Status update, 2026-08-25 (M0-04 — the rotation runbook exists; R-01 stays OPEN):**
+> the ordered, executable rotation procedure is now
+> [`docs/runbooks/credential-rotation.md`](../../runbooks/credential-rotation.md), with a
+> per-credential inventory (§2), procedures for the SQL logins (§3), the `Tenants` rows (§4),
+> the JWT secret (§5) and the GST gateway (§6), and a signed human checklist (§8).
+> **Writing the runbook does not close this risk.** R-01 remains **open** until §8 is signed
+> by a named person with production access and a date — the exposed values are still live
+> until someone rotates them, and no AI session can do that.
+>
+> Three findings from that task that change this entry's scope:
+> 1. **The exposure has moved into this knowledge base.** Zero credential literals remain
+>    under `V.SMART/`, but at `HEAD` the SA password is in five `docs/kb/` files and the
+>    plaintext production password is in **this document, at line 44**. A git-history purge
+>    (M0-05) would not remove it, because it is current content. Redaction owner and task:
+>    **Q-84**.
+> 2. **A new credential, C-7, not previously in this register:** the AES key and IV that
+>    decrypt every tenant's `Companies.APIEinvoiceLicenseKey` are hardcoded at
+>    `V.SMART/V.SMART.Shared/E_Invoice/LicenseProductKey.cs:28-29`, tracked and public. The
+>    encryption on the gateway credential therefore provides no confidentiality against
+>    anyone who has read this repository, and rotating the gateway credential alone does not
+>    fix it — the replacement is protected by the same published key. Vendor-owned; see
+>    runbook §6a.
+> 3. **The `Tenants` row count and which login each row embeds remain Unknown** — they need
+>    production database access, which M0-04 was forbidden. INV-052.
+
 ### R-02 — JWT signing secret committed
 **Confirmed.** `V.SMART.Api/appsettings.json` `Jwt:Secret` holds a hardcoded default value
 containing the literal words "Change In Production" — i.e. it was never rotated.
@@ -298,6 +323,20 @@ the known default (M0-03-01, M0-03-03).
 > secret stays compromised; this task only guarantees it cannot be *used*. Implemented and
 > validated `PASS` on `migration/M0-03-03-startup-config-validation` (merged to `master` 2026-08-18) — see
 > [`tasks/M0-03-03.md` § Execution Record](../execution/tasks/M0-03-03.md#execution-record-2026-08-18).
+
+> **Status update, 2026-08-25 (M0-04 — R-02 stays OPEN):** the rotation procedure for
+> `Jwt:Secret` is [`docs/runbooks/credential-rotation.md`](../../runbooks/credential-rotation.md)
+> §5 (at least 32 bytes from a cryptographic source, deployed via `Jwt__Secret`/user-secrets,
+> every outstanding token invalidated). **Writing it does not close this risk** — R-02 remains
+> **open** until checklist items 4 and 5 in §8 are signed with a name and a date.
+>
+> **Correction to a recorded negative result.** M0-04's task file states that "the JWT signing
+> secret is not present in committed history". That is **false on current `master`**:
+> `git grep -l` for the default value at `HEAD` returns four files —
+> `docs/kb/execution/M0-00-baseline-decisions.md`, `docs/kb/execution/tasks/M0-00.md`,
+> `tasks/M0-03-01.md` and `tasks/M0-04.md`. The note above already records how it got there
+> (M0-00 committed `docs/`); the negative result is nonetheless still repeated in the task
+> file's *Investigation Registry Updates* block and should not be believed. INV-052, Q-84.
 
 ### R-03 — Authorization enforced only in the UI layer
 **Confirmed.** `BaseUserRightsComponent` + `RightsHelper` are the only permission checks;
