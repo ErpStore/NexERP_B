@@ -21,9 +21,40 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
+## No task selected — nothing dependency-ready (re-confirmed 2026-08-26, master tip `ab9a348`)
+
+**This pointer is stale as of this session and has been corrected.** The prior text below
+("Selected: `M2-C05-02`") described a pass at master tip `2281740`. Master has since advanced
+through `4a8b61a` (that `M2-C05-02` selection recorded), `c0341db` (dispatch found `M2-C05-02`
+itself `Blocked` — its corrected `depends_on` names `M2-C02`, which is `Blocked`, plus two
+implementation-time findings: the needed endpoint pair does not exist and no real fixture
+capture was possible), `5f23c51` (a select-only pass confirming nothing clears the five-part
+test), and `ab9a348` (owner-instructed Q-102 fix: added missing Hard `depends_on` entries to
+33 task files; the commit's own message confirms "No task changed status" and every task that
+gained a new not-`Completed` dependency was already `Blocked`).
+
+This session re-verified rather than trusted that chain: `git status --porcelain --branch` on
+`master` is clean; `task-tracker.md` still shows exactly two `**Ready**` rows, unchanged —
+`M0-06` (line 84) and `M0-11` (line 86) — and both still fail the five-part "can actually be
+done" test:
+
+1. **`M0-06`** — fails part 5: `git log --oneline master..migration/M0-06-remove-default-admin`
+   still shows the branch's unmerged tip `5c9b34c`, closed `Blocked` on `Q-25`/`Q-26`.
+2. **`M0-11`** — fails part 2: `task_type: Product Decision` (`Q-01`), owner-only.
+
+No other tracker row reads `Ready`. **`nextTaskId` is empty.** See
+[`runner-state.md`](runner-state.md) (KB-093) for the full stop record and the standing human
+decisions that would unblock the tree (`M2-C02` unblock, `Q-25`/`Q-26`, `Q-01`, and the
+`M0-04`/`M0-06` branch merge-or-reject decisions).
+
+--- prior pointer, superseded, retained for lineage ---
+
 ## Selected: `M2-C05-02` — Column preferences + persistence
 
-Full spec: [`tasks/M2-C05-02.md`](tasks/M2-C05-02.md). Attempt 0 — **not yet dispatched.**
+Full spec: [`tasks/M2-C05-02.md`](tasks/M2-C05-02.md). **Superseded — dispatched and closed
+`Blocked`** (`c0341db`; its corrected `depends_on` names `M2-C02`, itself `Blocked`). Do not
+re-dispatch until `M2-C02` completes and merges. Original selection narrative below, retained
+for lineage only:
 
 ### How this pass found it (select-only, this session)
 

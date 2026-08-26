@@ -13,11 +13,30 @@ last_verified: 2026-08-26
 dependencies: [KB-089, KB-091, KB-092, KB-081]
 model_routing_this_run: none — select-only pass, no candidate cleared the five-part test
 
-## Status — 2026-08-26 (this session, latest)
+## Status — 2026-08-26 (this session, latest — re-confirmed after Q-102 fix landed)
 
 **STOPPED** — no dependency-ready task remains
 
-**Stop reason (verbatim):**
+**Stop reason (verbatim):** Re-ran the selection procedure after master advanced two commits
+past this file's own last-recorded tip (`c0341db` → `ab9a348`, via `5f23c51` "Record the
+select-only pass — nothing clears the five-part test" and `ab9a348` "Q-102 option (a) —
+correct depends_on in all 33 remaining files"). Neither commit changes the outcome:
+`5f23c51` is this file's own prior bookkeeping (no new state); `ab9a348`'s own commit message
+states "No task changed status" — it mechanically added missing Hard `depends_on` entries to
+33 task files per the owner's Q-102 resolution, and all 8 tasks that gained a not-`Completed`
+dependency (`M2-C08`, `M2-C08-01`, `M2-C08-02`, `M2-C09`, `M2-D02-02`, `M2-D02-03`, `M2-D03`,
+`M3-1-01`) were already `Blocked` beforehand. Verified independently rather than trusting the
+commit message: `git status --porcelain --branch` shows a clean tree on `master`, ahead of
+`origin/master` by 13 (nothing uncommitted); `grep -n "\*\*Ready\*\*" task-tracker.md` still
+shows exactly the same two `Ready` rows as every prior pass — `M0-06` (line 84) and `M0-11`
+(line 86) — no row moved into or out of `Ready`. Re-ran the five-part test on both: `M0-06`
+still fails part 5 (`git log --oneline master..migration/M0-06-remove-default-admin` still
+shows its unmerged tip `5c9b34c`, closed `Blocked` on `Q-25`/`Q-26`, unchanged); `M0-11` still
+fails part 2 (`task_type: Product Decision`, `Q-01`, owner-only, unchanged). No other row in
+the tracker reads `Ready`. **No candidate clears the five-part test — `nextTaskId` is empty**,
+confirming rather than superseding the prior conclusion. Made no edit to `task-tracker.md`;
+`current-task.md` updated only to record this re-confirmation. Original stop reason from the
+prior pass, still the operative narrative below (verbatim, retained):
 no dependency-ready task remains: Read runner-state.md (KB-093): Status was RUNNING, not STOP_REQUESTED, no human stop pending. Read current-task.md (KB-089): it pointed to M2-C05-02 "not yet dispatched", but that pointer was stale — master's own history (commits 4a8b61a then c0341db, both on master tip, current branch clean) shows M2-C05-02 was dispatched and closed Blocked at implement time (task-tracker.md:165, footnote 79): its Dependencies table names M2-C02 (Blocked), and implementation additionally found the required endpoint pair does not exist and no real fixture capture was possible. That dispatch also raised Q-102: 34 task files have frontmatter depends_on that omits at least one Hard dependency their own Dependencies table declares. Re-ran the five-part 'can actually be done' test from dependency-graph.md against every Ready row in task-tracker.md (only M0-06 and M0-11) plus the two most recently investigated non-Ready rows (M2-C05-02, M2-D01): M0-06 fails part 5 (sibling branch migration/M0-06-remove-default-admin already open, unmerged, itself Blocked on Q-25/Q-26 — verified via git branch -a); M0-11 fails part 2 (Product Decision, owner-only); M2-C05-02 fails part 1 (now Blocked, corrected depends_on names Blocked M2-C02); M2-D01 fails part 1 (same M2-C02 blocker). No candidate clears the test, so per the selection rule taskId is empty.
 
 **Current task:** empty (no task dispatched)
