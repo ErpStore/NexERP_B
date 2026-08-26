@@ -59,18 +59,20 @@ see §4.
 > neither acquire production credentials nor invent a name to satisfy a checklist. The
 > owner fills this in; the DBA then runs the script.
 
+> **Corrected 2026-08-26 — this table originally named `154.61.76.112,1533` as "the SQL
+> Server instance," inherited from `M0-04`'s runbook before that host's ownership was
+> corrected. The owner confirmed in session that `154.61.76.112` is a third party's host, not
+> this project's — see `risks/technical-debt-register.md` R-01's correction note and
+> `open-questions.md` Q-103. It is not run against here. This project's only reachable
+> instance is the one named below.**
+
 | Field | Value | Source |
 |---|---|---|
-| DBA who will run it | *(unfilled — owner to name)* | Not recorded anywhere in `docs/kb/` |
-| Tenant databases to run against | *(unfilled — see §2.1, the script can enumerate them)* | **Q-12** — the production tenant list is Unknown |
-| SQL Server instance | `154.61.76.112,1533` *(the only instance named in the KB — confirm before use)* | `docs/runbooks/credential-rotation.md` |
+| DBA who will run it | The repository owner, in the same session that rotated C-1/C-3 (`task-tracker.md` footnote ⁸⁵) | This session, 2026-08-26 |
+| Tenant databases to run against | `NexGenErpDb` — the sole tenant, `Tenants.Id=1`, `Name='localhost'` | Confirmed by a full `sp_MSforeachdb` sweep of every database's `sys.tables`, this session |
+| SQL Server instance | `DESKTOP-FIIBE97\SQLEXPRESS` | `MasterDbContext.cs` consumers; confirmed reachable this session |
 | Master database | `NexGenErpDb_Master`, table `Tenants` | `MasterDbContext.cs:5-9`, `TenantInfo.cs:3-9` |
 | Minimum permission needed | `SELECT` on user tables **and** `VIEW DEFINITION` on the database | §3 |
-
-**Named-role fallback, if no individual is available:** whoever holds `sysadmin` on
-`154.61.76.112,1533` — the same role `M0-04`'s credential-rotation runbook depends on for
-C-1/C-2. Naming that role is not the same as naming a person, and this runbook does not
-pretend otherwise.
 
 ### 2.1 You do not need a tenant list to start
 
@@ -109,7 +111,7 @@ sets `READ UNCOMMITTED`, so it will not block live users.
 **`sqlcmd` alternative**, if SSMS is not to hand:
 
 ```
-sqlcmd -S 154.61.76.112,1533 -d <TenantDatabase> -E -s"|" -W ^
+sqlcmd -S "DESKTOP-FIIBE97\SQLEXPRESS" -d <TenantDatabase> -E -s"|" -W ^
        -i Q-10-numbering-constraints.sql -o Q-10-output-<TenantDatabase>.txt
 ```
 
