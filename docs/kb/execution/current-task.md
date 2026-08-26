@@ -21,62 +21,87 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## No dependency-ready task — the run stops here
+## Selected: `M2-D01` — Currency end-to-end in Angular
 
-**This session ran select-only**, from `master` tip `de90ec0` (tree clean). It found that this
-file's inherited pointer (`M2-C06`, "attempt 0, not yet dispatched") was stale: `M2-C06` was
-already implemented and independently validated **PASS** by a concurrent session on branch
-`migration/M2-C06-record-picker-dialog` (tip `a47d016`), and `M2-C05-03` was independently
-implemented and independently validated **PASS** by a second concurrent session on branch
-`migration/M2-C05-03-grid-states-and-export` (tip `2da7723`) — this runner has **no concurrency
-control** (see memory), so both dispatches happened without either session seeing the other.
-Both branches are unmerged and left for review; neither branch's own bookkeeping ever reached
-`master`, so `task-tracker.md` here still read `Ready` for both. Corrected in
-`task-tracker.md` footnote ⁷⁵.
+Full spec: [`tasks/M2-D01.md`](tasks/M2-D01.md). Attempt 0 — **not yet dispatched.**
 
-### The five-part test, re-run against every `Ready` row this session found
+### How this pass found it (select-only, this session)
 
-- **`M0-06`** (Security, P1) — fails part 5. `migration/M0-06-remove-default-admin` already
-  carries a full, separately closed-out `Blocked` outcome (commit `5c9b34c`, "record Blocked
-  status on Q-25/Q-26"), unmerged. Re-dispatching would duplicate finished work.
-- **`M0-11`** (Product Decision, P0) — fails part 2 outright. Owner-only, never
-  self-selectable.
-- **`M2-C05-02`** (Frontend, P1) — fails part 5 on a genuine same-file conflict, not a
-  duplicate. Its own *Expected changed files* row (`tasks/M2-C05-02.md:588`) names
-  `data-grid.component.ts`, `data-grid.component.html` and `data-grid.model.ts` — exactly the
-  files `M2-C05-03`'s still-open branch changed (`git diff --stat master...migration/M2-C05-03-
-  grid-states-and-export`, confirmed this session). Opening it now would edit files a still-open
-  sibling branch already edited — *Same-file conflicts — never parallelise*
-  (`dependency-graph.md`). **Becomes genuinely selectable once `M2-C05-03` merges or is
-  abandoned.**
-- **`M2-C05-03`** (Frontend, P1) — fails part 5. Already implemented and closed `Needs Review`,
-  independently validated `PASS`, on `migration/M2-C05-03-grid-states-and-export` (tip
-  `2da7723`), unmerged. Re-dispatching would duplicate a finished `PASS`.
-- **`M2-C06`** (Frontend, P0) — fails part 5. Already implemented and closed `Needs Review`,
-  independently validated `PASS` (attempt 2 of 5, `scopeOk: true`, all 17 acceptance criteria
-  `MET`), on `migration/M2-C06-record-picker-dialog` (tip `a47d016`), unmerged. Re-dispatching
-  would duplicate a finished `PASS`.
+Starting point: `master` tip `39a9e11` (tree clean, `git status --porcelain` empty), one commit
+past the state the inherited pointer described. `39a9e11` is Vivek's owner-instructed
+`--no-ff` merge of `migration/M2-C05-03-grid-states-and-export` — confirmed with `git log -1
+39a9e11` (author `kumarag595@outlook.com`, message names the verified merged-result checks).
 
-No other row in `task-tracker.md` reads `Ready`. **`nextTaskId` is empty.**
+The inherited note (footnote ⁷⁶, `task-tracker.md`) checked what that merge released and found
+only `M2-C05-02` (the same-file conflict with `M2-C05-03`'s branch was gone). It did not check
+`M2-D01`, whose `depends_on: [M2-C05-03, M2-A02, M2-B10]` also names `M2-C05-03`. Re-running the
+five-part test on `M2-D01` directly:
 
-### What the next session should do
+1. **All three Hard prerequisites `Completed` and merged** — `M2-C05-03` (`39a9e11`, this
+   session's own verification above), `M2-A02` (`task-tracker.md:112`, merged 2026-08-24 on
+   owner instruction), `M2-B10` (`task-tracker.md:135`, merged 2026-08-25 on owner instruction).
+2. **Not a `Product Decision`** — `task_type: Frontend` (`tasks/M2-D01.md` frontmatter).
+3. **Not gated by an open question** — grepped `open-questions.md` for `M2-D01`, no hit.
+4. **No ⛔ banner** — `tasks/M2-D01.md` was re-specified for Angular by `M2-C12-05` on
+   2026-08-22; the banner that stood there was removed in that same change.
+5. **No sibling branch touches its files** — checked `git diff --stat master...<branch>` for
+   every currently unmerged branch (`migration/M0-04-credential-rotation-runbook`,
+   `migration/M0-06-remove-default-admin`, `migration/M2-B12-01-inv-012-numbering`,
+   `migration/M2-B12-02-verify-unique-constraints`, `migration/M2-C06-record-picker-dialog`,
+   `migration/M2-C10-decimal-handling`, `integration/2026-08-25-session-merges`) against
+   `Currency`/currency — no hit in any.
 
-1. **Check whether `Vivek` has merged any of the unmerged branches above** —
-   `migration/M2-C06-record-picker-dialog`, `migration/M2-C05-03-grid-states-and-export`, or
-   `migration/M0-06-remove-default-admin`. A merge to `master` is what actually changes what is
-   selectable next: merging `M2-C05-03` releases `M2-C05-02`'s file conflict; merging `M2-C06`
-   releases nothing further (no task names it as a Hard prerequisite).
-2. **If nothing has merged**, re-run the five-part test — it will still fail the same four rows
-   for the same reasons, and no new row will have become `Ready` on its own.
-3. **Do not** re-dispatch `M2-C06`, `M2-C05-03` or the `M0-06` branch's `Blocked` outcome
-   without a merge decision first — neither is this session's to make.
+`M2-D01` clears all five parts. `M2-C05-02` also clears all five parts now (footnote ⁷⁷'s
+sibling correction), but ranks below `M2-D01` on rank step 1 (P0 beats P1) — `M2-C05-02` is
+this pass's `tiedCandidates`-adjacent runner-up, not a tie (priority alone settles it, no tie to
+report per rank step 4 of `dependency-graph.md`).
+
+`M0-06` (fails part 5, closed `Blocked` on an unmerged branch) and `M0-11` (fails part 2,
+`Product Decision`) remain excluded for the same reasons as every prior pass.
+
+Corrected `task-tracker.md`: `M2-D01` row `Blocked` → `Ready` (footnote ⁷⁷, new); `M2-C05-02`
+row's rationale updated to name the real remaining ranking reason rather than repeat the
+now-stale "sole blocker `M2-C05-01`" phrasing (footnote ⁷⁴ retained, ⁷⁷ appended).
+
+### Classification (KB-091 §4 — task file carries no explicit `complexity`/`risk` override)
+
+- **Base**: `task_type: Frontend` → MEDIUM.
+- **Raises** (need only one to reach HIGH, this task clears three):
+  - `estimate: 3 d` ≥ 3 d.
+  - `depends_on` names 3 tasks (`M2-C05-03`, `M2-A02`, `M2-B10`).
+  - `source_files` spans two of the four .NET projects (`V.SMART.Api/Controllers/
+    CurrencyController.cs`; `V.SMART.Shared/...` ViewModels, BusinessLayer, Data, Pages).
+- **Complexity: HIGH** (MEDIUM + 2+ raises caps at HIGH).
+- **Risk**: not Security/Product Decision; no database-schema change authorised or needed
+  beyond the existing `Currency` table; no secrets/`Program.cs`/`appsettings*`;
+  `business_rules: []`; the task adds an Angular equivalent and does not change what a live
+  Blazor user observes (`CurrencyList.razor`/`CurrencyUpsert.razor` are reference-only, left
+  running) → **Risk: MEDIUM** (default).
+- **Routing** (KB-091 §5.1, complexity HIGH): Investigate, Implement and Validate all route to
+  `opus`. Risk MEDIUM does not add a further floor beyond what HIGH complexity already selects
+  (§5.2 item 2 only forces `opus` at risk HIGH, which this task isn't, but HIGH complexity
+  already puts Validate on `opus` regardless).
+
+### Safety / human-decision check
+
+Not a safety stop: tree clean, `master` tip verified, no dirty working tree, branch to be cut
+fresh from `master` at `39a9e11`. Not `requiresHuman`: no DBA/credential/environment need
+disclosed by `tasks/M2-D01.md`, not a `Product Decision`, no architecture decision pending
+(`ADR-007` already governs the stack).
 
 ### Carried forward — still true, untouched by this pass
 
+- **`M2-C05-02`** is genuinely `Ready` and dependency-ready (see above) — the natural next pick
+  once `M2-D01` closes, unless something else outranks it by then.
+- **`M2-C06`** (`Needs Review`, `migration/M2-C06-record-picker-dialog`, tip `a47d016`) releases
+  nothing and no task names it as a Hard prerequisite — reviewable at leisure, not urgent to
+  merge.
 - **`M0-04`** (credential rotation runbook) closed `Blocked` on a separate, **unmerged** branch
   (`migration/M0-04-credential-rotation-runbook`) — its own designed terminal state, since no
   human with production access participated. Do not re-dispatch it without first checking
   whether that branch should be merged — a merge decision, not a selection one.
+- **`M0-06`** (fails part 5, unmerged `Blocked` branch) and **`M0-11`** (fails part 2, `Product
+  Decision`, owner-only) remain excluded, unchanged from every prior pass.
 - **`M2-A03`** (`Needs Review`) still needs a human to make the CI job a *required* status check
   on `master`. Owner: Vivek.
 - **`M2-B08`**, **`M2-B12-01`**, **`M2-C10`** stay `Blocked` on environment/escalation-budget

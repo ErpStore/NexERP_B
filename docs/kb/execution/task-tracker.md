@@ -162,7 +162,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
 | M2-C05-01 | M2 | — server-paged table core | Frontend | **Completed**⁷⁴ *(the `Needs Review`/"unmerged" reading was stale — `git log --first-parent` shows `bf2b4cd` "Merge M2-C05-01" on `master`'s own first-parent line, and all 18 files are present at `HEAD`; corrected 2026-08-26)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
-| M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Ready**⁷⁴ *(re-specified by `M2-C12-03`; its sole blocker `M2-C05-01` is now confirmed merged)* | P1 | M2-C05-01 | 3 d | G2 |
+| M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Ready**⁷⁴˒⁷⁷ *(genuine same-file conflict with `M2-C05-03` resolved now that `M2-C05-03` merged; ranks below `M2-D01` on priority)* | P1 | M2-C05-01 | 3 d | G2 |
 | M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Completed**⁷⁵˒⁷⁶ *(owner instructed the merge 2026-08-26; merged `--no-ff`, verified on the merged result)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Needs Review**⁷⁵ *(implemented, independently validated PASS, unmerged on `migration/M2-C06-record-picker-dialog`)* | P0 | M2-C05-01 | 1 wk | G2 |
 | M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-C10`. Its table-technology evaluation is **Q-83**, owner-owned)* | P0 | M2-C05-01, M2-C10 | 2 wks | G2 |
@@ -176,7 +176,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-05`; real blockers are `M2-C05-03`, `M2-A02`, `M2-B10`)* | P0 | M2-C05-03, M2-A02, M2-B10 | 3 d | G2 |
+| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | **Ready**⁷⁷ *(re-specified for Angular by `M2-C12-05`; all three Hard prerequisites — `M2-C05-03`, `M2-A02`, `M2-B10` — now `Completed` and merged)* | P0 | M2-C05-03, M2-A02, M2-B10 | 3 d | G2 |
 | M2-D02 | M2 | Customer Master *(parent)* | Migration | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-05`; real blocker is `M2-D01`)* | P0 | M2-D01 | 1.5 wks | G2 |
 | M2-D02-01 | M2 | — `@code` triage + logic extraction | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D01`. Allocates the `BR-CUST-*` series)* | P0 | M2-D01 | 4 d | G2 |
 | M2-D02-02 | M2 | — `CustomersController` + API tests | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D02-01`)* | P0 | M2-D02-01 | 3 d | G2 |
@@ -3180,4 +3180,20 @@ exactly what this branch changed. With this merged, that conflict is gone and `M
 becomes the first self-selectable task since `M2-C06`. **`M2-C06` stays `Needs Review`** on
 `migration/M2-C06-record-picker-dialog` (`a47d016`) — it releases nothing and no task names it
 as a Hard prerequisite, so it can be reviewed at leisure.
+
+⁷⁷ **M2-D01: `Blocked` → `Ready`, 2026-08-26 select-only pass.** Footnote ⁷⁶'s own close-out
+checked what the `M2-C05-03` merge released and named only `M2-C05-02` — it did not re-check
+`M2-D01`, whose `depends_on` also names `M2-C05-03`. All three of `M2-D01`'s Hard prerequisites
+are independently confirmed `Completed` and merged to `master`: `M2-C05-03` (this footnote's own
+merge, `39a9e11`), `M2-A02` (line 112, merged 2026-08-24 on owner instruction) and `M2-B10`
+(line 135, merged 2026-08-25 on owner instruction). `M2-D01` is `task_type: Frontend`, not a
+`Product Decision`; `open-questions.md` has no hit for `M2-D01`; its task file
+(`tasks/M2-D01.md`) carries no ⛔ banner, having been re-specified for Angular by `M2-C12-05` on
+2026-08-22; `git diff --stat master...<branch>` was checked against every unmerged branch
+(`migration/M0-04-credential-rotation-runbook`, `migration/M0-06-remove-default-admin`,
+`migration/M2-B12-01-inv-012-numbering`, `migration/M2-B12-02-verify-unique-constraints`,
+`migration/M2-C06-record-picker-dialog`, `migration/M2-C10-decimal-handling`,
+`integration/2026-08-25-session-merges`) for anything touching `Currency`/currency and found
+nothing. **`M2-D01` (P0) now outranks `M2-C05-02` (P1) on priority alone** and is the task
+selected this pass.
 
