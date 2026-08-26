@@ -162,7 +162,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
 | M2-C05-01 | M2 | — server-paged table core | Frontend | **Completed**⁷⁴ *(the `Needs Review`/"unmerged" reading was stale — `git log --first-parent` shows `bf2b4cd` "Merge M2-C05-01" on `master`'s own first-parent line, and all 18 files are present at `HEAD`; corrected 2026-08-26)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
-| M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Ready**⁷⁴˒⁷⁸ *(genuine same-file conflict with `M2-C05-03` resolved now that `M2-C05-03` merged; `M2-D01` no longer outranks it — selected this pass)* | P1 | M2-C05-01 | 3 d | G2 |
+| M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Blocked**⁷⁹ *(dispatched 2026-08-26, stopped at implement — the endpoint pair does not exist, no real fixture capture, and `M2-C02` is `Blocked`; see footnote ⁷⁹)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Completed**⁷⁵˒⁷⁶ *(owner instructed the merge 2026-08-26; merged `--no-ff`, verified on the merged result)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Needs Review**⁷⁵ *(implemented, independently validated PASS, unmerged on `migration/M2-C06-record-picker-dialog`)* | P0 | M2-C05-01 | 1 wk | G2 |
 | M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-C10`. Its table-technology evaluation is **Q-83**, owner-owned)* | P0 | M2-C05-01, M2-C10 | 2 wks | G2 |
@@ -3212,4 +3212,37 @@ on the unmerged `migration/M2-D01-currency-end-to-end` branch and is not duplica
 `M2-D01` on part 1 without needing to merge that branch. **Root blocker chain, for the record:**
 `M0-04` (credential rotation, owner-only, `Q-26`) → `M2-A04` → `M2-C02` → `M2-D01`.
 **`M2-C05-02` (P1) is now the only self-selectable row** and is the task selected this pass.
+
+⁷⁹ **M2-C05-02 `Blocked` 2026-08-26 — and the second dispatch in one day lost to the same
+`depends_on` defect. Audited: it affects 34 task files (Q-102).**
+
+**Three independent blockers, two of them anticipated by the task file itself.**
+1. **The endpoint pair does not exist** — zero hits in `V.SMART.Api`. The task's *Out of Scope*
+   forbids adding the controller under this id, and Requirement 4 says *"stop, record the gap,
+   and report `Blocked` with a proposed contract"*, which the implementer did:
+   `GET`/`PUT /api/v1/me/column-preferences/{screenName}`, wrapping the **already-existing**
+   `IColumnPreferenceService` (`V.SMART/V.SMART.Shared/Services/IColumnPreferenceService.cs:5-9`
+   — verified: exactly the two methods needed), which the API host does not register though
+   `V.SMART.Web/Program.cs:250` does.
+2. **No real fixture capture exists** (Q-100). Testing Requirements 9–11 demand fixtures from
+   captured `PreferenceJson`/`ColumnJson` rows, *"not from JSON you wrote to match your own
+   serialiser"*. Needs tenant-database access. **This blocker survives even if the endpoint lands.**
+3. **`M2-C02` is `Blocked`** and its Dependencies table names it `Hard` (*"supplies the
+   authenticated identity"*).
+
+**The finding worth carrying beyond this task — Q-98, verified from source, not accepted on
+report.** The preference key is a **username**, not an id: `CurrentUserService.GetUsernameAsync()`
+returns **`string`** while `GetUserIdAsync()` returns **`int`**, and `IColumnPreferenceService`
+takes `string userId`. Usage is lopsided — **131** files reference `GetUsernameAsync`, **8**
+reference `GetUserIdAsync`. So a server-derived numeric identity would not merely be a different
+string, it is a **different type**, and every stored layout across ~100 screens would be
+stranded. That is a migration hazard for any task that touches user-scoped persistence, not
+just this one.
+
+**Root cause of the dispatch, same as footnote ⁷⁸'s:** `depends_on` read `[M2-C05-01]` while
+the file's own Dependencies table declares **three** `Hard` rows. Corrected to all three. An
+audit of every file in `execution/tasks/` then found **34** with the same gap — `M2-D02-02`
+declares 9 Hard rows and lists 1 — raised as **Q-102**. Only the two that were actually
+dispatched have been corrected; the other 32 stand, so this will recur until the owner picks
+an option in Q-102.
 
