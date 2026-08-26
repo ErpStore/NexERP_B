@@ -154,7 +154,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Completed**⁴⁵ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Completed**⁴⁶ *(merged to `master` `27dfc5d` on owner instruction 2026-08-23)* | P0 | M2-C12-01…04 | 1 d | G2 |
 | M2-C13 | M2 | Defer the confirm-dialog host; bundle back inside budget (R-69) | Frontend | **Completed**⁵⁵˒⁵⁶˒⁵⁷ | P1 | M2-C04-03 | 1 d | G2 |
-| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Blocked**²⁶˒⁴⁶˒⁴⁷˒⁵²˒⁸⁵˒⁸⁹ *(**Q-85 answered 2026-08-26**: money serializes as a JSON string. Real blocker now: that decision is not yet implemented — needs a backend `JsonConverter`, a `KB-114` amendment, and a client regeneration, none of which `M2-C10` itself may do. See footnote ⁸⁹)* | P0 | M2-C01 | 2 d | G2 |
+| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Needs Review**²⁶˒⁴⁶˒⁴⁷˒⁵²˒⁸⁵˒⁸⁹˒⁹² *(**M2-B13 merged 2026-08-26 — Q-85's real blocker is implemented.** Existing branch `migration/M2-C10-decimal-handling` (`2ae6e63`) was independently found **14 of 15 acceptance criteria MET** at its own close-out — the 15th was the now-resolved wire-format criterion. Substantial, close-to-complete work; not yet reviewed against the new string contract or merged. See footnote ⁹²)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | **Completed**⁴⁶˒⁵⁴ *(parent — all three children `Completed` and merged)* | P0 | M2-C01 | 2 wks | G2 |
 | M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
@@ -3582,3 +3582,18 @@ workstation is not confirmed to be the same execution context every future sessi
 in. It is recorded so the next session checks `dotnet --version` directly, first, rather than
 trusting footnote ⁷³'s finding as still current — the same lesson footnote ⁸⁵ already taught
 about `M2-C10`'s stale environment classification.
+
+⁹² **`M2-C10`: substantial existing implementation found on `migration/M2-C10-decimal-handling`,
+2026-08-26 — not yet reviewed against the new string contract.** The branch's own close-out
+(`307141b`, 2026-08-23) independently re-derived **14 of 15 acceptance criteria MET** on tip
+`2ae6e63` — a `decimal.js`-based module (`frontend/nexgen-web/src/app/shared/utils/decimal/`:
+`decimal.ts`, `parse.ts`, `format.ts`, `precision.ts`, `money.ts`, ~1,050 lines with tests), a
+`MoneyPipe`, and ESLint rules banning float arithmetic on money — 19 files, ~1,500 lines. **The
+one unmet criterion was the wire-format measurement**, which this session's chain (`INV-051` →
+the `M2-C10` diagnosis → **Q-85** → **`M2-B13`**) has since resolved for real. Worth noting
+before trusting the 14/15 figure at face value: `parse.ts`'s `parseUserInput` already takes a
+`string`, which is promising for compatibility with the now-string-typed contract, but it was
+written for **user keyboard input**, not necessarily audited as the same shape a
+`fromApi`-style function should take — that needs an actual read, not an inference from one
+function signature. **Not reviewed, not merged by this pass.** If it holds up, this is
+substantially cheaper than a fresh implementation.
