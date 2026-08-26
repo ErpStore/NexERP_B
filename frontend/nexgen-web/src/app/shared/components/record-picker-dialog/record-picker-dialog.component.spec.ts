@@ -31,6 +31,21 @@ import {
 const PAGE_SIZE = 5;
 const TOTAL = 20;
 
+/**
+ * Every test here renders a PrimeNG `p-dialog` and drives it through
+ * `userEvent`, and each interaction costs a full change-detection pass over the
+ * dialog and the grid inside it. In jsdom that is slow: the file measured
+ * ~31 s for its 16 tests on the machine this was written on, with individual
+ * tests at 5.5 s against vitest's 5 s default - so which test goes red is
+ * decided by how loaded the machine is, not by anything the test asserts. Both
+ * test 1 and test 3 were observed timing out that way.
+ *
+ * A timeout is a harness ceiling, not an assertion: raising it relaxes nothing.
+ * Every `expect` in the file still has to hold, and a real hang still fails,
+ * just later. `a11y.spec.ts:30-31` says the same thing about `axe`.
+ */
+vi.setConfig({ testTimeout: 30_000 });
+
 interface Rendered {
   fixture: Awaited<ReturnType<typeof render<PickerHostComponent>>>['fixture'];
   host: PickerHostComponent;
@@ -69,6 +84,28 @@ async function settle(view: Rendered, ms = 25): Promise<void> {
 
 function expectPageRequest(view: Rendered) {
   return view.http.expectOne((request) => request.url === PICKER_ENDPOINT);
+}
+
+/**
+ * Types into the search box **synchronously** - one `input` event per
+ * keystroke, dispatched in a single block with no `await` between them, the way
+ * `DataGrid` drives its own debounce test
+ * (`data-grid/data-grid.component.spec.ts:167-170`).
+ *
+ * `userEvent.type` awaits between keystrokes. Here one keystroke plus change
+ * detection costs more real time than the fixture's debounce window, so the
+ * debounce commits once per character and the one server query this test
+ * asserts becomes three - a defect in the test's timing model, not in the
+ * component. A synchronous block cannot be interleaved by a timer, however
+ * loaded the machine is, so what is left is exactly the question this test
+ * asks: does the dialog coalesce several keystrokes into one server query?
+ */
+function typeSearch(...keystrokes: readonly string[]): void {
+  const field: HTMLInputElement = screen.getByLabelText('Search records');
+  for (const value of keystrokes) {
+    field.value = value;
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  }
 }
 
 async function flushPage(
@@ -137,7 +174,7 @@ describe('app-record-picker-dialog', () => {
     const view = await setup();
     await open(view);
 
-    await userEvent.type(screen.getByLabelText('Search records'), 'zzz');
+    typeSearch('z', 'zz', 'zzz');
     await settle(view);
 
     const request = expectPageRequest(view);
@@ -365,7 +402,7 @@ describe('app-record-picker-dialog', () => {
     const before = window.location.search;
 
     await open(view);
-    await userEvent.type(screen.getByLabelText('Search records'), 'abc');
+    typeSearch('a', 'ab', 'abc');
     await settle(view);
     expectPageRequest(view).flush(pickerPage(makePickerRows(1), 1, PAGE_SIZE, 1));
     await settle(view);
