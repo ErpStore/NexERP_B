@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   PICKER_ENDPOINT,
@@ -29,6 +29,20 @@ import {
  * wrong sequence. Hence a dedicated file, so the assertion is hard to delete by
  * accident.
  */
+
+/**
+ * This test renders the whole dialog in jsdom and drives it through
+ * `userEvent`; every interaction costs a full change-detection pass over the
+ * `p-dialog` and the grid inside it, and the file was observed finishing at
+ * 5293 ms against vitest's 5 s default - so whether it goes red is decided by
+ * how loaded the machine is, not by anything it asserts.
+ *
+ * A timeout is a harness ceiling, not an assertion: raising it relaxes nothing.
+ * The ordering expectation below still has to hold, and a genuine hang still
+ * fails, just later. `record-picker-dialog.component.spec.ts` and
+ * `record-picker-dialog.a11y.spec.ts:30-31` say the same thing.
+ */
+vi.setConfig({ testTimeout: 30_000 });
 
 const PAGE_SIZE = 10;
 
