@@ -164,7 +164,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C05-01 | M2 | — server-paged table core | Frontend | **Completed**⁷⁴ *(the `Needs Review`/"unmerged" reading was stale — `git log --first-parent` shows `bf2b4cd` "Merge M2-C05-01" on `master`'s own first-parent line, and all 18 files are present at `HEAD`; corrected 2026-08-26)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
 | M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Blocked**⁷⁹ *(dispatched 2026-08-26, stopped at implement — the endpoint pair does not exist, no real fixture capture, and `M2-C02` is `Blocked`; see footnote ⁷⁹)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Completed**⁷⁵˒⁷⁶ *(owner instructed the merge 2026-08-26; merged `--no-ff`, verified on the merged result)* | P1 | M2-C05-01 | 2 d | G2 |
-| M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Needs Review**⁷⁵ *(implemented, independently validated PASS, unmerged on `migration/M2-C06-record-picker-dialog`)* | P0 | M2-C05-01 | 1 wk | G2 |
+| M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Completed**⁷⁵˒⁸³ *(merged to `master` 2026-08-26 on owner instruction; independently validated PASS)* | P0 | M2-C05-01 | 1 wk | G2 |
 | M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-C10`. Its table-technology evaluation is **Q-83**, owner-owned)* | P0 | M2-C05-01, M2-C10 | 2 wks | G2 |
 | M2-C08 | M2 | `DocumentEditor` shell *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-04`)* | P0 | M2-C07 | 2 wks | G2 |
 | M2-C08-01 | M2 | — layout: header + lines + totals + commands | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C07`)* | P0 | M2-C07 | 4 d | G2 |
@@ -256,7 +256,7 @@ ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#1
 |---|---|---|---|---|
 | M0 | 24 | **17** | G0 | ⚠️ **Passed with exceptions** 2026-08-19 — criteria **2 and 3 are not satisfied**, deferred by owner decision; `M0-04`/`M0-05` stay `Blocked`. See [KB-080 § G0 deferral](README.md#g0-deferral--criteria-2-and-3-decided-by-the-repository-owner-2026-08-19) |
 | M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | **62** | **32** | G2 | **OPEN** — 32 of 62 done (52%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
+| M2 | **62** | **33** | G2 | **OPEN** — 33 of 62 done (53%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
 | M3 | ~100 | 0 | G3 | ⬜ Not met |
 | M4 | ~150 | 0 | G4 | ⬜ Not met |
 | M5 | 10 | 0 | G5 | ⬜ Not met |
@@ -3327,4 +3327,18 @@ met and the code was already merged (`d94d8ce`), so per
 confirmation closes the task. Releases nothing in the dependency graph (nothing lists `M2-A03`
 as a Hard prerequisite); its value is that a permission regression can no longer merge to
 `master`. `M5-05` (release-gate check, `*Continuous*`) now has its standing CI gate in place.
+
+⁸³ **`M2-C06`: `Needs Review` → `Completed`, merged to `master` 2026-08-26 on owner
+instruction.** `migration/M2-C06-record-picker-dialog` (4 commits, tip `a47d016`) merged
+`--no-ff`. All code files (25, ~2,900 insertions — the `record-picker-dialog/` component tree
+plus `shared/components/index.ts`) merged clean; five `docs/kb/` files conflicted because the
+branch carried close-out bookkeeping written before `master` advanced ~15 commits. Resolution:
+`task-tracker.md`, `current-task.md`, `runner-state.md` kept `master`'s strictly-newer
+versions (the branch's copies described a world where `M2-C05-03` was the next selection — long
+since dispatched and merged); `investigation-registry.md` and `open-questions.md` kept **both**
+sides' additions — the branch's `INV-054` (the 33-call-site `DetailsModal` survey) and
+`Q-91`/`Q-92`/`Q-93` now sit beside master's `INV-056` and `Q-94`/`Q-95`/`Q-96`, with the
+registry's next-free row advanced to `INV-057` (`INV-055` remains claimed on an unmerged
+branch). Releases nothing: no task names `M2-C06` as a Hard prerequisite (its validated PASS
+record is footnote ⁷⁵). Frontend test/build run post-merge — see the merge commit.
 

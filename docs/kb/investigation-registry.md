@@ -45,6 +45,7 @@ Statuses: `Complete` · `Partial` (usable, with stated gaps) · `In Progress` ·
 | INV-051 | **Which TypeScript client generator, scored against the real committed \`api/openapi.json\`, and what does a \`decimal?\` become on the wire?** | Complete *(2026-08-24, M2-B10)* | \`api/openapi.json\` (18 operations, 6 controllers, produced by \`dotnet swagger tofile\`); \`frontend/nexgen-web/src/app/core/api/generated/\`; \`.github/workflows/ci.yml\` job \`api-contract\`; four generators installed and actually run against that document | **Chosen: \`ng-openapi-gen\` 1.0.5.** The only candidate emitting Angular \`HttpClient\` services, which is what puts every call through the SPA's auth interceptor: \`currencies.getCurrencies({ pageNumber: 1, pageSize: 20 })\` returns \`Observable<CurrencyVMPagedResult>\`, schema names survive verbatim (\`camelizeModelNames: false\`), \`ProblemDetails\` is a named interface with \`title?: string \| null\` so ADR-002 §4's verbatim 409 message reaches the UI, and output is byte-identical on repeated runs. **Rejected, with reasons: \`@hey-api/openapi-ts\` 0.99.0** — best error typing of the four (per-status unions) but fetch-only (\`@hey-api/client-angular\` does not exist, npm 404), so it bypasses Angular's interceptor chain; also pre-1.0. **\`openapi-typescript\` 7.13.0** — types only, no methods, so every call site would be hand-written against a path string. **\`@openapitools/openapi-generator-cli\`** — needs a JRE; \`java\` is not installed on this workstation (\`command not found\`), so it would add a Java dependency to every developer machine and to CI. **Costs of the choice, recorded not hidden:** every JSON operation is emitted twice (\`getCurrencies\` and \`getCurrencies$Plain\`), because MVC's formatters genuinely accept \`text/plain\`/\`text/json\` and the document says so truthfully; and \`HttpErrorResponse.error\` is \`any\`, to be narrowed once in the wrapper layer. **The decimal answer, measured with a temporary probe property and then reverted:** \`decimal?\` → \`{"type":"number","format":"double","nullable":true}\` → \`probeNullableMoney?: number \| null;\`; non-nullable \`decimal\` → \`probeMoney?: number;\` (optional, because Swashbuckle does not mark value types \`required\`). Money crosses the boundary as an IEEE-754 double — **flagged to [M2-C10](execution/tasks/M2-C10.md), deliberately not resolved here**. **Negative results:** \`dotnet swagger tofile\` DOES work in this repository (the yes/no the task asked for), but only with FOUR environment variables, and its failure without them is the misleading "a type named 'Startup' could not be found"; nothing in startup opens a database connection, so placeholders suffice; and before this task there was no \`api/\` directory, no \`.config/dotnet-tools.json\` and no generator dependency anywhere. | [KB-112](api/generated-client.md) — Confirmed | 2026-08-24 |
 | INV-052 | **Does PrimeNG's `p-table` virtual scroller actually meet KB-050's 10,000-row / 60 fps target, and can a component that is generic over its row type consume M2-B10's generated paged response?** | Complete *(2026-08-25, M2-C05-01)* | Throwaway `p-table` fixture (10,000 rows, 8 columns, 36 px rows), `ng serve` + Playwright headless Chromium 141 at 1600×900 — fixture deleted after the run, not committed; `V.SMART/V.SMART.Api/Contracts/PagedQuery.cs:37-82`; `V.SMART/V.SMART.Api/Contracts/PagedResult.cs:25-35`; `frontend/nexgen-web/src/app/core/api/generated/fn/currency/get-currencies.ts:14-55`; `frontend/nexgen-web/src/app/core/api/generated/models/currency-vm-paged-result.ts`; `frontend/nexgen-web/src/app/core/api/generated/models/` (18 files, listed) | **Three answers, two of them load-bearing.** (1) **The 60 fps target is met, measured not assumed.** 10,000 rows hold **35 rendered `<tr>`** at rest and **45** during a fling; median frame **16.7 ms** and p95 **16.7–16.8 ms** in every scenario, including a fling crossing 3,000 rows a second; the only frames over 33 ms are 15 of 298 under a deliberately extreme fling. Full table and method in [KB-050 §Performance targets](frontend-new/react-architecture.md#performance-targets). This **confirms** ADR-007's *"PrimeNG's table covers `DataGrid`"* (`ADR-007-angular-stack.md:149`) rather than leaving it as an assertion. (2) **The wire contract is exactly M2-B02's**: `pageNumber`, `pageSize`, and a comma-separated `sort` whose descending terms carry a `-` prefix; per-resource filters ride as their own named parameters; the response is `{ items, totalCount, pageNumber, pageSize }` where `totalCount` is the **filtered, unpaged** count. (3) **Negative result, and it decides a design point: M2-B10 generates the paged envelope once per resource, never generically.** `currency-vm-paged-result.ts` exports `CurrencyVMPagedResult`; the next list endpoint produces `CustomerVMPagedResult` beside it, because OpenAPI 3.0 has no generics. A grid generic over `TRow` therefore **cannot** import any generated envelope, and declares a structurally identical `DataGridPage<TRow>` in its single adapter module (`data-grid-query.adapter.ts`) instead. Field-for-field identical, optionality included — so a generated per-resource type is assignable to it with no cast and no mapping. This is a limit of OpenAPI, not a defect in M2-B10, and needs no change there. | Confirmed (2026-08-25) |
 | INV-053 | **What do the existing Blazor list screens actually render, and is the recurring "MudDataGrid" assumption true?** | Complete *(2026-08-25, M2-C05-01)* | `grep -rl '<QuickGrid' --include=*.razor V.SMART` → **93** files; `grep -rn 'MudDataGrid' --include=*.razor V.SMART` → **0**; `grep -rn 'MudTable' --include=*.razor V.SMART` → **0**; `V.SMART/V.SMART.Shared/Pages/CashFlow_Pages/Payments_Pages/PaymentList.razor:134-238`; `V.SMART/V.SMART.Shared/V.SMART.Shared.csproj:62`; `V.SMART/V.SMART.Shared/ViewModels/GridColumn.cs:3-13` | **Refines INV-006 and corrects an assumption that is repeated in several places.** List screens are `Microsoft.AspNetCore.Components.QuickGrid` inside hand-written Bootstrap 5 markup — **93** `.razor` files contain `<QuickGrid`. **`MudDataGrid` and `MudTable` appear in zero `.razor` files**, despite MudBlazor **8.11.0** being referenced (`V.SMART.Shared.csproj:62` — note the task file's `:56` was stale, re-measured here). MudBlazor is used for navigation and inputs, not for list grids. Column metadata already has a canonical shape — `Title`, `Field`, `IsVisible`, `IsDate`, `Width` (default `"120px"`), `Align` (a Bootstrap *class name*, `"text-center"`), `IsDetailColumn` — which `M2-C05-01`'s TypeScript column model mirrors concept-for-concept so `M2-C05-02` can round-trip persisted preferences without a translation table. `<QuickGrid Items="vm.AsQueryable()">` materialises the whole collection in the Blazor circuit first (`PaymentList.razor:134`), which is why the 10,000-row target cannot be met by the current architecture at all. | Confirmed (2026-08-25) |
+| INV-054 | **How do the 33 `DetailsModal.razor` call sites actually use it, and what does that mean for its replacement?** | Complete *(2026-08-26, M2-C06)* | `git grep -l "<DetailsModal" -- "V.SMART/V.SMART.Shared/Pages/"` → **33 files**, `git grep -c` over the same pathspec → **41 instances**; `V.SMART/V.SMART.Shared/Components/DetailsModal.razor` (259 lines, read in full); `V.SMART/V.SMART.Shared/Components/MasterModal.razor:32-39`; `V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/SalesPo_Pages/MfgPOUpsert.razor:3975-3977`, `:3982`, `:4014`, `:4024-4025`, `:4072`, `:4077`; `V.SMART/V.SMART.Shared/BusinessLayer/.../MfgPoService.cs:1569-1614`, `:1576-1577`, `:1599`; `V.SMART/V.SMART.Shared/Pages/PlanningModule_pages/JobOrder_Pages/JobOrderUpsert_pages.razor:2494-2522`, `:40-48`; `V.SMART/V.SMART.Shared/Pages/OutSourcing_Module_pages/SubContractDCOut_Pages/SubContractDCOutUpsert.razor:53-61`, `:2360-2372`; `V.SMART/V.SMART.Api/Controllers/` (6 controllers); `V.SMART/V.SMART.Api/Controllers/CurrencyExcelController.cs:84-126` | **Nine findings, four of which changed the design.** (1) **41 instances, not 33** — five files render `<DetailsModal>` more than once; the design surface is 41 configurations. (2) **All 41 are multi-select pulls from an upstream document; ZERO are single-record master picks.** Master picking is done by the *routable pages* `CustomerSelection.razor` / `VendorSelection.razor`, not by this dialog — so `RecordPickerDialog`'s single-select mode is **new capability, not preserved behaviour**, and is recorded as such. (3) **Pre-selection is dead code**: `["Selected"]` is written `false` in 75 places and `true` in **none** (services hardcode it, e.g. `MfgPoService.cs:1599`), so behaviour 6 preserves nothing observable and `initialSelection` is also new capability. (4) **`HiddenColumns` is passed by all 41, never omitted** — a per-**screen** static list of technical id columns (`Ref*SubId`/`ItemId`/`CostCenterId`) that the selection handlers then *read out of the returned rows*: **hidden must not mean absent**, so the column model carries a visibility flag and still delivers the value. (5) **`HeaderContent` is passed by 4 of 33** — three hold an identical Stock/All radio pair that re-filters client-side (`SubContractDCOutUpsert.razor:54-61`, handler `:2360-2372`), one is a legend for the cell highlighting (`JobOrderUpsert_pages.razor:42-48`); it survives as a filter slot and a legend slot. (6) **Cell highlighting has exactly one consumer**, `JobOrderUpsert_pages.razor`, and the flags behind it are computed in Razor `@code` at `:2494-2512` — an **unextracted BOM-diff calculation**, `<W>-03` work. (7) **Selection order is load-bearing and widespread**: 34 files `foreach` the returned list and append in iteration order, 48 call a `ResetSlno` renumbering afterwards (worked example `MfgPOUpsert.razor:4014`→`:4072`→`:4077`). (8) **Candidate sets already come from dedicated server-side service methods** — ~37 of 41 assign directly from one of **75** `Task<List<Dictionary<string,object>>>` methods across `BusinessLayer/`, with eligibility already server-side (`MfgPoService.cs:1576-1577`); only 4 post-filter in `@code`. **But none of the 75 pages, sorts or searches, and none is exposed by `V.SMART.Api`** — making them M2-B02-compliant is a per-method server change ~75 times over, plus a controller each. That belongs in the M3-5 estimate. (9) **Negative results**: no permission or screen-right check exists anywhere in `DetailsModal.razor`; no raw SQL on the candidate-set path (tenancy is the ordinary per-tenant `DbContext`); `git grep -n --untracked` for `DetailsBy`/`GetPoDetails`/`PendingList` under `V.SMART.Api/` → **0 hits**. **Correction to KB-015**: `MasterModal.razor` is 45 lines of modal chrome with a content slot (`:32-39`) — no table, no search, no selection — so KB-015's "trio" framing is inaccurate for it; it maps to M2-C04-03's generic modal, and it is used by 133 files, so mis-scoping it would be expensive. **Tooling note:** `git grep --untracked` with the pattern `</DetailsModal>` returned zero on this workstation while plain `grep -rn` returned 41 — cross-check closing-tag counts with plain `grep`. | Confirmed (2026-08-26) |
 | INV-056 | **What exactly does the API's error contract put on the wire, what is the list-export endpoint's contract, and can the browser read `Content-Disposition`?** | Complete *(2026-08-26, M2-C05-03)* | `V.SMART/V.SMART.Api/Middleware/ApiProblems.cs:16,26-44,47-53,89-104,134-139`; `V.SMART/V.SMART.Api/Middleware/CorrelationId.cs:25,41`; `V.SMART/V.SMART.Api/Middleware/ProblemResults.cs:44`; `V.SMART/V.SMART.Api/Middleware/ProblemTypes.cs:17,29,54,60`; `V.SMART/V.SMART.Api/Controllers/CurrencyExcelController.cs:40,48,51,58,84-127`; `V.SMART/V.SMART.Api/Program.cs:165-171,416`; `frontend/nexgen-web/src/app/core/api/generated/fn/currency/export-currencies.ts`; `frontend/nexgen-web/src/app/shared/components/form/server-validation.ts:22,136-139`; `V.SMART/V.SMART.Shared/Components/DetailsModal.razor:75-82,241-256`; `V.SMART/V.SMART.Shared/Services/ExcelExportService.cs:24,113`; `V.SMART/V.SMART.Shared/Services/Extensions/IJSRuntimeExtensions.cs:30`; `V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/SalesService/MfgPoService.cs:488,598`; negative greps: `WithExposedHeaders` / `Access-Control-Expose-Headers` across `V.SMART/V.SMART.Api` → **0**; `proxy.conf*` under `frontend/nexgen-web` → **0**; `*interceptor*` under `frontend/nexgen-web/src` → **0**; `xlsx`/`exceljs`/`papaparse`/`jspdf`/`pdfmake` in `frontend/nexgen-web/package.json` → **0** | **Five answers, three of them load-bearing for anything that renders a server failure.** (1) **The correlation id is the extension member `traceId`, not `correlationId`** (`ApiProblems.cs:43`), its value `Activity.Current?.Id ?? HttpContext.TraceIdentifier` (`CorrelationId.cs:41`); it is *also* the `X-Correlation-Id` header (`:25`) but see (4). (2) **A 409 business-rule refusal carries the service's sentence in `title`, verbatim** (`ApiProblems.cs:47-53` via `ProblemResults.cs:44`); a **403** screen-right refusal adds the extensions `screen` and `right` plus a composed `detail` (`:89-104`), which map 1:1 onto `PermissionDeniedStateComponent`'s two required inputs; a **500** carries a *constant* title `"An unexpected error occurred."` and `traceId` only, **in every environment** (`:134-139`) — there is no exception message to display, and a test expecting one is asserting a fiction. Media type `application/problem+json` (`:16`). (3) **A list-export endpoint already exists** — `GET /api/v1/currencies/export` (`CurrencyExcelController.cs:84-127`), so `M2-C05-03`'s *"if none exists, report Blocked"* branch does **not** apply. It **honours filters and sort** and ignores only paging (`:106-110`, documented `:80-82`), so there is no silent-unfiltered-export defect. It accepts `format=xlsx` **exclusively** (`:48`; anything else is a 400, `:100-104`), and it **refuses rather than truncates** above `MaxExportRows = 10_000` (`:58`) with a **409** business-rule problem (`:112-116`) — meaning export failure shares the 409-verbatim rendering path with a delete refusal. (4) **Negative, and it costs an acceptance criterion: `Content-Disposition` is not readable cross-origin.** The only CORS policy (`Program.cs:165-171`, applied `:416`) sets no `WithExposedHeaders`, and there is no dev proxy, so both `Content-Disposition` and `X-Correlation-Id` read as `null` in a browser — the correlation id must be read from the body's `traceId`, and the exported file saves under the client's fallback name. Recorded as **Q-96** / **R-79**, as a gap against M2-B06 rather than worked around. (5) **Negative: no HTTP interceptor of any kind exists** — `core/http/` and `core/auth/` are empty, `app.config.ts:29` is `provideHttpClient(withInterceptors([]))`, and M2-C02 is Blocked; so the ProblemDetails normalisation M2-C05-03 was told to consume has no producer, and the grid normalises once locally (**Q-94**). Also re-verified byte-for-byte on 2026-08-26: BR-SO-001's two sentences at `MfgPoService.cs:488` and `:598`; the single undifferentiated `"No data found."` row at `DetailsModal.razor:75-82`, which M2-C05-03 deliberately splits into two states; and `ExcelExportService.cs:24`/`:113`, which stay server-side and are now reached over HTTP instead of through base64 + JS interop (`IJSRuntimeExtensions.cs:30`). | Confirmed (2026-08-26) |
 | INV-028 | Row-level scoping via `User.StateCodesCsv`, and the account gates it sits beside | Complete *(performed 2026-08-20 by M2-A08)* | `Data/Master/Admin_Module/User.cs`, `BusinessLayer/BusinessService/LeadService/LeadService.cs`, `.../ILeadService.cs`, `Pages/SalesAndLabour_pages/Leads_Pages/LeadsList.razor`, `.../LeadsUpsert.razor`, `Pages/Master_Module_pages/Identity_Pages/Login.razor`, `.../QrLogin.razor`, `.../RegisterUpsert.razor`, `Repository/MasterRepository/Admins/UserRepository.cs`, `BusinessLayer/.../UserService.cs`, `V.SMART.Api/**` — **plus four negative greps, listed below** | [KB-108](architecture/row-scope-and-account-gates.md) | 2026-08-20 |
 
@@ -1046,6 +1047,177 @@ permission service, no rights directive, and its only guard checks authenticatio
 (`src/app/core/auth/auth.guard.ts:11-20`). The 152 × 5 matrix has to be built from nothing in
 `M2-C02`; there is no pilot code to adopt for it.
 
+## INV-054 (M2-C06, 2026-08-26) — the 33 `DetailsModal` call sites
+
+Run before `RecordPickerDialog`'s input surface was fixed, because the survey is what
+decides which inputs are real. **All 13 line ranges in `M2-C06.md`'s *Existing Behavior to
+Preserve* table were re-verified against `DetailsModal.razor` (259 lines) and every one is
+accurate — none is stale.**
+
+### Counts
+
+| Measure | Value | How |
+|---|---|---|
+| Page files rendering `<DetailsModal` | **33** | `git grep -l "<DetailsModal" -- "V.SMART/V.SMART.Shared/Pages/"` |
+| **Instances** of `<DetailsModal>` | **41** | `git grep -c` over the same pathspec; plain `grep -rn "</DetailsModal"` agrees |
+| Files rendering it more than once | 5 | `SubConGRNUpsert.razor` (3), `ProductionReturnCompUpsert.razor` (3), `ProductionIssueCompUpsert.razor` (3), `SubContractDCOutUpsert.razor` (2), `LabourDcOutgoingUpsert.razor` (2) |
+| Modules spanned | 7 | Outsourcing 12, Sales and Labour 12, Production 6, Inventory/Stock 2, Planning 1, Service Bills 1 |
+
+### Classification
+
+| Question | Answer | Representative evidence |
+|---|---|---|
+| 1. Multi-select line pull vs single-record master pick | **41 multi-select, 0 master picks.** Every `Title` is a document type (PO Details ×8, Dc Details, GRN Details, Invoice Details, Job Order Details, Route Card Details, …). Master picking is done by *routable pages*, not by this dialog. | `V.SMART/V.SMART.Shared/Components/CustomerSelection.razor:1-2`; `VendorSelection.razor` |
+| 2. `HeaderContent` | **4 of 33.** Three hold an identical Stock/All radio pair that re-filters the candidate set client-side; one is a legend explaining the cell colours. | `SubContractDCOutUpsert.razor:53-61` + handler `:2360-2372`; `JobOrderUpsert_pages.razor:40-48` |
+| 3. `HiddenColumns` | **41 of 41 — always passed, never null.** Per **screen**, static, never per user. 4 instances choose between two lists inline; 3 files reassign at runtime. | `MaterialIssueUpsert.razor:842`; `LabourGRNUpsert.razor:1221-1224`; `SubConSCNUpsert.razor:717`; runtime reassignment at `SubConGRNUpsert.razor:1831`, `:1851` |
+| 4. Cell highlighting | **1 of 33.** The flags are computed in Razor `@code`, not by any service. | `JobOrderUpsert_pages.razor:2494-2512`, filtered to changed rows at `:2517-2522`; no `.cs` file under `BusinessLayer/` sets either flag |
+| 5. Selection order | **Load-bearing and widespread.** 34 files `foreach` the returned list and append in iteration order; 48 call a `ResetSlno`/`ResetSlNo` renumbering routine afterwards. | `MfgPOUpsert.razor:3997` → `:4014` → `:4072` → `:4077` |
+| 6. How the candidate set is produced | **Dedicated server-side service methods** — ~37 of 41 assign directly from one of **75** `public Task<List<Dictionary<string,object>>>` methods across `BusinessLayer/` (76 interface declarations). Only 4 post-filter in `@code`. | `MfgPOUpsert.razor:3982` → `MfgPoService.cs:1569-1614`; `MaterialIssueUpsert.razor:2057`; `PurchaseGRNUpsert.razor:2446` |
+
+### What this changes about the replacement
+
+- **Single-select mode migrates nothing.** It is new capability aimed at the
+  `CustomerSelection`/`VendorSelection` pages, and cannot be validated against legacy
+  behaviour — only designed. Whether any of the 41 is *functionally* single-pick in
+  practice is not answerable from source (→ open question).
+- **`initialSelection` migrates nothing either.** Pre-selection is dead code.
+- **Hidden does not mean absent.** The hidden columns are exactly the `Ref*SubId` /
+  `ItemId` / `CostCenterId` keys the selection handlers read out of the returned rows. A
+  column model that dropped non-visible fields would break every call site.
+- **The M3-5 estimate needs a line for the backend.** The queries and their eligibility
+  rules are already server-side, which is the good news; the bad news is that **not one of
+  the 75 methods pages, sorts or searches**, and **none is exposed by `V.SMART.Api`** —
+  `Controllers/` holds six controllers, none of them a candidate-set endpoint. That is a
+  per-method server change roughly 75 times over, plus a controller each.
+
+### Findings
+
+```yaml
+Finding:        DetailsModal.razor is the ERP's universal record picker: it is rendered
+                by 33 page files (41 instances), takes untyped
+                List<Dictionary<string,object>> rows with three parallel column arrays,
+                filters client-side across all fields, scopes select-all to the FILTERED
+                rows, and returns selected rows ORDERED BY THE SEQUENCE THE USER SELECTED
+                THEM rather than by row order.
+Evidence:       V.SMART/V.SMART.Shared/Components/DetailsModal.razor:104-124, :150-154,
+                :181-198, :205-213
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-26
+```
+
+```yaml
+Finding:        DetailsModal.ConfirmSelection contains an unreachable null guard - it tests
+                the result of .ToList() for null and throws
+                InvalidOperationException("Please select  Dc from the list."), while the
+                catch immediately rethrows. The genuinely reachable case, an EMPTY
+                selection, is not handled at all, and the Update button is always enabled
+                (:90). RECORDED, NOT FIXED: DetailsModal.razor keeps serving its 33 call
+                sites unchanged until each is migrated in its module wave.
+Evidence:       V.SMART/V.SMART.Shared/Components/DetailsModal.razor:144-169, :90
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-26
+```
+
+```yaml
+Finding:        DetailsModal hardcodes domain-specific cell highlighting in a shared
+                component: one item-code column is highlighted yellow when the row carries
+                a new-item flag, and one quantity column red when it carries a
+                quantity-changed flag. Exactly one of the 33 call sites uses it, and the
+                flags behind it are computed in Razor @code, not by any service - an
+                unextracted BOM-difference calculation.
+Evidence:       V.SMART/V.SMART.Shared/Components/DetailsModal.razor:218-230;
+                V.SMART/V.SMART.Shared/Pages/PlanningModule_pages/JobOrder_Pages/
+                JobOrderUpsert_pages.razor:2494-2522
+Business rule:  n/a - it must not be reimplemented in TypeScript; it is <W>-03 work
+Confidence:     Confirmed
+Last verified:  2026-08-26
+```
+
+```yaml
+Finding:        NEGATIVE RESULT - pre-selection is dead code. DetailsModal.razor:130-134
+                honours a "Selected" key, but ["Selected"] = false appears in 75 places
+                across V.SMART.Shared and ["Selected"] = true in ZERO. The producing
+                services hardcode false.
+Evidence:       V.SMART/V.SMART.Shared/Components/DetailsModal.razor:130-134;
+                V.SMART/V.SMART.Shared/BusinessLayer/.../MfgPoService.cs:1599
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-26
+```
+
+```yaml
+Finding:        NEGATIVE RESULT - no endpoint exists for any candidate set.
+                V.SMART.Api/Controllers/ holds exactly six controllers (Auth, Currency,
+                CurrencyExcel, Files, Me, Reference); grep for DetailsBy / GetPoDetails /
+                PendingList under V.SMART.Api/ returns 0 hits. None of the ~75
+                candidate-set service methods is exposed, and none of them pages, sorts or
+                searches. Per-wave <W>-03/<W>-06 backend work, ~75 methods plus a
+                controller each.
+Evidence:       V.SMART/V.SMART.Api/Controllers/;
+                V.SMART/V.SMART.Shared/BusinessLayer/.../MfgPoService.cs:1569-1614
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-26
+```
+
+```yaml
+Finding:        NEGATIVE RESULT - no permission or screen-right check exists anywhere in
+                DetailsModal.razor (read in full, 259 lines). The caller decides whether
+                the picker may open, today and in the replacement.
+Evidence:       V.SMART/V.SMART.Shared/Components/DetailsModal.razor:1-259
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-26
+```
+
+```yaml
+Finding:        Duplicate-line suppression is a CALLER-side, client-only rule, silent to
+                the user: a selected row is skipped when the document already holds the
+                same item and reference sub-id. 21 such skip-on-duplicate guards across
+                Pages/. It maps onto the replacement's disabledRowIds input, but the
+                decision must move SERVER-side in the module wave rather than being copied
+                into TypeScript.
+Evidence:       V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/SalesPo_Pages/
+                MfgPOUpsert.razor:4024-4025
+Business rule:  n/a - unextracted; no owner today
+Confidence:     Confirmed
+Last verified:  2026-08-26
+```
+
+```yaml
+Finding:        CORRECTION TO KB-015. MasterModal.razor is 45 lines of modal chrome with a
+                content slot and the parameters IsVisible, Title, MaxWidth, ChildContent,
+                OnClose only. It contains no table, no search and no selection, so KB-015's
+                "DetailsModal + MasterModal + *Selection trio" framing is inaccurate for
+                it: it maps to M2-C04-03's generic modal, not to RecordPickerDialog. It is
+                used by 133 files, so mis-scoping it would be expensive.
+Evidence:       V.SMART/V.SMART.Shared/Components/MasterModal.razor:32-39
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-26
+```
+
+```yaml
+Finding:        Caller-side validation before the dialog opens can fail SILENTLY. One
+                representative wraps the whole show-dialog method in a guard with no else
+                branch, so clicking the trigger with no customer chosen produces no dialog,
+                no toast and no message.
+Evidence:       V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/SalesPo_Pages/
+                MfgPOUpsert.razor:3975-3977
+Business rule:  n/a
+Confidence:     Confirmed
+Last verified:  2026-08-26
+```
+
+### Tooling note
+
+`git grep --untracked` with the pattern `</DetailsModal>` and a pathspec returned **zero**
+matches on this workstation, while plain `grep -rn` over the same tree returned **41**.
+Opening-tag searches behaved normally. Cross-check closing-tag counts with plain `grep`.
+
+
 ## Partial
 
 | ID | Topic | Status | Gap | Doc |
@@ -1123,8 +1295,9 @@ different id, the table wins. Three independent sessions claimed INV-030 simulta
 | INV-051 | **Which TypeScript client generator, and what does \`decimal?\` become?** | M2-B10 | **Claimed and \`Complete\` 2026-08-24 — moved to the Completed table above.** Headline: \`ng-openapi-gen\` 1.0.5, the only candidate emitting Angular \`HttpClient\` services so calls flow through the auth interceptor; rejected \`@hey-api/openapi-ts\` (fetch-only, pre-1.0), \`openapi-typescript\` (types only) and \`openapi-generator-cli\` (needs a JRE, not installed here). \`decimal?\` → \`number \| null\`, flagged to M2-C10. Output: [KB-112](api/generated-client.md). |
 | INV-052 | **`p-table` virtual-scroll measurement, and whether a generic grid can consume M2-B10's generated paged types** | M2-C05-01 | **Claimed and `Complete` 2026-08-25 — moved to the Completed table above.** Headline: 60 fps target **met** (35 DOM rows for 10,000, 16.7 ms median frame); M2-B10 generates the paged envelope **per resource, never generically**, so a generic grid declares its own structurally identical type in one adapter module. |
 | INV-053 | **What the existing Blazor list screens render, and the MudDataGrid assumption** | M2-C05-01 | **Claimed and `Complete` 2026-08-25 — moved to the Completed table above.** Headline: 93 `.razor` files use `<QuickGrid`; `MudDataGrid`/`MudTable` appear in **zero**. Refines INV-006. |
+| INV-054 | **How the 33 `DetailsModal.razor` call sites use it, and what that means for the replacement** | M2-C06 | **Claimed and `Complete` 2026-08-26 — moved to the Completed table above** *(branch merged to `master` 2026-08-26 on owner instruction)*. Headline: 33 files but **41** instances; **all 41 are multi-select upstream-document pulls and none is a single-record master pick**, so single-select mode is new capability; pre-selection is dead code; `HiddenColumns` is universal and load-bearing (hidden must not mean absent); the ~75 candidate-set service methods are already server-side but none pages, sorts, searches or is exposed by the API. |
 | INV-056 | **The API error contract on the wire, the list-export endpoint contract, and CORS header exposure** | M2-C05-03 | **Claimed and `Complete` 2026-08-26 — moved to the Completed table above.** Headline: the correlation id is `traceId`; a 409 carries the service sentence in `title`; `GET /api/v1/currencies/export` **exists**, honours filters and sort, is `xlsx`-only and 409s above 10,000 rows; **`Content-Disposition` is not exposed cross-origin** (Q-96/R-79); **no HTTP interceptor exists at all** (Q-94). INV-054 and INV-055 were already claimed on unmerged branches on 2026-08-26, hence 056. |
-| **INV-054 +** | **next free** *(INV-050 was claimed by M2-B03 on 2026-08-24. INV-049 was claimed by M2-A03 on 2026-08-24. INV-042 was double-claimed by `M2-A07` and `M2-B04`; resolved at merge 2026-08-21 — M2-A07 keeps INV-042, M2-B04 became INV-047. INV-045 was claimed by M2-B06, INV-046 by M2-B11, INV-048 by M2-C13. Check `git branch --no-merged master` before claiming)* | — | — |
+| **INV-057 +** | **next free** *(INV-050 was claimed by M2-B03 on 2026-08-24. INV-049 was claimed by M2-A03 on 2026-08-24. INV-042 was double-claimed by `M2-A07` and `M2-B04`; resolved at merge 2026-08-21 — M2-A07 keeps INV-042, M2-B04 became INV-047. INV-045 was claimed by M2-B06, INV-046 by M2-B11, INV-048 by M2-C13. INV-054 was claimed by M2-C06, merged 2026-08-26. **INV-055 is claimed on an unmerged branch** (2026-08-26). INV-056 was claimed by M2-C05-03 on 2026-08-26. Check `git branch --no-merged master` before claiming)* | — | — |
 
 Before claiming an id: `grep -rn "INV-0[0-9][0-9]" docs/` across **both** `docs/kb/` and
 `docs/kb/execution/tasks/`, then add the row here in the same change that uses it. Never
