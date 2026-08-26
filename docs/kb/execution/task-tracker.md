@@ -154,7 +154,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Completed**⁴⁵ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Completed**⁴⁶ *(merged to `master` `27dfc5d` on owner instruction 2026-08-23)* | P0 | M2-C12-01…04 | 1 d | G2 |
 | M2-C13 | M2 | Defer the confirm-dialog host; bundle back inside budget (R-69) | Frontend | **Completed**⁵⁵˒⁵⁶˒⁵⁷ | P1 | M2-C04-03 | 1 d | G2 |
-| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Needs Review**²⁶˒⁴⁶˒⁴⁷˒⁵²˒⁸⁵˒⁸⁹˒⁹² *(**M2-B13 merged 2026-08-26 — Q-85's real blocker is implemented.** Existing branch `migration/M2-C10-decimal-handling` (`2ae6e63`) was independently found **14 of 15 acceptance criteria MET** at its own close-out — the 15th was the now-resolved wire-format criterion. Substantial, close-to-complete work; not yet reviewed against the new string contract or merged. See footnote ⁹²)* | P0 | M2-C01 | 2 d | G2 |
+| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Needs Review**²⁶˒⁴⁶˒⁴⁷˒⁵²˒⁸⁵˒⁸⁹˒⁹² *(**Merged and integration-verified 2026-08-26** — `decimal.js` module, `money` pipe, ESLint/spec-scan enforcement; a real lint gap against `M2-C05-01`'s DataGrid found and fixed, not glossed over. Full suite: `test:ci` 526/526, `build` clean, 0 bundle regression. See footnote ⁹³)* | P0 | M2-C01 | 2 d | G2 |
 | M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | **Completed**⁴⁶˒⁵⁴ *(parent — all three children `Completed` and merged)* | P0 | M2-C01 | 2 wks | G2 |
 | M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
@@ -3597,3 +3597,42 @@ written for **user keyboard input**, not necessarily audited as the same shape a
 `fromApi`-style function should take — that needs an actual read, not an inference from one
 function signature. **Not reviewed, not merged by this pass.** If it holds up, this is
 substantially cheaper than a fresh implementation.
+
+⁹³ **`M2-C10`: reviewed and merged, 2026-08-26 — same session as footnote ⁹² found it.**
+`fromApi` did hold up on the actual read: it already accepted both a JSON number and a JSON
+string (`typeof value !== 'number' && typeof value !== 'string' ...` in `money.ts`), because
+the module's own README had already recorded the wire-format fix as a finding for `M2-B10`/
+`M2-A06` before this session decided and implemented it as `M2-B13`. Merge conflicted only in
+`docs/kb/` bookkeeping (resolved: keep `master`'s newer state, fold in the branch's unique
+content — same pattern as every other merge this session); `src/` and `eslint.config.js`
+applied without conflict.
+
+**A real integration gap, not a rubber-stamp merge.** Re-running lint after the merge found
+**8 errors across 6 files** — the branch's global ESLint bans on `Math.round`/`parseFloat`/a
+direct `decimal.js` import, correct when written 2026-08-23, now also catching `M2-C05-01`'s
+DataGrid (landed after), which does legitimate pixel/row-count arithmetic the rule cannot
+distinguish from money without help. Read each of the 5 flagged `data-grid-*`/`drawer`
+call sites individually before exempting any of them — none touches money or quantity, all
+confirmed pixel widths or row-count pagination. The 6th, `fake-decimal-port.ts`, was a
+genuine hit: a documented test-only stand-in (*"M2-C10 owns the real decimal module"*, written
+before it existed) whose 5 consumers are all test specs. Fixed with scoped exemptions in both
+`eslint.config.js` and the matching `EXEMPT` map in `no-float-money.spec.ts` (the
+architecture-level scan the module's own README says a lint rule alone cannot replace),
+following the exact pattern the branch's own `contrast.spec.ts` exemption already established.
+
+**A genuine cross-task gap, recorded rather than silently absorbed into this merge.**
+`DECIMAL_PORT` (`shared/components/form/types.ts`) has no production DI provider — the numeric
+form controls are wired to consume it, `types.ts` itself carries `TODO(M2-C10)`, and `M2-C10`'s
+own task file never once mentions `DECIMAL_PORT` — checked, not assumed. Never in this task's
+written scope; not done by this merge. Recorded in `tasks/M2-C10.md` § Close-out as what the
+next session should pick up.
+
+**Verified on the merged result, not inherited from the branch's three-day-old numbers:**
+`typecheck` exit 0 · `lint` "All files pass linting" (after the exemption fix) ·
+`format:check` clean · `test:ci` **526 passed / 64 files** (was 466/59 before this merge —
++60 tests, 0 regressions) · `build` clean, **571.20 kB raw / 136.72 kB gzip** — byte-identical
+to pre-merge, because nothing in the current production path imports the decimal module yet
+(the `DECIMAL_PORT` gap above), so `decimal.js` is correctly tree-shaken out until something
+wires it in. Status `Needs Review`, not `Completed` — per
+[KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed), only the owner closes a
+task.

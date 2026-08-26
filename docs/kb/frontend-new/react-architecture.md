@@ -211,6 +211,32 @@ Rules, each of which the pilot either already honours or is the counter-example 
 > `core/auth/` (`M2-C02`), `core/http/` (`M2-C02`), `layout/*` (`M2-C03`) and every
 > other `shared/components/*` primitive (`M2-C04-02`, `M2-C04-03`, `M2-C05-01`) are empty
 > directories carrying a `.gitkeep`.
+>
+> **`shared/utils/decimal/` and `shared/pipes/money.pipe.ts`, realised by `M2-C10` (2026-08-23).**
+> `shared/utils/` and `shared/pipes/` are already named in the block above; the `decimal/`
+> subfolder is what fills the first of them. It is the **single** money/quantity representation
+> for the SPA — `decimal.ts` (the only file in the app that imports `decimal.js`, configured once
+> with `ROUND_HALF_UP`, the mode the server uses), `money.ts` (branded `Money`/`Qty`
+> constructors, the `fromApi`/`toApi` wire boundary, arithmetic, comparison, explicit rounding),
+> `format.ts`, `parse.ts`, `precision.ts` (the decimal-place policy, traceable to
+> `Companydetails.DecimalPlaces` — `Companydetails.cs:208` — so no component hardcodes `2`),
+> `index.ts` (the only import path anything outside may use) and its own `README.md`.
+> `shared/pipes/money.pipe.ts` is the display pipe; Angular's `DecimalPipe` and `CurrencyPipe`
+> must **not** be used on money, because both coerce to `number`.
+>
+> **The prohibition is mechanised, not advisory.** `eslint.config.js` bans `decimal.js` imports,
+> `parseFloat`, unary `+`, `.toFixed()` and `Math.round/floor/ceil` outside that folder, and
+> `shared/utils/decimal/no-float-money.spec.ts` re-scans `src/**` for the same patterns (plus
+> `DecimalPipe`/`CurrencyPipe` and arithmetic on money-named identifiers), catching what an
+> inline `eslint-disable` would let through.
+>
+> **The server owns every calculated result — the client only previews it.** Document totals,
+> tax, discount, freight, TCS and round-off come from `CalculationService.UpdateTotalsAsync`
+> (BR-CALC-001) and stock allocation from `StockManagerService` (BR-STK-001). A screen may show a
+> local preview for responsiveness, but it is **marked as provisional and overwritten by the
+> server's result before save**. The decimal module exists so that preview is *exact*, never so
+> the client can own the number. See § *What is deliberately not rebuilt in the SPA*, and
+> INV-032 / R-70 for how `decimal` crosses the wire.
 
 ## Authentication flow
 
