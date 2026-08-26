@@ -9,10 +9,52 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-25
+last_verified: 2026-08-26
 dependencies: [KB-089, KB-091, KB-092, KB-081]
 
 selection_note: |
+  2026-08-26 Select-only pass (this session), tip `df1d740` on `master` (clean tree —
+  `git status --porcelain` empty, `git branch --show-current` = `master`). The launch snapshot
+  claimed branch `migration/M0-04-credential-rotation-runbook`; that was stale — the checked-out
+  branch was already `master` at session start, and `git merge-base --is-ancestor` confirms
+  none of that branch's commits (`e437fe5`, `622cc9e`, `1133cfc`, `5b67161`) are in `master`'s
+  history, so its `M0-04` bookkeeping (session close-out, halt record) never reached `master`
+  and this pass does not rely on it. **Found a second instance of the exact staleness pattern
+  `M2-C05-01` itself was selected for on 2026-08-25**: this file's and `current-task.md`'s own
+  `Status`/narrative — inherited verbatim from `master`'s committed history — described
+  `M2-C05-01` as implemented but **unmerged** on branch `claude/unblocked-task-execution-pjyouv`.
+  `git log --first-parent e9a8e7a..df1d740` shows `bf2b4cd` **"Merge M2-C05-01: implement the
+  server-paged DataGrid core"** directly on `master`'s first-parent line, and
+  `git ls-tree -r df1d740 -- frontend/nexgen-web/src/app/shared/components/data-grid/` lists all
+  18 files the task delivered. **It is merged; the tracker row and the task file's own
+  frontmatter (`status: Needs Review`) were simply never updated after the merge landed.**
+  Corrected in `task-tracker.md` footnote ⁷⁴ (superseding the stale part of footnote ⁷⁰).
+  Re-derived readiness for every row naming `M2-C05-01` as its real blocker: `M2-C05-02` and
+  `M2-C05-03` (P1) and `M2-C06` (P0) all clear the five-part test — none is a `Product
+  Decision`; `open-questions.md` grepped for each, no hit; none carries a ⛔ banner (all three
+  were re-specified for Angular by `M2-C12-03`, confirmed by reading each file); `git branch
+  --no-merged master` (run this session) touches none of their `source_files`. `M2-C07` and
+  `M2-C09` do **not** release — each names a second, still-genuinely-`Blocked` prerequisite
+  (`M2-C10`: environment; `M2-B08`: environment) this correction does not touch. Rank step 1
+  (priority) settles the three released rows without a tie: `M2-C06` is **P0**, the other two
+  are **P1**. **`M2-C06` selected**, not dispatched. `M2-C05-02`/`M2-C05-03` are
+  `tiedCandidates` — both genuinely independent and selectable, ranked below `M2-C06` on
+  priority alone; noted for the record (not a selection blocker) that `M2-C06` and `M2-C05-03`
+  share two `source_files` entries (`DetailsModal.razor`, `ExcelExportService.cs`, both
+  reference-only), so the two should not be dispatched concurrently. Classification per KB-091
+  §4 (task file carries no explicit `complexity`/`risk` override): `task_type: Frontend` → base
+  MEDIUM; one raise (`estimate: 1 wk` ≥ 3 d) → **complexity HIGH**; no Security/schema/secrets/
+  `Program.cs`/`appsettings*` trigger, `business_rules: []`, and the task explicitly leaves
+  `DetailsModal.razor` and the live Blazor app unchanged → **risk MEDIUM**. Per §5.1,
+  complexity HIGH routes Investigate/Implement/Validate all to `opus`, regardless of risk (no
+  §5.2 floor applies beyond what HIGH complexity already selects). Not a safety stop: tree
+  clean, branch cuts fresh from `master` at `df1d740`, no sibling branch on `M2-C06`'s files,
+  not a `Product Decision`, no DBA/credential/environment need disclosed by the task file.
+  `requiresHuman`: false. `current-task.md` rewritten to point at `M2-C06`, carrying forward
+  `M0-04`'s unmerged-branch status (not to be re-dispatched from this branch's tip without a
+  merge decision, which this pass does not make), `M0-06`/`M0-11`'s standing failures, and
+  `M2-A03`'s owner-only CI-required-check item. Previous note, superseded by the above:
+
   2026-08-25 `M2-C05-01` execution (this session), branch
   `claude/unblocked-task-execution-pjyouv` off `master` `e9a8e7a`. **The previous pass's
   "nothing dependency-ready" verdict was wrong, and the reason is worth more than the task.**
@@ -368,7 +410,9 @@ corrected.
 
 | Field | Value |
 |---|---|
-| **Status** | `STOPPED` — **`M2-C05-01` executed and closed `Needs Review`, 2026-08-25, on branch `claude/unblocked-task-execution-pjyouv`, unmerged.** The immediately preceding select-only pass concluded "nothing dependency-ready" **from a stale tracker row**: `M2-C05-01` read `Blocked` with the note *"real blockers are `M2-C04-02`, `M2-B02`"*, but `M2-B02` merged 2026-08-20 (`feec964`) and `M2-C04-02` on 2026-08-23, and nothing moved the row — its own task file still read `status: Not Started`. Re-running the five-part test against the **prerequisites** rather than the status column showed all five parts pass, so the task was selected and executed. The `p-table` virtual-scroll measurement the task file mandates **before** building was run first and **passed** (10,000 rows → 35 rendered `<tr>`, 16.7 ms median frame): ADR-007's PrimeNG-table premise is now measured, not asserted. Delivered 18 files and 45 tests; `typecheck`, `lint`, `format:check` and `build` all clean, bundle unchanged at 571.20 kB. **One thing a reviewer must know:** `npm run test:ci` is intermittently red **and was before this branch** — proven by stashing the tree to plain `master` (`e9a8e7a`) and running five times, two clean and three red — root cause **R-76**, a `BlockUI` mask left in `document.body` by `feedback/busy-overlay.component.spec.ts`; adding three spec files raises its hit rate, and none of this task's tests fail. **`nextTaskId` empty — nothing else is selectable**, and merging this releases `M2-C05-02` and `M2-C05-03`. Previous note, superseded by the above: |
+| **Status** | `RUNNING` — **`M2-C06` selected this pass (2026-08-26, tip `df1d740` on `master`, tree clean).** Build `RecordPickerDialog`, the `DetailsModal` replacement. Selected because `M2-C05-01` — this file's own inherited narrative called it "unmerged" — is in fact merged (`bf2b4cd` on `master`'s first-parent line, all 18 files present at `HEAD`; tracker row and task-file frontmatter were simply never updated after the merge, corrected in `task-tracker.md` footnote ⁷⁴). That releases `M2-C05-02`, `M2-C05-03` and `M2-C06`; `M2-C06` wins on priority (P0 vs P1), not a tie. Classification: `task_type: Frontend` → MEDIUM base, one raise (`estimate: 1 wk`) → **complexity HIGH**; **risk MEDIUM** (no Security/schema/secrets trigger, `business_rules: []`, live Blazor app explicitly unchanged). Routing: Investigate/Implement/Validate all `opus` (HIGH complexity). Not a safety stop; `requiresHuman`: false. Full detail in `selection_note`. **Attempt 0, not yet dispatched.** Previous note, superseded by the above:
+
+| **Status (previous, superseded)** | `STOPPED` — **`M2-C05-01` executed and closed `Needs Review`, 2026-08-25, on branch `claude/unblocked-task-execution-pjyouv`, unmerged.** The immediately preceding select-only pass concluded "nothing dependency-ready" **from a stale tracker row**: `M2-C05-01` read `Blocked` with the note *"real blockers are `M2-C04-02`, `M2-B02`"*, but `M2-B02` merged 2026-08-20 (`feec964`) and `M2-C04-02` on 2026-08-23, and nothing moved the row — its own task file still read `status: Not Started`. Re-running the five-part test against the **prerequisites** rather than the status column showed all five parts pass, so the task was selected and executed. The `p-table` virtual-scroll measurement the task file mandates **before** building was run first and **passed** (10,000 rows → 35 rendered `<tr>`, 16.7 ms median frame): ADR-007's PrimeNG-table premise is now measured, not asserted. Delivered 18 files and 45 tests; `typecheck`, `lint`, `format:check` and `build` all clean, bundle unchanged at 571.20 kB. **One thing a reviewer must know:** `npm run test:ci` is intermittently red **and was before this branch** — proven by stashing the tree to plain `master` (`e9a8e7a`) and running five times, two clean and three red — root cause **R-76**, a `BlockUI` mask left in `document.body` by `feedback/busy-overlay.component.spec.ts`; adding three spec files raises its hit rate, and none of this task's tests fail. **`nextTaskId` empty — nothing else is selectable**, and merging this releases `M2-C05-02` and `M2-C05-03`. Previous note, superseded by the above: |
 | **Status (previous, superseded)** | `STOPPED` — **Select-only pass, 2026-08-25, tip `9f2a750` on `master`, tree clean.** Re-ran the five-part "can actually be done" test against every `**Ready**` row in `task-tracker.md` (lines 84, 86 only): `M0-06` still fails part 5 (sibling branch `migration/M0-06-remove-default-admin` still unmerged); `M0-11` still fails part 2 (`Product Decision`, owner-only). Checked whether `M2-B10`'s merge released `M2-D01`: it did not — `M2-C05-03` (one of `M2-D01`'s three Hard prerequisites) still reads `Blocked`. **No task selected — `nextTaskId` empty.** See `selection_note` for detail. Previous note, superseded by the above: |
 | **Status (previous, superseded)** | `STOPPED` — **`M2-B10` merged 2026-08-25; `master` pushed to `origin` (164 commits, `2a45330..d4c9f60`).** G2 criterion 4 is **met**. `M2-B10` closed KB-114 §13's gaps rather than documenting them — 45 `[ProducesResponseType]` added, the 404 on `GET /currencies/{id}` and the 409 on `DELETE` now present — then committed `api/openapi.json` and 62 generated client files with a CI job that regenerates and diff-checks both. Verified on the merged result across both stacks: Api **0 errors / 6693 warnings**, **508 Api tests** (470 → 508), `typecheck`/`lint`/`format:check` clean, **309 frontend tests**, `build` exit 0, bundle **571.20 kB unchanged**. **Two findings from the push itself:** branch protection on `master` **exists** and requires pull requests (so `M2-A03`'s remaining item is an edit to an existing ruleset, not creating one — footnote ⁶⁹), and every merge in this run bypassed that rule with owner authority (**Q-82**). Owner: **Vivek**. |
 | **Status (previous, superseded)** | `RUNNING` — **`M2-B10` selected this pass (2026-08-24, tip `c2a9140` on `master`, tree clean — `git status --porcelain` empty, `git branch --show-current` = `master`).** Applied the five-part "can actually be done" test against `task-tracker.md`'s three `Ready` rows: `M0-06` fails part 5 — sibling branch `migration/M0-06-remove-default-admin` still present in `git branch --no-merged master`; `M0-11` fails part 2 — `task_type: Product Decision`, owner-only, never self-selectable; `M2-B10` clears all five — Hard prerequisite `M2-B03` is `Completed` and merged (`2630657`, tracker row 130); not a `Product Decision`; no open question in `open-questions.md` names it; `tasks/M2-B10.md` frontmatter carries no ⛔ banner (`status: Not Started`, `last_verified: 2026-08-12`); no unmerged branch (`git branch --no-merged master`) touches its `source_files` (`Program.cs`, `V.SMART.Api.csproj`, `CurrencyController.cs`, `AuthController.cs`, `.github/workflows/`, `ADR-002`). No tie — `M2-B10` is the only row clearing the test. **Classification derived per KB-091 §4** (task file carries no explicit `complexity`/`risk` override): base `DevOps` → MEDIUM (§4.1); one raise applies — `estimate: 3 d` (§4.2) — giving **complexity HIGH**; `source_files` includes `Program.cs` → **risk HIGH** per §4.3. Per §5.1 HIGH-complexity routing, and confirmed independently by §5.2 item 2 (risk HIGH forces `opus` for validation regardless): Investigate `opus`, Implement `opus`, Validate `opus`. Not a safety stop: working tree clean, branch will cut fresh from `master` at `c2a9140`, no sibling branch on `M2-B10`'s files, not a `Product Decision`, no DBA/credential/environment need disclosed by the task file — though the task's own text still names the SPA consumer "React", stale since ADR-007 (2026-08-20) superseded `ADR-003`; that is a re-specification note for the implementer, not a selection blocker. **Attempt 0, not yet dispatched.** |

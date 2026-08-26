@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-25
+last_verified: 2026-08-26
 dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 ---
 
@@ -21,106 +21,89 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## `M2-C05-01` closed `Needs Review` — the `DataGrid` core is built
+## `M2-C06` selected — `RecordPickerDialog`, the `DetailsModal` replacement
 
-`M2-C05-01` (server-paged `DataGrid` core) was implemented and closed **`Needs Review`** (not
-`Completed` — owner integration required,
-[KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed)) on branch
-`claude/unblocked-task-execution-pjyouv`, unmerged.
+**Full spec:** [`tasks/M2-C06.md`](tasks/M2-C06.md). Tracker: `task-tracker.md` row 167,
+footnote ⁷⁴. Not yet dispatched — **attempt 0**.
 
-**Full record:** [`tasks/M2-C05-01.md`](tasks/M2-C05-01.md) § Execution Record (2026-08-25).
-Tracker: [`task-tracker.md`](task-tracker.md) row 164, footnote ⁷⁰.
+### Why this task, and the correction that put it here
 
-### The selection correction that matters more than the task
+The previous session's own notes described `M2-C05-01` as implemented but **unmerged**. That
+was true when written; it is not true now. `git log --first-parent` on this session's `master`
+tip (`df1d740`) shows `bf2b4cd` **"Merge M2-C05-01: implement the server-paged DataGrid core"**
+on the first-parent line, and all 18 files it delivered are present at `HEAD`
+(`frontend/nexgen-web/src/app/shared/components/data-grid/`). No session's bookkeeping ever
+caught the merge — the task-tracker row and `M2-C05-01`'s own frontmatter both still read
+`Needs Review`. **Corrected in `task-tracker.md` footnote ⁷⁴.**
 
-**The tracker said `Blocked`. It was wrong, and had been for days.** The row read
-`Blocked`⁴⁶ with the note *"real blockers are `M2-C04-02`, `M2-B02`"* — but `M2-B02` reached
-`Completed` and merged (`feec964`) on **2026-08-20** and `M2-C04-02` on **2026-08-23**, and
-nothing moved the row. The task file's own frontmatter still read `status: Not Started`, which
-is the tell.
+Three rows named `M2-C05-01` as their sole real blocker: `M2-C05-02`, `M2-C05-03` and `M2-C06`.
+All three are now `Ready`. `M2-C06` is **P0**; the other two are **P1** — priority is the first
+rank criterion (KB-082 § Ready-task selection rule), so `M2-C06` wins outright, not on a tie.
+`M2-C05-02` and `M2-C05-03` are `tiedCandidates` — both genuinely selectable, both Frontend, no
+overlap with each other, ranked below `M2-C06` on priority alone.
 
-Three consecutive sessions reported *"nothing is dependency-ready"* from that stale row. The
-five-part *"can actually be done"* test was re-run against the **prerequisites themselves**
-rather than the status column, and it passes all five.
+**One thing the next session must not miss:** `M2-C06` and `M2-C05-03` share two files —
+`DetailsModal.razor` and `ExcelExportService.cs` (both are *reference* source, not files either
+task edits in Angular, but both name them in `source_files`). Do not dispatch both at once —
+finish or branch one before starting the other, per *Same-file conflicts — never parallelise*
+in `dependency-graph.md`.
 
-> **Carry this forward: a `Blocked` row whose named blockers have since merged is a stale row,
-> not a blocked task.** Re-derive readiness from the prerequisites. The same check should be run
-> over every other `Blocked` row before the next session concludes there is nothing to do — this
-> session only re-derived the rows it needed.
+`M2-C07` and `M2-C09` do **not** release from this correction — each still names a second,
+genuinely-`Blocked` prerequisite (`M2-C10`, `M2-B08`) untouched by it.
 
-### What landed
+### Classification (KB-091 §4)
 
-Eighteen files in `frontend/nexgen-web/src/app/shared/components/data-grid/`, exported through
-the `shared/components` barrel (which nothing imports eagerly, so the initial bundle is
-unchanged at **571.20 kB raw / 136.72 kB transfer**, byte-identical to the baseline).
+`task_type: Frontend` → base **MEDIUM**. One raise applies: `estimate: 1 wk` (≥ 3 d) →
+**complexity HIGH**. No other §4.2 raise applies — `depends_on` names only one task and only
+zero tasks name `M2-C06` back; `business_rules: []`; `source_files` all sit under
+`V.SMART.Shared` (one project, referenced for behaviour parity only — this task edits no
+`.razor`, no backend, no `Program.cs`); it does not touch authn/authz/tenancy/numbering/calc
+logic. **Risk MEDIUM** (default) — not Security/Product Decision, no schema/secrets/`Program.cs`/
+`appsettings*`, `business_rules` empty, and it changes nothing a live Blazor user can observe
+(`DetailsModal.razor` itself is explicitly Out of Scope — "the Blazor app must keep working
+unchanged"). Per §5.1, complexity HIGH routes **Investigate `opus`, Implement `opus`,
+Validate `opus`** regardless of risk (risk MEDIUM does not add a floor beyond what complexity
+already selects).
 
-- **`DataGridComponent<TRow>`** over PrimeNG `p-table` in `lazy` mode — controlled, not
-  self-driving: it renders the state it is given and emits the state the user asked for next.
-  No `pSortableColumn`, no `p-paginator`, no PrimeNG filter directive, so PrimeNG never holds a
-  second opinion about the page number.
-- **`DataGridQueryState`** — page / size / sort / filter as signals, route-bound (the URL *is*
-  the state) or detached (M2-C06's dialog must not write the URL). `switchMap`ped requests, the
-  previous page retained until the next resolves, `ProblemDetails` exposed untouched.
-- **One adapter module knows the wire formats** — and there are two, deliberately different:
-  M2-B02's API contract (`pageNumber`, `pageSize`, `sort=-field`) and the browser URL
-  (`page`, `size`, `sort=field:dir`).
-- **45 tests**, covering all 15 the task file lists, including the `axe` scan on a populated and
-  an empty grid in both themes.
-- **Seams typed and reachable** for `M2-C05-02` (`columnVisibility`) and `M2-C05-03` (`#empty`,
-  `#error`, `#toolbar`), each marked `TODO(<task id>)`.
+**Not a safety stop:** working tree clean at `master` `df1d740`, branch cuts fresh from there,
+no sibling branch touches any of `M2-C06`'s `source_files` (`git branch --no-merged master`
+checked this session), not a `Product Decision`, no DBA/credential/environment need — the task
+is pure Angular-side work with no server dependency beyond the already-merged `M2-C05-01`
+(`DataGrid`) it composes. `requiresHuman`: false.
 
-**The `p-table` measurement was run first, as the task file requires, and it passed:** 10,000
-rows → **35 rendered `<tr>`**, **16.7 ms median frame** (60 fps) in headless Chromium. Full
-method and table in
-[KB-050 § Performance targets](../frontend-new/react-architecture.md#performance-targets),
-recorded as **INV-052**. Had it failed, escalation was required rather than a silent fallback.
+### What the task is
 
-### Two things a reviewer must read before merging
+Build `RecordPickerDialog` (`frontend/nexgen-web/src/app/shared/components/record-picker-dialog/`):
+a searchable, **server-paged**, multi-select record picker over an upstream document or master
+list, composing `M2-C05-01`'s `DataGrid`, returning selections in the order the user ticked
+them (`DetailsModal.razor`'s behaviour 5 — this ordering controls line order in the document
+being built downstream, so it is load-bearing, not cosmetic). It replaces
+`DetailsModal.razor`, referenced by 33 page files, none of which migrate in this task — they
+keep using the Blazor component until their module wave. Full spec, the 13-row behaviour table
+with `file:line` evidence, and the 33-call-site survey requirement: `tasks/M2-C06.md`.
 
-1. **R-76 — `test:ci` is intermittently red, and this branch makes it fire more often.**
-   `feedback/busy-overlay.component.spec.ts` leaves a PrimeNG `BlockUI` mask attached to
-   `document.body`; spec files share one jsdom document, so its `role="progressbar"` and
-   `role="status"` descendants break later files' global role queries. **Proven pre-existing:**
-   this branch's tree was stashed so the tree was exactly `master` at `e9a8e7a`, and five
-   consecutive full runs gave two clean and three red. But because which files share a worker
-   depends on the file count, adding three spec files raises the hit rate — on the final tree,
-   three consecutive runs each had one or two failures, **a different pre-existing test each
-   time, never one of this task's**. The frontend CI job is blocking
-   (`.github/workflows/ci.yml:311-313`), so expect red that is not this branch's defect. The
-   one-line harness fix is written out in
-   [KB-060 R-76](../risks/technical-debt-register.md); it was **not** applied here because a
-   second task's spec file is not this branch's to edit.
-2. **INV-052 — M2-B10 generates the paged envelope per resource, never generically.** OpenAPI
-   3.0 has no generics, so a grid generic over `TRow` cannot import `CurrencyVMPagedResult`. The
-   adapter declares a structurally identical `DataGridPage<TRow>` instead. A limit of OpenAPI,
-   not a defect in M2-B10.
+### Carried forward — still true, untouched by this correction
 
-### What this releases, and what it does not
-
-`M2-C05-01` is the highest-fan-out frontend task in M2 — `M2-C05-02`, `M2-C05-03`, `M2-C06`,
-`M2-C07` and `M2-C09` all name it as a Hard prerequisite. **None of them is released yet**: it
-is `Needs Review`, and a `Needs Review` branch is not a satisfied Hard prerequisite. Merging it
-releases `M2-C05-02` and `M2-C05-03` immediately, and `M2-C05-03` in turn is one of `M2-D01`'s
-three prerequisites (the other two, `M2-A02` and `M2-B10`, are already `Completed` and merged).
-
-### Carried forward — still true
-
-- **`M0-06`** (`Ready`) still fails part 5: `migration/M0-06-remove-default-admin` exists on
-  `origin`, unmerged.
+- **`M0-04`** (credential rotation runbook) closed `Blocked` on a separate, **unmerged** branch
+  (`migration/M0-04-credential-rotation-runbook`) — its own designed terminal state, since no
+  human with production access participated. That branch's KB bookkeeping (task-tracker footnote
+  ⁷¹ *there*, `runner-state.md` halt record) never reached `master`; this file's account of it
+  is limited to what is confirmed on `master` (`task-tracker.md` row still reads `Blocked`⁴
+  here). Do not re-dispatch it from this branch's tip without first checking whether that branch
+  should be merged — that is a merge decision, not a selection one, and this session made no
+  such merge.
+- **`M0-06`** (`Ready`) still fails part 5: `migration/M0-06-remove-default-admin` unmerged.
 - **`M0-11`** (`Ready`) still fails part 2: `task_type: Product Decision`, owner-only.
-- **`M2-A03`** (`Needs Review`) still needs a human to mark the CI job a *required* status check
-  on `master`, or to accept the criterion as a standing manual gate. Owner: Vivek.
-- **Q-71**, **Q-82**, **R-43**, **M0-04** credential rotation and **Q-38** are untouched by this
-  task.
-- **Unmerged branches worth a reviewer's attention:** this one, plus
-  `migration/M2-A03-permission-matrix-harness`, `migration/M0-06-remove-default-admin`,
-  `migration/M0-00-vcs-baseline`, `migration/M0-07-ci-pipeline` and
-  `migration/M0-12-01-test-project` (`git ls-remote --heads origin`, 2026-08-25).
+- **`M2-A03`** (`Needs Review`) still needs a human to make the CI job a *required* status check
+  on `master`. Owner: Vivek.
+- **`M2-B08`**, **`M2-B12-01`**, **`M2-C10`** stay `Blocked` on environment/escalation-budget
+  grounds already recorded — unaffected by this correction.
+- **Q-71, Q-81, Q-82, Q-83, Q-84** and **R-43, R-76 (now resolved on `master`), R-77** are
+  untouched by this pass.
 
-### Environment note for the next session on this workstation
+### Environment note carried from the last session that measured it
 
-`node` here is **v22.22.2**; Angular CLI 22.1.5 requires `^22.22.3 || ^24.15.0 || >=26.0.0` and
-refuses to run at all, so `lint`, `test:ci` and `build` fail before doing any work while
-`typecheck` (plain `tsc`) passes. `package.json`'s `engines` and `frontend/nexgen-web/.nvmrc`
-already say Node 24, so the repository is not wrong. Everything above was run under **Node
-v24.19.0 / npm 11.17.0** (`nvm install 24`). No repository file was changed for this.
+`node` here was **v22.22.2** as of 2026-08-25; Angular CLI 22.1.5 requires
+`^22.22.3 || ^24.15.0 || >=26.0.0`. `nvm install 24` (Node v24.19.0 / npm 11.17.0) was used to
+run `lint`/`test:ci`/`build`. Re-verify at the start of the next session rather than assuming —
+this file records what was true then, not a repository change.

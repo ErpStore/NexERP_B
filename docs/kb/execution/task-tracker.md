@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-24
+last_verified: 2026-08-26
 dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
@@ -161,10 +161,10 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Completed**⁵³˒⁵⁴ *(merged to `master` on owner instruction 2026-08-24; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 3 d | G2 |
 | M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
-| M2-C05-01 | M2 | — server-paged table core | Frontend | **Needs Review**⁷⁰ *(both Hard prerequisites reached `Completed` and merged, so the `Blocked` reading was stale; implemented 2026-08-25, unmerged)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
-| M2-C05-02 | M2 | — column preferences + persistence | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P1 | M2-C05-01 | 3 d | G2 |
-| M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P1 | M2-C05-01 | 2 d | G2 |
-| M2-C06 | M2 | `RecordPickerDialog` | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-03`; real blocker is `M2-C05-01`)* | P0 | M2-C05-01 | 1 wk | G2 |
+| M2-C05-01 | M2 | — server-paged table core | Frontend | **Completed**⁷⁴ *(the `Needs Review`/"unmerged" reading was stale — `git log --first-parent` shows `bf2b4cd` "Merge M2-C05-01" on `master`'s own first-parent line, and all 18 files are present at `HEAD`; corrected 2026-08-26)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
+| M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Ready**⁷⁴ *(re-specified by `M2-C12-03`; its sole blocker `M2-C05-01` is now confirmed merged)* | P1 | M2-C05-01 | 3 d | G2 |
+| M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Ready**⁷⁴ *(re-specified by `M2-C12-03`; its sole blocker `M2-C05-01` is now confirmed merged)* | P1 | M2-C05-01 | 2 d | G2 |
+| M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Ready**⁷⁴ *(re-specified by `M2-C12-03`; its sole blocker `M2-C05-01` is now confirmed merged — selected, P0, 2026-08-26)* | P0 | M2-C05-01 | 1 wk | G2 |
 | M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-C10`. Its table-technology evaluation is **Q-83**, owner-owned)* | P0 | M2-C05-01, M2-C10 | 2 wks | G2 |
 | M2-C08 | M2 | `DocumentEditor` shell *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-04`)* | P0 | M2-C07 | 2 wks | G2 |
 | M2-C08-01 | M2 | — layout: header + lines + totals + commands | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C07`)* | P0 | M2-C07 | 4 d | G2 |
@@ -3127,5 +3127,28 @@ not just this one. Only `Frontend`, `Documentation`, `Investigation` and fronten
 work can proceed until the owner either allows the CDN host, bakes the SDK into the image, or
 runs backend tasks on the workstation `global.json` was written for. Full entry, with the three
 options spelled out: [`failure-log.md` § M2-B08 · attempt 1](failure-log.md).
+
+⁷⁴ **`M2-C05-01` was already merged; the `Needs Review`/"unmerged" reading was stale, corrected
+2026-08-26.** The select-only pass that closed `M2-C05-01` recorded it as implemented on branch
+`claude/unblocked-task-execution-pjyouv`, "unmerged" — true at the moment it was written, but a
+merge landed afterward that no session's bookkeeping ever caught: `git log --first-parent
+e9a8e7a..HEAD` on `master` (tip `df1d740` this session) shows `bf2b4cd` **"Merge M2-C05-01:
+implement the server-paged DataGrid core"** on the first-parent line, and `git ls-tree -r HEAD --
+frontend/nexgen-web/src/app/shared/components/data-grid/` lists all 18 files the task delivered.
+`M2-C05-01`'s own task-file frontmatter (`status: Needs Review`) was not corrected either — same
+class of staleness as footnote ⁷⁰'s finding about the row that preceded it, one level further
+downstream. **This releases three rows whose sole named blocker was `M2-C05-01`:** `M2-C05-02`
+and `M2-C05-03` (`Blocked` → `Ready`) and `M2-C06` (`Blocked` → `Ready`, P0). `M2-C07` and
+`M2-C09` do **not** release — each names a second, still-`Blocked` prerequisite (`M2-C10`,
+`M2-B08`) that this correction does not touch. Re-ran the five-part "can actually be done" test
+against all three released rows before selecting: none is a `Product Decision`; `open-questions.md`
+grepped for each, no hit; `M2-C05-02.md`, `M2-C05-03.md` and `M2-C06.md` all carry the
+`M2-C12-03` re-specification note and no ⛔ banner; `git branch --no-merged master` (re-run this
+session) touches none of the three tasks' `source_files`. `M2-C06` (P0) ranks above
+`M2-C05-02`/`M2-C05-03` (P1) on priority and is **selected**; `M2-C05-03` and `M2-C05-02` are
+`tiedCandidates` behind it, both genuinely independent Frontend work (though `M2-C06` and
+`M2-C05-03` share two files — `DetailsModal.razor`, `ExcelExportService.cs` — so only one of the
+two should be dispatched at a time; that is a same-file-conflict note for the next selection
+pass, not a reason to disqualify either now).
 
 
