@@ -25,7 +25,7 @@ database_tables: [Screens, UserRights]
 business_rules: [BR-SO-001, BR-AUTH-002]
 status: active
 confidence: confirmed
-last_verified: 2026-08-24
+last_verified: 2026-08-26
 dependencies: [ADR-002, ADR-004, ADR-005, KB-011, KB-030, KB-040, KB-041, KB-105, KB-108]
 ---
 
@@ -716,8 +716,59 @@ the decision in the controller.
 - Do **not** add a property to a VM for the API's benefit; it is shared with Blazor Server.
 - Casing is the ASP.NET Core default camel-case JSON policy. Do not configure it per
   controller.
-- Decimals: `M2-C10` owns wire representation (INV-032). Until it lands, do not round or format
-  in a controller.
+- **Decimals — §8a below is the answer INV-032 was reserved for.** Do not round or format a
+  decimal in a controller; the converter is the only place that touches its wire shape.
+
+### 8a. Money crosses the wire as a string, not a number — Q-85, decided 2026-08-26
+
+**A JSON number is not safe for money.** `System.Text.Json` writes a `decimal` to JSON *text*
+with full precision — the wire itself is exact. But every JSON parser a browser has, including
+the one behind every `fetch`/`HttpClient` call, reads a JSON number into an IEEE-754 double,
+and that conversion is lossy for a value with more significant digits than a double can hold.
+The precision is gone the moment `JSON.parse` runs, **before any TypeScript or `decimal.js`
+code on the client ever sees the value.** This was measured, not assumed — see
+[`Q-85`](../open-questions.md) for the full finding and
+[`INV-051`](../investigation-registry.md) for the original wire-format measurement it was
+raised against.
+
+**The fix: annotate every money-typed `decimal`/`decimal?` property with**
+`[JsonConverter(typeof(MoneyJsonConverter))]` (`V.SMART.Api/Contracts/MoneyJsonConverter.cs`).
+It serializes as a JSON string (`"1234.56"`, not `1234.56`) and deserializes a string back to
+an exact `decimal` — client code parses the exact text instead of trusting a value a browser's
+own JSON parser already rounded.
+
+**This is opt-in, per property, deliberately not global.** Not every `decimal` in the domain
+is money — GST rates (`ReferenceContracts.cs`) and quantities are `decimal` too, and are not
+subject to this. Forcing every `decimal` through the same string encoding was considered and
+rejected (Q-85's option (c) records the per-field alternative actually chosen). **Which fields
+count as money is a judgement made at the controller, one property at a time — the converter
+does not infer it.** As a starting rule of thumb: a field the business would show with a
+currency symbol or that participates in an invoice/document total is money; a rate,
+percentage, or quantity is not.
+
+```csharp
+public class MfgDcVM
+{
+    [JsonConverter(typeof(MoneyJsonConverter))]
+    public decimal TotalAmount { get; set; }   // money — string on the wire
+
+    public decimal TaxRate { get; set; }        // not money — stays a JSON number
+}
+```
+
+**No live endpoint carries a money field as of this decision** (verified 2026-08-26: the only
+`decimal` properties reachable through any of the six controllers today are the GST rate
+arrays in `ReferenceContracts.cs`, which are rates, not money) — so adopting this is not yet a
+breaking change to anything generated. It exists so the **first** controller that does expose
+a money field (the `M2-C05`+ document series) uses the converter from the start, rather than
+shipping a `number` that has to be widened to a `string` — a breaking change — later.
+
+**Frontend consequence, not yet built:** the generated TypeScript type for a converted property
+becomes `string`, and `M2-C10`'s `decimal.js`-backed parsing module is what turns that exact
+string into a `ScaledDecimal` for arithmetic — see `frontend/nexgen-web/src/app/shared/
+components/form/fake-decimal-port.ts`'s own comment: *"M2-C10 owns the real decimal module."*
+`M2-C10` was blocked because the contract could not yet deliver an exact value to parse; it
+now can.
 
 ---
 
