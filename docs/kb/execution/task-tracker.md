@@ -128,7 +128,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Completed**³³ | P1 | M2-B07 | 1 d | G2 |
 | M2-B02 | M2 | Paging / sort / filter contract | Backend | **Completed**²⁴ | P0 | M2-A06 | 1 wk | G2 |
 | M2-B03 | M2 | Codify the controller template | Documentation | **Completed**⁶⁵˒⁶⁶ *(merged to `master` on owner instruction 2026-08-24 — KB-114)* | P0 | M2-A02, M2-B02 | 2 d | G2 |
-| M2-B05 | M2 | Typed `StoreIds` constants (R-66, re-spec of `ScreenCodes`/R-10) | Backend | **Needs Review**³¹˒⁹⁴ *(re-specified and implemented 2026-08-26 — `ScreenCodes`/R-10 premise stays falsified, not reintroduced; `StoreIds` generated from the `Store` seed, all 55 confirmed `storeId` literals replaced, value-equality proven, both builds 0 errors. Live two-screen smoke test not done — no running Blazor instance available. See footnote ⁹⁴)* | P1 | — | 2 d | G2 |
+| M2-B05 | M2 | Typed `StoreIds` constants (R-66, re-spec of `ScreenCodes`/R-10) | Backend | **Completed**³¹˒⁹⁴ *(re-specified, implemented and merged 2026-08-26 — `ScreenCodes`/R-10 premise stays falsified, not reintroduced; `StoreIds` generated from the `Store` seed, all 55 confirmed `storeId` literals replaced, value-equality proven, both builds 0 errors. **Owner-confirmed Completed same day despite the live two-screen smoke test not being performed** — no running Blazor instance was available; not recorded as done. See footnote ⁹⁴)* | P1 | — | 2 d | G2 |
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Completed**³² ³⁵ *(merged to `master` 2026-08-21, `65d9666`)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
 | M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | **Blocked**⁷³˒⁹¹ *(attempt 1, 2026-08-25 — `environment`, no code written: the pinned .NET SDK 10.0.400 was unobtainable **in that session's environment**. **That specific finding is stale on this workstation, 2026-08-26** — see footnote ⁹¹. Its **prerequisites are all satisfied**, R-04 included)* | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Completed**³⁴ *(merged to `master` `501b12d` on owner instruction 2026-08-21)* | P1 | **M2-B07**, M2-B02, M2-B01 | 3 d | G2 |
@@ -3681,3 +3681,10 @@ two-screen manual stock smoke test, which needs a running `V.SMART.Web` instance
 session's environment did not have — recorded as not-done, not assumed passing. `R-66` closed
 in `technical-debt-register.md`; `KB-041` item B7 and `KB-012`'s `Store`/`ScreenCode` sections
 corrected to match. Full record: `tasks/M2-B05.md`.
+
+**Addendum, same day: owner confirmed `Completed`** ("mark it as completed"), after the above
+was reported in full including the unperformed smoke test. Branch merged to `master` as part of
+closing it (`--no-ff`, matching every other `Completed` row's expectation of being on `master`).
+The smoke-test gap is **not** retroactively marked done — `tasks/M2-B05.md` Completion
+Conditions records the owner's decision to close over it explicitly, so a future reader does not
+mistake `Completed` for "runtime-verified."
