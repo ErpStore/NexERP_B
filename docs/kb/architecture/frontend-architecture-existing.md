@@ -16,7 +16,7 @@ database_tables: [UserColumnPreference, UserThemePreference, PrintSetting]
 business_rules: []
 status: complete
 confidence: confirmed
-last_verified: 2026-08-25
+last_verified: 2026-08-26
 dependencies: [KB-010, KB-013]
 ---
 
@@ -221,6 +221,52 @@ complexity in [`frontend-new/feature-mapping.md`](../frontend-new/feature-mappin
 The `DetailsModal` + `MasterModal` + `*Selection` trio is how the whole ERP does
 "pull lines from an upstream document" — reproducing this interaction well is the single
 biggest UX lever in the new frontend.
+
+> **Correction, 2026-08-26 (M2-C06, INV-054):** the "trio" framing is **inaccurate for
+> `MasterModal`**. It is 45 lines of modal chrome with a content slot — parameters
+> `IsVisible`, `Title`, `MaxWidth`, `ChildContent`, `OnClose` and nothing else
+> (`MasterModal.razor:32-39`) — with no table, no search and no selection. It maps to
+> M2-C04-03's generic `app-modal`, **not** to `RecordPickerDialog`. It is referenced by
+> **133** files, so mis-scoping it would be expensive. The `*Selection` pages are routable
+> pages that return via `ReturnUrl` (`CustomerSelection.razor:1-2`), not dialogs. Only
+> `DetailsModal` is `RecordPickerDialog`'s territory.
+
+### `DetailsModal.razor` — the 33-call-site survey (Confirmed, 2026-08-26, M2-C06)
+
+Full evidence and the classification table: [INV-054](../investigation-registry.md).
+Headlines, because they change what the replacement must do:
+
+- **33 files, but 41 instances** — five files render it more than once.
+- **All 41 are multi-select pulls from an upstream document. None is a single-record
+  master pick.** Master picking is done by the routable `CustomerSelection` /
+  `VendorSelection` pages. `RecordPickerDialog`'s single-select mode is therefore **new
+  capability, not migrated behaviour**.
+- **`HiddenColumns` is passed by all 41, never omitted** — a per-*screen* static list of
+  technical id columns (`Ref*SubId`, item and cost-centre ids) which the selection
+  handlers then read out of the returned rows. **Hidden does not mean absent.**
+- **`HeaderContent` is passed by 4 of 33**: three a Stock/All scope filter
+  (`SubContractDCOutUpsert.razor:53-61`, handler `:2360-2372`), one a colour legend
+  (`JobOrderUpsert_pages.razor:40-48`).
+- **The conditional cell highlighting has exactly one consumer**, and the flags behind it
+  are computed in Razor `@code` (`JobOrderUpsert_pages.razor:2494-2522`) — an unextracted
+  BOM-difference calculation, `<W>-03` work.
+- **Selection order is load-bearing**: 34 files append the returned rows in iteration
+  order and 48 renumber afterwards (`MfgPOUpsert.razor:4014` → `:4072` → `:4077`), so the
+  ticking sequence *is* the line order of the document being built.
+- **Pre-selection is dead code**: `["Selected"]` is written `false` in 75 places and `true`
+  in none.
+- **Candidate sets already come from ~75 dedicated server-side service methods**, with
+  eligibility already server-side — but **none of them pages, sorts or searches, and none
+  is exposed by `V.SMART.Api`**. That is per-wave backend work, ~75 methods plus a
+  controller each, and it belongs in the M3-5 estimate.
+
+**Defect, recorded and deliberately not fixed** (`DetailsModal.razor:144-169`, with the
+guard at `:156-168`): `ConfirmSelection` tests the result of `.ToList()` for `null` — which
+cannot be `null` — and throws `InvalidOperationException("Please select  Dc from the
+list.")`, while the `catch` immediately rethrows. The genuinely reachable case, an **empty**
+selection, is not handled at all, and the Update button is always enabled (`:90`). The
+Blazor component keeps serving all 33 call sites unchanged until each is migrated in its
+module wave; the replacement disables its confirm button instead.
 
 ## State management (as-is)
 

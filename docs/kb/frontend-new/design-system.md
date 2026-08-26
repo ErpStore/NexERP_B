@@ -5,7 +5,7 @@ module: frontend-new
 source_files: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-25
+last_verified: 2026-08-26
 dependencies: [KB-015, KB-050]
 ---
 
@@ -380,6 +380,35 @@ primary action) · `ErrorState` (message + `traceId` + retry) · `PermissionDeni
 `app-empty-state`, `app-error-state`, `app-permission-denied-state`.
 `RecordPickerDialog` and `QuickCreateDialog` stay with `M2-C06` — they are *contents* placed
 inside this layer's modal and drawer.
+
+**`RecordPickerDialog` built by `M2-C06` (2026-08-26)**, in
+`src/app/shared/components/record-picker-dialog/`: `app-record-picker-dialog`, generic over
+`TRow`, composing `app-modal` (this layer) and `app-data-grid` (M2-C05-01) — no second table
+and no second component library. It takes a caller-supplied `fetchPage` function rather than
+a resource, so one component serves the 33 `DetailsModal.razor` call sites; its query state
+is `DataGridQueryState` in **detached** mode, so it never writes to the page URL behind it.
+Selections are returned **in the order the user ticked them**, guaranteed by an
+insertion-ordered `Map` in `record-selection.ts` and asserted by `selection-order.spec.ts` —
+this is not cosmetic: 34 Blazor call sites append the returned rows in iteration order and
+48 renumber afterwards, so the ticking sequence is the document's line order (INV-054).
+
+`QuickCreateDialog` remains unbuilt; per INV-054, `MasterModal.razor` is plain modal chrome
+and maps to `app-modal`, not to a picker.
+
+**Four deliberate divergences from `DetailsModal.razor`, each recorded rather than silent:**
+
+| Divergence | Old behaviour | Why |
+|---|---|---|
+| **`Esc` cancels the dialog** | `data-bs-keyboard="false"` and a `static` backdrop (`DetailsModal.razor:10-11`) — `Esc` did nothing | The accessibility commitments below require a modal to be escapable. A picker is a non-destructive selection dialog. |
+| **Select-all is page-scoped and labelled with its count** ("Select all 25 on this page") | Select-all covered the client-side *filtered* set, which was the whole candidate set (`:181-198`) | With server paging "all" is ambiguous; silently selecting thousands of unseen rows is a data-integrity hazard. |
+| **The button says Export, not "Print"** | Labelled "Print", called `ExcelExportService.ExportPendingListToExcel` and downloaded an `.xlsx` (`:241-244`) | It never printed. A mislabel corrected, not a feature changed. Export stays server-side per ADR-005; only the base64-through-JS-interop hop is dropped, in favour of a blob. |
+| **Confirm is disabled while nothing is selected**, with an accessible explanation | Update was always enabled (`:90`); the only guard was unreachable (`:156-168`) | The reachable case — an empty selection — was never handled. The Blazor defect is recorded in KB-015 and **not** fixed. |
+
+The hardcoded domain highlighting at `:218-230` is replaced by a generic, caller-supplied
+`getCellState(row, field)` returning a `tone` **and a required `label`** — a shared component
+that knows ERP field names is domain leakage into presentation, and per the status vocabulary
+below a tone may never travel without words. A directory scan in
+`record-picker-dialog.component.spec.ts` fails the build if a domain field name reappears.
 
 **Confirmed keyboard model** (asserted by test, not inherited from PrimeNG's defaults): the
 modal, drawer and confirm dialog move focus in on open, trap it, close on `Esc`, return focus

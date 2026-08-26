@@ -18,7 +18,7 @@ database_tables: []
 business_rules: [BR-CALC-001, BR-STK-001, BR-SO-001, BR-SO-003, BR-AUTH-002]
 status: proposal
 confidence: n/a
-last_verified: 2026-08-25
+last_verified: 2026-08-26
 dependencies: [KB-013, KB-015, KB-040, KB-041, KB-051, KB-105, ADR-002, ADR-004, ADR-007]
 ---
 
@@ -409,6 +409,20 @@ subsequent document is then configuration plus its own exceptions.
 
 **This is the single highest-leverage decision in the frontend.** It converts ~65 screens of
 3,000–6,500 LOC each into one component plus 65 configs.
+
+> **`RecordPickerDialog` delivered by `M2-C06` (2026-08-26)** in the
+> `shared/components/record-picker-dialog/` directory this structure already reserved. The
+> reference above is confirmed against what shipped: `LineItemGrid`'s "pull from upstream
+> document" opens `<app-record-picker-dialog>` and receives the chosen rows through its
+> `confirmed` output, **in the order the user ticked them**. The input surface `M2-C07` must
+> code against is `visible`/`visibleChange`, `header`, `columns`, `fetchPage`, `getRowId`,
+> `selectionMode`, `initialSelection`, `disabledRowIds`, `getCellState`, `confirmLabel`,
+> `exportRequest`, `searchParam` — and `fetchPage` is a **caller-supplied function**
+> `(query) => Observable<DataGridPage<TRow>>`, so `LineItemGrid` supplies the endpoint and the
+> dialog stays generic. Two things `M2-C07` must not assume: the picker decides **nothing**
+> about eligibility or duplicates — `disabledRowIds` comes from the caller, from server data —
+> and no endpoint exists yet for any real candidate set (INV-054), so each document's picker
+> needs its `<W>-03`/`<W>-06` backend work first.
 
 ### Workflow commands
 

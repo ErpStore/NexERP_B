@@ -5,3 +5,4 @@ export * from './data-grid';
 export * from './form';
 export * from './overlay';
 export * from './feedback';
+export * from './record-picker-dialog';
