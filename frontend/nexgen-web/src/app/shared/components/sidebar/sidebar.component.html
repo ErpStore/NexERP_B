@@ -1,0 +1,52 @@
+<nav class="app-sidebar" [class.app-sidebar--rail]="isRail()" aria-label="Main">
+  @if (isEmpty()) {
+    <app-empty-state
+      title="No screens are available for your account."
+      description="Contact your administrator."
+    />
+  } @else {
+    @for (link of filteredTree().top; track link.route) {
+      <app-nav-item
+        [link]="link"
+        [rail]="isRail()"
+        [favourite]="isFavourite(link)"
+        (activated)="onLinkActivated(link)"
+        (favouriteToggled)="onFavouriteToggled(link)"
+      />
+    }
+
+    @if (favourites().length > 0 && !isRail()) {
+      <div class="app-sidebar__section-heading">Favourites</div>
+      @for (link of favourites(); track link.route) {
+        <app-nav-item
+          [link]="link"
+          [favourite]="true"
+          (activated)="onLinkActivated(link)"
+          (favouriteToggled)="onFavouriteToggled(link)"
+        />
+      }
+    }
+
+    @if (recent().length > 0 && !isRail()) {
+      <div class="app-sidebar__section-heading">Recent</div>
+      @for (link of recent(); track link.route) {
+        <app-nav-item
+          [link]="link"
+          [favourite]="isFavourite(link)"
+          (activated)="onLinkActivated(link)"
+          (favouriteToggled)="onFavouriteToggled(link)"
+        />
+      }
+    }
+
+    @for (group of filteredTree().groups; track group.label) {
+      <app-nav-group
+        [group]="group"
+        [rail]="isRail()"
+        [favourites]="favouriteRoutes()"
+        (linkActivated)="onLinkActivated($event)"
+        (favouriteToggled)="onFavouriteToggled($event)"
+      />
+    }
+  }
+</nav>
