@@ -111,7 +111,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Completed**²⁷ | P0 | M2-A01-02 | 2 d | G2 |
 | M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Completed**⁵⁹˒⁶² *(merged to `master` on owner instruction 2026-08-24)* | P0 | M2-A01-03 | 1 d | G2 |
 | M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | **Completed**⁶³˒⁶⁴˒⁸² *(the last criterion closed 2026-08-26 — owner added the required status check in GitHub branch protection; see footnote ⁸²)* | P0 | M2-A02 | 3 d | G2 |
-| M2-A04 | M2 | Refresh tokens + revocation | Security | **Needs Review**⁴⁸˒¹⁰⁰˒¹⁰¹ *(implemented 2026-08-27 — short access tokens, hashed rotating/revocable refresh tokens, one additive EF migration; 613/613 API tests pass, 0 build errors. See footnote ¹⁰¹)* | P0 | M2-A01-02, **M0-03-03** *(re-scoped from M0-04, footnote ¹⁰⁰)* | 3–5 d | G2 |
+| M2-A04 | M2 | Refresh tokens + revocation | Security | **Completed**⁴⁸˒¹⁰⁰˒¹⁰¹˒¹⁰⁴ *(implemented 2026-08-27 — short access tokens, hashed rotating/revocable refresh tokens, one additive EF migration; 613/613 API tests pass, 0 build errors. Merged `72a5758`; owner-confirmed Completed 2026-08-27. See footnotes ¹⁰¹ and ¹⁰⁴)* | P0 | M2-A01-02, **M0-03-03** *(re-scoped from M0-04, footnote ¹⁰⁰)* | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
 | M2-A07 | M2 | `GET /api/v1/me` | Backend | **Completed**³⁷ *(merged to `master` `80c209b` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 2 d | G2 |
@@ -155,7 +155,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Completed**⁴⁶ *(merged to `master` `27dfc5d` on owner instruction 2026-08-23)* | P0 | M2-C12-01…04 | 1 d | G2 |
 | M2-C13 | M2 | Defer the confirm-dialog host; bundle back inside budget (R-69) | Frontend | **Completed**⁵⁵˒⁵⁶˒⁵⁷ | P1 | M2-C04-03 | 1 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Completed**²⁶˒⁴⁶˒⁴⁷˒⁵²˒⁸⁵˒⁸⁹˒⁹²˒⁹³ *(**Merged and integration-verified 2026-08-26**, owner-confirmed Completed same day — `decimal.js` module, `money` pipe, ESLint/spec-scan enforcement; a real lint gap against `M2-C05-01`'s DataGrid found and fixed, not glossed over. Full suite: `test:ci` 526/526, `build` clean, 0 bundle regression. `DECIMAL_PORT` production wiring remains an open gap for a future task. See footnote ⁹³)* | P0 | M2-C01 | 2 d | G2 |
-| M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C01`, `M2-A04`, `M2-A07`)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
+| M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | **Ready**⁴⁶˒¹⁰⁴ *(re-specified for Angular by `M2-C12-02`; all three Hard prerequisites — `M2-C01`, `M2-A04`, `M2-A07` — are `Completed` and merged as of 2026-08-27. See footnote ¹⁰⁴)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | **Completed**⁴⁶˒⁵⁴ *(parent — all three children `Completed` and merged)* | P0 | M2-C01 | 2 wks | G2 |
 | M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
 | M2-C04-02 | M2 | — form controls + validation display | Frontend | **Completed**⁵¹˒⁵² *(merged to `master` on owner instruction 2026-08-23; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 4 d | G2 |
@@ -166,9 +166,9 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Blocked**⁷⁹ *(dispatched 2026-08-26, stopped at implement — the endpoint pair does not exist, no real fixture capture, and `M2-C02` is `Blocked`; see footnote ⁷⁹)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Completed**⁷⁵˒⁷⁶ *(owner instructed the merge 2026-08-26; merged `--no-ff`, verified on the merged result)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Completed**⁷⁵˒⁸³ *(merged to `master` 2026-08-26 on owner instruction; independently validated PASS)* | P0 | M2-C05-01 | 1 wk | G2 |
-| M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | **Needs Review**⁴⁶˒⁹⁹˒¹⁰²˒¹⁰³ *(implemented 2026-08-27 — all 18 planned files, 566/566 frontend tests pass, `typecheck`/`lint`/`format:check`/`build` all clean; the 200-row typing-latency figure, genuinely not obtained at first close-out, was measured 2026-08-27 by a follow-up session — 0.1–0.3 ms/keystroke, well inside the 50 ms target. See footnotes ¹⁰² and ¹⁰³)* | P0 | M2-C05-01, M2-C10, M2-C04-02, M2-C04-03 | 2 wks | G2 |
-| M2-C08 | M2 | `DocumentEditor` shell *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-04`)* | P0 | M2-C07 | 2 wks | G2 |
-| M2-C08-01 | M2 | — layout: header + lines + totals + commands | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C07`)* | P0 | M2-C07 | 4 d | G2 |
+| M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | **Completed**⁴⁶˒⁹⁹˒¹⁰²˒¹⁰³˒¹⁰⁴ *(implemented 2026-08-27 — all 18 planned files, 566/566 frontend tests pass, `typecheck`/`lint`/`format:check`/`build` all clean; the 200-row typing-latency figure, genuinely not obtained at first close-out, was measured 2026-08-27 by a follow-up session — 0.1–0.3 ms/keystroke, well inside the 50 ms target. Merged `72a5758`; owner-confirmed Completed 2026-08-27. See footnotes ¹⁰² – ¹⁰⁴)* | P0 | M2-C05-01, M2-C10, M2-C04-02, M2-C04-03 | 2 wks | G2 |
+| M2-C08 | M2 | `DocumentEditor` shell *(parent)* | Frontend | Not Started¹⁰⁴ *(parent — never worked directly, so never `Ready`; re-specified by `M2-C12-04`; its Hard prerequisite `M2-C07` is `Completed` and merged as of 2026-08-27 — see M2-C08-01)* | P0 | M2-C07 | 2 wks | G2 |
+| M2-C08-01 | M2 | — layout: header + lines + totals + commands | Frontend | **Ready**⁴⁶˒¹⁰⁴ *(re-specified by `M2-C12-04`; its Hard prerequisite `M2-C07` is `Completed` and merged as of 2026-08-27. See footnote ¹⁰⁴)* | P0 | M2-C07 | 4 d | G2 |
 | M2-C08-02 | M2 | — server-authoritative totals wiring | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)* | P0 | M2-C08-01 | 3 d | G2 |
 | M2-C08-03 | M2 | — workflow command pattern | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)* | P0 | M2-C08-01 | 3 d | G2 |
 | M2-C09 | M2 | `ReportPage` framework | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-B08`)* | P1 | M2-C05-01, M2-B08 | 1 wk | G2 |
@@ -4109,8 +4109,35 @@ isolation itself remains proven exactly where it already was: `line-item-grid.re
 
 **Updated:** [KB-050 §Performance targets](../frontend-new/react-architecture.md#performance-targets),
 [INV-061](../investigation-registry.md), [`tasks/M2-C07.md`](tasks/M2-C07.md) (acceptance
-criterion moved `[ ]` → `[x]`, Close-out addendum added). **Not updated, and correctly so:**
-`M2-C07`'s overall status stays `Needs Review` — the keyboard jump-to-next-invalid-row
-shortcut and the three under-tested areas footnote ¹⁰² already named remain genuinely open.
-Documentation-only change; no `V.SMART/` file touched; the only frontend files touched
-(the throwaway route and component) were removed before this note was written.
+criterion moved `[ ]` → `[x]`, Close-out addendum added). **Not claimed fixed by this
+footnote:** the keyboard jump-to-next-invalid-row shortcut and the three under-tested areas
+already named remain genuinely open — see footnote ¹⁰⁴ for how `M2-C07`'s status changed
+despite them. Documentation-only change; no `V.SMART/` file touched; the only frontend files
+touched (the throwaway route and component) were removed before this note was written.
+
+¹⁰⁴ **`M2-A04` and `M2-C07`: both `Blocked`/`Needs Review` → merged and owner-confirmed
+`Completed`, 2026-08-27.** Both branches merged to `master` as one combined session
+(`72a5758`, `M2-C07` into the already-merged `M2-A04`), verified clean on the merged
+result — `.NET`: `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` 0 errors,
+`dotnet test tests/V.SMART.Api.Tests/` 613/613; Angular: `ng build` clean, `ng test` 566/566
+(one transient failure on the first run, in `record-picker-dialog.component.spec.ts` — not
+touched by either merged branch, re-run confirmed clean, treated as pre-existing flakiness,
+not a regression). The owner reviewed both directly ("looks fine ... move to next task") and
+instructed the status change to `Completed` for both, per [KB-088 § Who may set
+COMPLETED](workflow.md#who-may-set-completed). **Each task's own disclosed gaps are accepted
+as known, recorded limitations by this decision, not retracted:** `M2-A04`'s migration is
+scaffolded but not applied live (blocked on a missing DDL-capable credential, footnote ¹⁰¹)
+and has no live-host verification; `M2-C07`'s jump-to-next-invalid-row shortcut is unbuilt
+and three areas are under-tested (footnote ¹⁰²). `Completed` here reflects the human
+sign-off step, not that every acceptance criterion is met without qualification — see each
+task's own file for the itemised list.
+
+**Downstream effect, verified rather than assumed.** Because both are now genuinely
+`Completed` **and** merged (not merely reviewed), rule 1 of the five-part "can actually be
+done" test clears for their direct dependents: **`M2-C02`** (`M2-C01`, `M2-A04`, `M2-A07` all
+now `Completed`) and **`M2-C08-01`** (`M2-C07` now `Completed`) both move `Blocked` → `Ready`
+above. `M2-C08` itself stays `Not Started` — it is a parent, never worked directly, so it is
+never `Ready` regardless. `M2-C03`, `M2-D01` and the rest of that chain do **not** release
+yet: `M2-C03` still needs `M2-C02` itself at `Completed`, not merely `Ready`, and `M2-D01`
+still names `M2-C02` as its own unmet Hard prerequisite. `M2-C08-02`/`M2-C08-03` do not
+release either — they depend on `M2-C08-01` at `Completed`, not `Ready`.
