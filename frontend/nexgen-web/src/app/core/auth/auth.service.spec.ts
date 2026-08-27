@@ -63,10 +63,14 @@ describe('AuthService', () => {
   });
 
   it('login: success populates user, permissions and status via a real login -> /me sequence', async () => {
-    const promise = service.login('alice', 'secret');
+    const promise = service.login('acme', 'alice', 'secret');
 
     const loginReq = httpMock.expectOne(LOGIN_URL);
-    expect(loginReq.request.body).toEqual({ username: 'alice', password: 'secret' });
+    expect(loginReq.request.body).toEqual({
+      tenant: 'acme',
+      username: 'alice',
+      password: 'secret',
+    });
     loginReq.flush(loginResponse());
     await flushMicrotasks();
 
@@ -92,7 +96,7 @@ describe('AuthService', () => {
   });
 
   it('login: a 401 leaves status anonymous and reports invalid-credentials, without a /me call', async () => {
-    const promise = service.login('alice', 'wrong');
+    const promise = service.login('acme', 'alice', 'wrong');
 
     httpMock
       .expectOne(LOGIN_URL)
@@ -104,6 +108,28 @@ describe('AuthService', () => {
     const result = await promise;
 
     expect(result).toEqual({ ok: false, failure: { reason: 'invalid-credentials' } });
+    expect(service.status()).toBe('anonymous');
+    httpMock.expectNone(ME_URL);
+  });
+
+  // M2-A05 — the failure this task's own AuthController.TenantUnresolvedProblem produces,
+  // distinct from a credential failure: the tenant field itself matched no row.
+  it('login: an unresolved tenant reports tenant-unresolved, without a /me call', async () => {
+    const promise = service.login('no-such-tenant', 'alice', 'secret');
+
+    httpMock
+      .expectOne(LOGIN_URL)
+      .flush(
+        { status: 400, title: 'Unable to resolve tenant.', type: '/problems/tenant-unresolved' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+
+    const result = await promise;
+
+    expect(result).toEqual({
+      ok: false,
+      failure: { reason: 'tenant-unresolved', message: 'Unable to resolve tenant.' },
+    });
     expect(service.status()).toBe('anonymous');
     httpMock.expectNone(ME_URL);
   });
@@ -120,12 +146,14 @@ describe('AuthService', () => {
     // real (future, non-in-memory) custody model would have rehydrated it before bootstrap()
     // runs — this test proves bootstrap's refresh-success path independently of login's.
     const tokens = TestBed.inject(TokenStore);
-    tokens.setSession('stale-access', 'stale-refresh', new Date('2020-01-01'));
+    tokens.setSession('stale-access', 'stale-refresh', new Date('2020-01-01'), 'acme');
 
     const bootstrapPromise = service.bootstrap();
 
     const refreshReq = httpMock.expectOne(REFRESH_URL);
-    expect(refreshReq.request.body).toEqual({ refreshToken: 'stale-refresh' });
+    // M2-A05 — the same tenant the session was opened with is resent, not re-derived: an
+    // expired access token carries no claim to read it from.
+    expect(refreshReq.request.body).toEqual({ tenant: 'acme', refreshToken: 'stale-refresh' });
     refreshReq.flush({
       token: 'fresh-access',
       refreshToken: 'fresh-refresh',
@@ -139,11 +167,27 @@ describe('AuthService', () => {
     expect(service.status()).toBe('authenticated');
     expect(tokens.accessToken).toBe('fresh-access');
     expect(tokens.refreshToken).toBe('fresh-refresh');
+    // Rotation does not change the tenant — setSession's original value stands.
+    expect(tokens.tenant).toBe('acme');
+  });
+
+  it('bootstrap: a refresh token with no stored tenant settles to anonymous, no HTTP call', async () => {
+    // Not reachable through TokenStore's own public API today (setSession requires tenant),
+    // but the guard exists precisely so a future custody model cannot silently fire a
+    // guaranteed-400 refresh call if the two ever desynchronise — proven directly here.
+    const tokens = TestBed.inject(TokenStore);
+    vi.spyOn(tokens, 'refreshToken', 'get').mockReturnValue('stale-refresh');
+    vi.spyOn(tokens, 'tenant', 'get').mockReturnValue(null);
+
+    await service.bootstrap();
+
+    expect(service.status()).toBe('anonymous');
+    httpMock.expectNone(REFRESH_URL);
   });
 
   it('logout: revokes server-side, clears the token store and resets to anonymous', async () => {
     // Establish a session first.
-    const loginPromise = service.login('alice', 'secret');
+    const loginPromise = service.login('acme', 'alice', 'secret');
     httpMock.expectOne(LOGIN_URL).flush(loginResponse());
     await flushMicrotasks();
     httpMock.expectOne(ME_URL).flush(meResponse());
@@ -154,13 +198,15 @@ describe('AuthService', () => {
 
     const logoutPromise = service.logout();
     const logoutReq = httpMock.expectOne(LOGOUT_URL);
-    expect(logoutReq.request.body).toEqual({ refreshToken: 'refresh-1' });
+    // M2-A05 — same tenant-resend reason as refresh.
+    expect(logoutReq.request.body).toEqual({ tenant: 'acme', refreshToken: 'refresh-1' });
     logoutReq.flush(null, { status: 204, statusText: 'No Content' });
     await logoutPromise;
 
     expect(service.status()).toBe('anonymous');
     expect(service.user()).toBeNull();
     expect(tokens.hasSession()).toBe(false);
+    expect(tokens.tenant).toBeNull();
 
     const permissions = TestBed.inject(PermissionService);
     expect(permissions.forScreen('Sales Order')().create).toBe(false);
@@ -169,7 +215,7 @@ describe('AuthService', () => {
   it('custody: a full login -> logout cycle writes nothing to localStorage or sessionStorage', async () => {
     const localSetSpy = vi.spyOn(Storage.prototype, 'setItem');
 
-    const loginPromise = service.login('alice', 'secret');
+    const loginPromise = service.login('acme', 'alice', 'secret');
     httpMock.expectOne(LOGIN_URL).flush(loginResponse());
     await flushMicrotasks();
     httpMock.expectOne(ME_URL).flush(meResponse());
@@ -180,7 +226,8 @@ describe('AuthService', () => {
     await logoutPromise;
 
     // Storage.prototype.setItem covers both localStorage and sessionStorage, since both
-    // inherit from the same prototype — one spy proves zero writes to either.
+    // inherit from the same prototype — one spy proves zero writes to either, including the
+    // new tenant field (M2-A05), which lives in the same in-memory TokenStore as the tokens.
     expect(localSetSpy).not.toHaveBeenCalled();
 
     localSetSpy.mockRestore();

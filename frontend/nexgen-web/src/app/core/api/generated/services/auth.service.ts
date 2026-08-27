@@ -35,8 +35,9 @@ export class AuthService extends BaseService {
   static readonly LoginPath = '/api/v1/auth/login';
 
   /**
-   * Exchanges a username and password for a JWT bearer token. Every other endpoint requires
-   * the token this returns, sent as `Authorization: Bearer <token>`.
+   * Exchanges a tenant identifier, username and password for a JWT bearer token. Every
+   * other endpoint requires the token this returns, sent as
+   * `Authorization: Bearer <token>`.
    *
    *
    *
@@ -51,8 +52,9 @@ export class AuthService extends BaseService {
   }
 
   /**
-   * Exchanges a username and password for a JWT bearer token. Every other endpoint requires
-   * the token this returns, sent as `Authorization: Bearer <token>`.
+   * Exchanges a tenant identifier, username and password for a JWT bearer token. Every
+   * other endpoint requires the token this returns, sent as
+   * `Authorization: Bearer <token>`.
    *
    *
    *
@@ -69,8 +71,9 @@ export class AuthService extends BaseService {
   }
 
   /**
-   * Exchanges a username and password for a JWT bearer token. Every other endpoint requires
-   * the token this returns, sent as `Authorization: Bearer <token>`.
+   * Exchanges a tenant identifier, username and password for a JWT bearer token. Every
+   * other endpoint requires the token this returns, sent as
+   * `Authorization: Bearer <token>`.
    *
    *
    *
@@ -85,8 +88,9 @@ export class AuthService extends BaseService {
   }
 
   /**
-   * Exchanges a username and password for a JWT bearer token. Every other endpoint requires
-   * the token this returns, sent as `Authorization: Bearer <token>`.
+   * Exchanges a tenant identifier, username and password for a JWT bearer token. Every
+   * other endpoint requires the token this returns, sent as
+   * `Authorization: Bearer <token>`.
    *
    *
    *
@@ -112,7 +116,7 @@ export class AuthService extends BaseService {
    *             
    * 
    * <b>Why `[AllowAnonymous]`.</b> The access token that would normallyauthenticate this caller may already be expired — that is the entire reason thisendpoint exists. The refresh token itself is the credential.
-   * <b>Tenant binding (BR-TEN-002).</b> Deliberately not re-derived from a JWTclaim — an expired access token authenticates nobody, so `HttpContext.User` herecarries no claims to read. Tenant context instead comes from the same`ITenantProvider` host-resolution path `Login` already uses (Host header /tenant.json), which is how `ApplicationDbContext` — and therefore which tenant's`RefreshTokens` table this call ever sees — was already resolved before thisaction runs. A token issued in tenant A is simply absent from tenant B's database;there is no cross-tenant row to find, so there is nothing to switch.
+   * <b>Tenant binding (BR-TEN-002), M2-A05.</b> Deliberately not re-derived from aJWT claim — an expired access token authenticates nobody, so `HttpContext.User`here carries no claims to read, and for a cross-origin SPA the host-based fallback(step 2) can never match either. The client resends the same `tenant` value itlogged in with, bound the same way `Login` binds it — which is how`ApplicationDbContext`, and therefore which tenant's `RefreshTokens` tablethis call ever sees, gets resolved before this action's tenant-scoped services aretouched. A token issued in tenant A is simply absent from tenant B's database; thereis no cross-tenant row to find, so there is nothing to switch — database-per-tenantmakes "cannot permit a tenant switch" structural, not something this action has tocheck for itself.
    *
    *
    *
@@ -133,7 +137,7 @@ export class AuthService extends BaseService {
    *             
    * 
    * <b>Why `[AllowAnonymous]`.</b> The access token that would normallyauthenticate this caller may already be expired — that is the entire reason thisendpoint exists. The refresh token itself is the credential.
-   * <b>Tenant binding (BR-TEN-002).</b> Deliberately not re-derived from a JWTclaim — an expired access token authenticates nobody, so `HttpContext.User` herecarries no claims to read. Tenant context instead comes from the same`ITenantProvider` host-resolution path `Login` already uses (Host header /tenant.json), which is how `ApplicationDbContext` — and therefore which tenant's`RefreshTokens` table this call ever sees — was already resolved before thisaction runs. A token issued in tenant A is simply absent from tenant B's database;there is no cross-tenant row to find, so there is nothing to switch.
+   * <b>Tenant binding (BR-TEN-002), M2-A05.</b> Deliberately not re-derived from aJWT claim — an expired access token authenticates nobody, so `HttpContext.User`here carries no claims to read, and for a cross-origin SPA the host-based fallback(step 2) can never match either. The client resends the same `tenant` value itlogged in with, bound the same way `Login` binds it — which is how`ApplicationDbContext`, and therefore which tenant's `RefreshTokens` tablethis call ever sees, gets resolved before this action's tenant-scoped services aretouched. A token issued in tenant A is simply absent from tenant B's database; thereis no cross-tenant row to find, so there is nothing to switch — database-per-tenantmakes "cannot permit a tenant switch" structural, not something this action has tocheck for itself.
    *
    *
    *
@@ -156,7 +160,7 @@ export class AuthService extends BaseService {
    *             
    * 
    * <b>Why `[AllowAnonymous]`.</b> The access token that would normallyauthenticate this caller may already be expired — that is the entire reason thisendpoint exists. The refresh token itself is the credential.
-   * <b>Tenant binding (BR-TEN-002).</b> Deliberately not re-derived from a JWTclaim — an expired access token authenticates nobody, so `HttpContext.User` herecarries no claims to read. Tenant context instead comes from the same`ITenantProvider` host-resolution path `Login` already uses (Host header /tenant.json), which is how `ApplicationDbContext` — and therefore which tenant's`RefreshTokens` table this call ever sees — was already resolved before thisaction runs. A token issued in tenant A is simply absent from tenant B's database;there is no cross-tenant row to find, so there is nothing to switch.
+   * <b>Tenant binding (BR-TEN-002), M2-A05.</b> Deliberately not re-derived from aJWT claim — an expired access token authenticates nobody, so `HttpContext.User`here carries no claims to read, and for a cross-origin SPA the host-based fallback(step 2) can never match either. The client resends the same `tenant` value itlogged in with, bound the same way `Login` binds it — which is how`ApplicationDbContext`, and therefore which tenant's `RefreshTokens` tablethis call ever sees, gets resolved before this action's tenant-scoped services aretouched. A token issued in tenant A is simply absent from tenant B's database; thereis no cross-tenant row to find, so there is nothing to switch — database-per-tenantmakes "cannot permit a tenant switch" structural, not something this action has tocheck for itself.
    *
    *
    *
@@ -177,7 +181,7 @@ export class AuthService extends BaseService {
    *             
    * 
    * <b>Why `[AllowAnonymous]`.</b> The access token that would normallyauthenticate this caller may already be expired — that is the entire reason thisendpoint exists. The refresh token itself is the credential.
-   * <b>Tenant binding (BR-TEN-002).</b> Deliberately not re-derived from a JWTclaim — an expired access token authenticates nobody, so `HttpContext.User` herecarries no claims to read. Tenant context instead comes from the same`ITenantProvider` host-resolution path `Login` already uses (Host header /tenant.json), which is how `ApplicationDbContext` — and therefore which tenant's`RefreshTokens` table this call ever sees — was already resolved before thisaction runs. A token issued in tenant A is simply absent from tenant B's database;there is no cross-tenant row to find, so there is nothing to switch.
+   * <b>Tenant binding (BR-TEN-002), M2-A05.</b> Deliberately not re-derived from aJWT claim — an expired access token authenticates nobody, so `HttpContext.User`here carries no claims to read, and for a cross-origin SPA the host-based fallback(step 2) can never match either. The client resends the same `tenant` value itlogged in with, bound the same way `Login` binds it — which is how`ApplicationDbContext`, and therefore which tenant's `RefreshTokens` tablethis call ever sees, gets resolved before this action's tenant-scoped services aretouched. A token issued in tenant A is simply absent from tenant B's database; thereis no cross-tenant row to find, so there is nothing to switch — database-per-tenantmakes "cannot permit a tenant switch" structural, not something this action has tocheck for itself.
    *
    *
    *
@@ -205,6 +209,7 @@ export class AuthService extends BaseService {
    *             
    * 
    * Idempotent by design (Target Result 4 / the logout error-model row): revoking anunknown or already-revoked token still returns `204` — the response must neverleak whether a token was ever valid.
+   * <b>Tenant binding, M2-A05.</b> Same reason and same mechanism as `Refresh`:`IRefreshTokenService` is tenant-scoped, so the tenant must be bound before it isresolved. An unresolved tenant still fails loudly here (400) rather than silently —that is not the same kind of information as "was this token ever valid," which staysopaque regardless.
    *
    *
    *
@@ -227,6 +232,7 @@ export class AuthService extends BaseService {
    *             
    * 
    * Idempotent by design (Target Result 4 / the logout error-model row): revoking anunknown or already-revoked token still returns `204` — the response must neverleak whether a token was ever valid.
+   * <b>Tenant binding, M2-A05.</b> Same reason and same mechanism as `Refresh`:`IRefreshTokenService` is tenant-scoped, so the tenant must be bound before it isresolved. An unresolved tenant still fails loudly here (400) rather than silently —that is not the same kind of information as "was this token ever valid," which staysopaque regardless.
    *
    *
    *

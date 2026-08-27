@@ -51,7 +51,7 @@ namespace V.SMART.Api.Tests
 
             var controller = Controller(refreshService.Object, users.Object, tenant: new TenantInfo { Id = 5 });
 
-            var result = await controller.Refresh(new AuthController.RefreshRequest("presented-token"));
+            var result = await controller.Refresh(new AuthController.RefreshRequest("acme", "presented-token"));
 
             var ok = Assert.IsType<OkObjectResult>(result.Result);
             var body = Assert.IsType<AuthController.RefreshResponse>(ok.Value);
@@ -74,7 +74,7 @@ namespace V.SMART.Api.Tests
 
             var controller = Controller(refreshService.Object, users.Object, tenant: null);
 
-            var result = await controller.Refresh(new AuthController.RefreshRequest("presented-token"));
+            var result = await controller.Refresh(new AuthController.RefreshRequest("acme", "presented-token"));
 
             var obj = Assert.IsType<ObjectResult>(result.Result);
             Assert.Equal(StatusCodes.Status400BadRequest, obj.StatusCode);
@@ -97,7 +97,7 @@ namespace V.SMART.Api.Tests
 
             var controller = Controller(refreshService.Object, Mock.Of<IUserRepository>(), tenant: new TenantInfo { Id = 1 });
 
-            var result = await controller.Refresh(new AuthController.RefreshRequest("whatever"));
+            var result = await controller.Refresh(new AuthController.RefreshRequest("acme", "whatever"));
 
             var obj = Assert.IsType<ObjectResult>(result.Result);
             Assert.Equal(StatusCodes.Status401Unauthorized, obj.StatusCode);
@@ -127,7 +127,7 @@ namespace V.SMART.Api.Tests
 
             var controller = Controller(refreshService.Object, users.Object, tenant: new TenantInfo { Id = 1 });
 
-            var result = await controller.Refresh(new AuthController.RefreshRequest("presented-token"));
+            var result = await controller.Refresh(new AuthController.RefreshRequest("acme", "presented-token"));
 
             var obj = Assert.IsType<ObjectResult>(result.Result);
             Assert.Equal(StatusCodes.Status401Unauthorized, obj.StatusCode);
@@ -142,7 +142,7 @@ namespace V.SMART.Api.Tests
 
             var controller = Controller(refreshService.Object, Mock.Of<IUserRepository>(), tenant: new TenantInfo { Id = 1 });
 
-            var result = await controller.Logout(new AuthController.LogoutRequest("some-token"));
+            var result = await controller.Logout(new AuthController.LogoutRequest("acme", "some-token"));
 
             Assert.IsType<NoContentResult>(result);
             refreshService.Verify(s => s.RevokeAsync("some-token"), Times.Once);
@@ -156,7 +156,7 @@ namespace V.SMART.Api.Tests
 
             var controller = Controller(refreshService.Object, Mock.Of<IUserRepository>(), tenant: new TenantInfo { Id = 1 });
 
-            var result = await controller.Logout(new AuthController.LogoutRequest("token-never-issued"));
+            var result = await controller.Logout(new AuthController.LogoutRequest("acme", "token-never-issued"));
 
             Assert.IsType<NoContentResult>(result);
         }
@@ -184,12 +184,17 @@ namespace V.SMART.Api.Tests
                 .Build();
 
             return new AuthController(
-                unitOfWork.Object,
+                // M2-A05 — IUnitOfWork, IRefreshTokenService and IUserRightService all resolve
+                // from here now, not by direct constructor injection. Every test in this file
+                // reaches at least IUnitOfWork (Refresh's user re-check) or IRefreshTokenService
+                // (Refresh's rotation, Logout's revoke); IUserRightService is unused by either
+                // action, so it is left unwired.
+                ErrorContractTestContext.ServiceProvider(
+                    unitOfWork: unitOfWork.Object,
+                    refreshTokenService: refreshTokenService),
                 new JwtTokenService(configuration),
-                refreshTokenService,
                 tenantProvider.Object,
                 configuration,
-                Mock.Of<IUserRightService>(),
                 NullLogger<AuthController>.Instance)
             {
                 ControllerContext = new ControllerContext

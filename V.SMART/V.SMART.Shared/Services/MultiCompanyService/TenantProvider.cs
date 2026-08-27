@@ -29,6 +29,26 @@ namespace V.SMART.Shared.Services.MultiCompanyService
 
             try
             {
+                // ✅ 0. Explicit binding (M2-A05). Set by AuthController's Login/Refresh/Logout
+                // actions, via SetTenant(), before this method is first resolved from the
+                // request's DI scope — see AuthController.cs's own comment on why that ordering
+                // matters. Resolved by Name OR Hostname, the same two columns step 3 already
+                // matches. This step is what SetTenant()/_manualTenant were for; before M2-A05
+                // this method never read _manualTenant at all, so the setter was a no-op beyond
+                // invalidating the cache (the finding INV-005/KB-014 already recorded).
+                if (!string.IsNullOrWhiteSpace(_manualTenant))
+                {
+                    _cached = _masterDb.Tenants.FirstOrDefault(t =>
+                        t.Name == _manualTenant || t.Hostname == _manualTenant);
+                    if (_cached != null)
+                    {
+                        if (session != null)
+                            session.HostName = _cached.Hostname;
+                        Console.WriteLine($"[TenantProvider] Resolved tenant from explicit binding.");
+                        return _cached;
+                    }
+                }
+
                 // ✅ 1. API mode (from JWT TenantId claim)
                 var tenantIdClaim = _httpContextAccessor?.HttpContext?.User?.FindFirst("TenantId")?.Value;
                 if (!string.IsNullOrEmpty(tenantIdClaim) && int.TryParse(tenantIdClaim, out var tenantId))
@@ -82,6 +102,9 @@ namespace V.SMART.Shared.Services.MultiCompanyService
             return null;
         }
 
+        // M2-A05 — made functional. Before this task, _manualTenant was assigned here but never
+        // read by GetCurrentTenant(), so this setter only ever invalidated the cache. Step 0
+        // above now consults it, resolving by Tenants.Name or Tenants.Hostname on the next call.
         public void SetTenant(string tenantNameOrHost)
         {
             _manualTenant = tenantNameOrHost;

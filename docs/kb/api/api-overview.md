@@ -47,32 +47,32 @@ dependencies: [KB-013, KB-014]
 > **Updated by M2-A06 (2026-08-20).** Every **error** response below is now
 > `application/problem+json`; success responses are unchanged. The one deliberate breaking
 > change is `DELETE /api/v1/currencies/{id}`, which answers **409** instead of 400 when the
-> delete guard refuses. See [*Error contract*](#error-contract-m2-a06) below.
+> delete guard refuses. See [_Error contract_](#error-contract-m2-a06) below.
 
 > **Updated by M2-B01 (2026-08-21).** Every route moved under **`/api/v1`** (ADR-002 §6).
 > The old `/api/auth` and `/api/currencies` paths were **removed, not aliased**, and return
 > `404`. The one existing consumer — the Angular pilot at `frontend/vsmart-erp/` — was
-> deliberately **not** updated; see [*Versioning*](#versioning-m2-b01) below.
+> deliberately **not** updated; see [_Versioning_](#versioning-m2-b01) below.
 
 ## Host configuration
 
 `V.SMART.Api/Program.cs`:
 
-| Concern | Configuration |
-|---|---|
-| Controllers | `AddControllers()`, `MapControllers()` |
-| OpenAPI | Swashbuckle, `SwaggerDoc("v1", "V.SMART API")`, Bearer security scheme; **`UseSwagger`/`UseSwaggerUI` only in Development** |
-| CORS | single policy `"AngularDev"` → origins `http://localhost:4200`, any header, any method |
-| AuthN | JWT Bearer; validates issuer, audience, lifetime, signing key; `ClockSkew = 1 min` |
-| AuthZ | `AddAuthorization()` with **no policies registered** |
-| Pipeline | **`UseErrorContract()`** (correlation id → global exception handler → status-code problem bodies; M2-A06) → `UseCors("AngularDev")` → `UseAuthentication()` → `UseAuthorization()` → `MapControllers()` |
-| Tenancy | `ITenantProvider` / `ITenantDbContextFactory` scoped; `MasterDbContext` via `AddDbContext`; `ApplicationDbContext` built per-scope from the resolved tenant |
-| Mapping | `AddAutoMapper(cfg => cfg.AddMaps(typeof(MappingProfileMarker).Assembly))` |
-| Registered domain services | **`ICurrencyService` only** — plus `IUnitOfWork`, `ForeignKeyUsageChecker`, `ILoggingService`, `IPasswordHasher<User>`, `CurrentUserService`, `UserSession`, `JwtTokenService` (singleton), `AuthenticationStateProvider → ApiAuthStateProvider` |
+| Concern                    | Configuration                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Controllers                | `AddControllers()`, `MapControllers()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| OpenAPI                    | Swashbuckle, `SwaggerDoc("v1", "V.SMART API")`, Bearer security scheme; **`UseSwagger`/`UseSwaggerUI` only in Development**                                                                                                                                                                                                                                                                                                                                                                                                            |
+| CORS                       | single policy `"SpaOrigins"` (M2-A05, replacing `"AngularDev"`) → origins from the `Cors:AllowedOrigins` configuration array (`CorsOptions.cs`), any header, any method, `AllowCredentials` also configurable (default `false`). Empty by default in `appsettings.json` (fails closed — no origin allowed until one is configured); `appsettings.Development.json` sets `http://localhost:4200` and `http://127.0.0.1:4300`. Real production origins are deliberately not invented — Q-16 (deployment topology) is explicitly deferred |
+| AuthN                      | JWT Bearer; validates issuer, audience, lifetime, signing key; `ClockSkew = 1 min`                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| AuthZ                      | `AddAuthorization()` with **no policies registered**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Pipeline                   | **`UseErrorContract()`** (correlation id → global exception handler → status-code problem bodies; M2-A06) → `UseCors("SpaOrigins")` (M2-A05) → `UseAuthentication()` → `UseAuthorization()` → `MapControllers()`                                                                                                                                                                                                                                                                                                                       |
+| Tenancy                    | `ITenantProvider` / `ITenantDbContextFactory` scoped; `MasterDbContext` via `AddDbContext`; `ApplicationDbContext` built per-scope from the resolved tenant                                                                                                                                                                                                                                                                                                                                                                            |
+| Mapping                    | `AddAutoMapper(cfg => cfg.AddMaps(typeof(MappingProfileMarker).Assembly))`                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Registered domain services | **`ICurrencyService` only** — plus `IUnitOfWork`, `ForeignKeyUsageChecker`, `ILoggingService`, `IPasswordHasher<User>`, `CurrentUserService`, `UserSession`, `JwtTokenService` (singleton), `AuthenticationStateProvider → ApiAuthStateProvider`                                                                                                                                                                                                                                                                                       |
 
 **Notable absences (Confirmed, re-verified 2026-08-20):** no HTTPS redirection,
 no rate limiting, no response compression, no health checks, no
-request logging. **Exception middleware and `ProblemDetails` are no longer absent** — added by M2-A06 (see *Error contract* below). **Nor is API versioning** — M2-B01 moved every route under `/api/v1` (see [*Versioning*](#versioning-m2-b01) below).
+request logging. **Exception middleware and `ProblemDetails` are no longer absent** — added by M2-A06 (see _Error contract_ below). **Nor is API versioning** — M2-B01 moved every route under `/api/v1` (see [_Versioning_](#versioning-m2-b01) below).
 
 ## Endpoint reference
 
@@ -81,25 +81,41 @@ request logging. **Exception middleware and `ProblemDetails` are no longer absen
 `AuthController.Login` · `[AllowAnonymous]`
 
 **Request**
+
 ```json
-{ "username": "string (required)", "password": "string (required)" }
+{
+  "tenant": "string (required)",
+  "username": "string (required)",
+  "password": "string (required)"
+}
 ```
+
+**M2-A05 added `tenant`** — matches ADR-002 §5's `{ tenant, username, password }` exactly.
+Resolved against `MasterDbContext.Tenants` by `Name` **or** `Hostname`, via
+`ITenantProvider.SetTenant(request.Tenant)` (a new "step 0" resolution path — see
+[multi-tenancy](../architecture/multi-tenancy.md)'s Resolution order) called **before** any
+tenant-scoped service is resolved.
 
 **Responses**
 
-| Status | Body | Condition |
-|---|---|---|
-| 200 | `{ "token", "refreshToken", "tokenExpiresAtUtc", "username", "userId", "tenantId", "role" }` | success |
-| 400 | `problem+json`, `type: …/tenant-unresolved`, `title: "Unable to resolve tenant. Check host or wwwroot/config/tenant.json."` | `ITenantProvider.GetCurrentTenant()` returned `null` |
-| 401 | `problem+json`, `type: …/unauthenticated`, `title: "Invalid username or password."` | `LoginAsync` returned `null` |
+| Status | Body                                                                                         | Condition                                                                                                                                                                                                                                                                                               |
+| ------ | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 200    | `{ "token", "refreshToken", "tokenExpiresAtUtc", "username", "userId", "tenantId", "role" }` | success                                                                                                                                                                                                                                                                                                 |
+| 400    | `problem+json`, `type: …/tenant-unresolved`, `title: "Unable to resolve tenant."`            | `ITenantProvider.GetCurrentTenant()` returned `null` after `SetTenant(request.Tenant)` — the message deliberately does not echo the submitted value or distinguish "no such tenant" from any other resolution failure (M2-A05: tenant identifiers are not secrets, but the KB flags them as enumerable) |
+| 401    | `problem+json`, `type: …/unauthenticated`, `title: "Invalid username or password."`          | `LoginAsync` returned `null`                                                                                                                                                                                                                                                                            |
 
-Both messages are unchanged from before M2-A06 — only the body shape changed. The `401`
-deliberately says no more than it did: one title for every authentication failure.
+The `401` is unchanged from before M2-A06 — one title for every authentication failure. The
+`400` message was shortened by M2-A05 (dropped "Check host or wwwroot/config/tenant.json." —
+that fallback file no longer exists for the API, and the primary path is now the request's
+own `tenant` field, not a host or a config file).
 
 **Auth required.** None.
-**Business logic executed.** `ITenantProvider.GetCurrentTenant()` →
-`IUnitOfWork.Users.LoginAsync` (BR-AUTH-001) → `JwtTokenService.CreateToken(user, tenant.Id)` →
-`IRefreshTokenService.IssueAsync(user.UserId)` (M2-A04).
+**Business logic executed.** `ITenantProvider.SetTenant(request.Tenant)` →
+`ITenantProvider.GetCurrentTenant()` → `IUnitOfWork.Users.LoginAsync` (BR-AUTH-001) →
+`JwtTokenService.CreateToken(user, tenant.Id)` → `IRefreshTokenService.IssueAsync(user.UserId)`
+(M2-A04). `IUnitOfWork`/`IRefreshTokenService`/`IUserRightService` are resolved from an
+injected `IServiceProvider` **after** the tenant check, not constructor-injected — see
+`AuthController.cs`'s own constructor comment for why constructor injection cannot work here.
 **Entities.** `TenantInfo`, `User`, `RefreshToken` (M2-A04).
 **Token.** HS256; claims `ClaimTypes.Name`, `UserId`, `TenantId`, `ClaimTypes.Role`;
 issuer `V.SMART.Api`; audience `V.SMART.Angular`; expiry `Jwt:ExpiresMinutes`
@@ -114,9 +130,9 @@ fields keep their names, types and order. Breaking for the Angular pilot
 **Contract gaps, updated by M2-A04.** ~~No refresh token.~~ **Closed** — see
 `POST /api/v1/auth/refresh` and `POST /api/v1/auth/logout` below. No screen-permission
 claims — the client cannot know what to render, and the server cannot authorise beyond role
-(unchanged; `GET /api/v1/me` is the answer). No tenant selector in the request (see
-[multi-tenancy](../architecture/multi-tenancy.md) problem 1). *(The ad-hoc `{ message }` error
-body was replaced by `problem+json` in M2-A06.)*
+(unchanged; `GET /api/v1/me` is the answer). ~~No tenant selector in the request~~ **Closed
+2026-08-27 (M2-A05)** — see [multi-tenancy](../architecture/multi-tenancy.md) problem 1,
+closed. _(The ad-hoc `{ message }` error body was replaced by `problem+json` in M2-A06.)_
 
 **Defect (Confirmed).** A database failure inside `LoginAsync` is swallowed and returns
 `null` (`UserRepository.cs:44-48`), so an outage is reported to the user as
@@ -131,27 +147,37 @@ may already be expired; the refresh token itself is the credential (harness allo
 entry, `ExemptEndpointAllowList.AnonymousActions["AuthController.Refresh"]`).
 
 **Request**
+
 ```json
-{ "refreshToken": "string (required)" }
+{ "tenant": "string (required)", "refreshToken": "string (required)" }
 ```
+
+**M2-A05 added `tenant`**, for the identical reason `Login`'s addition exists: an expired
+access token carries no claim to re-derive the tenant from, and for a cross-origin SPA the
+Host-header fallback can never match either. The client resends the same value it logged in
+with, bound before rotation is attempted.
 
 **Responses**
 
-| Status | Body | Condition |
-|---|---|---|
-| 200 | `{ "token", "refreshToken", "tokenExpiresAtUtc" }` | rotation succeeded |
-| 400 | `problem+json`, `type: …/tenant-unresolved` | tenant could not be re-resolved (Host header / `tenant.json`) |
-| 401 | `problem+json`, `type: …/unauthenticated`, `title: "Invalid or expired refresh token."` | the presented token is unknown, revoked, expired, or its user is no longer active — **all four reasons produce this identical body**; the distinction is logged server-side only |
+| Status | Body                                                                                    | Condition                                                                                                                                                                        |
+| ------ | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 200    | `{ "token", "refreshToken", "tokenExpiresAtUtc" }`                                      | rotation succeeded                                                                                                                                                               |
+| 400    | `problem+json`, `type: …/tenant-unresolved`, `title: "Unable to resolve tenant."`       | `request.Tenant` matched no row                                                                                                                                                  |
+| 401    | `problem+json`, `type: …/unauthenticated`, `title: "Invalid or expired refresh token."` | the presented token is unknown, revoked, expired, or its user is no longer active — **all four reasons produce this identical body**; the distinction is logged server-side only |
 
 **Rotation.** One-time use: the presented token is revoked in the same call that mints its
 replacement (`RefreshTokenService.RotateAsync`), so replaying a used or stolen-then-rotated
 token always fails.
 
-**Tenant binding (BR-TEN-002).** Not derived from a JWT claim — an expired access token
-authenticates nobody, so there is no claim to read. Tenant context comes from the same
-`ITenantProvider` Host-header/`tenant.json` resolution path `Login` already uses. A refresh
-token issued in tenant A's database is simply absent from tenant B's — database-per-tenant
-isolation, not an extra check this endpoint has to get right.
+**Tenant binding (BR-TEN-002), M2-A05.** Not derived from a JWT claim — an expired access
+token authenticates nobody, so there is no claim to read. Tenant context now comes from the
+request's own `tenant` field, bound via `ITenantProvider.SetTenant()` before
+`IRefreshTokenService`/`IUnitOfWork` are resolved (the pre-M2-A05 Host-header/`tenant.json`
+fallback never actually worked for a cross-origin SPA — it is documented as closed in
+[multi-tenancy](../architecture/multi-tenancy.md) problem 1). A refresh token issued in
+tenant A's database is simply absent from tenant B's — database-per-tenant isolation makes
+"cannot permit a tenant switch" structural, not an extra check this endpoint has to get
+right.
 
 **Transport decision (Q-16 dependency), recorded per the task's own requirement.** The
 refresh token travels in the JSON request/response body, **not** an `HttpOnly` cookie. An
@@ -178,15 +204,19 @@ refresh token, not on bearer auth (harness allow-list entry,
 `ExemptEndpointAllowList.AnonymousActions["AuthController.Logout"]`).
 
 **Request**
+
 ```json
-{ "refreshToken": "string (required)" }
+{ "tenant": "string (required)", "refreshToken": "string (required)" }
 ```
+
+**M2-A05 added `tenant`** — `IRefreshTokenService` is tenant-scoped, same reason as `Refresh`.
 
 **Responses**
 
-| Status | Body | Condition |
-|---|---|---|
-| 204 | *(none)* | always — see below |
+| Status | Body                                                                              | Condition                                                                                                   |
+| ------ | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 204    | _(none)_                                                                          | tenant resolved and the revoke ran — see below                                                              |
+| 400    | `problem+json`, `type: …/tenant-unresolved`, `title: "Unable to resolve tenant."` | `request.Tenant` matched no row — a distinct, structural failure, not a leak about the token's own validity |
 
 **Revocation scope — decided and documented, per the task's own requirement.** Revokes
 **exactly the one presented token**, not every token belonging to the user. The request
@@ -220,12 +250,12 @@ bearer token — there is deliberately no parameter that could name another user
 
 **Responses**
 
-| Status | Body | Condition |
-|---|---|---|
-| 200 | see below | success |
-| 401 | JwtBearer challenge (M2-A06 status-code problem body) | no token, or an invalid/expired one |
-| 401 | `problem+json`, `type: …/invalid-token`, `title: "The access token is missing a required claim."` | the token carries no usable `UserId` or `TenantId` claim (missing, unparseable or `<= 0`) — the same body and the same rule as the screen-right filter (KB-105 §7.2, D-3) |
-| 500 | `problem+json`, `type: …/unhandled` | the rights load failed. **It never degrades to an empty map**: an empty map renders as "no permissions" and reads as a permission problem rather than an outage. `UserRightsProvider` does not negative-cache, so nothing is written on failure either |
+| Status | Body                                                                                              | Condition                                                                                                                                                                                                                                              |
+| ------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 200    | see below                                                                                         | success                                                                                                                                                                                                                                                |
+| 401    | JwtBearer challenge (M2-A06 status-code problem body)                                             | no token, or an invalid/expired one                                                                                                                                                                                                                    |
+| 401    | `problem+json`, `type: …/invalid-token`, `title: "The access token is missing a required claim."` | the token carries no usable `UserId` or `TenantId` claim (missing, unparseable or `<= 0`) — the same body and the same rule as the screen-right filter (KB-105 §7.2, D-3)                                                                              |
+| 500    | `problem+json`, `type: …/unhandled`                                                               | the rights load failed. **It never degrades to an empty map**: an empty map renders as "no permissions" and reads as a permission problem rather than an outage. `UserRightsProvider` does not negative-cache, so nothing is written on failure either |
 
 **200 body**
 
@@ -236,23 +266,35 @@ bearer token — there is deliberately no parameter that could name another user
   "tenantId": 3,
   "role": "Administrator",
   "rights": {
-    "Currency":    { "view": true,  "create": false, "edit": true,  "delete": false, "hidden": false },
-    "Sales Order": { "view": true,  "create": true,  "edit": true,  "delete": true,  "hidden": true  }
+    "Currency": {
+      "view": true,
+      "create": false,
+      "edit": true,
+      "delete": false,
+      "hidden": false
+    },
+    "Sales Order": {
+      "view": true,
+      "create": true,
+      "edit": true,
+      "delete": true,
+      "hidden": true
+    }
   }
 }
 ```
 
 **Contract — the parts a client must not get wrong**
 
-| Aspect | Rule |
-|---|---|
-| `rights` key | `Screens.ScreenName` **verbatim**, ordinal and case-sensitive, so a lookup is the one-step equivalent of `RightsHelper.cs:8` |
+| Aspect                      | Rule                                                                                                                                                                                                                                                                                                 |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rights` key                | `Screens.ScreenName` **verbatim**, ordinal and case-sensitive, so a lookup is the one-step equivalent of `RightsHelper.cs:8`                                                                                                                                                                         |
 | **Absent rows are omitted** | A screen the caller holds no `UserRight` row for has **no key**. The response never materialises 152 all-`false` entries. **The client's default for a missing key is `deny`** (BR-AUTH-002, and the `?? false` Blazor has always applied). A client that defaults a missing key to "allow" is wrong |
-| Duplicates | If duplicate `(UserId, ScreenId)` rows exist (Q-27, unresolved), the map keeps the **first** — the same row `ScreenRightSet.Has`/`FirstOrDefault` decides on, so the rendered map and the enforced map cannot disagree |
-| `hidden` | Carries `IsHide`. Navigation is filtered on `view && !hidden`; it is **not** a second gate — the filter never consults it |
-| Ordering | The `rights` object is keyed, so the repository's undefined row order (no `OrderBy`, `UserRightsRepository.cs:24-27`) cannot leak into the contract |
-| Size | Bounded by the 152 seeded screens; no paging |
-| Caching | Idempotent and safe. Fresh within the M2-A01-03 rights-cache window (default 60 s absolute). **No HTTP cache headers** are set — one outliving that window would defeat the point of not putting rights in the JWT |
+| Duplicates                  | If duplicate `(UserId, ScreenId)` rows exist (Q-27, unresolved), the map keeps the **first** — the same row `ScreenRightSet.Has`/`FirstOrDefault` decides on, so the rendered map and the enforced map cannot disagree                                                                               |
+| `hidden`                    | Carries `IsHide`. Navigation is filtered on `view && !hidden`; it is **not** a second gate — the filter never consults it                                                                                                                                                                            |
+| Ordering                    | The `rights` object is keyed, so the repository's undefined row order (no `OrderBy`, `UserRightsRepository.cs:24-27`) cannot leak into the contract                                                                                                                                                  |
+| Size                        | Bounded by the 152 seeded screens; no paging                                                                                                                                                                                                                                                         |
+| Caching                     | Idempotent and safe. Fresh within the M2-A01-03 rights-cache window (default 60 s absolute). **No HTTP cache headers** are set — one outliving that window would defeat the point of not putting rights in the JWT                                                                                   |
 
 **Auth required.** Authentication **yes**; screen right **no** — a caller's own identity is not
 a screen, and gating this endpoint on a right would deadlock the SPA, which cannot know its
@@ -307,7 +349,7 @@ through the versioning convention **without changing the URL**; the URL is the c
 > **403 (M2-A02, 2026-08-24).** Every one of the five Currency endpoints below now answers
 > `403 application/problem+json`, `type: …/screen-right-denied`,
 > `title: "Screen right denied."`, `detail: "You do not have the '{right}' right for the
-> 'Currency' screen."`, with `screen` and `right` extensions, when the caller's `UserRight`
+'Currency' screen."`, with `screen` and `right` extensions, when the caller's `UserRight`
 > row for `"Currency"` does not grant the action's right — or when there is no such row at
 > all. The check runs in the **authorization** stage, ahead of model binding, so an
 > unauthorized caller with an invalid body gets `403`, never `400`. Anonymous callers still
@@ -320,15 +362,15 @@ through the versioning convention **without changing the URL**; the URL is the c
 
 **Query parameters** — one bound `CurrencyQuery` record, not six loose parameters.
 
-| Parameter | Type | Default | Notes |
-|---|---|---|---|
-| `pageNumber` | int | **1** | 1-based; `< 1` → 400 |
-| `pageSize` | int | **20** | max **100**; outside that → 400. **Changed:** this endpoint defaulted to 10 before M2-B02 |
-| `sort` | string | — | comma-separated, `-` prefix descending, e.g. `-createdDate,currName`. Absent → today's `OrderByDescending(CurrId)` |
-| `currName` | string | — | case-insensitive contains |
-| `createdBy` | string | — | case-insensitive contains |
-| `fromDate` | **date-time** | — | `CreatedDate >= fromDate.Date`. **Was `string?`** |
-| `toDate` | **date-time** | — | `CreatedDate <=` end of that day (inclusive). **Was `string?`** |
+| Parameter    | Type          | Default | Notes                                                                                                              |
+| ------------ | ------------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
+| `pageNumber` | int           | **1**   | 1-based; `< 1` → 400                                                                                               |
+| `pageSize`   | int           | **20**  | max **100**; outside that → 400. **Changed:** this endpoint defaulted to 10 before M2-B02                          |
+| `sort`       | string        | —       | comma-separated, `-` prefix descending, e.g. `-createdDate,currName`. Absent → today's `OrderByDescending(CurrId)` |
+| `currName`   | string        | —       | case-insensitive contains                                                                                          |
+| `createdBy`  | string        | —       | case-insensitive contains                                                                                          |
+| `fromDate`   | **date-time** | —       | `CreatedDate >= fromDate.Date`. **Was `string?`**                                                                  |
+| `toDate`     | **date-time** | —       | `CreatedDate <=` end of that day (inclusive). **Was `string?`**                                                    |
 
 **Sortable fields** (unknown → 400 listing these): `currId`, `currName`, `currSub`, `symbol`,
 `isSystemDefined`, `createdBy`, `createdDate`.
@@ -343,7 +385,7 @@ The parameter names above are the **wire** names and are what `/swagger/v1/swagg
 advertises (re-observed 2026-08-20 after the casing fix: `currName`, `createdBy`, `fromDate`,
 `toDate`, `pageNumber`, `pageSize`, `sort`). Each is pinned by an explicit
 `[FromQuery(Name = …)]` on the query record — see the ADR-002 §2a paragraph
-*"Query-parameter names are camel case"* for why the default (the C# property name) is wrong
+_"Query-parameter names are camel case"_ for why the default (the C# property name) is wrong
 here. Binding stays case-insensitive, so `PageSize` is still accepted.
 
 **Errors.** 400 `application/problem+json` with an `errors` dictionary keyed by field —
@@ -374,18 +416,18 @@ by `V.SMART.Api.Contracts.FilterDictionaryAdapter`; that dictionary never appear
 `CurrName` required ≤100, `CurrSub` required ≤100,
 `Symbol` required and matching `[$€₹¥£₩₿₽]`.
 
-| Status | Body |
-|---|---|
-| 201 | `CurrencyVM`, `Location: /api/v1/currencies/{CurrId}` |
-| 400 | `problem+json`, `type: …/validation-failed`, with an `errors` dictionary keyed by field carrying `CurrencyVM`'s `DataAnnotations` messages verbatim |
-| **403** | `problem+json`, `type: …/screen-right-denied` — caller has no `CanCreate` on `"Currency"` (M2-A02) |
-| 409 | `problem+json`, `type: …/business-rule`, `title` = the service's message verbatim (e.g. `"Currency name already exists."`) |
+| Status  | Body                                                                                                                                                |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 201     | `CurrencyVM`, `Location: /api/v1/currencies/{CurrId}`                                                                                               |
+| 400     | `problem+json`, `type: …/validation-failed`, with an `errors` dictionary keyed by field carrying `CurrencyVM`'s `DataAnnotations` messages verbatim |
+| **403** | `problem+json`, `type: …/screen-right-denied` — caller has no `CanCreate` on `"Currency"` (M2-A02)                                                  |
+| 409     | `problem+json`, `type: …/business-rule`, `title` = the service's message verbatim (e.g. `"Currency name already exists."`)                          |
 
 **Business logic.** `ICurrencyService.CreateAsync(vm)` → `(bool success, string message, CurrencyVM? entity)`.
 
 **Note (M2-A06).** The two 400 shapes are gone. A model/`DataAnnotations` failure is the
 canonical `400`; a **service rejection is now `409`**, because it is a business-rule refusal
-(ADR-002 §4). See [*Error contract*](#error-contract-m2-a06).
+(ADR-002 §4). See [_Error contract_](#error-contract-m2-a06).
 
 ---
 
@@ -399,12 +441,12 @@ canonical `400`; a **service rejection is now `409`**, because it is a business-
 
 ### `DELETE /api/v1/currencies/{id:int}`
 
-| Status | Body | Condition |
-|---|---|---|
-| 204 | — | deleted |
-| **409** | `problem+json`, `type: …/business-rule`, `title` = the guard's message **verbatim** | `CanDeleteCurrencyAsync` refused (referential integrity) — **was 400 before M2-A06** |
-| 404 | `problem+json`, `type: …/not-found`, `title: "Currency not found."` | not found |
-| **403** | `problem+json`, `type: …/screen-right-denied` | caller has no `CanDelete` on `"Currency"` — decided before `CanDeleteCurrencyAsync` runs (M2-A02) |
+| Status  | Body                                                                                | Condition                                                                                         |
+| ------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 204     | —                                                                                   | deleted                                                                                           |
+| **409** | `problem+json`, `type: …/business-rule`, `title` = the guard's message **verbatim** | `CanDeleteCurrencyAsync` refused (referential integrity) — **was 400 before M2-A06**              |
+| 404     | `problem+json`, `type: …/not-found`, `title: "Currency not found."`                 | not found                                                                                         |
+| **403** | `problem+json`, `type: …/screen-right-denied`                                       | caller has no `CanDelete` on `"Currency"` — decided before `CanDeleteCurrencyAsync` runs (M2-A02) |
 
 **Business logic.** `CanDeleteCurrencyAsync(id)` then `DeleteCurrencyByCurrIdAsync(id)` —
 the standard two-step delete-guard pattern (see BR-SO-001 for the same shape in Sales).
@@ -416,12 +458,12 @@ the standard two-step delete-guard pattern (see BR-SO-001 for the same shape in 
 **M2-B06, 2026-08-21.** `multipart/form-data`, replacing Blazor's `IBrowserFile` upload path.
 Form fields: `file` (required), `refType`, `docType`.
 
-| Status | Body | Condition |
-|---|---|---|
-| 201 | `FileUploadResponse` — `id`, `fileName`, `filePath`, `contentType`, `sizeBytes`; `Location` header points at the download | stored |
-| 400 | `problem+json`, `type: …/validation-error` | no file, empty file, or an extension not on the allow-list |
-| **409** | `problem+json`, `type: …/business-rule`, `title: "File name already exists."` | the duplicate-name rule of `CorrespondenceUpload.razor:341-347` |
-| **413** | `problem+json`, `type: …/payload-too-large` | above `FileStorage:MaxUploadBytes` |
+| Status  | Body                                                                                                                      | Condition                                                       |
+| ------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| 201     | `FileUploadResponse` — `id`, `fileName`, `filePath`, `contentType`, `sizeBytes`; `Location` header points at the download | stored                                                          |
+| 400     | `problem+json`, `type: …/validation-error`                                                                                | no file, empty file, or an extension not on the allow-list      |
+| **409** | `problem+json`, `type: …/business-rule`, `title: "File name already exists."`                                             | the duplicate-name rule of `CorrespondenceUpload.razor:341-347` |
+| **413** | `problem+json`, `type: …/payload-too-large`                                                                               | above `FileStorage:MaxUploadBytes`                              |
 
 **Not idempotent.** Every POST creates a new file — the `Guid.NewGuid()` prefix guarantees a
 distinct name — and a new `Correspondence` row. A client that retries a timed-out request creates
@@ -430,10 +472,10 @@ until it lands, clients must not retry blind.
 
 ### `GET /api/v1/files/{id:int}`
 
-| Status | Body | Condition |
-|---|---|---|
-| 200 | the bytes, with the resolved `Content-Type` and `Content-Disposition: attachment` | found |
-| 404 | `problem+json`, `type: …/not-found`, `title: "File not found."` | **unknown id, another tenant's id, or a row whose bytes are gone — deliberately indistinguishable** |
+| Status | Body                                                                              | Condition                                                                                           |
+| ------ | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 200    | the bytes, with the resolved `Content-Type` and `Content-Disposition: attachment` | found                                                                                               |
+| 404    | `problem+json`, `type: …/not-found`, `title: "File not found."`                   | **unknown id, another tenant's id, or a row whose bytes are gone — deliberately indistinguishable** |
 
 **Security controls, all tested** (`tests/V.SMART.Api.Tests/FileEndpointSecurityTests.cs`):
 
@@ -442,7 +484,7 @@ until it lands, clients must not retry blind.
   per-tenant folder tree would be a cross-tenant data leak, so the download is gated too.
 - **Path traversal is structurally impossible.** `{id:int}` is a route constraint, so `../`,
   `%2e%2e%2f` and every other traversal string fails to match the route and never reaches the
-  action. Behind that, a *stored* path is canonicalised and proved to be inside the uploads root
+  action. Behind that, a _stored_ path is canonicalised and proved to be inside the uploads root
   (`UploadPaths.IsInsideRoot`) before any file is opened, so a poisoned `Correspondence.FilePath`
   row cannot become an arbitrary file read.
 - **Tenant isolation is structural, not a check.** `{id}` resolves through
@@ -461,14 +503,14 @@ until it lands, clients must not retry blind.
 **20 MB** before the action runs — that attribute needs a compile-time constant — and the action
 then applies `FileStorage:MaxUploadBytes`, which a deployment may lower. 20 MB is the same ceiling
 `WebFileUploadService.cs:101` passes to `OpenReadStream`, so the HTTP path is never more permissive
-than the Blazor path. Note the correspondence *screen* refuses at 5 MB
+than the Blazor path. Note the correspondence _screen_ refuses at 5 MB
 (`CorrespondenceUpload.razor:222`) — a page-level rule, not a storage rule, not carried here; a
 deployment wanting parity sets `FileStorage:MaxUploadBytes`.
 
 **Storage.** Byte-identical on-disk results to `WebFileUploadService` for the same inputs:
 `uploads/{drawings|correspondences}/{safeCompany}/{safeRefType}/{guid}_{name}`, per-tenant
 segmentation by `tenant.Hostname`, the same `Path.GetInvalidFileNameChars()` stripping and
-lowercasing. `FileStorage:Root` is configurable because `WebRootPath` resolves to a *different*
+lowercasing. `FileStorage:Root` is configurable because `WebRootPath` resolves to a _different_
 directory in each host; point both hosts at one path and either can read the other's files. Whether
 that root is durable in the target deployment is **Unknown** — see `Q-16`.
 
@@ -482,19 +524,20 @@ without inventing a service surface at the same time.
 `ExcelExportService` and `ExcelTemplateService` are **wrapped, not modified** — verified by diff.
 `[Authorize]` + `[RequireScreen("Currency")]`; export and template need `View`, import needs
 `Create`.
+
 ### `GET /api/v1/reference/*` (M2-B09)
 
 Six read-only lookup lists behind one tenant-keyed output cache. Full design, measurements and
 the tenancy classification of each list: **[KB-124](reference-data-and-caching.md)**.
 
-| Endpoint | Returns | Rows (measured 2026-08-21) |
-|---|---|---:|
-| `GET /api/v1/reference/gst-rates` | `{ igst[], cgstSgst[] }`, paired by index | 12 + 12 |
-| `GET /api/v1/reference/states` | `StateDto[]` | 40 |
-| `GET /api/v1/reference/uoms` | `UomDto[]` | 49 |
-| `GET /api/v1/reference/currencies` | `CurrencyDto[]` — flat, no rate feed | 3 |
-| `GET /api/v1/reference/screens` | `ScreenDto[]` — the permission vocabulary | **150** |
-| `GET /api/v1/reference/terms` | `TermsDto[]`, active only | 0 |
+| Endpoint                           | Returns                                   | Rows (measured 2026-08-21) |
+| ---------------------------------- | ----------------------------------------- | -------------------------: |
+| `GET /api/v1/reference/gst-rates`  | `{ igst[], cgstSgst[] }`, paired by index |                    12 + 12 |
+| `GET /api/v1/reference/states`     | `StateDto[]`                              |                         40 |
+| `GET /api/v1/reference/uoms`       | `UomDto[]`                                |                         49 |
+| `GET /api/v1/reference/currencies` | `CurrencyDto[]` — flat, no rate feed      |                          3 |
+| `GET /api/v1/reference/screens`    | `ScreenDto[]` — the permission vocabulary |                    **150** |
+| `GET /api/v1/reference/terms`      | `TermsDto[]`, active only                 |                          0 |
 
 **Authentication** is required on all six. **`[NoScreenRight]`**, not `[RequireScreen]`:
 reference data is a precondition for rendering any screen, so no single screen owns it, and
@@ -521,15 +564,15 @@ invalidation path would not be.
 **Confirmed** — implemented 2026-08-20 by task M2-A06, ADR-002 §4. Every error response from
 every endpoint is `application/problem+json`. Success responses are untouched.
 
-| Status | Meaning | Body |
-|---|---|---|
-| 400 | model binding / `DataAnnotations` | `errors` dictionary keyed by field, messages verbatim from the VM |
-| 401 | unauthenticated, or credentials rejected | minimal — no more informative than before M2-A06 |
-| 403 | screen right denied | KB-105 §7.1 shape, with `screen` and `right` extension members |
-| 404 | not found | minimal |
-| **409** | **business-rule refusal** | `title` carries the **service's own message verbatim** (BR-SO-001) |
-| 500 | unhandled | `traceId` only — no exception message, type or stack trace, in any environment |
-| 503 | tenant context unavailable | constant title; never a connection string (R-01) |
+| Status  | Meaning                                  | Body                                                                           |
+| ------- | ---------------------------------------- | ------------------------------------------------------------------------------ |
+| 400     | model binding / `DataAnnotations`        | `errors` dictionary keyed by field, messages verbatim from the VM              |
+| 401     | unauthenticated, or credentials rejected | minimal — no more informative than before M2-A06                               |
+| 403     | screen right denied                      | KB-105 §7.1 shape, with `screen` and `right` extension members                 |
+| 404     | not found                                | minimal                                                                        |
+| **409** | **business-rule refusal**                | `title` carries the **service's own message verbatim** (BR-SO-001)             |
+| 500     | unhandled                                | `traceId` only — no exception message, type or stack trace, in any environment |
+| 503     | tenant context unavailable               | constant title; never a connection string (R-01)                               |
 
 - **`type`** is a stable URI under `https://api.v-smart.local/problems/`
   (`V.SMART/V.SMART.Api/Middleware/ProblemTypes.cs`). KB-041's illustrative
@@ -544,7 +587,7 @@ every endpoint is `application/problem+json`. Success responses are untouched.
   `Program.cs`. No API endpoint is affected; whoever next reorders the pipeline (M2-A05,
   M2-B01) should move Swagger registration after the error contract rather than assume the
   header is unconditional.
-- **How a `409` is produced.** The services signal a refusal by *returning* a tuple, not by
+- **How a `409` is produced.** The services signal a refusal by _returning_ a tuple, not by
   throwing, so middleware cannot see it. The controller maps it, via the
   `ProblemResults.BusinessRuleProblem(message)` extension
   (`V.SMART/V.SMART.Api/Middleware/ProblemResults.cs`). **Every future controller uses that
@@ -563,13 +606,13 @@ every endpoint is `application/problem+json`. Success responses are untouched.
 ("All routes under `/api/v1`"). Every one of the six endpoints above moved from `/api/…` to
 `/api/v1/…`. **The old paths were removed, not aliased** — they return `404`.
 
-| | |
-|---|---|
-| Mechanism | one constant, `V.SMART/V.SMART.Api/ApiRoutes.cs` → `public const string V1 = "api/v1";` |
-| Usage | `[Route($"{ApiRoutes.V1}/currencies")]` — legal in an attribute because `V1` is `const` |
-| Package added | **none.** `Asp.Versioning.Mvc` is deliberately not referenced: one version, no negotiation, no per-version OpenAPI document to complicate the client generation M2-B10 depends on |
-| `Program.cs` | **unchanged.** `MapControllers()` is the only route mapping and carries no path |
-| `Location` header | now `/api/v1/currencies/{CurrId}` — `CreatedAtAction` derives it from the action's route, so it followed the prefix automatically |
+|                   |                                                                                                                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mechanism         | one constant, `V.SMART/V.SMART.Api/ApiRoutes.cs` → `public const string V1 = "api/v1";`                                                                                           |
+| Usage             | `[Route($"{ApiRoutes.V1}/currencies")]` — legal in an attribute because `V1` is `const`                                                                                           |
+| Package added     | **none.** `Asp.Versioning.Mvc` is deliberately not referenced: one version, no negotiation, no per-version OpenAPI document to complicate the client generation M2-B10 depends on |
+| `Program.cs`      | **unchanged.** `MapControllers()` is the only route mapping and carries no path                                                                                                   |
+| `Location` header | now `/api/v1/currencies/{CurrId}` — `CreatedAtAction` derives it from the action's route, so it followed the prefix automatically                                                 |
 
 **Every future controller composes its route from `ApiRoutes.V1`.** A literal `"api/v1"` in a
 controller is a review reject: the whole value of this task is that the version string exists
@@ -592,21 +635,21 @@ these two lines.
 **Updated by M2-A02 (2026-08-24).** Every endpoint the API exposes is now either screen-right
 enforced, explicitly and auditably exempt, or anonymous by design. Nothing is unannotated.
 
-| Controller | Declaration | Evidence |
-|---|---|---|
-| `CurrencyController` | `[Authorize]` + `[RequireScreen("Currency")]`, one `[RequireRight]` per action: `View` on both GETs, `Create` on POST, `Edit` on PUT, `Delete` on DELETE | `Controllers/CurrencyController.cs:13,21` and `:53,71,81,95,109` |
-| `CurrencyExcelController` | `[RequireScreen("Currency")]`, `View` on the exports, `Create` on the import | `Controllers/CurrencyExcelController.cs:40` |
-| `FilesController` | `[RequireScreen("Correspondences")]` | `Controllers/FilesController.cs:41` |
-| `MeController`, `ReferenceController` | `[NoScreenRight(reason)]` — reachable by every authenticated user, with the reason recorded in the attribute | `Controllers/MeController.cs:37`, `Controllers/ReferenceController.cs:33` |
-| `AuthController` | `[AllowAnonymous]` by design — login cannot require a token | `Controllers/AuthController.cs:57` |
+| Controller                            | Declaration                                                                                                                                              | Evidence                                                                  |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `CurrencyController`                  | `[Authorize]` + `[RequireScreen("Currency")]`, one `[RequireRight]` per action: `View` on both GETs, `Create` on POST, `Edit` on PUT, `Delete` on DELETE | `Controllers/CurrencyController.cs:13,21` and `:53,71,81,95,109`          |
+| `CurrencyExcelController`             | `[RequireScreen("Currency")]`, `View` on the exports, `Create` on the import                                                                             | `Controllers/CurrencyExcelController.cs:40`                               |
+| `FilesController`                     | `[RequireScreen("Correspondences")]`                                                                                                                     | `Controllers/FilesController.cs:41`                                       |
+| `MeController`, `ReferenceController` | `[NoScreenRight(reason)]` — reachable by every authenticated user, with the reason recorded in the attribute                                             | `Controllers/MeController.cs:37`, `Controllers/ReferenceController.cs:33` |
+| `AuthController`                      | `[AllowAnonymous]` by design — login cannot require a token                                                                                              | `Controllers/AuthController.cs:57`                                        |
 
 The rule enforced is BR-AUTH-002 exactly as `RightsHelper.cs:7-20` states it: per user, per
 screen, **deny by default** (`?? false`). No `UserRight` row for `"Currency"` means no right,
 so the caller receives `403`. `IsHide` is never consulted — it hides a screen from navigation
 and neither grants nor revokes an operation (ADR-004 §1; KB-105 T-4).
 
-**What this closed.** Before M2-A02, `[Authorize]` on `CurrencyController` meant only *"any
-authenticated user of any tenant with a valid token"*. A user whose `UserRight` row for
+**What this closed.** Before M2-A02, `[Authorize]` on `CurrencyController` meant only _"any
+authenticated user of any tenant with a valid token"_. A user whose `UserRight` row for
 `Currency` had `CanView = CanCreate = CanEdit = CanDelete = false` — a user for whom the
 Blazor UI hides the entire Currency screen — **could create, edit and delete currencies
 through the API**. That is the hole ADR-004 names, and for Currency it is now shut.
@@ -618,12 +661,12 @@ through the API**. That is the hole ADR-004 names, and for Currency it is now sh
 > `/api/v1/currencies`, so there is no live SPA consumer to break.
 
 **Still open (R-03 is partially, not fully, closed).** Two directions of KB-105 D-4 remain
-switched off: an authenticated action on a controller carrying *no* `[RequireScreen]` is still
+switched off: an authenticated action on a controller carrying _no_ `[RequireScreen]` is still
 passed through by `ScreenRightAuthorizationFilter.cs:69-72` rather than denied, and
 `ScreenRightStartupValidator.cs:83-88` still skips it rather than refusing to start. Both
 files' comments say M2-A02 turns that on; M2-A02's own scope forbids editing
 `V.SMART/V.SMART.Api/Authorization/**`, so it did not. Recorded as **Q-71** in
-[`open-questions.md`](../open-questions.md). It is now *feasible* — after this task every
+[`open-questions.md`](../open-questions.md). It is now _feasible_ — after this task every
 endpoint is annotated or exempt — and it is the guard that stops controller number sixty-one
 from silently shipping unprotected.
 
@@ -651,30 +694,30 @@ from silently shipping unprotected.
 > not this section. It is the complete, compiled, **frozen** specification (M2-B03,
 > 2026-08-24) — route shape, authorization, paging, errors, workflow commands, the
 > `[ProducesResponseType]` set M2-B10 depends on, and a conformance checklist. The table below
-> is a summary of *what is true today*; KB-114 is what a new controller must do.
+> is a summary of _what is true today_; KB-114 is what a new controller must do.
 
 Worth keeping (they are already consistent):
 
-| Convention | Form |
-|---|---|
-| Base path | `/api/v1/{plural-kebab-resource}` — the `api/v1` segment comes from `ApiRoutes.V1`, never a literal (M2-B01) |
-| Paged list | `GET /api/v1/x?pageNumber&pageSize&<filters>` → `{ items, totalCount, pageNumber, pageSize }` |
-| Single | `GET /api/v1/x/{id:int}` |
-| Create | `POST /api/v1/x` → 201 + `Location` |
-| Update | `PUT /api/v1/x/{id:int}` → 200 |
-| Delete | `DELETE /api/v1/x/{id:int}` → 204, or **409** `problem+json` with the service's user-facing message verbatim in `title` (M2-A06) |
-| Payload type | the existing `…VM` ViewModel, unchanged |
+| Convention   | Form                                                                                                                             |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| Base path    | `/api/v1/{plural-kebab-resource}` — the `api/v1` segment comes from `ApiRoutes.V1`, never a literal (M2-B01)                     |
+| Paged list   | `GET /api/v1/x?pageNumber&pageSize&<filters>` → `{ items, totalCount, pageNumber, pageSize }`                                    |
+| Single       | `GET /api/v1/x/{id:int}`                                                                                                         |
+| Create       | `POST /api/v1/x` → 201 + `Location`                                                                                              |
+| Update       | `PUT /api/v1/x/{id:int}` → 200                                                                                                   |
+| Delete       | `DELETE /api/v1/x/{id:int}` → 204, or **409** `problem+json` with the service's user-facing message verbatim in `title` (M2-A06) |
+| Payload type | the existing `…VM` ViewModel, unchanged                                                                                          |
 
 Worth fixing before replication:
 
-| Problem | Fix |
-|---|---|
+| Problem                                      | Fix                          |
+| -------------------------------------------- | ---------------------------- |
 | Untyped `Dictionary<string, object>` filters | typed query DTO per resource |
-| No route/body id consistency check | validate in the controller |
+| No route/body id consistency check           | validate in the controller   |
 
-Fixed and no longer listed: *two 400 shapes* and *no correlation id* — both closed by
-**M2-A06** (see [*Error contract*](#error-contract-m2-a06)); *no versioning* — closed by
-**M2-B01** (see [*Versioning*](#versioning-m2-b01)); *no permission check* — closed for
+Fixed and no longer listed: _two 400 shapes_ and _no correlation id_ — both closed by
+**M2-A06** (see [_Error contract_](#error-contract-m2-a06)); _no versioning_ — closed by
+**M2-B01** (see [_Versioning_](#versioning-m2-b01)); _no permission check_ — closed for
 Currency by **M2-A02**, which is now the convention every controller copies:
 `[RequireScreen("<seeded screen name>")]` on the class, one `[RequireRight(Right.X)]` per
 action.
@@ -703,19 +746,19 @@ This applies to every scoped resource, without exception.
 
 **3. Account gates on authentication.** `POST /api/auth/login`:
 
-| Condition | Status | `type` | Body `title` |
-|---|---|---|---|
-| Unresolved tenant | `400` | `…/tenant-unresolved` | unchanged (M2-A06) |
-| Bad credentials | `401` | `…/unauthenticated` | `"Invalid username or password."` |
-| **Trial expired** | **`403`** | `…/trial-expired` | `"Your trial period has expired. Please contact Administrator."` — verbatim from `Login.razor:273` |
-| **Device mismatch** | `403` | `…/device-not-recognised` | `"This account is already registered on another mobile device."` / `"…another desktop."` — **evaluator exists, NOT wired; Q-40** |
-| **Platform not allowed** | `403` | `…/platform-not-allowed` | `"Mobile login is not allowed."` / `"Desktop login is not allowed."` — **not wired; Q-40** |
+| Condition                | Status    | `type`                    | Body `title`                                                                                                                     |
+| ------------------------ | --------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Unresolved tenant        | `400`     | `…/tenant-unresolved`     | unchanged (M2-A06)                                                                                                               |
+| Bad credentials          | `401`     | `…/unauthenticated`       | `"Invalid username or password."`                                                                                                |
+| **Trial expired**        | **`403`** | `…/trial-expired`         | `"Your trial period has expired. Please contact Administrator."` — verbatim from `Login.razor:273`                               |
+| **Device mismatch**      | `403`     | `…/device-not-recognised` | `"This account is already registered on another mobile device."` / `"…another desktop."` — **evaluator exists, NOT wired; Q-40** |
+| **Platform not allowed** | `403`     | `…/platform-not-allowed`  | `"Mobile login is not allowed."` / `"Desktop login is not allowed."` — **not wired; Q-40**                                       |
 
-`403` and not `401` because the credential *was* accepted: re-prompting for a password, which
+`403` and not `401` because the credential _was_ accepted: re-prompting for a password, which
 is what a `401` tells a client to do, cannot resolve any of these. The messages are product UX
 and are surfaced verbatim (ADR-002 §4). **They must not be collapsed into one status** — a
 support desk that cannot tell an expired trial from a wrong password resets passwords all day.
-**M2-A06** (see [*Error contract*](#error-contract-m2-a06)).
+**M2-A06** (see [_Error contract_](#error-contract-m2-a06)).
 
 ## Ancillary
 

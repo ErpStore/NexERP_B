@@ -78,6 +78,32 @@ before it can be dispatched safely.
   style of `M2-C12-02`/`-04`/`-05`), since almost none of its actual content is
   framework-specific — only the *React Changes* section and the embedded prompt's framing are.
 
+## Status — 2026-08-27 (continuation — `M2-A11` dispatched: the re-spec identified above)
+
+**RUNNING → left `Needs Review`** (documentation-only task, no owner decision required to
+attempt it)
+
+**This continuation:** the select-only pass above named three human decisions and one
+self-contained action a session could take without waiting on any of them — re-specifying
+`M2-A05` for Angular. Dispatched it as `M2-A11`, branch `migration/M2-A11-respec-M2-A05`, cut
+from master tip `e90afc5`. Full record: [`tasks/M2-A11.md`](tasks/M2-A11.md), summarised at
+[`task-tracker.md`](task-tracker.md) footnote ¹¹².
+
+**Outcome:** `M2-A05.md` corrected — stale "React app" language, the false "`M2-C02`
+implements the tenant picker" claim, every `/api/auth/` route now `/api/v1/auth/`, the
+already-landed `M2-A06` `ProblemDetails` conversion reflected, `React Changes` → `Frontend
+Changes`, a missing `Completion Conditions` section added, the stale Fresh-Session prompt
+block removed. Left `Needs Review`, not `Completed` (KB-088). **`M2-A05` itself is still not
+dispatchable** — its own Prerequisites still require Q-16 answered or explicitly deferred,
+which remains outstanding — so this closes one of the three items above, not all of them.
+
+**Current task:** empty (`M2-A11` left for review, not carried forward as "current")
+
+**Next dependency-ready task:** still empty. The two human decisions from the pass above
+(owner review of `M2-C03`, an answer/deferral on Q-16) are unchanged by this continuation.
+
+**Requires human decision:** YES — same two items as the pass above, minus the re-spec.
+
 ## Status — 2026-08-26 (selection-only pass, this session — no dependency-ready task remains)
 
 **STOPPED** — no dependency-ready task remains

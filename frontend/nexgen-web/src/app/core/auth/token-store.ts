@@ -29,28 +29,44 @@ import { Injectable } from '@angular/core';
  * model, accepted because the alternative is a `V.SMART/` change out of this task's scope,
  * or a Web Storage write this task's own acceptance criteria treat as the thing to avoid.
  * Revisit once Q-16 is answered and M2-A04 (or a follow-up) can issue an httpOnly cookie.
+ *
+ * **M2-A05 adds `#tenant`, in the same custody tier as the tokens, for a different reason.**
+ * `AuthController.LoginRequest`/`RefreshRequest`/`LogoutRequest` all gained a required
+ * `tenant` field (ADR-002 §5) — the client must resend the same identifier it logged in with
+ * on every refresh and on logout, or the server cannot even resolve which tenant database to
+ * look the token up in (see `AuthController.cs`'s own constructor comment). A tenant
+ * identifier is not a secret the way the tokens are, but it lives here anyway: it is part of
+ * the same session, set and cleared in the same two places, and a hard reload losing it is
+ * the correct behaviour — the session is already gone at that point regardless (`bootstrap()`
+ * finds no refresh token and never reaches the point where it would need a tenant either).
  */
 @Injectable({ providedIn: 'root' })
 export class TokenStore {
   #accessToken: string | null = null;
   #refreshToken: string | null = null;
   #accessTokenExpiresAtUtc: Date | null = null;
+  #tenant: string | null = null;
 
-  setSession(accessToken: string, refreshToken: string, expiresAtUtc: Date): void {
+  setSession(accessToken: string, refreshToken: string, expiresAtUtc: Date, tenant: string): void {
     this.#accessToken = accessToken;
     this.#refreshToken = refreshToken;
     this.#accessTokenExpiresAtUtc = expiresAtUtc;
+    this.#tenant = tenant;
   }
 
-  /** Called after a rotation: both tokens change together, always. */
+  /** Called after a rotation: both tokens change together, always. Tenant does not change on
+   * a rotation — {@link setSession}'s original value stands — so this does not touch it. */
   rotate(accessToken: string, refreshToken: string, expiresAtUtc: Date): void {
-    this.setSession(accessToken, refreshToken, expiresAtUtc);
+    this.#accessToken = accessToken;
+    this.#refreshToken = refreshToken;
+    this.#accessTokenExpiresAtUtc = expiresAtUtc;
   }
 
   clear(): void {
     this.#accessToken = null;
     this.#refreshToken = null;
     this.#accessTokenExpiresAtUtc = null;
+    this.#tenant = null;
   }
 
   get accessToken(): string | null {
@@ -63,6 +79,10 @@ export class TokenStore {
 
   get accessTokenExpiresAtUtc(): Date | null {
     return this.#accessTokenExpiresAtUtc;
+  }
+
+  get tenant(): string | null {
+    return this.#tenant;
   }
 
   hasSession(): boolean {

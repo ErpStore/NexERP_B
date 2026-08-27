@@ -21,7 +21,67 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## No task selected — nothing genuinely dispatchable, 2026-08-27 select-only pass, master tip `f235aeb`
+## Selected: `M2-A05` — Cross-origin SPA tenant resolution + real CORS
+
+Full spec: [`tasks/M2-A05.md`](tasks/M2-A05.md). **Implemented, 2026-08-27, branch
+`migration/M2-A05-tenant-resolution-cors` (stacked on the unmerged `M2-A11` re-specification
+this task depends on), left `Needs Review`.** Dispatched directly off the pass below: Q-16
+was explicitly deferred (owner asked directly, answered "I don't know"), which cleared
+`M2-A05`'s own Prerequisites; the owner then instructed implementation directly ("go ahead").
+
+**What was built, briefly** (full detail: [`task-tracker.md`](task-tracker.md) footnote
+¹¹⁴, [`tasks/M2-A05.md`](tasks/M2-A05.md)'s Close-out): tenant bound at
+login/refresh/logout, exactly ADR-002 §5's `{ tenant, username, password }`; the real
+architectural fix this task turned out to need — `AuthController` no longer
+constructor-injects the tenant-scoped services (`IUnitOfWork`/`IRefreshTokenService`/
+`IUserRightService`), resolving them from `IServiceProvider` only after tenant binding,
+since ASP.NET Core builds a controller's constructor dependencies before it model-binds the
+request body; real per-environment CORS, empty/fails-closed by default; the API's
+dev-tenant-pinning `tenant.json` deleted; the Angular client regenerated and the login
+form/`TokenStore`/`AuthService` extended to collect and resend the tenant. 619/619 +
+685/685 tests, both `dotnet build`s clean, `npm run build`/`e2e` clean.
+
+**Real findings surfaced during implementation, not anticipated by either version of the
+task file:** the DI-ordering mechanism above; `Refresh`/`Logout` needed the same `tenant`
+field `Login`'s spec named, since `IRefreshTokenService` is equally tenant-scoped; the
+pre-existing host-based fallback for those two endpoints never actually worked for a
+cross-origin SPA, despite its own doc comments describing it as live.
+
+**Disclosed, not silently done:** Q-16 stays deferred, so only the CORS mechanism ships,
+no real origins; no live-backend e2e (this environment has no populated
+`Jwt:Secret`/`ConnectionStrings:MasterDb`); `AllowCredentials: false` decided but unexercised.
+
+---
+
+## Superseded pointer, retained for lineage — `M2-A11` implemented, `Needs Review`, unmerged (2026-08-27)
+
+Full spec: [`tasks/M2-A11.md`](tasks/M2-A11.md). **Implemented, 2026-08-27, branch
+`migration/M2-A11-respec-M2-A05`, left `Needs Review`.** Following on directly from the
+select-only pass below (kept for lineage), which found `M2-A05` mechanically dependency-ready
+but never re-specified for Angular — this is the one documentation-only, ungated action that
+pass surfaced as genuinely doable without an owner decision: unlike Q-16 (deployment topology)
+or `M2-C03`'s `Completed` sign-off, fixing a stale task specification needs no one's approval
+to attempt, only care in the doing.
+
+**What changed, briefly** (full detail: [`task-tracker.md`](task-tracker.md) footnote ¹¹²,
+[`tasks/M2-A11.md`](tasks/M2-A11.md)'s Execution Record): every "React app"/"React SPA"
+phrase corrected; the false claim that `M2-C02` "implements the tenant picker" corrected
+against what `M2-C02` actually built (it deliberately does not, by design, per its own doc
+comments); every route corrected from `/api/auth/…` to `/api/v1/auth/…` now that `M2-B01` has
+landed; `M2-A06`'s already-landed `ProblemDetails` conversion reflected instead of described
+as pending; `## React Changes` renamed to `## Frontend Changes` and rewritten; a missing
+`## Completion Conditions` section added; the stale `## Fresh-Session Execution Prompt` block
+removed.
+
+**This does not make `M2-A05` dispatchable.** `M2-A05.md`'s own Prerequisites still require
+Q-16 answered or explicitly deferred with a recorded reason — that has not happened. The
+tracker row for `M2-A05` is corrected from a bare, unexplained `Blocked` to name this
+precisely, so whoever picks it up next knows exactly what is still needed: an owner/ops
+answer to Q-16, or an explicit "ship the mechanism only" deferral.
+
+---
+
+## Superseded pointer, retained for lineage — no task selected, 2026-08-27 select-only pass, master tip `f235aeb`
 
 **Every candidate checked past its tracker `Ready` tag failed a real check.** Full detail:
 [`task-tracker.md`](task-tracker.md) footnotes ¹¹⁰–¹¹¹, [`runner-state.md`](runner-state.md)

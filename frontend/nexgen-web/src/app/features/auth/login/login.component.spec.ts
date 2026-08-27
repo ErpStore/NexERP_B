@@ -9,6 +9,7 @@ import { LoginComponent } from './login.component';
 
 async function renderLogin(
   login: (
+    tenant: string,
     username: string,
     password: string,
   ) => Promise<{ ok: true } | { ok: false; failure: LoginFailure }>,
@@ -37,11 +38,12 @@ describe('LoginComponent', () => {
     const login = vi.fn().mockResolvedValue({ ok: true });
     const { navigateByUrl } = await renderLogin(login, '/sales-order/42');
 
+    await userEvent.type(screen.getByLabelText('Tenant'), 'acme');
     await userEvent.type(screen.getByLabelText('Username'), 'alice');
     await userEvent.type(screen.getByLabelText('Password'), 'secret');
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
-    expect(login).toHaveBeenCalledWith('alice', 'secret');
+    expect(login).toHaveBeenCalledWith('acme', 'alice', 'secret');
     expect(navigateByUrl).toHaveBeenCalledWith('/sales-order/42');
   });
 
@@ -49,6 +51,7 @@ describe('LoginComponent', () => {
     const login = vi.fn().mockResolvedValue({ ok: true });
     const { navigateByUrl } = await renderLogin(login);
 
+    await userEvent.type(screen.getByLabelText('Tenant'), 'acme');
     await userEvent.type(screen.getByLabelText('Username'), 'alice');
     await userEvent.type(screen.getByLabelText('Password'), 'secret');
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
@@ -60,6 +63,7 @@ describe('LoginComponent', () => {
     const login = vi.fn().mockResolvedValue({ ok: true });
     const { navigateByUrl } = await renderLogin(login, 'https://evil.example/phish');
 
+    await userEvent.type(screen.getByLabelText('Tenant'), 'acme');
     await userEvent.type(screen.getByLabelText('Username'), 'alice');
     await userEvent.type(screen.getByLabelText('Password'), 'secret');
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
@@ -73,6 +77,7 @@ describe('LoginComponent', () => {
       .mockResolvedValue({ ok: false, failure: { reason: 'invalid-credentials' } });
     await renderLogin(login);
 
+    await userEvent.type(screen.getByLabelText('Tenant'), 'acme');
     await userEvent.type(screen.getByLabelText('Username'), 'alice');
     await userEvent.type(screen.getByLabelText('Password'), 'wrong');
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
@@ -90,11 +95,30 @@ describe('LoginComponent', () => {
     });
     await renderLogin(login);
 
+    await userEvent.type(screen.getByLabelText('Tenant'), 'acme');
     await userEvent.type(screen.getByLabelText('Username'), 'alice');
     await userEvent.type(screen.getByLabelText('Password'), 'secret');
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
     expect(await screen.findByText('Your trial period has expired.')).toBeTruthy();
+    expect(screen.queryByText('Invalid username or password.')).toBeNull();
+  });
+
+  // M2-A05 — the case that did not exist before this task: the request's own tenant field
+  // resolves to nothing at all, distinct from a credential failure.
+  it('an unresolved tenant shows its own verbatim server message', async () => {
+    const login = vi.fn().mockResolvedValue({
+      ok: false,
+      failure: { reason: 'tenant-unresolved', message: 'Unable to resolve tenant.' },
+    });
+    await renderLogin(login);
+
+    await userEvent.type(screen.getByLabelText('Tenant'), 'no-such-tenant');
+    await userEvent.type(screen.getByLabelText('Username'), 'alice');
+    await userEvent.type(screen.getByLabelText('Password'), 'secret');
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(await screen.findByText('Unable to resolve tenant.')).toBeTruthy();
     expect(screen.queryByText('Invalid username or password.')).toBeNull();
   });
 
@@ -111,12 +135,15 @@ describe('LoginComponent', () => {
     const login = vi.fn().mockResolvedValue({ ok: true });
     await renderLogin(login);
 
-    // No leading Tab: the component autofocuses the username field on mount.
+    // No leading Tab: the component autofocuses the tenant field (the form's first input,
+    // M2-A05) on mount.
+    await userEvent.keyboard('acme');
+    await userEvent.tab();
     await userEvent.keyboard('alice');
     await userEvent.tab();
     await userEvent.keyboard('secret');
     await userEvent.keyboard('{Enter}');
 
-    expect(login).toHaveBeenCalledWith('alice', 'secret');
+    expect(login).toHaveBeenCalledWith('acme', 'alice', 'secret');
   });
 });

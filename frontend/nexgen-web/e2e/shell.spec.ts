@@ -46,7 +46,10 @@ test('a keyboard-only pass: log in, skip link, sidebar accordion, palette, logou
   await page.route('**/api/v1/auth/logout', (route) => route.fulfill({ status: 204 }));
 
   await page.goto('/login');
-  await page.getByLabel('Username').click();
+  // M2-A05 — Tenant is now the form's first field.
+  await page.getByLabel('Tenant').click();
+  await page.keyboard.type('acme');
+  await page.keyboard.press('Tab');
   await page.keyboard.type('alice');
   await page.keyboard.press('Tab');
   await page.keyboard.type('secret');

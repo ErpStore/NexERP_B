@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using V.SMART.Api.Auth;
 using V.SMART.Api.Middleware;
 using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IAdminService;
@@ -29,29 +30,37 @@ namespace V.SMART.Api.Controllers
         /// </summary>
         private const int AdministratorUserId = 1;
 
-        private readonly IUnitOfWork _unitOfWork;
+        // M2-A05 — IUnitOfWork, IRefreshTokenService and IUserRightService are deliberately NOT
+        // constructor parameters here. All three ultimately depend on the tenant-resolved
+        // ApplicationDbContext (AddVSmartDomain(), ServiceCollectionExtensions.cs), which the
+        // container's scoped factory (`services.AddScoped<ApplicationDbContext>(sp =>
+        // factory.CreateDbContext())`) builds the FIRST time any of them is resolved from this
+        // request's scope. ASP.NET Core constructs a controller — resolving every constructor
+        // parameter — BEFORE it model-binds [FromBody] parameters, so a constructor-injected
+        // IUnitOfWork would already have been built from whatever ITenantProvider.GetCurrentTenant()
+        // returned before this request's JSON body (and its `tenant` field, ADR-002 §5) was ever
+        // read. That is the exact "genuine chicken-and-egg" this task's own KB describes.
+        // Resolving these three lazily, from _serviceProvider, AFTER _tenantProvider.SetTenant(...)
+        // has run, is what makes ADR-002 §5's literal `{ tenant, username, password }` body shape
+        // actually work — not a header, not a route segment, because those were never the decision
+        // ADR-002 §5 recorded.
+        private readonly IServiceProvider _serviceProvider;
         private readonly JwtTokenService _jwtTokenService;
-        private readonly IRefreshTokenService _refreshTokenService;
         private readonly ITenantProvider _tenantProvider;
         private readonly IConfiguration _configuration;
-        private readonly IUserRightService _userRightService;
         private readonly ILogger<AuthController> _logger;
 
         public AuthController(
-            IUnitOfWork unitOfWork,
+            IServiceProvider serviceProvider,
             JwtTokenService jwtTokenService,
-            IRefreshTokenService refreshTokenService,
             ITenantProvider tenantProvider,
             IConfiguration configuration,
-            IUserRightService userRightService,
             ILogger<AuthController> logger)
         {
-            _unitOfWork = unitOfWork;
+            _serviceProvider = serviceProvider;
             _jwtTokenService = jwtTokenService;
-            _refreshTokenService = refreshTokenService;
             _tenantProvider = tenantProvider;
             _configuration = configuration;
-            _userRightService = userRightService;
             _logger = logger;
         }
 
@@ -68,7 +77,16 @@ namespace V.SMART.Api.Controllers
                 TrialGate.DesktopHostValue,
                 StringComparison.Ordinal);
 
+        // M2-A05 — Tenant is the field ADR-002 §5 decided on: `{ tenant, username, password }`,
+        // resolved against MasterDbContext.Tenants by Name or Hostname (TenantProvider.cs:64-66's
+        // own pattern, reused rather than duplicated — see TenantProvider.GetCurrentTenant()'s new
+        // step 0). Required, not optional: the Angular SPA is the only caller of this endpoint —
+        // Blazor and the MAUI head resolve tenant in-process, through TenantProvider directly, and
+        // never call this API's auth routes at all — and a cross-origin SPA has no other reliable
+        // signal (its own host will never match a `Tenants.Hostname` row, and the API's
+        // wwwroot/config/tenant.json fallback pins the whole API to one tenant, a dev-only shape).
         public record LoginRequest(
+            [Required] string Tenant,
             [Required] string Username,
             [Required] string Password);
 
@@ -84,19 +102,26 @@ namespace V.SMART.Api.Controllers
             int TenantId,
             string Role);
 
-        // M2-A04
-        public record RefreshRequest([Required] string RefreshToken);
+        // M2-A04. M2-A05 adds Tenant, for the same reason Login's does: RefreshTokenService is
+        // constructed from the tenant-resolved ApplicationDbContext, and for a cross-origin SPA an
+        // expired access token carries no usable claim to re-derive the tenant from (see Refresh's
+        // own doc comment below). The client already knows its tenant — it sent it to log in — and
+        // resends the same value here.
+        public record RefreshRequest([Required] string Tenant, [Required] string RefreshToken);
 
         public record RefreshResponse(
             string Token,
             string RefreshToken,
             DateTime TokenExpiresAtUtc);
 
-        public record LogoutRequest([Required] string RefreshToken);
+        // M2-A05 — Tenant added for the identical reason RefreshRequest's was: RevokeAsync needs
+        // the tenant-resolved RefreshTokens table bound before it can run.
+        public record LogoutRequest([Required] string Tenant, [Required] string RefreshToken);
 
         /// <summary>
-        /// Exchanges a username and password for a JWT bearer token. Every other endpoint requires
-        /// the token this returns, sent as <c>Authorization: Bearer &lt;token&gt;</c>.
+        /// Exchanges a tenant identifier, username and password for a JWT bearer token. Every
+        /// other endpoint requires the token this returns, sent as
+        /// <c>Authorization: Bearer &lt;token&gt;</c>.
         /// </summary>
         [HttpPost("login", Name = "login")]
         [AllowAnonymous]
@@ -110,19 +135,28 @@ namespace V.SMART.Api.Controllers
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
         {
-            // M2-A06 — same status and same message as before this task; only the body shape
-            // changes, to application/problem+json. The message is reproduced verbatim and
-            // carries no connection string (R-01).
+            // M2-A05 — bind the tenant BEFORE resolving anything that depends on the tenant-scoped
+            // ApplicationDbContext. SetTenant() was a dead setter before this task (it assigned
+            // _manualTenant but GetCurrentTenant() never read it) — this is the fix, additive, per
+            // ADR-002 §5. Deliberately no more informative on failure than "unable to resolve": a
+            // tenant identifier is not a secret (R-01 is about connection strings, not names), but
+            // this task's own KB flags it as enumerable, so the response does not echo the value
+            // back or distinguish "no such tenant" from any other resolution failure.
+            _tenantProvider.SetTenant(request.Tenant);
             var tenant = _tenantProvider.GetCurrentTenant();
             if (tenant == null)
                 return this.TenantUnresolvedProblem(
                     StatusCodes.Status400BadRequest,
-                    "Unable to resolve tenant. Check host or wwwroot/config/tenant.json.");
+                    "Unable to resolve tenant.");
+
+            // M2-A05 — only now, with the tenant bound, is it safe to resolve a service that
+            // reaches the tenant-scoped ApplicationDbContext. See the constructor's own comment.
+            var unitOfWork = _serviceProvider.GetRequiredService<IUnitOfWork>();
 
             // M2-A06 — deliberately no more informative than it was before this task: one title
             // for every authentication failure, so the response cannot distinguish an unknown
             // user from a wrong password.
-            var user = await _unitOfWork.Users.LoginAsync(request.Username, request.Password);
+            var user = await unitOfWork.Users.LoginAsync(request.Username, request.Password);
             if (user == null)
                 return this.UnauthenticatedProblem("Invalid username or password.");
 
@@ -144,11 +178,13 @@ namespace V.SMART.Api.Controllers
             // M2-A10 — administrator rights seeding, in the position Login.razor:345-349 puts it:
             // after the credential and account gates, before anything is issued. Without it an
             // administrator who has only ever authenticated through the API holds zero UserRight
-            // rows and ADR-004's filter answers 403 to every annotated endpoint.
-            await SeedAdministratorRightsAsync(user.UserId);
+            // rights and ADR-004's filter answers 403 to every annotated endpoint.
+            var userRightService = _serviceProvider.GetRequiredService<IUserRightService>();
+            await SeedAdministratorRightsAsync(userRightService, user.UserId);
 
             var token = _jwtTokenService.CreateToken(user, tenant.Id);
-            var refreshToken = await _refreshTokenService.IssueAsync(user.UserId);
+            var refreshTokenService = _serviceProvider.GetRequiredService<IRefreshTokenService>();
+            var refreshToken = await refreshTokenService.IssueAsync(user.UserId);
 
             return Ok(new LoginResponse(
                 token.Token,
@@ -169,14 +205,17 @@ namespace V.SMART.Api.Controllers
         /// authenticate this caller may already be expired — that is the entire reason this
         /// endpoint exists. The refresh token itself is the credential.</para>
         ///
-        /// <para><b>Tenant binding (BR-TEN-002).</b> Deliberately not re-derived from a JWT
-        /// claim — an expired access token authenticates nobody, so <c>HttpContext.User</c> here
-        /// carries no claims to read. Tenant context instead comes from the same
-        /// <c>ITenantProvider</c> host-resolution path <c>Login</c> already uses (Host header /
-        /// tenant.json), which is how <c>ApplicationDbContext</c> — and therefore which tenant's
-        /// <c>RefreshTokens</c> table this call ever sees — was already resolved before this
-        /// action runs. A token issued in tenant A is simply absent from tenant B's database;
-        /// there is no cross-tenant row to find, so there is nothing to switch.</para>
+        /// <para><b>Tenant binding (BR-TEN-002), M2-A05.</b> Deliberately not re-derived from a
+        /// JWT claim — an expired access token authenticates nobody, so <c>HttpContext.User</c>
+        /// here carries no claims to read, and for a cross-origin SPA the host-based fallback
+        /// (step 2) can never match either. The client resends the same <c>tenant</c> value it
+        /// logged in with, bound the same way <c>Login</c> binds it — which is how
+        /// <c>ApplicationDbContext</c>, and therefore which tenant's <c>RefreshTokens</c> table
+        /// this call ever sees, gets resolved before this action's tenant-scoped services are
+        /// touched. A token issued in tenant A is simply absent from tenant B's database; there
+        /// is no cross-tenant row to find, so there is nothing to switch — database-per-tenant
+        /// makes "cannot permit a tenant switch" structural, not something this action has to
+        /// check for itself.</para>
         /// </summary>
         [HttpPost("refresh", Name = "refresh")]
         [AllowAnonymous]
@@ -185,7 +224,16 @@ namespace V.SMART.Api.Controllers
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<RefreshResponse>> Refresh([FromBody] RefreshRequest request)
         {
-            var result = await _refreshTokenService.RotateAsync(request.RefreshToken);
+            // M2-A05 — see Login's identical opening and the constructor's comment.
+            _tenantProvider.SetTenant(request.Tenant);
+            var tenant = _tenantProvider.GetCurrentTenant();
+            if (tenant is null)
+                return this.TenantUnresolvedProblem(
+                    StatusCodes.Status400BadRequest,
+                    "Unable to resolve tenant.");
+
+            var refreshTokenService = _serviceProvider.GetRequiredService<IRefreshTokenService>();
+            var result = await refreshTokenService.RotateAsync(request.RefreshToken);
 
             // Testing item 10 / Target Result 5 — one body for every failure reason. The
             // *reason* (unknown, expired, revoked, deactivated user) is real information and is
@@ -198,7 +246,8 @@ namespace V.SMART.Api.Controllers
                 return this.UnauthenticatedProblem("Invalid or expired refresh token.");
             }
 
-            var user = await _unitOfWork.Users.FirstOrDefaultAsync(u => u.UserId == result.UserId.Value);
+            var unitOfWork = _serviceProvider.GetRequiredService<IUnitOfWork>();
+            var user = await unitOfWork.Users.FirstOrDefaultAsync(u => u.UserId == result.UserId.Value);
             if (user is null || !user.IsActive)
             {
                 // Re-check mirrors RotateAsync's own — the row could not have rotated with an
@@ -207,12 +256,6 @@ namespace V.SMART.Api.Controllers
                 _logger.LogInformation("[Auth] Refresh refused: user vanished between rotation and lookup.");
                 return this.UnauthenticatedProblem("Invalid or expired refresh token.");
             }
-
-            var tenant = _tenantProvider.GetCurrentTenant();
-            if (tenant is null)
-                return this.TenantUnresolvedProblem(
-                    StatusCodes.Status400BadRequest,
-                    "Unable to resolve tenant. Check host or wwwroot/config/tenant.json.");
 
             var token = _jwtTokenService.CreateToken(user, tenant.Id);
 
@@ -229,6 +272,12 @@ namespace V.SMART.Api.Controllers
         /// <para>Idempotent by design (Target Result 4 / the logout error-model row): revoking an
         /// unknown or already-revoked token still returns <c>204</c> — the response must never
         /// leak whether a token was ever valid.</para>
+        ///
+        /// <para><b>Tenant binding, M2-A05.</b> Same reason and same mechanism as <c>Refresh</c>:
+        /// <c>IRefreshTokenService</c> is tenant-scoped, so the tenant must be bound before it is
+        /// resolved. An unresolved tenant still fails loudly here (400) rather than silently —
+        /// that is not the same kind of information as "was this token ever valid," which stays
+        /// opaque regardless.</para>
         /// </summary>
         [HttpPost("logout", Name = "logout")]
         [AllowAnonymous]
@@ -236,7 +285,15 @@ namespace V.SMART.Api.Controllers
         [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> Logout([FromBody] LogoutRequest request)
         {
-            await _refreshTokenService.RevokeAsync(request.RefreshToken);
+            _tenantProvider.SetTenant(request.Tenant);
+            var tenant = _tenantProvider.GetCurrentTenant();
+            if (tenant is null)
+                return this.TenantUnresolvedProblem(
+                    StatusCodes.Status400BadRequest,
+                    "Unable to resolve tenant.");
+
+            var refreshTokenService = _serviceProvider.GetRequiredService<IRefreshTokenService>();
+            await refreshTokenService.RevokeAsync(request.RefreshToken);
             return NoContent();
         }
 
@@ -262,7 +319,7 @@ namespace V.SMART.Api.Controllers
         /// scope of this task (<c>docs/kb/execution/tasks/M2-A10.md</c> §Scope 2, §Acceptance 3)
         /// requires the API to continue. Blazor is left byte-unchanged.</para>
         /// </summary>
-        private async Task SeedAdministratorRightsAsync(int userId)
+        private async Task SeedAdministratorRightsAsync(IUserRightService userRightService, int userId)
         {
             if (userId != AdministratorUserId)
                 return;
@@ -273,7 +330,7 @@ namespace V.SMART.Api.Controllers
                     "[UserRights] Administrator login detected. Syncing rights for UserId {UserId}.",
                     userId);
 
-                await _userRightService.SyncRightsForUserAsync(userId);
+                await userRightService.SyncRightsForUserAsync(userId);
             }
             catch (Exception ex)
             {

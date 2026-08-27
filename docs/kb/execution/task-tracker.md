@@ -103,21 +103,22 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 ### M2-A — Security and contract
 
-| Task ID   | Milestone | Task                                                              | Type         | Status                                                                                                                                                                                                                                                                       | Priority | Depends On                                                     | Estimate | Gate |
-| --------- | --------- | ----------------------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------- | -------- | ---- |
-| M2-A01    | M2        | Server-side screen-right authorization _(parent)_                 | Security     | **In Progress**                                                                                                                                                                                                                                                              | P0       | G0                                                             | 1–2 wks  | G2   |
-| M2-A01-01 | M2        | — implementation spec from ADR-004                                | Architecture | **Completed**¹⁸                                                                                                                                                                                                                                                              | P0       | G0 _(exception)_                                               | 2 d      | G2   |
-| M2-A01-02 | M2        | — implement `[RequireScreen]` / `[RequireRight]`                  | Security     | **Completed**²⁵                                                                                                                                                                                                                                                              | P0       | M2-A01-01                                                      | 3 d      | G2   |
-| M2-A01-03 | M2        | — per-request rights resolution + caching                         | Security     | **Completed**²⁷                                                                                                                                                                                                                                                              | P0       | M2-A01-02                                                      | 2 d      | G2   |
-| M2-A02    | M2        | Apply to `CurrencyController` + denial tests                      | Security     | **Completed**⁵⁹˒⁶² _(merged to `master` on owner instruction 2026-08-24)_                                                                                                                                                                                                    | P0       | M2-A01-03                                                      | 1 d      | G2   |
-| M2-A03    | M2        | Permission-matrix test harness (CI gate)                          | Testing      | **Completed**⁶³˒⁶⁴˒⁸² _(the last criterion closed 2026-08-26 — owner added the required status check in GitHub branch protection; see footnote ⁸²)_                                                                                                                          | P0       | M2-A02                                                         | 3 d      | G2   |
-| M2-A04    | M2        | Refresh tokens + revocation                                       | Security     | **Completed**⁴⁸˒¹⁰⁰˒¹⁰¹˒¹⁰⁴ _(implemented 2026-08-27 — short access tokens, hashed rotating/revocable refresh tokens, one additive EF migration; 613/613 API tests pass, 0 build errors. Merged `72a5758`; owner-confirmed Completed 2026-08-27. See footnotes ¹⁰¹ and ¹⁰⁴)_ | P0       | M2-A01-02, **M0-03-03** _(re-scoped from M0-04, footnote ¹⁰⁰)_ | 3–5 d    | G2   |
-| M2-A05    | M2        | Cross-origin SPA tenant resolution + real CORS                    | Security     | Blocked                                                                                                                                                                                                                                                                      | P0       | M2-A04                                                         | 3–5 d    | G2   |
-| M2-A06    | M2        | Exception middleware → `ProblemDetails`                           | Backend      | **Completed**²³                                                                                                                                                                                                                                                              | P0       | G0                                                             | 3–5 d    | G2   |
-| M2-A07    | M2        | `GET /api/v1/me`                                                  | Backend      | **Completed**³⁷ _(merged to `master` `80c209b` on owner instruction 2026-08-21)_                                                                                                                                                                                             | P0       | M2-A01-03                                                      | 2 d      | G2   |
-| M2-A08    | M2        | Row-level scoping + account gates (Q-05…Q-08)                     | Security     | **Completed**²⁹˒³⁹ _(merged to `master` `380c805` on owner instruction 2026-08-21)_                                                                                                                                                                                          | P0       | M2-A01-03                                                      | 3 d      | G2   |
-| M2-A09    | M2        | Remove the two phantom screen names from `ScreenCatalogue` (R-65) | Security     | **Completed**⁶⁰˒⁶² _(merged to `master` on owner instruction 2026-08-24)_                                                                                                                                                                                                    | P0       | M2-A01-03                                                      | 0.5 d    | G2   |
-| M2-A10    | M2        | Seed administrator rights on the API login path (Q-28)            | Security     | **Completed**⁶¹˒⁶² _(merged to `master` on owner instruction 2026-08-24)_                                                                                                                                                                                                    | P1       | M2-A01-03                                                      | 0.5 d    | G2   |
+| Task ID   | Milestone | Task                                                              | Type          | Status                                                                                                                                                                                                                                                                                                                                            | Priority | Depends On                                                     | Estimate | Gate |
+| --------- | --------- | ----------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------- | -------- | ---- |
+| M2-A01    | M2        | Server-side screen-right authorization _(parent)_                 | Security      | **In Progress**                                                                                                                                                                                                                                                                                                                                   | P0       | G0                                                             | 1–2 wks  | G2   |
+| M2-A01-01 | M2        | — implementation spec from ADR-004                                | Architecture  | **Completed**¹⁸                                                                                                                                                                                                                                                                                                                                   | P0       | G0 _(exception)_                                               | 2 d      | G2   |
+| M2-A01-02 | M2        | — implement `[RequireScreen]` / `[RequireRight]`                  | Security      | **Completed**²⁵                                                                                                                                                                                                                                                                                                                                   | P0       | M2-A01-01                                                      | 3 d      | G2   |
+| M2-A01-03 | M2        | — per-request rights resolution + caching                         | Security      | **Completed**²⁷                                                                                                                                                                                                                                                                                                                                   | P0       | M2-A01-02                                                      | 2 d      | G2   |
+| M2-A02    | M2        | Apply to `CurrencyController` + denial tests                      | Security      | **Completed**⁵⁹˒⁶² _(merged to `master` on owner instruction 2026-08-24)_                                                                                                                                                                                                                                                                         | P0       | M2-A01-03                                                      | 1 d      | G2   |
+| M2-A03    | M2        | Permission-matrix test harness (CI gate)                          | Testing       | **Completed**⁶³˒⁶⁴˒⁸² _(the last criterion closed 2026-08-26 — owner added the required status check in GitHub branch protection; see footnote ⁸²)_                                                                                                                                                                                               | P0       | M2-A02                                                         | 3 d      | G2   |
+| M2-A04    | M2        | Refresh tokens + revocation                                       | Security      | **Completed**⁴⁸˒¹⁰⁰˒¹⁰¹˒¹⁰⁴ _(implemented 2026-08-27 — short access tokens, hashed rotating/revocable refresh tokens, one additive EF migration; 613/613 API tests pass, 0 build errors. Merged `72a5758`; owner-confirmed Completed 2026-08-27. See footnotes ¹⁰¹ and ¹⁰⁴)_                                                                      | P0       | M2-A01-02, **M0-03-03** _(re-scoped from M0-04, footnote ¹⁰⁰)_ | 3–5 d    | G2   |
+| M2-A05    | M2        | Cross-origin SPA tenant resolution + real CORS                    | Security      | **Needs Review**¹¹²˒¹¹³˒¹¹⁴ _(implemented 2026-08-27 on branch `migration/M2-A05-tenant-resolution-cors` — tenant bound at login/refresh/logout per ADR-002 §5; the DI-ordering fix that makes it possible; real per-environment CORS; the API's dev-tenant `tenant.json` deleted. 619/619 + 685/685 tests, both builds clean. See footnote ¹¹⁴)_ | P0       | M2-A04                                                         | 3–5 d    | G2   |
+| M2-A06    | M2        | Exception middleware → `ProblemDetails`                           | Backend       | **Completed**²³                                                                                                                                                                                                                                                                                                                                   | P0       | G0                                                             | 3–5 d    | G2   |
+| M2-A07    | M2        | `GET /api/v1/me`                                                  | Backend       | **Completed**³⁷ _(merged to `master` `80c209b` on owner instruction 2026-08-21)_                                                                                                                                                                                                                                                                  | P0       | M2-A01-03                                                      | 2 d      | G2   |
+| M2-A08    | M2        | Row-level scoping + account gates (Q-05…Q-08)                     | Security      | **Completed**²⁹˒³⁹ _(merged to `master` `380c805` on owner instruction 2026-08-21)_                                                                                                                                                                                                                                                               | P0       | M2-A01-03                                                      | 3 d      | G2   |
+| M2-A09    | M2        | Remove the two phantom screen names from `ScreenCatalogue` (R-65) | Security      | **Completed**⁶⁰˒⁶² _(merged to `master` on owner instruction 2026-08-24)_                                                                                                                                                                                                                                                                         | P0       | M2-A01-03                                                      | 0.5 d    | G2   |
+| M2-A10    | M2        | Seed administrator rights on the API login path (Q-28)            | Security      | **Completed**⁶¹˒⁶² _(merged to `master` on owner instruction 2026-08-24)_                                                                                                                                                                                                                                                                         | P1       | M2-A01-03                                                      | 0.5 d    | G2   |
+| M2-A11    | M2        | Re-specify `M2-A05` for Angular                                   | Documentation | **Needs Review**¹¹² _(implemented 2026-08-27 on branch `migration/M2-A11-respec-M2-A05` — corrected `M2-A05.md`'s stale React-era content, its false "`M2-C02` implements the tenant picker" claim, and every `/api/auth/` route to `/api/v1/auth/`. See footnote ¹¹²)_                                                                           | P0       | —                                                              | 0.5 d    | G2   |
 
 ### M2-B — API structure
 
@@ -4411,3 +4412,108 @@ fails its own file's explicit secondary check (`M2-A05` not done). The real next
 the critical path is **`M2-A05`** (Security, P0, 3–5 d, `depends_on: [M2-A04]` — already
 `Completed`) — it is itself dependency-ready and, per `tasks/M2-D01.md`'s own account, gates
 the entire `M2-D` vertical slice. Recorded in `runner-state.md` (KB-093).
+
+¹¹² **`M2-A11`: re-specify `M2-A05` for Angular, 2026-08-27, branch
+`migration/M2-A11-respec-M2-A05`, left `Needs Review`.** Checked as the fallback candidate
+after footnote ¹¹¹ found `M2-D01` genuinely blocked on `M2-A05`. `M2-A05.md` mechanically
+cleared the five-part test but was never re-specified for Angular — it sits in the `M2-A`
+milestone, entirely outside `M2-C12`'s declared scope ("the superseded **M2-C / M2-D** task
+tree"), so `M2-C12-01`…`-05` never touched it, and it carried no ⛔ banner to flag the
+omission the way the `M2-C`/`M2-D` files did before their own re-specification.
+
+Three concrete divergences, not just word-swaps, were found and corrected: (1) the file's own
+claim that "`M2-C02` implements the tenant picker" is false — `M2-C02` is `Completed` and
+merged, and both `login.component.ts:32-33` and `auth.service.ts:23-25` state explicitly that
+tenant resolution stays deferred to `M2-A05` by design; (2) every route the file names read
+`/api/auth/…`, predating `M2-B01`'s `/api/v1` versioning — corrected throughout to
+`/api/v1/auth/…` (`AuthController.cs:13`); (3) the file listed `M2-A06` (`ProblemDetails`) as
+a pending "Soft" dependency, but `M2-A06` is `Completed` and merged — the unresolved-tenant
+response is already `application/problem+json`, and the Angular side already has a
+`'tenant-unresolved'` `LoginFailure` case wired and waiting for it.
+
+Also renamed `## React Changes` → `## Frontend Changes` (rewritten against what `M2-C02`
+actually built), added the `## Completion Conditions` section `M2-A05.md` was missing, and
+removed the ~490-line `## Fresh-Session Execution Prompt` block per
+[`task-template.md`](tasks/M2-A05.md)'s own instruction — the same removal `M2-C12-01`/`-02`
+made for their own batches. Protected frontmatter (`depends_on`, `business_rules`,
+`priority`, `estimate`, `status: Not Started`) left byte-identical; `api_endpoints` was
+corrected with an inline comment explaining why. Full detail, greps quoted:
+[`tasks/M2-A11.md`](tasks/M2-A11.md)'s Execution Record.
+
+**This does not make `M2-A05` dispatchable by itself.** Its own Prerequisites still require
+Q-16 answered or explicitly deferred with a recorded reason; `open-questions.md`'s Q-16 entry
+remains generally `Unknown` with no deferral recorded specifically for this task. `M2-A05`'s
+row above is corrected from a bare `Blocked` to name this precisely, so the next session
+knows exactly what unblocks it: an owner/ops answer to Q-16, or an explicit "ship the
+mechanism only" deferral recorded against it.
+
+¹¹³ **Q-16: explicitly deferred, 2026-08-27 — owner asked directly, in conversation, "what is
+Q-16?", and answered "I don't know."** Recorded in `open-questions.md` per the same pattern
+[KB-080 §7](README.md#exit-gate--g0) sets for a G0 deliverable — "answered **or explicitly
+deferred with reason**" — and the same pattern `Q-14` used (footnote-adjacent precedent: an
+honest "not yet decided" recorded with a reason and a reopen trigger, not silently left open
+and not guessed at). **Reason recorded:** no deployment topology has been decided yet — there
+is no infrastructure to describe, only a future one to plan; this is an absence-of-plan
+statement, not a refusal to answer. **Consequence, per `M2-A05`'s own Prerequisites
+wording:** the task ships the CORS origin-list **mechanism** only, configuration-driven, with
+no origin values invented — the real values are filled in whenever this question is
+eventually answered. File-upload durability (`M2-B06`) and the refresh-token
+cookie-vs-body-transport decision (`M2-A04`) — Q-16's other two dependents — are **not**
+resolved by this deferral; both stay exactly as risky as `open-questions.md` already
+documents.
+
+**This clears rule 3 of the five-part "can actually be done" test for `M2-A05`, alongside
+`M2-A11`'s footnote ¹¹² clearing rule 4.** Re-checked all five parts just now: rule 1 (Hard
+`depends_on: [M2-A04]`, `Completed` and merged) — clear; rule 2 (`task_type: Security`, not
+`Product Decision`) — clear; rule 3 (Q-16 now explicitly deferred with a recorded reason) —
+clear; rule 4 (task file re-specified, no longer stale, per `M2-A11`) — clear; rule 5 (no sibling branch open on `M2-A05`'s **own files**) — clear. `git branch
+--list '*M2-A05*'` does show one hit, `migration/M2-A11-respec-M2-A05`, but that is this
+footnote's own re-specification branch — `git diff --name-only master...` on it touches only
+`docs/kb/execution/tasks/M2-A05.md` and `M2-A11`'s own bookkeeping (footnote ¹¹²), never
+`V.SMART/` or `frontend/`, so it is not a conflicting sibling on the files `M2-A05`'s
+_implementation_ would actually change. **`M2-A05` moves `Blocked` → `Ready` above.** Not dispatched by this footnote alone — task
+selection and branch creation remain a separate step, per the same convention every other
+`Blocked` → `Ready` footnote in this file follows.
+
+¹¹⁴ **`M2-A05` implemented 2026-08-27, branch `migration/M2-A05-tenant-resolution-cors`
+(stacked on the unmerged `migration/M2-A11-respec-M2-A05`, which it depends on for an
+accurate spec), left `Needs Review`.** Dispatched directly off footnote ¹¹³'s `Ready`
+transition, in the same continuation, on explicit owner instruction ("go ahead").
+
+**What was built:** tenant bound at login/refresh/logout via a new `ITenantProvider`
+resolution "step 0" (`SetTenant`/`_manualTenant`, previously a dead setter — INV-005
+amendment) — `LoginRequest`/`RefreshRequest`/`LogoutRequest` all gained a required `Tenant`
+field, matching ADR-002 §5's `{ tenant, username, password }` exactly; `AuthController` no
+longer constructor-injects `IUnitOfWork`/`IRefreshTokenService`/`IUserRightService` (all
+three reach the tenant-scoped `ApplicationDbContext`) and resolves them from an injected
+`IServiceProvider` **after** tenant binding — the actual mechanism (found during
+implementation, not named by either version of the task file) that makes a body-field
+tenant possible at all, since ASP.NET Core resolves a controller's constructor before it
+model-binds `[FromBody]`; real per-environment CORS (`CorsOptions`, empty/fails-closed in
+`appsettings.json`, populated in `appsettings.Development.json`); the API's
+`wwwroot/config/tenant.json` deleted outright (it held a real committed dev-tenant pin,
+`"BSPL"`); the OpenAPI contract and Angular client regenerated; `frontend/nexgen-web`'s
+login form, `TokenStore` and `AuthService` extended to collect and resend the tenant.
+
+**Verification, all observed:** `dotnet build` — API and Web hosts both 0 errors.
+`dotnet test tests/V.SMART.Api.Tests` — **619/619** (613 pre-existing + 6 new). `dotnet test
+tests/V.SMART.Shared.Tests` — **102/103, 1 pre-existing unrelated skip** (96 pre-existing +
+6 new `TenantProviderTests`, the first test file to cover `TenantProvider` at all). `npm run
+typecheck`/`lint` clean; `format:check` flags the same 2 pre-existing files. `npm run
+test:ci` — **685/685** (682 + 3 new). `npm run build` clean, 626.22 kB raw / 145.04 kB gzip
+(unchanged from `M2-C03`'s baseline within rounding). `npm run e2e` — **2/2**.
+
+**Real findings:** the DI-ordering mechanism above (item the task's own KB described only
+as "a genuine chicken-and-egg" without naming the specific ASP.NET Core pipeline fact
+causing it); `Refresh`/`Logout` needed the same `tenant` field `Login` did — the original
+API Changes section named only `Login`'s — since `IRefreshTokenService` is equally
+tenant-scoped; the pre-existing host-based fallback documented for `Refresh`/`Logout` never
+actually worked for a cross-origin SPA, by definition, despite the code's own doc comments
+describing it as live.
+
+**Disclosed gaps:** Q-16 stays explicitly deferred, so only the CORS mechanism ships, no
+real origins; no live-backend e2e proves the fix against a real database (this environment
+has no populated `Jwt:Secret`/`ConnectionStrings:MasterDb`, the same disclosed limitation
+every prior task here has recorded); `AllowCredentials: false` was decided but never
+exercised end-to-end (nothing issues a cookie today); the login form's tenant field has no
+validation beyond "required". Full detail: [`tasks/M2-A05.md`](tasks/M2-A05.md)'s Close-out.

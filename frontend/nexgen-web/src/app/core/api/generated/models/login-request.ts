@@ -5,5 +5,6 @@
 
 export interface LoginRequest {
   password?: string | null;
+  tenant?: string | null;
   username?: string | null;
 }
