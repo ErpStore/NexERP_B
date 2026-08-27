@@ -21,9 +21,56 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Selected: `M2-C02` — Auth: login, refresh, guards, permission store
+## Selected: `M2-D01` — Currency end-to-end in Angular
 
-Full spec: [`tasks/M2-C02.md`](tasks/M2-C02.md). Not yet dispatched.
+Full spec: [`tasks/M2-D01.md`](tasks/M2-D01.md). Not yet dispatched — awaiting owner
+confirmation before starting (see note below).
+
+### How this pass found it, 2026-08-27, master tip `3a30401`
+
+`M2-C02` (the prior selection below) was implemented, merged (`6298732`) and marked
+`Completed` this session, both on explicit owner instruction ("Yeah merged", then separately
+"Yes complete it"; see [`task-tracker.md`](task-tracker.md) footnotes ¹⁰⁶–¹⁰⁷). That clears
+rule 1 of the five-part test for two direct dependents at once:
+
+- **`M2-C03`** — Hard prerequisites `M2-C02`, `M2-C04-01` both `Completed` and merged.
+- **`M2-D01`** — all seven Hard prerequisites (`M2-C05-03`, `M2-A02`, `M2-B10`, `M2-C02`,
+  `M2-A07`, `M2-A06`, `M2-B01`) `Completed` and merged.
+
+Both clear the rest of the five-part test (neither is `Product Decision`; `open-questions.md`
+has no hit for either; neither task file carries a ⛔ banner — `M2-D01`'s was re-specified for
+Angular by `M2-C12-05`, `M2-C03`'s by `M2-C12-02`).
+
+**Ranked `M2-D01` ahead of `M2-C03`** on step 2 of the Ready-task-selection rule (most
+downstream unblocking): `M2-D01` directly gates `M2-D02-01` (`task-tracker.md:182`) and,
+transitively, the rest of the `M2-D02*`/`M2-D03` chain — the actual document-editor/Sales
+Order spine this migration is building toward. **`M2-C03` currently gates nothing in any
+task's `depends_on`** — grepped `task-tracker.md` for every row naming `M2-C03` as a
+dependency and found none, confirming the earlier finding at `task-tracker.md:3286` ("`M2-C03`
+was cited as blocking `M2-D01` but appears in no Dependencies table") still holds. `M2-C03` is
+not excluded — it stays the next candidate after `M2-D01`, just ranked second, and nothing
+currently needs it to unblock.
+
+**One thing to check before dispatching, not yet done by this pass:** `M2-D01` was already
+dispatched once before, on `migration/M2-D01-currency-end-to-end`, and stopped `Blocked` on
+arrival when its `depends_on` was found incomplete (footnote ⁷⁸). That branch still exists,
+unmerged. Before cutting a fresh branch per the "one task, one branch" rule, the next session
+picking this up should check `git log migration/M2-D01-currency-end-to-end` for how much real
+implementation (if any) that branch holds versus just the investigation that found the
+`depends_on` gap — reusing it may be more honest than abandoning real work, but re-cutting
+fresh is also legitimate if it never got past investigation. Not resolved here because this
+pass's instruction was to close `M2-C02`, not to dispatch the next task.
+
+**Downstream not yet released:** `M2-D02-01` still needs `M2-D01` itself `Completed`, not
+`Ready`.
+
+---
+
+## Superseded pointer, retained for lineage — `M2-C02` closed (2026-08-27, master tip `3a30401`)
+
+Full spec: [`tasks/M2-C02.md`](tasks/M2-C02.md). **Superseded — implemented, merged
+(`6298732`) and marked `Completed`** on owner instruction, both 2026-08-27. Original selection
+narrative below, retained for lineage only:
 
 ### How this pass found it, 2026-08-27, master tip `e96e333`
 

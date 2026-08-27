@@ -155,13 +155,12 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Completed**⁴⁶ *(merged to `master` `27dfc5d` on owner instruction 2026-08-23)* | P0 | M2-C12-01…04 | 1 d | G2 |
 | M2-C13 | M2 | Defer the confirm-dialog host; bundle back inside budget (R-69) | Frontend | **Completed**⁵⁵˒⁵⁶˒⁵⁷ | P1 | M2-C04-03 | 1 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Completed**²⁶˒⁴⁶˒⁴⁷˒⁵²˒⁸⁵˒⁸⁹˒⁹²˒⁹³ *(**Merged and integration-verified 2026-08-26**, owner-confirmed Completed same day — `decimal.js` module, `money` pipe, ESLint/spec-scan enforcement; a real lint gap against `M2-C05-01`'s DataGrid found and fixed, not glossed over. Full suite: `test:ci` 526/526, `build` clean, 0 bundle regression. `DECIMAL_PORT` production wiring remains an open gap for a future task. See footnote ⁹³)* | P0 | M2-C01 | 2 d | G2 |
-| M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | **Needs Review**⁴⁶˒¹⁰⁴˒¹⁰⁵˒¹⁰⁶ *(implemented 2026-08-27, merged to `master` `6298732` on owner instruction 2026-08-27 (plus a one-line post-merge
-`format:check` fix, `0e9b26c`) — login, single-flight refresh, route guards, permission store, idle timeout all built and verified; two real bugs and one real functional gap found and fixed during implementation, two disclosed deviations recorded. Post-merge re-verification clean. **Merged is not `Completed`** — the owner said "merged," not "Completed," and only the owner may set that (KB-088); this row stays `Needs Review` until they do. See footnotes ¹⁰⁵–¹⁰⁶)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
+| M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | **Completed**⁴⁶˒¹⁰⁴˒¹⁰⁵˒¹⁰⁶˒¹⁰⁷ *(implemented and merged to `master` `6298732` 2026-08-27; owner-confirmed Completed same day — login, single-flight refresh, route guards, permission store, idle timeout all built and verified; two real bugs and one real functional gap found and fixed during implementation, two disclosed deviations recorded, post-merge re-verification clean. See footnotes ¹⁰⁵–¹⁰⁷)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | **Completed**⁴⁶˒⁵⁴ *(parent — all three children `Completed` and merged)* | P0 | M2-C01 | 2 wks | G2 |
 | M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
 | M2-C04-02 | M2 | — form controls + validation display | Frontend | **Completed**⁵¹˒⁵² *(merged to `master` on owner instruction 2026-08-23; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 4 d | G2 |
 | M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Completed**⁵³˒⁵⁴ *(merged to `master` on owner instruction 2026-08-24; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 3 d | G2 |
-| M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-02`; real blockers are `M2-C02`, `M2-C04-01`)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
+| M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | **Ready**⁴⁶˒¹⁰⁷ *(re-specified for Angular by `M2-C12-02`; both Hard prerequisites — `M2-C02`, `M2-C04-01` — are `Completed` and merged as of 2026-08-27. See footnote ¹⁰⁷)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
 | M2-C05-01 | M2 | — server-paged table core | Frontend | **Completed**⁷⁴ *(the `Needs Review`/"unmerged" reading was stale — `git log --first-parent` shows `bf2b4cd` "Merge M2-C05-01" on `master`'s own first-parent line, and all 18 files are present at `HEAD`; corrected 2026-08-26)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
 | M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Blocked**⁷⁹ *(dispatched 2026-08-26, stopped at implement — the endpoint pair does not exist, no real fixture capture, and `M2-C02` is `Blocked`; see footnote ⁷⁹)* | P1 | M2-C05-01 | 2 d | G2 |
@@ -178,7 +177,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
 |---|---|---|---|---|---|---|---|---|
-| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | **Blocked**⁷⁸ *(`depends_on` corrected `2281740`: 4 more Hard deps beyond the original 3, one — `M2-C02` — still `Blocked`)* | P0 | M2-C05-03, M2-A02, M2-B10, M2-C02, M2-A07, M2-A06, M2-B01 | 3 d | G2 |
+| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | **Ready**⁷⁸˒¹⁰⁷ *(`depends_on` corrected `2281740`: all 7 Hard deps — `M2-C05-03`, `M2-A02`, `M2-B10`, `M2-C02`, `M2-A07`, `M2-A06`, `M2-B01` — are `Completed` and merged as of 2026-08-27. See footnote ¹⁰⁷)* | P0 | M2-C05-03, M2-A02, M2-B10, M2-C02, M2-A07, M2-A06, M2-B01 | 3 d | G2 |
 | M2-D02 | M2 | Customer Master *(parent)* | Migration | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-05`; real blocker is `M2-D01`)* | P0 | M2-D01 | 1.5 wks | G2 |
 | M2-D02-01 | M2 | — `@code` triage + logic extraction | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D01`. Allocates the `BR-CUST-*` series)* | P0 | M2-D01 | 4 d | G2 |
 | M2-D02-02 | M2 | — `CustomersController` + API tests | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D02-01`)* | P0 | M2-D02-01 | 3 d | G2 |
@@ -4257,3 +4256,26 @@ rule 1 of the five-part "can actually be done" test requires `Completed` **and**
 merely merged — `M2-C03` and `M2-D01` both still name `M2-C02` as an unmet Hard prerequisite
 and stay `Blocked` until the owner reviews the Close-out ([`tasks/M2-C02.md`](tasks/M2-C02.md))
 and explicitly sets `Completed`.
+
+¹⁰⁷ **`M2-C02`: `Needs Review` → owner-confirmed `Completed`, 2026-08-27 ("Yes complete it"),
+shown this file's own footnote ¹⁰⁶ and [`tasks/M2-C02.md`](tasks/M2-C02.md)'s Close-out first.**
+Distinct instruction from the earlier merge instruction ("Yeah merged," footnote ¹⁰⁶) — merging
+and marking `Completed` were two separate, separately-given instructions here, not one combined
+step the way `M2-A04`/`M2-C07` were (footnote ¹⁰⁴). Per
+[KB-088](workflow.md#who-may-set-completed), `Completed` reflects this human sign-off, not that
+every acceptance criterion is met without qualification: the two `[~]` criteria in
+`tasks/M2-C02.md` (no automated `axe` scan; "every feature service resets on logout"
+unverifiable — no such service exists yet) are accepted as known, recorded limitations by this
+decision, not retracted or silently promoted to `[x]`.
+
+**Downstream effect, now real.** Rule 1 of the five-part "can actually be done" test — every
+Hard prerequisite `Completed` **and** merged — now clears for `M2-C02`'s direct dependents.
+**`M2-C03`** (`M2-C02`, `M2-C04-01` — both `Completed` and merged) and **`M2-D01`**
+(`M2-C05-03`, `M2-A02`, `M2-B10`, `M2-C02`, `M2-A07`, `M2-A06`, `M2-B01` — every one `Completed`
+and merged) both move `Blocked` → `Ready` above. Neither is picked or started by this footnote
+alone — task selection and branch creation are a separate step.
+
+*(While updating this footnote, a formatting defect from footnote ¹⁰⁶'s own edit was found and
+fixed: the `M2-C02` row above had been accidentally split across two physical lines by a prior
+edit, silently breaking the Markdown table for that row without erroring. Corrected to one line
+in the same change; no content was lost, only the line break removed.)*
