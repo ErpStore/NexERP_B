@@ -16,7 +16,7 @@ database_tables: []
 business_rules: [BR-CALC-001, BR-STK-001]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-21
+last_verified: 2026-08-27
 dependencies: [KB-010, KB-013]
 ---
 
@@ -219,6 +219,31 @@ Keyless result types are registered as `DbSet`s on `ApplicationDbContext`
 called by the application (see R-04). The other 82 exist only inside the live
 tenant databases. This is risk **R-04** and must be resolved before any environment can be
 rebuilt from source. See [`risks/technical-debt-register.md`](../risks/technical-debt-register.md).
+
+### 3. Both engines exposed over HTTP (M2-B08, 2026-08-27)
+
+`V.SMART.Api` now calls both engines above, unmodified, through two seams:
+
+- **`ApiPathProvider`** (`V.SMART.Api/Reporting/ApiPathProvider.cs`) — the `IPathProvider`
+  implementation the API host was missing (M2-B07 deferred it here). Resolves the same two
+  candidate paths `WebPathProvider` does, in the same order; this is what makes `ReportService`
+  constructible in `V.SMART.Api` at all.
+- **`PrintRegistry`/`ReportRegistry`** (`V.SMART.Api/Reporting/`) — the allow-lists that make
+  `GET /{resource}/{id:int}/print` and `GET /reports/{slug}` safe, since `ReportExecutor`
+  interpolates a procedure name directly into `EXEC dbo.{procedureName}` with no
+  parameterisation of the name itself. `{resource}`/`{slug}` are looked up here and only here;
+  they are never passed through to SQL.
+
+Each registered print/report entry sits on its own controller (`[RequireScreen]` is
+class-level only, and different entries need different screens), following the shape
+[KB-114](../api/controller-conventions.md) already froze for print (`GET /{id:int}/print` on
+the resource's own controller) — these are print-only stub controllers today, since the
+underlying resources (Purchase Order, Job Order, …) have no full CRUD controller yet; a future
+module-wave task is expected to fold the print action into the real resource controller at the
+same route.
+
+Full contract, the seeded entries and what remains unregistered:
+[KB-110](../api/report-and-print-endpoints.md).
 
 ## File storage — two implementations, one on-disk layout
 

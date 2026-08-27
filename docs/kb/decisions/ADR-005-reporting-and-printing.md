@@ -4,7 +4,7 @@ title: Keep FastReport and stored-procedure reporting; expose over HTTP
 module: decisions
 status: accepted
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-27
 dependencies: [KB-011, KB-052, KB-060]
 ---
 
@@ -85,3 +85,26 @@ directly, so **`UserRight` does not gate report data** — report endpoints must
 
 **Neutral.** Blazor-ApexCharts is replaced by Recharts for the dashboard — that is
 presentation, not reporting, and carries no compliance risk.
+
+## Implementation notes (M2-B08, 2026-08-27)
+
+**`ReportService` has three public entry points, not one.** `Generate_Report` (78 callers) is
+dominant, but `GenerateSalarySlipReport` (2 callers, identical signature) and
+`Generate_Attendance_Report` (1 caller, **different** signature — `(year, monthId, weekNo,
+fileName, procedureName)`, no `id`, no `screenName`) both exist. The first two share one route
+shape (`GET /{resource}/{id:int}/print`, distinguished by a `Generator` field in the seed
+registry); the third does not fit that shape at all and is deliberately left unregistered —
+its own route, if one is ever needed, is a decision for whoever registers it, not inherited
+from this ADR.
+
+**Report paging is in-memory, not server-side, and this is a permanent property of the
+design, not a gap to close later.** `ReportExecutor.ExecuteAsync<T>` runs a stored procedure
+that returns its full result set; none of the procedures accept `@Skip`/`@Take`
+(`ReportExecutor.cs:48-86` is a commented-out attempt, abandoned before M2-B08 and not
+revived). Adding such parameters to a procedure is a schema change, which this ADR's own
+"neither engine changes" premise forbids. Every report catalogue entry states
+`"paging": "in-memory"` so a client cannot mistake this for the server-paged contract
+[ADR-002 §2a](ADR-002-rest-api-layer.md) establishes for ordinary resource lists.
+
+Full contract, the seeded print/report maps and the template-coverage matrix:
+[KB-110](../api/report-and-print-endpoints.md).

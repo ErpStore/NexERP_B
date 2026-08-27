@@ -16,6 +16,7 @@ using V.SMART.Api.Caching;
 using V.SMART.Api.HealthChecks;
 using V.SMART.Api.Logging;
 using V.SMART.Api.Middleware;
+using V.SMART.Api.Reporting;
 using V.SMART.Api.Services;
 using V.SMART.Shared.DependencyInjection;
 using V.SMART.Shared.Services;
@@ -214,8 +215,13 @@ builder.Services.AddHttpClient();
 // host ever reaches a request. ValidateScopes is left at the framework's own default (on in
 // Development, off elsewhere): captive-dependency detection is not what has to be relaxed.
 //
-// REMOVE THIS BLOCK once M2-B06 and M2-B08 supply IPathProvider / IFileUploadService /
-// IFileOpener for this host. At that point the graph validates and the check must go back on.
+// M2-B08 update: this block does NOT come off yet. M2-B06 and M2-B08 between them supply
+// IPathProvider and IFileUploadService, but IUserService and IUserThemePreferenceService still
+// need IJSRuntime — a Blazor concept with no meaningful API implementation (M2-B08.md
+// §Prerequisites) — so two of the original seven registrations remain genuinely unresolvable.
+// This block comes off only when something supplies IJSRuntime for this host, or those two
+// services are refactored not to need it. Re-run with ValidateOnBuild = true first to confirm
+// the count before removing it — do not assume from this comment alone.
 builder.Host.UseDefaultServiceProvider((context, options) =>
 {
     options.ValidateOnBuild = false;
@@ -229,10 +235,9 @@ builder.Host.UseDefaultServiceProvider((context, options) =>
 // IRepository<> open generic, so any second controller compiled fine and then failed at
 // activation time with a DI resolution error.
 //
-// Deliberately still absent, and therefore not resolvable in this host: IPathProvider,
-// IFileUploadService, IFileOpener and IJSRuntime have no V.SMART.Api implementation yet
-// (M2-B08 and M2-B06). Exactly seven registrations therefore stay unresolvable here —
-// measured by running this host with ValidateOnBuild = true, not assumed (M2-B07):
+// Originally (M2-B07): IPathProvider, IFileUploadService, IFileOpener and IJSRuntime had no
+// V.SMART.Api implementation, leaving exactly seven registrations unresolvable here — measured
+// by running this host with ValidateOnBuild = true, not assumed:
 //     ReportService                 needs IPathProvider
 //     IUserService                  needs IPathProvider + IJSRuntime
 //     IGSTITCService                needs IPathProvider
@@ -240,8 +245,12 @@ builder.Host.UseDefaultServiceProvider((context, options) =>
 //     ICompanyService               needs IFileUploadService
 //     IItemService                  needs IFileUploadService
 //     IEnquirySalesService          needs IPathProvider, transitively via ReportService
-// That gap is expected and is not closed by this task. Injecting any of the seven into a
-// controller still fails at activation time, exactly as it did before this task. The
+// M2-B06 supplied IFileUploadService (below), resolving ICompanyService/IItemService.
+// M2-B08 supplies IPathProvider (ApiPathProvider, below), resolving ReportService/
+// IGSTITCService/IEnquirySalesService. That leaves exactly two still unresolvable —
+// IUserService and IUserThemePreferenceService, both needing IJSRuntime, a Blazor concept with
+// no meaningful web-API implementation (M2-B08.md §Prerequisites) — so ValidateOnBuild stays
+// off. Injecting either of those two into a controller still fails at activation time. The
 // equivalent build-time guarantee for the shared graph is enforced instead by
 // tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs, which validates the
 // identical graph with the host seams supplied.
@@ -264,6 +273,13 @@ builder.Services.Configure<FileStorageOptions>(
     builder.Configuration.GetSection(FileStorageOptions.SectionName));
 builder.Services.AddScoped<ApiFileUploadService>();
 builder.Services.AddScoped<IFileUploadService>(sp => sp.GetRequiredService<ApiFileUploadService>());
+
+// M2-B08 — the API host's report-template path seam. IPathProvider is host-specific by design
+// (WebPathProvider/DesktopPathProvider each resolve a different IWebHostEnvironment/AppContext
+// root) and AddVSmartDomain() deliberately omits it for the same reason IFileUploadService is
+// omitted above. Resolves ReportService, IGSTITCService and IEnquirySalesService, none of which
+// were constructible in this host before this task — see the ValidateOnBuild note above.
+builder.Services.AddScoped<IPathProvider, ApiPathProvider>();
 
 // M2-A01-02 — server-side screen-right authorization (ADR-004, KB-105 §6.2). Both are scoped:
 // the provider reaches IUnitOfWork, which AddVSmartDomain() registers scoped over the

@@ -12,7 +12,7 @@ database_tables: []
 business_rules: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-26
+last_verified: 2026-08-27
 dependencies: [KB-011, KB-013, KB-014, KB-040]
 ---
 
@@ -134,7 +134,7 @@ author one *and* an AutoMapper profile before `<W>-06`.
 | B1 | **~60–80 resource controllers** over existing services, following one template — **the template exists and is frozen: [KB-114 `controller-conventions.md`](controller-conventions.md) (M2-B03, 2026-08-24)**. The 8–12 week estimate assumed a template complete enough to follow without re-deriving decisions; that is now what it is measured against | 8–12 wks (mechanical, parallelisable) |
 | B2 | **Extract `@code` business logic into services** — ~184k LOC to triage; the real number needing extraction is far smaller, but must be assessed per screen | **the dominant cost; per-module** |
 | B3 | **File upload/download endpoints** — replace `IBrowserFile` and local-path `IFileOpener` | ~~1 wk~~ **DELIVERED (M2-B06, 2026-08-21)** |
-| B4 | **Report endpoints** — `GET /api/reports/…` → `application/pdf`; Excel export/import endpoints | 1 wk |
+| B4 | ✅ **DELIVERED (M2-B08, 2026-08-27)** — ~~Report endpoints — `GET /api/reports/…` → `application/pdf`; Excel export/import endpoints~~. `GET /api/v1/{resource}/{id:int}/print` (FastReport, both real generator entry points), `GET /api/v1/reports` (catalogue) and `GET /api/v1/reports/{slug}` (analytical, in-memory paged) all live, seeded with 3 print + 3 report entries proving every structural branch. Excel export is deferred — no export format was built here (xlsx/csv/pdf export exists only for the unrelated list-export endpoints M2-B06/M2-C05-03 shipped). See [KB-110](report-and-print-endpoints.md) | 1 wk |
 | B5 | ~~**Permission bootstrap endpoint** — returning user, tenant, role and the full `UserRight` set so the SPA can render correctly~~ — **DELIVERED by M2-A07 (2026-08-20)** as `GET /api/v1/me`. Note the URL: this row used to name `/api/me`, while ADR-004 §3, KB-105 and KB-080 §9 all said `/api/v1/me`; the endpoint ships at the latter and this row was the outlier. Contract in [KB-040](api-overview.md) | 2 days |
 | B6 | ✅ **DELIVERED (M2-B09, 2026-08-21)** — ~~Reference-data endpoints — GST rates, screen catalogue, UOM, states, currencies, terms~~. All six live under `/api/v1/reference`, tenant-keyed output cached. See [KB-124](reference-data-and-caching.md). | 3 days |
 | B7 | ~~**Typed screen-code constants** replacing the magic integers passed to `IStockManagerService`~~ — **premise falsified 2026-08-21 (INV-044): there are no `screenCode` literals to replace** (resolved at runtime by name at all 166 call sites). ✅ **The real risk it was reaching for — `storeId` — DELIVERED 2026-08-26 (`M2-B05`, re-specified)**: `StoreIds` typed constants replace all 55 `storeId` literals passed to `AddOrUpdateStockAsync`. See [R-66](../risks/technical-debt-register.md#r-66--hardcoded-storeid-literals-6-and-7-in-stock-movements) and `tasks/M2-B05.md` | 2 days |

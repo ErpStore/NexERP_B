@@ -130,7 +130,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-B03 | M2 | Codify the controller template | Documentation | **Completed**⁶⁵˒⁶⁶ *(merged to `master` on owner instruction 2026-08-24 — KB-114)* | P0 | M2-A02, M2-B02 | 2 d | G2 |
 | M2-B05 | M2 | Typed `StoreIds` constants (R-66, re-spec of `ScreenCodes`/R-10) | Backend | **Completed**³¹˒⁹⁴ *(re-specified, implemented and merged 2026-08-26 — `ScreenCodes`/R-10 premise stays falsified, not reintroduced; `StoreIds` generated from the `Store` seed, all 55 confirmed `storeId` literals replaced, value-equality proven, both builds 0 errors. **Owner-confirmed Completed same day despite the live two-screen smoke test not being performed** — no running Blazor instance was available; not recorded as done. See footnote ⁹⁴)* | P1 | — | 2 d | G2 |
 | M2-B06 | M2 | File upload / download endpoints | Backend | **Completed**³² ³⁵ *(merged to `master` 2026-08-21, `65d9666`)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
-| M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | **Blocked**⁷³˒⁹¹ *(attempt 1, 2026-08-25 — `environment`, no code written: the pinned .NET SDK 10.0.400 was unobtainable **in that session's environment**. **That specific finding is stale on this workstation, 2026-08-26** — see footnote ⁹¹. Its **prerequisites are all satisfied**, R-04 included)* | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
+| M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | **Needs Review**⁷³˒⁹¹˒⁹⁶ *(implemented and verified 2026-08-27 — `ApiPathProvider`, 3 print + 3 report seed entries, 7 controllers; **585/585 API tests** including a real integration gap the harness caught and this session fixed; all 7 referenced stored procedures confirmed executable against a live tenant database. Live-login 200-path not verified — see footnote ⁹⁶)* | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
 | M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Completed**³⁴ *(merged to `master` `501b12d` on owner instruction 2026-08-21)* | P1 | **M2-B07**, M2-B02, M2-B01 | 3 d | G2 |
 | M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | **Completed**⁶⁷˒⁶⁸ *(merged to `master` on owner instruction 2026-08-25)* | P0 | M2-B03 | 3 d | G2 |
 | M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
@@ -3759,6 +3759,66 @@ code; the procedure is mandatory by process, not enforced by any mechanism (opti
 runtime bootstrap component, was considered and not chosen). **This closes acceptance
 criterion 2's open half.** `M0-06` stays `Blocked` on **Q-25 alone** — existing-tenant removal
 still needs production database access nobody on this project has.
+
+⁹⁶ **`M2-B08`: implemented and verified 2026-08-27 — `Needs Review`, real environment
+re-check performed first, not assumed.** Footnote ⁹¹'s SDK finding re-confirmed still stale
+(`10.0.400` installed); R-04 re-checked directly against `M0-01-03`'s actual rebuild-drill log
+(91/91 applied), not the tracker's summary alone. A pre-existing sibling branch,
+`origin/claude/m2-b08-report-print-endpoints`, was found and found to carry zero commits not
+already in `master` — nothing to reconcile.
+
+**Delivered:** `ApiPathProvider` (the `IPathProvider` the API host was missing, M2-B07
+deferred here); `PrintRegistry`/`ReportRegistry`, 3 entries each — deliberately 3 of the
+task's allowed "at most 5," enough to prove both `ReportService` generator entry points and
+three distinct report-parameter shapes without the ~150-line-per-controller cost of seeding
+all 10; 7 new controllers (3 print stubs, 3 report-slug, 1 catalogue); `docs/kb/api/report-
+and-print-endpoints.md` (`KB-110`).
+
+**A real integration gap, caught by the existing harness and fixed, not glossed over.**
+`dotnet test tests/V.SMART.Api.Tests` initially failed 9/576 — every new action missing its
+OpenAPI `Name`, and the catalogue's `[NoScreenRight]` missing from `ExemptEndpointAllowList`.
+Both are exactly what those two tests exist to catch. Fixed, not weakened. Final **585/585**,
+including the `PermissionMatrix` fixture harness discovering and exercising the 6 newly gated
+actions automatically (106 → 154 harness tests, `INV-049`'s reflection-based discovery, no
+test file naming a specific new endpoint).
+
+**Verified live, not just by reading code:** all 7 referenced stored procedures exist and
+execute without error against the local tenant database (`sqlcmd`, one real row returned by
+`sp_Sales_Track`); `ApiPathProvider`'s resolved path proven real by an automated test against
+the actual repository layout (40+ `.frx` files found), not a one-off manual check; clean host
+startup with no `ScreenRightStartupValidator`/DI failure; live `401` for every new endpoint
+called with no token.
+
+**Not verified live, recorded honestly:** the full 200-success path (real PDF bytes compared
+against Blazor's output, real report JSON) needs a valid login token. The only local account
+is the seeded `Administrator`; this session's own permission boundary correctly refused an
+attempt to temporarily swap its password hash for a disposable local test value — a
+database-credential mutation, blocked by the Claude Code auto-mode classifier, not worked
+around. The authorization mechanism itself (403/200) is covered by the `PermissionMatrix`
+harness instead, this codebase's own established substitute for live-login testing — but PDF
+byte content and report row content are not proven by that harness, and the acceptance
+criteria requiring them are not claimed met.
+
+**Explicitly not done:** two dead template references found (`PurchaseInvoice.frx`,
+`Estimation.frx`, pre-existing Blazor defects) — flagged in `KB-110`, not fixed;
+`Sp_LabourPendingReport`'s dual-result-type branch — not registered; Excel/CSV/PDF export
+(`/export`) — not built, a real gap against the original spec's Target Result, named rather
+than hidden; the request-level timeout — not measured against a genuinely slow report, none
+being available in the near-empty dev tenant.
+
+**Verified:** `dotnet build V.SMART.Api` 0 errors, 6,695 warnings (baseline); `V.SMART.Api.Tests`
+585/585; `V.SMART.Shared.Tests` 96/97 (1 pre-existing skip); `ReportService.cs`,
+`ReportExecutor.cs` and all `.frx` templates confirmed unchanged by diff.
+
+**Merged to `master` 2026-08-27**, on the owner's instruction to merge the already-completed
+branch rather than leave it sitting done-but-unmerged (it had been implemented earlier in the
+same session, before a context compaction, then left unmerged when the session moved on to
+other tasks without an explicit merge instruction). Merging is not the same as closing: the
+gaps recorded above (no live-login 200-path verification, `/export` not built) are real and
+unresolved, so this row stays **`Needs Review`**, not `Completed`, pending the owner's
+decision on whether those gaps must be closed before sign-off or can be deferred to a
+follow-up task. Full record:
+[`tasks/M2-B08.md` § Close-out (2026-08-27)](tasks/M2-B08.md#close-out-2026-08-27--implemented-and-verified-needs-review).
 
 ⁹⁷ **`M2-C11`: implemented 2026-08-27, `Needs Review` — Q-38 answered, option (a).** The
 question ("what is `M2-C11` for, now that ADR-007 inverted the archive-vs-adopt framing")
