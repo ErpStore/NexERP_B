@@ -1,25 +1,26 @@
+import { provideRouter } from '@angular/router';
 import { render, screen } from '@testing-library/angular';
 import { describe, expect, it } from 'vitest';
 
 import { PermissionService } from '../../core/auth/permission.service';
-import { PlaceholderComponent } from './placeholder.component';
+import { DashboardComponent } from './dashboard.component';
 
 async function renderWithRights(rights: Parameters<PermissionService['setRights']>[0]) {
   const permissions = new PermissionService();
   permissions.setRights(rights);
 
-  return render(PlaceholderComponent, {
-    providers: [{ provide: PermissionService, useValue: permissions }],
+  return render(DashboardComponent, {
+    providers: [provideRouter([]), { provide: PermissionService, useValue: permissions }],
   });
 }
 
-describe('PlaceholderComponent', () => {
-  it('shows the application name as the single level-1 heading when Dashboard is granted', async () => {
+describe('DashboardComponent', () => {
+  it('shows "Dashboard" as the page title and the app version when Dashboard is granted', async () => {
     await renderWithRights({
       Dashboard: { view: true, create: false, edit: false, delete: false, hidden: false },
     });
 
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('NexGen ERP');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Dashboard');
     expect(screen.getByTestId('build-version').textContent).toContain('Version');
   });
 

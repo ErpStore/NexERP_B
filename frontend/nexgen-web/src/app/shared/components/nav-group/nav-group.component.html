@@ -1,0 +1,48 @@
+<div class="app-nav-group" [class.app-nav-group--rail]="rail()">
+  @if (rail()) {
+    <button
+      type="button"
+      class="app-nav-group__rail-trigger"
+      [attr.aria-label]="group().label"
+      (click)="openFlyout($event)"
+    >
+      <i class="pi pi-{{ group().icon }}" aria-hidden="true"></i>
+    </button>
+    <app-popover #flyout [label]="group().label">
+      <div class="app-nav-group__flyout-heading">{{ group().label }}</div>
+      <ng-container [ngTemplateOutlet]="sections" />
+    </app-popover>
+  } @else {
+    <button
+      type="button"
+      class="app-nav-group__trigger"
+      [attr.aria-expanded]="expanded()"
+      (click)="toggleExpanded()"
+    >
+      <i class="pi pi-{{ group().icon }}" aria-hidden="true"></i>
+      <span class="app-nav-group__label">{{ group().label }}</span>
+      <i class="pi pi-chevron-down app-nav-group__chevron" aria-hidden="true"></i>
+    </button>
+    @if (expanded()) {
+      <div class="app-nav-group__panel">
+        <ng-container [ngTemplateOutlet]="sections" />
+      </div>
+    }
+  }
+</div>
+
+<ng-template #sections>
+  @for (section of group().sections; track section.heading ?? $index) {
+    @if (section.heading) {
+      <div class="app-nav-group__section-heading">{{ section.heading }}</div>
+    }
+    @for (link of section.links; track link.route) {
+      <app-nav-item
+        [link]="link"
+        [favourite]="isFavourite(link)"
+        (activated)="linkActivated.emit($event)"
+        (favouriteToggled)="favouriteToggled.emit($event)"
+      />
+    }
+  }
+</ng-template>

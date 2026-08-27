@@ -1,0 +1,52 @@
+<app-modal title="Search" size="md" [(visible)]="visible" [closable]="true">
+  <div class="app-command-palette">
+    <input
+      #searchInput
+      type="text"
+      class="app-command-palette__input"
+      placeholder="Jump to a screen…"
+      aria-label="Search screens"
+      role="combobox"
+      aria-expanded="true"
+      aria-autocomplete="list"
+      aria-controls="app-command-palette-listbox"
+      [attr.aria-activedescendant]="activeId()"
+      [value]="query()"
+      (input)="onQueryChange($any($event.target).value)"
+      (keydown)="onKeydown($event)"
+    />
+
+    <ul
+      id="app-command-palette-listbox"
+      class="app-command-palette__list"
+      role="listbox"
+      aria-label="Screens"
+    >
+      @if (results().length === 0) {
+        <li class="app-command-palette__empty" role="presentation">
+          @if (query()) {
+            No screens match "{{ query() }}"
+          } @else {
+            No recent screens yet
+          }
+        </li>
+      } @else {
+        @for (link of results(); track link.route; let i = $index) {
+          <li
+            [id]="'app-command-palette-option-' + i"
+            class="app-command-palette__option"
+            [class.app-command-palette__option--active]="i === activeIndex()"
+            role="option"
+            tabindex="-1"
+            [attr.aria-selected]="i === activeIndex()"
+            (mouseenter)="activeIndex.set(i)"
+            (click)="activate(link)"
+            (keydown)="onKeydown($event)"
+          >
+            {{ link.label }}
+          </li>
+        }
+      }
+    </ul>
+  </div>
+</app-modal>

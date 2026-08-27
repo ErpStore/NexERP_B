@@ -4,12 +4,13 @@ Angular + PrimeNG frontend for V.SMART, created by task **M2-C01** under
 [ADR-007](../../docs/kb/decisions/ADR-007-angular-stack.md). It replaces the React scaffold that
 previously occupied this directory; ADR-007 discarded that stack on 2026-08-20.
 
-Today it renders **one placeholder route** behind login and a permission check. The app shell
-is `M2-C03`; authentication and permissions are `M2-C02` (implemented 2026-08-27, `Needs
-Review` — see [Authentication and permissions](#authentication-and-permissions)); design
-tokens are `M2-C04-01`; the generated OpenAPI client is `M2-B10`. Nothing here computes
-anything: the server stays authoritative for validation, calculations, permissions and
-document numbering.
+Today it renders **one real destination, `/dashboard`**, behind login, a permission check and
+the real app shell. Authentication and permissions are `M2-C02`; the shell — header, sidebar,
+breadcrumbs, ⌘K palette — is `M2-C03` (both implemented 2026-08-27, `Needs Review` — see
+[Authentication and permissions](#authentication-and-permissions) and
+[Navigation and shell](#navigation-and-shell)); design tokens are `M2-C04-01`; the generated
+OpenAPI client is `M2-B10`. Nothing here computes anything: the server stays authoritative for
+validation, calculations, permissions and document numbering.
 
 ## Toolchain actually observed at scaffold time (2026-08-21, Windows)
 
@@ -54,9 +55,10 @@ ADR-007 left the choice open — _"the scaffold task picks Jest or Vitest and re
   familiarity carries over.
 
 [Angular Testing Library](https://testing-library.com/docs/angular-testing-library/intro) is
-installed alongside it and used in `src/app/features/placeholder/placeholder.component.spec.ts`;
-`src/app/app.component.spec.ts` uses `TestBed` directly because it asserts on the composed
-provider set rather than on rendered output.
+installed alongside it and used throughout — e.g.
+`src/app/features/dashboard/dashboard.component.spec.ts`; `src/app/app.component.spec.ts` uses
+`TestBed` directly because it asserts on the composed provider set rather than on rendered
+output.
 
 ## API base URL — configuration, not source
 
@@ -128,9 +130,82 @@ reading only one of them.
   deny-by-default with zero `UserRight` rows and an empty application.
 - **Known gaps, disclosed rather than fixed here:** no automated `axe` accessibility scan runs
   over `/login` or the idle-warning dialog (keyboard operability and focus behaviour are
-  covered by unit tests, not an automated accessibility-tree scan); `npm run e2e` covers one
-  redirect-only smoke case, not a full credentialed login flow, since no live backend +
-  database is reachable from a plain dev checkout.
+  covered by unit tests, not an automated accessibility-tree scan). `npm run e2e` now also
+  covers a full (network-mocked) login → shell → logout pass, added by `M2-C03` — see
+  [Navigation and shell](#navigation-and-shell) — but it is still mocked at the network layer,
+  not against a live backend + database, since none is reachable from a plain dev checkout.
+
+## Navigation and shell
+
+Built by **M2-C03** (`src/app/layout/`, `src/app/core/navigation/`,
+`src/app/shared/components/{sidebar,nav-group,nav-item,header,user-menu,
+financial-year-selector,breadcrumbs,page-header,tabs,command-palette}/`,
+`src/app/features/dashboard/`).
+
+- **The sidebar is filtered by SCREEN RIGHTS (`view && !hidden`), never by role.**
+  `RightsHelper.cs`'s deny-by-default is reproduced exactly: an item whose `screenName` has
+  no row in the rights map, or `view: false`, or `hidden: true`, is filtered out.
+  `NavMenu.razor:36,148`'s `Roles="Administrator,ERPAdmin,User"` gate (R-31, KB-060) is
+  **not** reproduced — role is never read anywhere in the navigation code, enforced by a
+  repo-wide static scan (`sidebar.roles.spec.ts`).
+- **`core/navigation/navigation.config.ts` is the one nav data source** — the sidebar and
+  the ⌘K command palette both read it through `NavFilterService`, never duplicate it. Built
+  from the _expanded_ `<MudNavMenu>` tree in `NavMenu.razor`, not the mini-rail's `NavGroups`
+  dictionary, which genuinely disagrees with it on two points — see the file's own header
+  comment and INV-033 (`docs/kb/investigation-registry.md`) for the full finding, including
+  two likely copy-paste `ScreenName` defects in the Blazor source reproduced verbatim, not
+  silently corrected.
+- **`shared/components/` still never imports the authentication module** — the same rule
+  `M2-C02` established. `NavFilterService` (`core/navigation/`) is the one seam that reads
+  `PermissionService`; `SidebarComponent` and the command palette read `NavFilterService`
+  instead. Caught by the same repo-wide scan test that already polices this for
+  `permission-denied-state.component.ts`.
+- **The command palette (⌘K / Ctrl+K) searches only the permission-filtered tree** — a
+  screen the caller lacks rights to is unreachable through it, even by exact name, or the
+  palette would be a directory of the tenant's configuration a caller cannot otherwise see.
+  Fuzzy matching is a small, dependency-free subsequence matcher
+  (`core/navigation/fuzzy-match.ts`), not a library.
+- **Only `/dashboard` is a real, registered destination route today.** `navigation.config.ts`
+  is nav _data_ for all ~145 items INV-033 mapped; `app.routes.ts` does not yet declare
+  routes for the other ~144 — those are `M2-D01` onward's job, one screen at a time. Clicking
+  an unbuilt item today falls through to the wildcard route back to `/`, which is the honest
+  state of "the frame exists, the screens do not yet."
+- **Responsive by real breakpoint** (`core/theme/breakpoint.service.ts`, KB-051): `≥1440`
+  full 240 px sidebar (user-toggled between that and the 56 px rail, persisted);
+  `1024–1439` forces the rail; `768–1023` becomes an overlay drawer (`p-drawer`); `<768`
+  still renders the full shell (KB-051's "read-and-approve only" is an application-wide
+  policy for that band, not a shell-rendering difference). The `sm`-band drawer's own
+  rendering was not exercised in a real narrow-viewport browser session — disclosed, not
+  hidden; see `docs/kb/execution/tasks/M2-C03.md`'s Close-out.
+- **`unsavedChangesGuard` / `useBeforeUnloadGuard`** (`core/navigation/unsaved-changes.guard.ts`)
+  replace `UnsavedChangesModal.razor`, built and unit-tested but with no real consumer yet —
+  `M2-C08` (the document editor) is the first candidate.
+- **Known gaps, disclosed rather than fixed here:** no automated `axe` scan over the shell;
+  the header's "tenant name" is `Tenant ${tenantId}`, not a real display name — `/me`
+  deliberately carries none (`MeController.cs`'s own doc comment, R-01).
+
+## Bundle baseline (`npm run build`, 2026-08-27, after M2-C03)
+
+| Chunk                                               | Raw           | Estimated transfer (gzip) |
+| --------------------------------------------------- | ------------- | ------------------------- |
+| `main-*.js`                                         | 421.87 kB     | 86.75 kB                  |
+| `chunk-*.js` (Angular + PrimeNG runtime)            | 184.61 kB     | 54.14 kB                  |
+| `styles-*.css` (tokens + base layer + `primeicons`) | 19.55 kB      | 4.02 kB                   |
+| **Initial total**                                   | **626.04 kB** | **144.92 kB**             |
+| Lazy `shell-component` chunk                        | 213.10 kB     | 40.68 kB                  |
+| Lazy `dashboard-component` chunk                    | 9.12 kB       | 2.46 kB                   |
+
+Against [KB-050](../../docs/kb/frontend-new/react-architecture.md)'s **< 250 kB gzip** target:
+**144.92 kB, 58 % of budget, comfortably inside it.** Against `angular.json`'s own separate
+**raw**-byte budget (warns at 600 kB, errors at 800 kB): a warning at +26.04 kB (+4.3 %) over
+the warn threshold, well short of the error threshold — the build still succeeds. Not
+investigated further given this task's time budget; a reasonable target for a dedicated
+bundle-analysis follow-up, not raised here. `primeicons` (the shell/sidebar/header icon set,
+this task's own addition, wired in `styles.scss`) is the whole of the CSS growth; the JS
+growth is `shared/components/overlay/` (`Drawer`, `Popover`) and `shared/components/form/`
+(`Select`) now being reachable from more of the initial dependency graph than M2-C04-01's
+baseline exercised — nothing new was added to `app.component.ts` or `app.config.ts` for this
+task.
 
 ## Bundle baseline (`npm run build`, 2026-08-23, after M2-C04-01)
 
