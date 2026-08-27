@@ -1,0 +1,81 @@
+<td class="app-line-item-grid__gutter-cell" role="gridcell">
+  <app-row-error-gutter [rowId]="rowId()" [messages]="errors()" />
+</td>
+
+@for (column of columns(); track column.field; let i = $index) {
+  <td
+    role="gridcell"
+    class="app-line-item-grid__cell"
+    [class.app-line-item-grid__cell--numeric]="column.numeric === true"
+    [class.app-line-item-grid__cell--readonly]="!isEditable(column)"
+    [style.text-align]="column.align ?? (column.numeric ? 'right' : 'left')"
+    [style.width]="column.width ?? null"
+    [attr.data-row]="rowIndex()"
+    [attr.data-col]="i"
+    [attr.tabindex]="isEditable(column) ? null : tabIndexFor(i)"
+    [attr.aria-describedby]="hasErrors() ? 'row-error-' + rowId() : null"
+    (focusin)="cellFocus.emit(i)"
+  >
+    @switch (isEditable(column) ? column.editor : 'readonly') {
+      @case ('text') {
+        <app-line-item-text-cell
+          [formControl]="controlFor(column)"
+          [ariaLabel]="column.title"
+          (committed)="onCommit(column, $event)"
+        />
+      }
+      @case ('decimal') {
+        <app-line-item-decimal-cell
+          [formControl]="controlFor(column)"
+          [ariaLabel]="column.title"
+          [decimalPlaces]="column.decimalPlaces ?? 2"
+          (committed)="onCommit(column, $event)"
+        />
+      }
+      @case ('integer') {
+        <app-line-item-integer-cell
+          [formControl]="controlFor(column)"
+          [ariaLabel]="column.title"
+          [decimalPlaces]="column.decimalPlaces ?? 0"
+          (committed)="onCommit(column, $event)"
+        />
+      }
+      @case ('date') {
+        <app-line-item-date-cell
+          [formControl]="controlFor(column)"
+          [ariaLabel]="column.title"
+          (committed)="onCommit(column, $event)"
+        />
+      }
+      @case ('select') {
+        <app-line-item-select-cell
+          [formControl]="controlFor(column)"
+          [ariaLabel]="column.title"
+          [options]="column.options ?? []"
+          (committed)="onCommit(column, $event)"
+        />
+      }
+      @case ('typeahead') {
+        <app-line-item-typeahead-cell
+          [formControl]="controlFor(column)"
+          [ariaLabel]="column.title"
+          [loader]="column.typeaheadLoader!"
+          (committed)="onCommit(column, $event)"
+        />
+      }
+      @case ('checkbox') {
+        <app-line-item-checkbox-cell
+          [formControl]="controlFor(column)"
+          [ariaLabel]="column.title"
+          (committed)="onCommit(column, $event)"
+        />
+      }
+      @default {
+        <app-line-item-read-only-cell
+          [formControl]="controlFor(column)"
+          [ariaLabel]="column.title"
+        />
+      }
+    }
+  </td>
+}

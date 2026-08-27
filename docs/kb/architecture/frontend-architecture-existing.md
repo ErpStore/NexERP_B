@@ -183,20 +183,43 @@ column definitions (`QuoteColumns`/`QuoteFields`/`QuoteHiddenColumns`).
 
 | Method | Behaviour |
 |---|---|
-| `ApplyCustomerSelectionAsync` (80 LOC) | cascades customer → currency, terms, consignee, cost centre, tax mode |
-| `OnItemChanged` (75 LOC) | item selection → last unit price, HSN, UOM, assembly existence check |
-| `OnQtyChange` / `UpdateQuantities` | quantity vs already-transacted balance arithmetic |
-| `IsItemAlreadySelected` | duplicate-line prevention |
-| `ValidateRowAsync` / `ValidateLastRowAsync` | line-level validation before add/save |
+| `ApplyCustomerSelectionAsync` (80 LOC, `:2256`) | cascades customer → currency, terms, consignee, cost centre, tax mode |
+| `OnItemChanged` (75 LOC, `:2483`) | item selection → last unit price, HSN, UOM, assembly existence check |
+| `OnQtyChange` (`:2569`) / `UpdateQuantities` (`:2631`) | quantity vs already-transacted balance arithmetic |
+| `IsItemAlreadySelected` (`:2558`) | duplicate-line prevention |
+| `ValidateRowAsync` (`:2654`) / `ValidateLastRowAsync` (`:2686`) | line-level validation before add/save |
+| `AddRow` (`:2706`) | appends a new row, guarded by `ValidateLastRowAsync` |
 | `AskToShortCloseAsync` / `ShortClosePo` | short-close workflow |
 | `CancelItem` (68 LOC) / `CancelPO` (70 LOC) | cancellation with downstream-transaction checks and mandatory reason |
-| `OnItemCancelChanged` (78 LOC) | per-line cancel with quantity revert |
-| `ResetSlno`, `DeleteAndResequenceAsync` orchestration | line renumbering |
-| `UpdateDueDate` | delivery-date derivation |
+| `OnItemCancelChanged` (78 LOC, `:3113`) | per-line cancel with quantity revert |
+| `ResetSlno` (`:2878`), `DeleteAndResequenceAsync` orchestration (called `:3468`) | line renumbering |
+| `UpdateDueDate` (`:2895`) | delivery-date derivation |
 
 **This pattern repeats across all ~65 Upsert pages.** Extracting it is the largest single
 work item in the migration and is the reason document modules are rated High/Very High
 complexity in [`frontend-new/feature-mapping.md`](../frontend-new/feature-mapping.md).
+
+**Absolute line numbers above re-verified 2026-08-27 by `M2-C07`** against the working tree —
+all ten re-checked (the eleventh, `AddRow`, added to this table for the first time) matched
+exactly, no drift since this file's own `last_verified` predecessor. `@code` still starts at
+`:2002`; a line number quoted elsewhere relative to that offset needs `+2002` before trusting
+it against this table.
+
+**The `Slno` question, answered with evidence (M2-C07's own task file required this):**
+`SlNo` is a real, persisted `[Required] int` column on `MfgPoSub`
+(`V.SMART/V.SMART.Shared/Data/SalesAndLabour/SalesPo/MfgPoSub.cs:26`) — not presentation-only
+in the narrow sense. But its **only** observed use anywhere in `BusinessLayer/` is as an
+`.OrderBy(x => x.SlNo)` sort key when redisplaying a document's own lines in their original
+order (confirmed by grep across ~15 services, e.g. `CostingService.cs:64`,
+`MINService.cs:651`, `ToolCribReturnService.cs:476`) — **never** as a foreign key, a join
+target, or a reference from another document type. Conclusion: sequential renumbering after
+add/delete/reorder (`ResetSlno`'s own job today) is safe for `LineItemGrid` to own as a
+mechanical row-lifecycle concern, the same way `DeleteAndResequenceAsync`'s persistence step
+already is — it decides nothing about money, stock or document eligibility. `LineItemGrid`
+itself is generic over `TLine` and does not assume a `SlNo`-shaped field exists, so the
+renumbering call is the **caller's** responsibility, triggered from the grid's
+`row-added`/`row-duplicated`/`row-removed`/`rows-reordered` lifecycle events — recorded here so
+a future session does not re-derive it.
 
 ## Shared components (22, `Components/`)
 
