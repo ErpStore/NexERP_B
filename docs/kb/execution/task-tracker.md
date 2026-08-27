@@ -166,7 +166,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Blocked**⁷⁹ *(dispatched 2026-08-26, stopped at implement — the endpoint pair does not exist, no real fixture capture, and `M2-C02` is `Blocked`; see footnote ⁷⁹)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Completed**⁷⁵˒⁷⁶ *(owner instructed the merge 2026-08-26; merged `--no-ff`, verified on the merged result)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Completed**⁷⁵˒⁸³ *(merged to `master` 2026-08-26 on owner instruction; independently validated PASS)* | P0 | M2-C05-01 | 1 wk | G2 |
-| M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | **Ready**⁴⁶˒⁹⁹ *(re-specified by `M2-C12-04`; all four Hard prerequisites — `M2-C05-01`, `M2-C10`, `M2-C04-02`, `M2-C04-03` — are `Completed` and merged. **`Q-83` answered 2026-08-27** (addendum to `ADR-007`, no new design decision — PrimeNG Table is the default, AG Grid the pre-approved fallback, this task still makes and records the specific call). See footnote ⁹⁹)* | P0 | M2-C05-01, M2-C10, M2-C04-02, M2-C04-03 | 2 wks | G2 |
+| M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | **Needs Review**⁴⁶˒⁹⁹˒¹⁰⁰ *(implemented 2026-08-27 — all 18 planned files, 566/566 frontend tests pass, `typecheck`/`lint`/`format:check`/`build` all clean; one measurement genuinely not obtained — 200-row typing latency needs a live browser session. See footnote ¹⁰⁰)* | P0 | M2-C05-01, M2-C10, M2-C04-02, M2-C04-03 | 2 wks | G2 |
 | M2-C08 | M2 | `DocumentEditor` shell *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-04`)* | P0 | M2-C07 | 2 wks | G2 |
 | M2-C08-01 | M2 | — layout: header + lines + totals + commands | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C07`)* | P0 | M2-C07 | 4 d | G2 |
 | M2-C08-02 | M2 | — server-authoritative totals wiring | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)* | P0 | M2-C08-01 | 3 d | G2 |
@@ -3913,3 +3913,56 @@ addendum directly beneath that paragraph —
 above is moved from `Blocked` to `Ready`. Branch `migration/Q-83-adr-007-linegrid-addendum`;
 this footnote's own change is documentation-only — no code, no `V.SMART/` or `tests/` files
 touched.
+
+¹⁰⁰ **`M2-C07`: implemented 2026-08-27 — `Needs Review`.** Picked up immediately after `Q-83`
+cleared it. Delivered under `frontend/nexgen-web/src/app/shared/components/line-item-grid/`:
+the full planned surface — `line-item-grid.model.ts`, `line-item-form.ts`,
+`line-grid-keyboard.ts`, `clipboard-paste.ts`, 8 cell editors, the row/gutter/footer
+sub-components, the main `LineItemGridComponent`, and 6 spec files (566/566 frontend tests
+pass; `typecheck`, `lint --max-warnings=0`, `format:check` and `build` all clean; initial
+bundle unchanged at 571.20 kB — nothing consumes the barrel yet).
+
+**A real, material finding, not silently worked around:** `DECIMAL_PORT`
+(`shared/components/form/types.ts`) — the injection point `app-currency-input`/`app-number-input`
+need to be decimal-safe — has **no real implementation anywhere in the app**; `types.ts` still
+carries its own `TODO(M2-C10): provide the real implementation`, and the only `DecimalPort`
+that exists is test-only. Wiring it is a cross-cutting fix (every numeric control app-wide,
+not just this grid) outside this task's scope to make unilaterally, so `LineItemGrid`'s
+decimal/integer cells go straight to `shared/utils/decimal` instead, wrapping `app-text-input`
+rather than the numeric M2-C04-02 controls — a deviation from instruction 8's literal wording,
+recorded rather than taken silently. Flagged for a future task to close the gap app-wide.
+
+**A second finding, caught by the render-isolation test itself, not assumed:** the first
+working draft of the three text-like cells (`text`/`decimal`/`integer`) drove
+`app-text-input` through `[ngModel]`/`(ngModelChange)`, matching this codebase's own
+established pattern elsewhere. `line-item-grid.render-performance.spec.ts` caught it directly
+— typing in one of 200 rows re-rendered all 200 — because `NgModel`'s notification path does
+not compose precisely enough with `OnPush` under this workspace's zoneless configuration. Every
+cell now drives its wrapped M2-C04-02 control through a **private internal `FormControl`**
+instead (`ReactiveFormsModule` only), which the same test then proved isolates correctly.
+Recorded as a finding worth knowing about elsewhere in `form/`, not just patched here.
+
+**The two negative/deferred investigations named in the task's own Investigation
+Requirements, both resolved honestly (`INV-061`):** the `p-table` editable-row keyboard-model
+evaluation was answered by construction rather than a throwaway-fixture measurement — every
+cell is a real, always-on control, sidestepping PrimeNG's own click-to-edit mode entirely — and
+render-isolation is proven; the **200-row typing-latency millisecond figure itself was not
+obtained** — jsdom paints nothing, and getting a real number needs a live browser session this
+task's execution did not extend to. Recorded as **Unknown**, not guessed, in
+[KB-050](../frontend-new/react-architecture.md#performance-targets), and named as the
+immediate next step before this branch should be considered fully closed. The `Slno` question
+the task file asked to be answered with evidence: persisted column, but only ever used as a
+same-document redisplay sort key — never a cross-document reference — so `LineItemGrid`
+leaves the actual renumbering to the caller (it is generic over `TLine` and cannot assume the
+field exists), triggered from the grid's own lifecycle events. Full write-up:
+[KB-015](../architecture/frontend-architecture-existing.md#what-is-actually-inside-a-code-block).
+
+**Verified, not claimed:** `git status --short` shows exactly two paths — the new
+`line-item-grid/` directory and one modified line in `shared/components/index.ts` (the barrel
+export). **Zero** files under `V.SMART/` or `frontend/vsmart-erp/`, confirmed directly rather
+than assumed from the task's own file list.
+
+Left at `Needs Review` per [KB-088 § Who may set
+COMPLETED](workflow.md#who-may-set-completed) — this task also has a real, disclosed gap (the
+live latency measurement) beyond the ordinary owner-sign-off requirement. Full record:
+[`tasks/M2-C07.md` § Close-out](tasks/M2-C07.md).

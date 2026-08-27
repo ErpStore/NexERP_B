@@ -18,7 +18,7 @@ database_tables: []
 business_rules: [BR-CALC-001, BR-STK-001, BR-SO-001, BR-SO-003, BR-AUTH-002]
 status: proposal
 confidence: n/a
-last_verified: 2026-08-26
+last_verified: 2026-08-27
 dependencies: [KB-013, KB-015, KB-040, KB-041, KB-051, KB-105, ADR-002, ADR-004, ADR-007]
 ---
 
@@ -574,8 +574,19 @@ server-side. See the INV-006 amendment of 2026-08-23 in [KB-003](../investigatio
 | Initial JS (shell + login) | < 250 KB gzip |
 | Route chunk | < 150 KB gzip |
 | Grid: 10,000 rows | virtualised, 60 fps scroll — **met, measured 2026-08-25 (M2-C05-01)** |
-| Line editor: 200 rows | typing latency < 50 ms |
+| Line editor: 200 rows | typing latency < 50 ms — **built 2026-08-27 (M2-C07); render-isolation proven, the ms figure itself is Unknown, see below** |
 | Time to interactive on the app shell | < 2 s on a mid-range laptop |
+
+**`LineItemGrid`, 2026-08-27 (M2-C07) — the render-isolation half is proven, the paint-latency
+number is not.** `line-item-grid.render-performance.spec.ts` proves, under real `userEvent`
+keystrokes against 200 `OnPush` rows sharing one virtualised `p-table`, that typing in one row
+re-renders **only** that row's own view — the mechanism the 50 ms target depends on. What this
+task did **not** obtain is the literal keystroke-to-paint millisecond figure: jsdom computes no
+layout and paints nothing, so a real number needs a live browser session, which this task's
+execution did not extend to. Recorded as **Unknown**, not guessed and not silently dropped —
+see [INV-061](../investigation-registry.md) for the full finding and what a follow-up session
+needs to do to close it (a throwaway fixture route + a real `Performance` API measurement, the
+same shape `M2-C05-01`'s 10,000-row figure above already used).
 
 Every feature route is lazily loaded (`loadComponent` / `loadChildren`), and the generated API
 client is tree-shaken per feature. The React bundle baselines this section used to carry were
