@@ -6,5 +6,9 @@
 export { AuthService } from './services/auth.service';
 export { CurrencyService } from './services/currency.service';
 export { FilesService } from './services/files.service';
+export { Job_OrderService } from './services/job-order.service';
 export { MeService } from './services/me.service';
+export { Purchase_OrderService } from './services/purchase-order.service';
 export { ReferenceService } from './services/reference.service';
+export { ReportsService } from './services/reports.service';
+export { SalaryService } from './services/salary.service';

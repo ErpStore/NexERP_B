@@ -155,7 +155,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Completed**⁴⁶ *(merged to `master` `27dfc5d` on owner instruction 2026-08-23)* | P0 | M2-C12-01…04 | 1 d | G2 |
 | M2-C13 | M2 | Defer the confirm-dialog host; bundle back inside budget (R-69) | Frontend | **Completed**⁵⁵˒⁵⁶˒⁵⁷ | P1 | M2-C04-03 | 1 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Completed**²⁶˒⁴⁶˒⁴⁷˒⁵²˒⁸⁵˒⁸⁹˒⁹²˒⁹³ *(**Merged and integration-verified 2026-08-26**, owner-confirmed Completed same day — `decimal.js` module, `money` pipe, ESLint/spec-scan enforcement; a real lint gap against `M2-C05-01`'s DataGrid found and fixed, not glossed over. Full suite: `test:ci` 526/526, `build` clean, 0 bundle regression. `DECIMAL_PORT` production wiring remains an open gap for a future task. See footnote ⁹³)* | P0 | M2-C01 | 2 d | G2 |
-| M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | **Ready**⁴⁶˒¹⁰⁴ *(re-specified for Angular by `M2-C12-02`; all three Hard prerequisites — `M2-C01`, `M2-A04`, `M2-A07` — are `Completed` and merged as of 2026-08-27. See footnote ¹⁰⁴)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
+| M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | **Needs Review**⁴⁶˒¹⁰⁴˒¹⁰⁵ *(implemented 2026-08-27 on `migration/M2-C02-auth-and-permission-store` — login, single-flight refresh, route guards, permission store, idle timeout all built and verified; two real bugs and one real functional gap found and fixed during implementation, two disclosed deviations recorded. `typecheck`/`lint`/`format:check`/`build` clean, `test:ci` 612/612, `e2e` 1/1, backend build unaffected. Not `Completed` — only the owner may set that (KB-088). See footnote ¹⁰⁵)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | **Completed**⁴⁶˒⁵⁴ *(parent — all three children `Completed` and merged)* | P0 | M2-C01 | 2 wks | G2 |
 | M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
 | M2-C04-02 | M2 | — form controls + validation display | Frontend | **Completed**⁵¹˒⁵² *(merged to `master` on owner instruction 2026-08-23; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 4 d | G2 |
@@ -4141,3 +4141,84 @@ never `Ready` regardless. `M2-C03`, `M2-D01` and the rest of that chain do **not
 yet: `M2-C03` still needs `M2-C02` itself at `Completed`, not merely `Ready`, and `M2-D01`
 still names `M2-C02` as its own unmet Hard prerequisite. `M2-C08-02`/`M2-C08-03` do not
 release either — they depend on `M2-C08-01` at `Completed`, not `Ready`.
+
+¹⁰⁵ **`M2-C02` implemented 2026-08-27, branch `migration/M2-C02-auth-and-permission-store`,
+left `Needs Review` — not `Completed` (KB-088, owner-only).** Built: `TokenStore`,
+`PermissionService` (`forScreen`/`has`/`hasNoRights`, deny-by-default), `HasRightDirective`,
+`authGuard` + `requireScreen` factory, the single-flight `authInterceptor`, `error`/
+`correlation`/`tenant` interceptors, `AuthService` (login/bootstrap/refresh/logout),
+`IdleTimeoutService` + warning dialog (the R-17 replacement — per-instance state, regression-
+tested by constructing two instances directly), the `/login` route, and sequenced app
+bootstrap (`provideAppInitializer`). Verification, all observed this session: `npm run
+typecheck` clean, `npm run lint` clean (0 warnings), `npm run format:check` clean except 2
+pre-existing files untouched by this branch (`eslint.config.js`,
+`shared/utils/decimal/no-float-money.spec.ts`), `npm run build` clean (initial bundle 591.52 kB
+raw / 138.08 kB transfer), `npm run test:ci` 612/612 across 78 files, `npm run e2e` 1/1
+(Playwright, live dev server), `git grep -n "localStorage\|sessionStorage" --
+frontend/nexgen-web/src` — no hit under `core/auth/` (only pre-existing, unrelated theme/drawer
+preference persistence), `git grep -rn "SessionTimeout" -- frontend/nexgen-web/src` — no hit,
+`dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` — 0 errors, 2 pre-existing NU1608
+warnings unrelated to this branch.
+
+**Two real bugs found and fixed during implementation, not merely during a later review:**
+(1) `ApiConfiguration.rootUrl` was never wired to the runtime config — generated API calls
+would have silently targeted the page's own origin; fixed in `core/api/app-bootstrap.ts`.
+(2) A private-class-field declaration-order bug in `AuthService`: `#bootstrapSettled`'s
+`Promise` executor (which runs synchronously at construction) wrote `this.#resolveBootstrap`
+before that field was installed, because JS installs `#`-private fields in declaration order
+and `#resolveBootstrap` was declared *after* `#bootstrapSettled`. `TypeError: Cannot write
+private member #resolveBootstrap to an object whose class did not declare it` — raised only by
+`auth.service.spec.ts` at runtime; `npm run typecheck`/`npm run build` both stayed green while
+this was live, since TypeScript does not model JS's field-installation order. Fixed by
+reordering the two declarations.
+
+**One real functional gap found and fixed, not merely a missing test:** the task's own
+`app.routes.ts` names the placeholder route as "proving the [deny-by-default] pattern every
+screen attaching from `M2-D01` onward follows" — but the routed `PlaceholderComponent` did not
+actually read `PermissionService` at all; it rendered unconditionally regardless of the
+caller's rights. Concretely this meant an unknown-screen denial never rendered the
+permission-denied surface and a zero-rights caller never saw the explanatory panel — two of
+this task's own Acceptance Criteria, silently unmet by the first implementation pass. Fixed:
+`PlaceholderComponent` now reads `PermissionService.hasNoRights()` and
+`.forScreen('Dashboard')` and renders, in order, the zero-rights `app-empty-state`, the
+`app-permission-denied-state`, or its real content — three new/rewritten
+`placeholder.component.spec.ts` cases cover all three branches. The pre-existing Playwright
+`e2e/smoke.spec.ts`, written for the old unguarded placeholder route, was similarly stale
+(asserted an `<h1>NexGen ERP</h1>` at `/` that an anonymous caller can no longer reach) and was
+rewritten to assert the new, correct redirect-to-`/login` behaviour rather than reverted —
+consistent with how the pre-existing `app.component.spec.ts` "lazily loaded placeholder route"
+test was handled earlier in the same session.
+
+**Two disclosed deviations, both recorded in-code, not silently taken:** (1) the login request
+is `{ username, password }` — **no `tenant` field** — because the real, OpenAPI-verified
+`AuthController` contract has none; tenant resolution stays Host-header-based
+(`ITenantProvider`) until `M2-A05`, contradicting this task's own (stale) Flow diagram, not the
+live API. (2) **Token custody: both the access token and the refresh token are held in-memory
+only** (`TokenStore`, never a public signal, never `localStorage`/`sessionStorage`) — this
+task's *recommended* default was access-in-memory / refresh-in-an-httpOnly-cookie, but the real
+`POST /api/v1/auth/refresh` returns the refresh token as a plain response-body string, not a
+`Set-Cookie` header, and building the cross-origin cookie transport is `M2-A05`'s scope, not
+this one's. Recorded consequence: a hard page reload always loses the session (`bootstrap()`
+finds no refresh token and settles to `anonymous`) — by design, not an oversight. `git grep`
+above confirms zero storage writes anywhere under `core/auth/`.
+
+**Genuinely open, disclosed rather than glossed over:** no automated `axe` scan was run over
+the login page or the idle dialog (keyboard-operability and focus-management are covered by
+unit tests, accessibility-tree assertions are not); the Testing table's `bootstrap.spec.ts` and
+`logout.spec.ts` are not separate files — their cases live inside `auth.service.spec.ts`
+instead, same coverage, different file layout; "every feature service holding list state is
+reset on logout" has no feature service to test against yet in this codebase — `AuthService
+.logout()` itself resets every session signal it owns, which is tested, but the broader claim
+is unverifiable until a feature service exists; the pre-existing `ApiProblem`-shaped-type
+convergence gap (Q-94: `ProblemDetailsLike`, `GridProblemDetails`, `RecordPickerProblem`) is
+untouched, coexisting with this task's new canonical `core/http/api-problem.ts`; `npm run e2e`
+covers one redirect-only smoke case, not a full credentialed login flow, because no live
+backend + database is reachable from this dev environment to exercise real credentials
+end-to-end. `Q-09` (register route) needed no action here beyond compliance — it was already
+answered **No** by the owner on 2026-08-27 before this task's implementation began; no
+`/register` surface exists.
+
+**Downstream effect: none yet.** `Needs Review` does not satisfy rule 1 of the five-part "can
+actually be done" test — `M2-C03` and `M2-D01` still require `M2-C02` at `Completed` **and**
+merged, and stay `Blocked` until the owner reviews this branch and either merges it or sends it
+back.

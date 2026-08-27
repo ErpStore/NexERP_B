@@ -48,11 +48,17 @@ describe('AppComponent, through the real app.config.ts providers', () => {
     expect(await translate.get('app.name').toPromise()).toBe('NexGen ERP');
   });
 
-  it('renders the lazily loaded placeholder route through the root component', async () => {
+  it('renders the lazily loaded /login route through the root component', async () => {
+    // M2-C02 — the root path now sits behind authGuard; an anonymous caller (the only kind
+    // this spec's providers can produce, with no session established) is redirected to
+    // /login rather than reaching the placeholder directly. This spec's own job — proving
+    // the real app.config.ts provider set composes, guards included — is still exactly what
+    // this asserts; only the destination changed, correctly, with the guard's arrival.
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/');
     const heading = harness.routeNativeElement?.querySelector('h1');
-    expect(heading?.textContent).toContain('NexGen ERP');
+    expect(heading?.textContent).toContain('Sign in');
+    expect(TestBed.inject(Router).url).toBe('/login?returnUrl=%2F');
   });
 
   it('creates the root component', () => {

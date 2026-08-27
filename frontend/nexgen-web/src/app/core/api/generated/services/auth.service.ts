@@ -17,6 +17,13 @@ import { Login$Params } from '../fn/auth/login';
 import { login$Plain } from '../fn/auth/login-plain';
 import { Login$Plain$Params } from '../fn/auth/login-plain';
 import { LoginResponse } from '../models/login-response';
+import { logout } from '../fn/auth/logout';
+import { Logout$Params } from '../fn/auth/logout';
+import { refresh } from '../fn/auth/refresh';
+import { Refresh$Params } from '../fn/auth/refresh';
+import { refresh$Plain } from '../fn/auth/refresh-plain';
+import { Refresh$Plain$Params } from '../fn/auth/refresh-plain';
+import { RefreshResponse } from '../models/refresh-response';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService extends BaseService {
@@ -92,6 +99,146 @@ export class AuthService extends BaseService {
     const resp = this.login$Response(params, context);
     return resp.pipe(
       map((r: StrictHttpResponse<LoginResponse>): LoginResponse => r.body)
+    );
+  }
+
+  /** Path part for operation `refresh()` */
+  static readonly RefreshPath = '/api/v1/auth/refresh';
+
+  /**
+   * M2-A04 — exchanges a live refresh token for a new access/refresh pair. One-time use
+   * with rotation: the presented token is revoked in the same call that issues its
+   * replacement (`RefreshTokenService.RotateAsync`), so replaying it always fails.
+   *             
+   * 
+   * <b>Why `[AllowAnonymous]`.</b> The access token that would normallyauthenticate this caller may already be expired — that is the entire reason thisendpoint exists. The refresh token itself is the credential.
+   * <b>Tenant binding (BR-TEN-002).</b> Deliberately not re-derived from a JWTclaim — an expired access token authenticates nobody, so `HttpContext.User` herecarries no claims to read. Tenant context instead comes from the same`ITenantProvider` host-resolution path `Login` already uses (Host header /tenant.json), which is how `ApplicationDbContext` — and therefore which tenant's`RefreshTokens` table this call ever sees — was already resolved before thisaction runs. A token issued in tenant A is simply absent from tenant B's database;there is no cross-tenant row to find, so there is nothing to switch.
+   *
+   *
+   *
+   * This method provides access to the full `HttpResponse`, allowing access to response headers.
+   * To access only the response body, use `refresh$Plain()` instead.
+   *
+   * This method sends `application/*+json` and handles request body of type `application/*+json`.
+   */
+  refresh$Plain$Response(params?: Refresh$Plain$Params, context?: HttpContext): Observable<StrictHttpResponse<RefreshResponse>> {
+    const obs = refresh$Plain(this.http, this.rootUrl, params, context);
+    return obs;
+  }
+
+  /**
+   * M2-A04 — exchanges a live refresh token for a new access/refresh pair. One-time use
+   * with rotation: the presented token is revoked in the same call that issues its
+   * replacement (`RefreshTokenService.RotateAsync`), so replaying it always fails.
+   *             
+   * 
+   * <b>Why `[AllowAnonymous]`.</b> The access token that would normallyauthenticate this caller may already be expired — that is the entire reason thisendpoint exists. The refresh token itself is the credential.
+   * <b>Tenant binding (BR-TEN-002).</b> Deliberately not re-derived from a JWTclaim — an expired access token authenticates nobody, so `HttpContext.User` herecarries no claims to read. Tenant context instead comes from the same`ITenantProvider` host-resolution path `Login` already uses (Host header /tenant.json), which is how `ApplicationDbContext` — and therefore which tenant's`RefreshTokens` table this call ever sees — was already resolved before thisaction runs. A token issued in tenant A is simply absent from tenant B's database;there is no cross-tenant row to find, so there is nothing to switch.
+   *
+   *
+   *
+   * This method provides access only to the response body.
+   * To access the full response (for headers, for example), `refresh$Plain$Response()` instead.
+   *
+   * This method sends `application/*+json` and handles request body of type `application/*+json`.
+   */
+  refresh$Plain(params?: Refresh$Plain$Params, context?: HttpContext): Observable<RefreshResponse> {
+    const resp = this.refresh$Plain$Response(params, context);
+    return resp.pipe(
+      map((r: StrictHttpResponse<RefreshResponse>): RefreshResponse => r.body)
+    );
+  }
+
+  /**
+   * M2-A04 — exchanges a live refresh token for a new access/refresh pair. One-time use
+   * with rotation: the presented token is revoked in the same call that issues its
+   * replacement (`RefreshTokenService.RotateAsync`), so replaying it always fails.
+   *             
+   * 
+   * <b>Why `[AllowAnonymous]`.</b> The access token that would normallyauthenticate this caller may already be expired — that is the entire reason thisendpoint exists. The refresh token itself is the credential.
+   * <b>Tenant binding (BR-TEN-002).</b> Deliberately not re-derived from a JWTclaim — an expired access token authenticates nobody, so `HttpContext.User` herecarries no claims to read. Tenant context instead comes from the same`ITenantProvider` host-resolution path `Login` already uses (Host header /tenant.json), which is how `ApplicationDbContext` — and therefore which tenant's`RefreshTokens` table this call ever sees — was already resolved before thisaction runs. A token issued in tenant A is simply absent from tenant B's database;there is no cross-tenant row to find, so there is nothing to switch.
+   *
+   *
+   *
+   * This method provides access to the full `HttpResponse`, allowing access to response headers.
+   * To access only the response body, use `refresh()` instead.
+   *
+   * This method sends `application/*+json` and handles request body of type `application/*+json`.
+   */
+  refresh$Response(params?: Refresh$Params, context?: HttpContext): Observable<StrictHttpResponse<RefreshResponse>> {
+    const obs = refresh(this.http, this.rootUrl, params, context);
+    return obs;
+  }
+
+  /**
+   * M2-A04 — exchanges a live refresh token for a new access/refresh pair. One-time use
+   * with rotation: the presented token is revoked in the same call that issues its
+   * replacement (`RefreshTokenService.RotateAsync`), so replaying it always fails.
+   *             
+   * 
+   * <b>Why `[AllowAnonymous]`.</b> The access token that would normallyauthenticate this caller may already be expired — that is the entire reason thisendpoint exists. The refresh token itself is the credential.
+   * <b>Tenant binding (BR-TEN-002).</b> Deliberately not re-derived from a JWTclaim — an expired access token authenticates nobody, so `HttpContext.User` herecarries no claims to read. Tenant context instead comes from the same`ITenantProvider` host-resolution path `Login` already uses (Host header /tenant.json), which is how `ApplicationDbContext` — and therefore which tenant's`RefreshTokens` table this call ever sees — was already resolved before thisaction runs. A token issued in tenant A is simply absent from tenant B's database;there is no cross-tenant row to find, so there is nothing to switch.
+   *
+   *
+   *
+   * This method provides access only to the response body.
+   * To access the full response (for headers, for example), `refresh$Response()` instead.
+   *
+   * This method sends `application/*+json` and handles request body of type `application/*+json`.
+   */
+  refresh(params?: Refresh$Params, context?: HttpContext): Observable<RefreshResponse> {
+    const resp = this.refresh$Response(params, context);
+    return resp.pipe(
+      map((r: StrictHttpResponse<RefreshResponse>): RefreshResponse => r.body)
+    );
+  }
+
+  /** Path part for operation `logout()` */
+  static readonly LogoutPath = '/api/v1/auth/logout';
+
+  /**
+   * M2-A04 — revokes the presented refresh token. Revokes exactly that one token, not
+   * every token belonging to the user: the request contract is "the refresh token to
+   * revoke" (singular), matching one-session-per-device logout. A revoke-all/"sign out
+   * everywhere" capability is a natural extension, left to whichever future task needs it
+   * rather than assumed here.
+   *             
+   * 
+   * Idempotent by design (Target Result 4 / the logout error-model row): revoking anunknown or already-revoked token still returns `204` — the response must neverleak whether a token was ever valid.
+   *
+   *
+   *
+   * This method provides access to the full `HttpResponse`, allowing access to response headers.
+   * To access only the response body, use `logout()` instead.
+   *
+   * This method sends `application/*+json` and handles request body of type `application/*+json`.
+   */
+  logout$Response(params?: Logout$Params, context?: HttpContext): Observable<StrictHttpResponse<void>> {
+    const obs = logout(this.http, this.rootUrl, params, context);
+    return obs;
+  }
+
+  /**
+   * M2-A04 — revokes the presented refresh token. Revokes exactly that one token, not
+   * every token belonging to the user: the request contract is "the refresh token to
+   * revoke" (singular), matching one-session-per-device logout. A revoke-all/"sign out
+   * everywhere" capability is a natural extension, left to whichever future task needs it
+   * rather than assumed here.
+   *             
+   * 
+   * Idempotent by design (Target Result 4 / the logout error-model row): revoking anunknown or already-revoked token still returns `204` — the response must neverleak whether a token was ever valid.
+   *
+   *
+   *
+   * This method provides access only to the response body.
+   * To access the full response (for headers, for example), `logout$Response()` instead.
+   *
+   * This method sends `application/*+json` and handles request body of type `application/*+json`.
+   */
+  logout(params?: Logout$Params, context?: HttpContext): Observable<void> {
+    const resp = this.logout$Response(params, context);
+    return resp.pipe(
+      map((r: StrictHttpResponse<void>): void => r.body)
     );
   }
 

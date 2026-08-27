@@ -10,8 +10,12 @@ import { provideTranslateLoader, provideTranslateService } from '@ngx-translate/
 import { providePrimeNG } from 'primeng/config';
 
 import { routes } from './app.routes';
-import { loadAppConfig } from './core/config/app-config';
+import { bootstrapApp } from './core/api/app-bootstrap';
+import { authInterceptor } from './core/auth/auth.interceptor';
 import { GlobalErrorHandler } from './core/errors/global-error-handler';
+import { correlationInterceptor } from './core/http/correlation.interceptor';
+import { errorInterceptor } from './core/http/error.interceptor';
+import { tenantInterceptor } from './core/http/tenant.interceptor';
 import { InMemoryTranslateLoader } from './core/i18n/in-memory-translate-loader';
 import { NexGenThemeOptions } from './core/theme/theme.preset';
 import { provideConfirmDialog } from './shared/components/overlay/confirm-dialog.service';
@@ -24,13 +28,25 @@ export const appConfig: ApplicationConfig = {
 
     provideRouter(routes, withComponentInputBinding()),
 
-    // The interceptor array is intentionally empty: auth, tenant, correlation
-    // and error interceptors are M2-C02's, not this task's.
-    provideHttpClient(withInterceptors([])),
+    // M2-C02 — order matters and is deliberate: correlation and tenant headers must be on
+    // the request before auth decides whether to retry it; auth's single-flight refresh
+    // must run before error normalises whatever comes back (success or the final failure).
+    provideHttpClient(
+      withInterceptors([
+        correlationInterceptor,
+        tenantInterceptor,
+        authInterceptor,
+        errorInterceptor,
+      ]),
+    ),
 
-    // Runtime configuration must be resolved before the app renders; a missing
-    // API base URL aborts bootstrap rather than defaulting to someone's laptop.
-    provideAppInitializer(loadAppConfig),
+    // Runtime configuration must be resolved before the app renders; a missing API base URL
+    // aborts bootstrap rather than defaulting to someone's laptop. M2-C02 extended this to
+    // also wire ApiConfiguration.rootUrl (a real, pre-existing gap — see bootstrap.ts's doc
+    // comment) and to attempt the silent auth bootstrap, all three sequenced in one
+    // initializer because Angular runs separate provideAppInitializer factories
+    // concurrently, not in this array's order.
+    provideAppInitializer(bootstrapApp),
 
     // PrimeNG themed from src/styles/tokens.css: every preset value is a
     // var(--token) reference, and darkModeSelector is the same

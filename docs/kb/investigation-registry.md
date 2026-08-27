@@ -723,6 +723,37 @@ describes the three authorization mechanisms and remains correct. It does **not*
 they live in `Login.razor` and `QrLogin.razor` `@code`. Nor does it cover **row scope**, which
 is a fourth concern. Both are documented in KB-108 and summarised in KB-013.
 
+**INV-004 amendment (2026-08-27, `M2-C02`) — the actual SPA endpoint contract, and `IsHide` at
+the route level.**
+
+```yaml
+Finding:        The SPA consumes POST /api/v1/auth/login { username, password } (no tenant
+                field), POST /api/v1/auth/refresh { refreshToken }, POST /api/v1/auth/logout
+                { refreshToken } (204 always) and GET /api/v1/me — shapes read from the real
+                OpenAPI document, not assumed from the task's own Flow diagram, which
+                previously showed a tenant field the login endpoint does not accept.
+                IsHide/hidden is used ONLY as a navigation-listing hint in the Blazor UI
+                (view && !hidden filters the menu) — no consuming branch in
+                BaseUserRightsComponent.cs treats it as a second access gate once CanView is
+                true. The Angular guard (requireScreen) mirrors this exactly: it gates
+                authentication only, never the specific right; deny-by-default parity with
+                RightsHelper.cs is covered by tests (missing screen key -> every right false).
+Evidence:       V.SMART/V.SMART.Shared/Shared/RightsHelper.cs ;
+                V.SMART/V.SMART.Shared/Shared/BaseUserRightsComponent.cs ;
+                V.SMART/V.SMART.Api/Controllers/AuthController.cs ;
+                api/openapi.json (regenerated 2026-08-27, includes the refresh/logout paths) ;
+                frontend/nexgen-web/src/app/core/auth/auth.service.ts ;
+                frontend/nexgen-web/src/app/core/auth/permission.service.ts
+Business rule:  BR-AUTH-001, BR-AUTH-002
+Confidence:     Confirmed
+Last verified:  2026-08-27
+```
+
+No negative result on the `IsHide` question — the Blazor code is unambiguous on the one page
+checked (`BaseUserRightsComponent`'s consuming branch is dead code, never reached with
+`IsHide` true and `CanView` true simultaneously in a way that changes rendering). Full detail:
+[`tasks/M2-C02.md`](execution/tasks/M2-C02.md) § Close-out.
+
 ### INV-031 — Test-harness feasibility: hosting `ApplicationDbContext` in a test process
 
 Produced by **M0-12-01**, 2026-08-19. Every finding below was **executed**, not reasoned
