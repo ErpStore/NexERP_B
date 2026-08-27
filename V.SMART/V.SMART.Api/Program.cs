@@ -13,6 +13,7 @@ using System.Text;
 using V.SMART.Api.Auth;
 using V.SMART.Api.Authorization;
 using V.SMART.Api.Caching;
+using V.SMART.Api.Cors;
 using V.SMART.Api.HealthChecks;
 using V.SMART.Api.Logging;
 using V.SMART.Api.Middleware;
@@ -163,12 +164,35 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// M2-A05 — replaces the hardcoded "AngularDev" policy (WithOrigins("http://localhost:4200")
+// only) with a per-environment configured origin list, per ADR-002 §5. Bound directly from
+// configuration here, synchronously, rather than through IOptions<CorsOptions>: AddCors()'s
+// policy is built once, before the DI container exists to serve an injected IOptions<T>.
+// CorsOptions is still registered below via Configure<CorsOptions>() so anything that DOES
+// want it through DI (diagnostics, a future health check) can read the same bound values.
+var corsOptions = builder.Configuration.GetSection(CorsOptions.SectionName).Get<CorsOptions>()
+    ?? new CorsOptions();
+builder.Services.Configure<CorsOptions>(builder.Configuration.GetSection(CorsOptions.SectionName));
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AngularDev", policy =>
-        policy.WithOrigins("http://localhost:4200")
-              .AllowAnyHeader()
-              .AllowAnyMethod());
+    options.AddPolicy(CorsOptions.PolicyName, policy =>
+    {
+        // Fails closed: an environment with no configured origins allows none, rather than
+        // falling back to AllowAnyOrigin() or the old dev-only host. See CorsOptions' own doc
+        // comment for why this is empty by default (Q-16, explicitly deferred).
+        if (corsOptions.AllowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(corsOptions.AllowedOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+
+            // AllowCredentials() and AllowAnyOrigin() are mutually exclusive under the CORS
+            // spec; WithOrigins() above means this is always safe to call when requested.
+            if (corsOptions.AllowCredentials)
+                policy.AllowCredentials();
+        }
+    });
 });
 
 // Already validated above (M0-03-03): StartupConfigurationValidator is the single code path
@@ -435,7 +459,7 @@ app.UseSerilogRequestLogging(options =>
         : LogEventLevel.Information;
 });
 
-app.UseCors("AngularDev");
+app.UseCors(CorsOptions.PolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 

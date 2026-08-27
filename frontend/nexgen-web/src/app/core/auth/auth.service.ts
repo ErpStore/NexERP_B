@@ -19,13 +19,16 @@ import type {
  * read-only. Token custody sits behind {@link TokenStore}, never on a public signal here —
  * see that file for the full token-custody decision and its reasoning.
  *
- * **Login request shape, verified against the real contract, not this task's own plan.**
- * `AuthController.LoginRequest` is `{ username, password }` — **no `tenant` field.** Tenant
- * resolution stays Host-header-based today (`ITenantProvider`, unchanged); adding a tenant
- * selector to the login request is explicitly `M2-A05`'s job, not this one's
- * (`docs/kb/execution/tasks/M2-A04.md` Files That Must Not Change). This service and the
- * login form built on it therefore take only username + password, a deliberate deviation
- * from this task's own Flow diagram, recorded here rather than invented against.
+ * **Login request shape — M2-A05 added `tenant`.** `AuthController.LoginRequest` is now
+ * `{ tenant, username, password }`, matching ADR-002 §5 exactly. `M2-C02`'s own login form
+ * deliberately shipped without a tenant field (see `docs/kb/execution/tasks/M2-A04.md` Files
+ * That Must Not Change, and this file's own history) because binding it correctly needed a
+ * server-side change — resolving the tenant from the request body before any tenant-scoped
+ * service is touched — that was explicitly out of scope until now. `refresh`/`bootstrap`/
+ * `refreshTokens`/`logout` all resend the same tenant the session was opened with, from
+ * {@link TokenStore}, for the identical reason (`AuthController.cs`'s own constructor
+ * comment): an expired access token carries no claim to re-derive it from, and a
+ * cross-origin SPA has no other reliable signal.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -66,12 +69,15 @@ export class AuthService {
   }
 
   async login(
+    tenant: string,
     username: string,
     password: string,
   ): Promise<{ ok: true } | { ok: false; failure: LoginFailure }> {
     this.#status.set('authenticating');
     try {
-      const response = await firstValueFrom(this.#api.login({ body: { username, password } }));
+      const response = await firstValueFrom(
+        this.#api.login({ body: { tenant, username, password } }),
+      );
       if (!response.token || !response.refreshToken || !response.tokenExpiresAtUtc) {
         this.#status.set('anonymous');
         return { ok: false, failure: { reason: 'unknown' } };
@@ -80,6 +86,7 @@ export class AuthService {
         response.token,
         response.refreshToken,
         new Date(response.tokenExpiresAtUtc),
+        tenant,
       );
       await this.#bootstrapIdentity();
       return { ok: true };
@@ -99,12 +106,19 @@ export class AuthService {
    */
   async bootstrap(): Promise<void> {
     try {
-      if (!this.#tokens.refreshToken) {
+      // The in-memory custody decision (TokenStore's own doc comment) already means a hard
+      // reload never reaches this branch with a refresh token — so tenant, set together with
+      // it, is always present too. No fallback value is invented for the case where it is
+      // not: an empty string would just become a guaranteed 400 from the server instead of a
+      // clean early return, with no more information either way.
+      if (!this.#tokens.refreshToken || !this.#tokens.tenant) {
         this.#status.set('anonymous');
         return;
       }
       const response = await firstValueFrom(
-        this.#api.refresh({ body: { refreshToken: this.#tokens.refreshToken } }),
+        this.#api.refresh({
+          body: { tenant: this.#tokens.tenant, refreshToken: this.#tokens.refreshToken },
+        }),
       );
       if (!response.token || !response.refreshToken || !response.tokenExpiresAtUtc) {
         this.#tokens.clear();
@@ -134,12 +148,14 @@ export class AuthService {
    * "failure" means for the request in flight (hard logout).
    */
   async refreshTokens(): Promise<boolean> {
-    if (!this.#tokens.refreshToken) {
+    if (!this.#tokens.refreshToken || !this.#tokens.tenant) {
       return false;
     }
     try {
       const response = await firstValueFrom(
-        this.#api.refresh({ body: { refreshToken: this.#tokens.refreshToken } }),
+        this.#api.refresh({
+          body: { tenant: this.#tokens.tenant, refreshToken: this.#tokens.refreshToken },
+        }),
       );
       if (!response.token || !response.refreshToken || !response.tokenExpiresAtUtc) {
         return false;
@@ -168,13 +184,14 @@ export class AuthService {
 
   async logout(): Promise<void> {
     const refreshToken = this.#tokens.refreshToken;
+    const tenant = this.#tokens.tenant;
     this.#tokens.clear();
     this.#user.set(null);
     this.#permissions.clear();
     this.#status.set('anonymous');
-    if (refreshToken) {
+    if (refreshToken && tenant) {
       try {
-        await firstValueFrom(this.#api.logout({ body: { refreshToken } }));
+        await firstValueFrom(this.#api.logout({ body: { tenant, refreshToken } }));
       } catch {
         // Best-effort: the client-side session is already cleared regardless. A failed
         // revocation call does not resurrect the local session, and the token still expires

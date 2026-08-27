@@ -21,7 +21,39 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Selected: `M2-A11` — Re-specify `M2-A05` for Angular
+## Selected: `M2-A05` — Cross-origin SPA tenant resolution + real CORS
+
+Full spec: [`tasks/M2-A05.md`](tasks/M2-A05.md). **Implemented, 2026-08-27, branch
+`migration/M2-A05-tenant-resolution-cors` (stacked on the unmerged `M2-A11` re-specification
+this task depends on), left `Needs Review`.** Dispatched directly off the pass below: Q-16
+was explicitly deferred (owner asked directly, answered "I don't know"), which cleared
+`M2-A05`'s own Prerequisites; the owner then instructed implementation directly ("go ahead").
+
+**What was built, briefly** (full detail: [`task-tracker.md`](task-tracker.md) footnote
+¹¹⁴, [`tasks/M2-A05.md`](tasks/M2-A05.md)'s Close-out): tenant bound at
+login/refresh/logout, exactly ADR-002 §5's `{ tenant, username, password }`; the real
+architectural fix this task turned out to need — `AuthController` no longer
+constructor-injects the tenant-scoped services (`IUnitOfWork`/`IRefreshTokenService`/
+`IUserRightService`), resolving them from `IServiceProvider` only after tenant binding,
+since ASP.NET Core builds a controller's constructor dependencies before it model-binds the
+request body; real per-environment CORS, empty/fails-closed by default; the API's
+dev-tenant-pinning `tenant.json` deleted; the Angular client regenerated and the login
+form/`TokenStore`/`AuthService` extended to collect and resend the tenant. 619/619 +
+685/685 tests, both `dotnet build`s clean, `npm run build`/`e2e` clean.
+
+**Real findings surfaced during implementation, not anticipated by either version of the
+task file:** the DI-ordering mechanism above; `Refresh`/`Logout` needed the same `tenant`
+field `Login`'s spec named, since `IRefreshTokenService` is equally tenant-scoped; the
+pre-existing host-based fallback for those two endpoints never actually worked for a
+cross-origin SPA, despite its own doc comments describing it as live.
+
+**Disclosed, not silently done:** Q-16 stays deferred, so only the CORS mechanism ships,
+no real origins; no live-backend e2e (this environment has no populated
+`Jwt:Secret`/`ConnectionStrings:MasterDb`); `AllowCredentials: false` decided but unexercised.
+
+---
+
+## Superseded pointer, retained for lineage — `M2-A11` implemented, `Needs Review`, unmerged (2026-08-27)
 
 Full spec: [`tasks/M2-A11.md`](tasks/M2-A11.md). **Implemented, 2026-08-27, branch
 `migration/M2-A11-respec-M2-A05`, left `Needs Review`.** Following on directly from the

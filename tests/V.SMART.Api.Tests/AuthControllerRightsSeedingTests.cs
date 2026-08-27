@@ -67,7 +67,7 @@ namespace V.SMART.Api.Tests
 
             var controller = Controller(User(userId), seeder.Object);
 
-            var result = await controller.Login(new AuthController.LoginRequest("u", "p"));
+            var result = await controller.Login(new AuthController.LoginRequest("acme", "u", "p"));
 
             // The login itself must be unaffected...
             var ok = Assert.IsType<OkObjectResult>(result.Result);
@@ -89,7 +89,7 @@ namespace V.SMART.Api.Tests
 
             var controller = Controller(User(AdministratorUserId), seeder.Object);
 
-            var result = await controller.Login(new AuthController.LoginRequest("admin", "p"));
+            var result = await controller.Login(new AuthController.LoginRequest("acme", "admin", "p"));
 
             Assert.IsType<OkObjectResult>(result.Result);
             seeder.Verify(s => s.SyncRightsForUserAsync(AdministratorUserId), Times.Once);
@@ -163,7 +163,7 @@ namespace V.SMART.Api.Tests
 
             var controller = Controller(unitOfWork, seeder);
 
-            var result = await controller.Login(new AuthController.LoginRequest("admin", "p"));
+            var result = await controller.Login(new AuthController.LoginRequest("acme", "admin", "p"));
 
             Assert.IsType<OkObjectResult>(result.Result);
             Assert.Equal(1, saves);
@@ -204,7 +204,7 @@ namespace V.SMART.Api.Tests
 
             var controller = Controller(User(AdministratorUserId), seeder.Object);
 
-            var result = await controller.Login(new AuthController.LoginRequest("admin", "p"));
+            var result = await controller.Login(new AuthController.LoginRequest("acme", "admin", "p"));
 
             var ok = Assert.IsType<OkObjectResult>(result.Result);
             Assert.Equal(StatusCodes.Status200OK, ok.StatusCode);
@@ -261,17 +261,20 @@ namespace V.SMART.Api.Tests
                 .Build();
 
             return new AuthController(
-                unitOfWork.Object,
+                // M2-A05 — IUnitOfWork, IRefreshTokenService and IUserRightService all resolve
+                // from here now, not by direct constructor injection.
+                ErrorContractTestContext.ServiceProvider(
+                    unitOfWork: unitOfWork.Object,
+                    // M2-A04 — every test in this file reaches Login's success path, which now
+                    // also issues a refresh token. A stub is enough: nothing here asserts on the
+                    // refresh token's value, only on rights-seeding behaviour.
+                    refreshTokenService: Mock.Of<IRefreshTokenService>(s =>
+                        s.IssueAsync(It.IsAny<int>()) ==
+                        Task.FromResult(new IssuedRefreshToken("test-refresh-token", DateTime.UtcNow.AddDays(14)))),
+                    userRightService: userRightService),
                 new JwtTokenService(configuration),
-                // M2-A04 — every test in this file reaches Login's success path, which now also
-                // issues a refresh token. A stub is enough: nothing here asserts on the refresh
-                // token's value, only on rights-seeding behaviour.
-                Mock.Of<IRefreshTokenService>(s =>
-                    s.IssueAsync(It.IsAny<int>()) ==
-                    Task.FromResult(new IssuedRefreshToken("test-refresh-token", DateTime.UtcNow.AddDays(14)))),
                 tenantProvider.Object,
                 configuration,
-                userRightService,
                 NullLogger<AuthController>.Instance)
             {
                 ControllerContext = new ControllerContext

@@ -22,6 +22,7 @@ import { TextInputComponent } from '../../../shared/components/form/text-input.c
 import { InlineAlertComponent } from '../../../shared/components/feedback/inline-alert.component';
 
 interface LoginForm {
+  tenant: FormControl<string>;
   username: FormControl<string>;
   password: FormControl<string>;
 }
@@ -29,8 +30,12 @@ interface LoginForm {
 /**
  * M2-C02 — the SPA `/login` route.
  *
- * **Request shape is `{ username, password }` — no `tenant` field.** See
- * `auth.service.ts`'s doc comment: tenant resolution stays Host-header-based until `M2-A05`.
+ * **Request shape is `{ tenant, username, password }` — M2-A05 added `tenant`.** The tenant
+ * field is a plain text identifier (matched server-side against `Tenants.Name` **or**
+ * `Tenants.Hostname`, ADR-002 §5) rather than a dropdown: there is no endpoint that lists
+ * tenants for an anonymous caller to populate one from, and building one is out of scope —
+ * it would itself need a right, and an anonymous caller has none. `auth.service.ts`'s own
+ * doc comment records why this field did not exist before M2-A05.
  *
  * Never reveals which credential was wrong (server contract: one `401` body for every
  * authentication failure). A `403` trial-expired failure renders its own verbatim message,
@@ -55,6 +60,10 @@ export class LoginComponent {
   readonly #hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly form = new FormGroup<LoginForm>({
+    tenant: new FormControl('', {
+      nonNullable: true,
+      validators: [(control) => Validators.required(control)],
+    }),
     username: new FormControl('', {
       nonNullable: true,
       validators: [(control) => Validators.required(control)],
@@ -90,12 +99,13 @@ export class LoginComponent {
   });
 
   constructor() {
-    afterNextRender(() => this.#focusUsername());
+    afterNextRender(() => this.#focusFirstField());
   }
 
-  /** The username field is the form's first `<input>` — first-child order in the template,
-   * not a ref lookup, so this stays correct regardless of which wrapper renders it. */
-  #focusUsername(): void {
+  /** The form's first `<input>` — first-child order in the template, not a ref lookup, so
+   * this stays correct regardless of which wrapper renders it. M2-A05 made that field
+   * `tenant`, not `username`; renamed from `#focusUsername` for the same reason. */
+  #focusFirstField(): void {
     this.#hostElement.nativeElement.querySelector('input')?.focus();
   }
 
@@ -108,8 +118,8 @@ export class LoginComponent {
     this.submitting.set(true);
     this.failure.set(null);
 
-    const { username, password } = this.form.getRawValue();
-    const result = await this.#auth.login(username, password);
+    const { tenant, username, password } = this.form.getRawValue();
+    const result = await this.#auth.login(tenant, username, password);
 
     this.submitting.set(false);
 
@@ -123,6 +133,6 @@ export class LoginComponent {
     // Focus goes back to the first field, not the error — a screen reader already announces
     // the alert via its own live region (InlineAlertComponent), and returning focus to the
     // form is what lets the very next keystroke start a retry.
-    this.#focusUsername();
+    this.#focusFirstField();
   }
 }

@@ -40,7 +40,7 @@ describe('authInterceptor', () => {
     http = TestBed.inject(HttpClient);
     httpMock = TestBed.inject(HttpTestingController);
     tokens = TestBed.inject(TokenStore);
-    tokens.setSession('stale-access', 'live-refresh', new Date('2020-01-01'));
+    tokens.setSession('stale-access', 'live-refresh', new Date('2020-01-01'), 'acme');
   });
 
   afterEach(() => {

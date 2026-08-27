@@ -1,6 +1,10 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Moq;
+using V.SMART.Api.Auth;
+using V.SMART.Shared.BusinessLayer.BusinessService.IBusinessService.IMasterServices.IAdminService;
+using V.SMART.Shared.Repository.IRepository;
 
 namespace V.SMART.Api.Tests.Infrastructure
 {
@@ -47,5 +51,30 @@ namespace V.SMART.Api.Tests.Infrastructure
         /// <summary>The member names present at the top level of a problem body.</summary>
         public static IReadOnlyList<string> MemberNames(JsonElement element)
             => element.EnumerateObject().Select(p => p.Name).ToList();
+
+        /// <summary>
+        /// M2-A05 — <c>AuthController</c> no longer constructor-injects <c>IUnitOfWork</c>,
+        /// <c>IRefreshTokenService</c> or <c>IUserRightService</c> directly (all three reach the
+        /// tenant-scoped <c>ApplicationDbContext</c>, which must not be resolved before the
+        /// action body has bound the request's <c>tenant</c> field). It resolves them from an
+        /// injected <see cref="IServiceProvider"/> instead, after tenant binding. This builds a
+        /// minimal mock of that provider, wired only for whichever of the three a test actually
+        /// needs — an omitted one throws if the controller unexpectedly reaches for it, which is
+        /// the same "MockBehavior.Strict-shaped" failure a missing setup gave before this task.
+        /// </summary>
+        public static IServiceProvider ServiceProvider(
+            IUnitOfWork? unitOfWork = null,
+            IRefreshTokenService? refreshTokenService = null,
+            IUserRightService? userRightService = null)
+        {
+            var provider = new Mock<IServiceProvider>();
+            if (unitOfWork != null)
+                provider.Setup(p => p.GetService(typeof(IUnitOfWork))).Returns(unitOfWork);
+            if (refreshTokenService != null)
+                provider.Setup(p => p.GetService(typeof(IRefreshTokenService))).Returns(refreshTokenService);
+            if (userRightService != null)
+                provider.Setup(p => p.GetService(typeof(IUserRightService))).Returns(userRightService);
+            return provider.Object;
+        }
     }
 }

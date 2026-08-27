@@ -5,4 +5,5 @@
 
 export interface LogoutRequest {
   refreshToken?: string | null;
+  tenant?: string | null;
 }

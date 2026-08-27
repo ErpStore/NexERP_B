@@ -5,4 +5,5 @@
 
 export interface RefreshRequest {
   refreshToken?: string | null;
+  tenant?: string | null;
 }
