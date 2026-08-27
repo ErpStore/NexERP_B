@@ -51,6 +51,12 @@ cross-origin SPA, despite its own doc comments describing it as live.
 no real origins; no live-backend e2e (this environment has no populated
 `Jwt:Secret`/`ConnectionStrings:MasterDb`); `AllowCredentials: false` decided but unexercised.
 
+**Merged to `master` `0d313d5` 2026-08-27** on owner instruction ("merge"), carrying
+`M2-A11`'s stacked commits in with it — clean merge, no conflicts. Post-merge
+re-verification reproduced every number above on the merged tip. Still `Needs Review`, not
+`Completed` — merging is not a review sign-off. Full detail:
+[`task-tracker.md`](task-tracker.md) footnote ¹¹⁵.
+
 ---
 
 ## Superseded pointer, retained for lineage — `M2-A11` implemented, `Needs Review`, unmerged (2026-08-27)

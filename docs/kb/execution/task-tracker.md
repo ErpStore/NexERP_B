@@ -112,13 +112,13 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A02    | M2        | Apply to `CurrencyController` + denial tests                      | Security      | **Completed**⁵⁹˒⁶² _(merged to `master` on owner instruction 2026-08-24)_                                                                                                                                                                                                                                                                         | P0       | M2-A01-03                                                      | 1 d      | G2   |
 | M2-A03    | M2        | Permission-matrix test harness (CI gate)                          | Testing       | **Completed**⁶³˒⁶⁴˒⁸² _(the last criterion closed 2026-08-26 — owner added the required status check in GitHub branch protection; see footnote ⁸²)_                                                                                                                                                                                               | P0       | M2-A02                                                         | 3 d      | G2   |
 | M2-A04    | M2        | Refresh tokens + revocation                                       | Security      | **Completed**⁴⁸˒¹⁰⁰˒¹⁰¹˒¹⁰⁴ _(implemented 2026-08-27 — short access tokens, hashed rotating/revocable refresh tokens, one additive EF migration; 613/613 API tests pass, 0 build errors. Merged `72a5758`; owner-confirmed Completed 2026-08-27. See footnotes ¹⁰¹ and ¹⁰⁴)_                                                                      | P0       | M2-A01-02, **M0-03-03** _(re-scoped from M0-04, footnote ¹⁰⁰)_ | 3–5 d    | G2   |
-| M2-A05    | M2        | Cross-origin SPA tenant resolution + real CORS                    | Security      | **Needs Review**¹¹²˒¹¹³˒¹¹⁴ _(implemented 2026-08-27 on branch `migration/M2-A05-tenant-resolution-cors` — tenant bound at login/refresh/logout per ADR-002 §5; the DI-ordering fix that makes it possible; real per-environment CORS; the API's dev-tenant `tenant.json` deleted. 619/619 + 685/685 tests, both builds clean. See footnote ¹¹⁴)_ | P0       | M2-A04                                                         | 3–5 d    | G2   |
+| M2-A05    | M2        | Cross-origin SPA tenant resolution + real CORS                    | Security      | **Needs Review**¹¹²˒¹¹³˒¹¹⁴˒¹¹⁵ _(implemented and merged to `master` `0d313d5` 2026-08-27 — tenant bound at login/refresh/logout per ADR-002 §5; the DI-ordering fix that makes it possible; real per-environment CORS; the API's dev-tenant `tenant.json` deleted. 619/619 + 685/685 tests, both builds clean pre- and post-merge. Not `Completed` — owner sign-off pending. See footnote ¹¹⁵)_ | P0       | M2-A04                                                         | 3–5 d    | G2   |
 | M2-A06    | M2        | Exception middleware → `ProblemDetails`                           | Backend       | **Completed**²³                                                                                                                                                                                                                                                                                                                                   | P0       | G0                                                             | 3–5 d    | G2   |
 | M2-A07    | M2        | `GET /api/v1/me`                                                  | Backend       | **Completed**³⁷ _(merged to `master` `80c209b` on owner instruction 2026-08-21)_                                                                                                                                                                                                                                                                  | P0       | M2-A01-03                                                      | 2 d      | G2   |
 | M2-A08    | M2        | Row-level scoping + account gates (Q-05…Q-08)                     | Security      | **Completed**²⁹˒³⁹ _(merged to `master` `380c805` on owner instruction 2026-08-21)_                                                                                                                                                                                                                                                               | P0       | M2-A01-03                                                      | 3 d      | G2   |
 | M2-A09    | M2        | Remove the two phantom screen names from `ScreenCatalogue` (R-65) | Security      | **Completed**⁶⁰˒⁶² _(merged to `master` on owner instruction 2026-08-24)_                                                                                                                                                                                                                                                                         | P0       | M2-A01-03                                                      | 0.5 d    | G2   |
 | M2-A10    | M2        | Seed administrator rights on the API login path (Q-28)            | Security      | **Completed**⁶¹˒⁶² _(merged to `master` on owner instruction 2026-08-24)_                                                                                                                                                                                                                                                                         | P1       | M2-A01-03                                                      | 0.5 d    | G2   |
-| M2-A11    | M2        | Re-specify `M2-A05` for Angular                                   | Documentation | **Needs Review**¹¹² _(implemented 2026-08-27 on branch `migration/M2-A11-respec-M2-A05` — corrected `M2-A05.md`'s stale React-era content, its false "`M2-C02` implements the tenant picker" claim, and every `/api/auth/` route to `/api/v1/auth/`. See footnote ¹¹²)_                                                                           | P0       | —                                                              | 0.5 d    | G2   |
+| M2-A11    | M2        | Re-specify `M2-A05` for Angular                                   | Documentation | **Needs Review**¹¹²˒¹¹⁵ _(implemented and merged to `master` `0d313d5` 2026-08-27, carried in on `M2-A05`'s merge since it was stacked underneath — corrected `M2-A05.md`'s stale React-era content, its false "`M2-C02` implements the tenant picker" claim, and every `/api/auth/` route to `/api/v1/auth/`. See footnotes ¹¹² and ¹¹⁵)_             | P0       | —                                                              | 0.5 d    | G2   |
 
 ### M2-B — API structure
 
@@ -4517,3 +4517,31 @@ has no populated `Jwt:Secret`/`ConnectionStrings:MasterDb`, the same disclosed l
 every prior task here has recorded); `AllowCredentials: false` was decided but never
 exercised end-to-end (nothing issues a cookie today); the login form's tenant field has no
 validation beyond "required". Full detail: [`tasks/M2-A05.md`](tasks/M2-A05.md)'s Close-out.
+
+¹¹⁵ **`M2-A05` (carrying `M2-A11`, stacked underneath it) merged to `master` on owner
+instruction, 2026-08-27 ("merge"), both still `Needs Review` — not `Completed`.** As with
+`M2-C02`/`M2-C03` (footnotes ¹⁰⁶, ¹⁰⁹), the instruction was specifically to merge, not a
+review sign-off; nothing here infers `Completed` from "merged" alone, per KB-088. Merge:
+`git checkout master && git merge --no-ff migration/M2-A05-tenant-resolution-cors` — clean,
+no conflicts (`0d313d5`). Because `M2-A05`'s branch was stacked on the still-unmerged
+`M2-A11` branch, this single merge carried both tasks' commits (`cff586e`, `b261b58`,
+`9907f02`) onto `master` in one step; `M2-A11`'s row above is updated to match.
+
+**Post-merge re-verification, all observed, run on the merged `master` tip:** `dotnet build`
+`V.SMART.Api.csproj` — 0 errors, same ~6,696 pre-existing `MUD0002` warning baseline (the
+root `.sln` still cannot build directly — two projects both named `V.SMART`, a pre-existing
+condition unrelated to this merge, worked around by building the API project file directly
+as `M2-A05`'s own verification already did). `dotnet test tests/V.SMART.Api.Tests` —
+**619/619**. `dotnet test tests/V.SMART.Shared.Tests` — **102/103, 1 pre-existing unrelated
+skip**. `npm run typecheck` clean; `npm run lint` clean; `npm run format:check` flags the
+same 2 pre-existing files as on the branch (`eslint.config.js`,
+`no-float-money.spec.ts`, last touched by the `M2-C10` merge, neither touched by this task).
+`npm run test:ci`: first run 684/685 — the one failure was
+`data-grid.component.spec.ts` ("renders header, rows and the pager from one paged
+response," a timeout), the same pre-existing flake characterised at footnote ¹⁰⁶/¹⁰⁹; run in
+isolation immediately after, 22/22 clean, confirming self-healing, not a regression from
+this merge. `npm run build` clean; bundle 626.22 kB raw / 145.04 kB gzip, same disclosed
+26.22 kB CLI raw-budget warning as footnote ¹¹⁴ — independently confirmed pre-existing by
+building the pre-merge tip (`e90afc5`) in a scratch worktree: 626.04 kB raw there, so this
+merge's own contribution is 0.18 kB (the login form's new Tenant field), not a new
+condition. `npm run e2e` — **2/2**.
