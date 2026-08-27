@@ -20,8 +20,8 @@ of every task, after the diff is reviewed and committed.
 
 > **Looking for what to work on right now?** Read
 > [`current-task.md`](current-task.md) (KB-089) instead — it holds the one active task and
-> the minimum needed to execute it. This document is the *status of everything*; that one is
-> *the thing to do next*. When they disagree, this document is authoritative on status and
+> the minimum needed to execute it. This document is the _status of everything_; that one is
+> _the thing to do next_. When they disagree, this document is authoritative on status and
 > `current-task.md` must be corrected.
 >
 > Procedure for opening, completing and handing over a task:
@@ -33,14 +33,14 @@ COMPLETED`, with `BLOCKED` as an orthogonal flag rather than a phase
 
 The tables below use this document's original vocabulary. They are the same states:
 
-| Canonical | Used in the tables below |
-|---|---|
-| `PLANNED` | `Not Started` |
-| `READY` | `Ready` |
-| `IN_PROGRESS` / `IMPLEMENTATION` / `TESTING` | `In Progress` |
-| `REVIEW` | `Needs Review` |
-| `COMPLETED` | `Completed` |
-| *(flag)* `BLOCKED` | `Blocked` |
+| Canonical                                    | Used in the tables below |
+| -------------------------------------------- | ------------------------ |
+| `PLANNED`                                    | `Not Started`            |
+| `READY`                                      | `Ready`                  |
+| `IN_PROGRESS` / `IMPLEMENTATION` / `TESTING` | `In Progress`            |
+| `REVIEW`                                     | `Needs Review`           |
+| `COMPLETED`                                  | `Completed`              |
+| _(flag)_ `BLOCKED`                           | `Blocked`                |
 
 - `Ready` = every prerequisite is `Completed` and the task can be opened now.
 - `Blocked` = a prerequisite is incomplete, **or** an external answer is missing. Record
@@ -58,43 +58,43 @@ its children are `Completed` — it is never worked directly.
 
 ## M0 — Stabilise · Gate G0
 
-| Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
-|---|---|---|---|---|---|---|---|---|
-| M0-00 | M0 | Establish a clean version-control baseline | DevOps | **Completed** | P0 | — | 0.5 d | G0 |
-| M0-15 | M0 | Toolchain and build baseline | DevOps | **Completed**² | P0 | M0-00 | 0.5 d | G0 |
-| M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed**⁵ | P1 | M0-00 | 0.5 d | G0 |
-| M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Completed**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
-| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴˒⁸¹˒⁸⁴˒⁸⁵˒¹⁰⁰ *(C-1 and C-3 rotated and verified 2026-08-26 — §8 items 1–3 signed, footnote ⁸⁵; C-2 is **void**, footnote ⁸⁴; C-4 has no deployment target to rotate against — owner ruled 2026-08-27 this is not a blocker on other work, footnote ¹⁰⁰; C-5/C-7 not started — vendor-dependent)* | P0 | — | 1 d | G0 |
-| M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Completed**¹¹ | P0 | M0-00 | 1 d | G0 |
-| M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
-| M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Completed**⁸ | P0 | M0-03-01 | 0.5 d | G0 |
-| M0-03-03 | M0 | — fail-fast startup validation | Security | **Completed**⁹ | P0 | M0-03-02 | 0.5 d | G0 |
-| M0-05 | M0 | Purge secrets from git history | Security | Blocked | P0 | M0-03, M0-04 | 1 d | G0 |
-| M0-01 | M0 | Capture DDL for all 94 stored procedures *(parent)* | Database | **In Progress** | P0 | — | 4–5 d | G0 |
-| M0-01-01 | M0 | — reconcile the 94-name inventory vs the 13 scripted | Database | **Completed** | P0 | — | 1 d | G0 |
-| M0-01-02 | M0 | — script the missing procedures from a live tenant DB | Database | **Completed** | P0 | M0-01-01 | 2 d | G0 |
-| M0-01-03 | M0 | — deployment script + rebuild runbook | Database | **Needs Review**¹ ²¹ ³⁰ *(drill §§2–6 executed and passing; §7 and a named operator still outstanding; **merged** to `master` `1aa1106` 2026-08-21 on owner instruction — stays `Needs Review`: merging the runbook does not supply the operator)* | P0 | M0-01-02 | 1 d | G0 |
-| M0-02 | M0 | Confirm stored-procedure drift across tenants (Q-14) | Investigation | **Completed**⁶ | P1 | M0-01-02 | 1 d | G0 |
-| M0-12 | M0 | Test project + calculation tests *(parent)* | Testing | Not Started | P0 | M0-07 | 3 d | G0 |
-| M0-12-01 | M0 | — create the test project and wire it into CI | Testing | **Completed**¹² | P0 | M0-07 | 0.5 d | G0 |
-| M0-12-02 | M0 | — characterisation tests for `CalculationService` | Testing | **Completed**¹⁴ | P0 | M0-12-01 | 2.5 d | G0 |
-| M0-13 | M0 | Characterisation tests for `StockManagerService` | Testing | **Completed**¹³ | P0 | M0-12-01 | 3 d | G0 |
-| M0-09 | M0 | Fix the two unreachable delete guards (R-08) | Backend | **Completed**¹⁵ | P1 | M0-12-01 | 0.5 d | G0 |
-| M0-10 | M0 | Audit all `CanDelete…Async` guards (INV-025) | Investigation | **Completed**²⁹ *(merged to `master` `843a04e` on owner instruction 2026-08-21)* | P1 | M0-09 | 2 d | G0 |
-| M0-06 | M0 | Remove the seeded default Administrator credential | Security | **Blocked**⁹⁵ *(seed removed, empty-`Up()` migration, runbook written 2026-08-19; branch found unmerged and merged 2026-08-26. **Q-26 answered 2026-08-27** (option (a), ops procedure — no new code, see `KB-106` §1a) — acceptance criterion 2 now has a documented procedure. **Still `Blocked` on Q-25 alone**: needs production tenant-database access nobody on this project has, to confirm no tenant's only administrator is the seeded account before any existing-tenant removal may run. See footnote ⁹⁵)* | P1 | M0-12-01 | 1 d | G0 |
-| M0-14 | M0 | Gate `DetailedErrors` on `IsDevelopment()` | Security | **Completed**¹⁰ | P2 | M0-03-01 | 0.5 d | G0 |
-| M0-11 | M0 | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | **Completed**¹⁷˒⁹⁸ *(owner confirmed Completed 2026-08-27. `ADR-006-fifo-under-issue.md` written 2026-08-27, recording the owner's already-made 2026-08-19 decision — Option B, preserve-but-surface. Zero files touched under `V.SMART/` or `tests/`. See footnote ⁹⁸)* | P0 | M0-13 | decision | G0 |
+| Task ID  | Milestone | Task                                                  | Type             | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Priority | Depends On   | Estimate | Gate |
+| -------- | --------- | ----------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------ | -------- | ---- |
+| M0-00    | M0        | Establish a clean version-control baseline            | DevOps           | **Completed**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | P0       | —            | 0.5 d    | G0   |
+| M0-15    | M0        | Toolchain and build baseline                          | DevOps           | **Completed**²                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | P0       | M0-00        | 0.5 d    | G0   |
+| M0-08    | M0        | `.gitignore` + remove committed build output          | DevOps           | **Completed**⁵                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | P1       | M0-00        | 0.5 d    | G0   |
+| M0-07    | M0        | CI pipeline: restore → build → analyzers              | DevOps           | **Completed**⁷                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | P0       | M0-15, M0-08 | 2 d      | G0   |
+| M0-04    | M0        | Rotate the exposed credentials                        | Security         | **Blocked**⁴˒⁸¹˒⁸⁴˒⁸⁵˒¹⁰⁰ _(C-1 and C-3 rotated and verified 2026-08-26 — §8 items 1–3 signed, footnote ⁸⁵; C-2 is **void**, footnote ⁸⁴; C-4 has no deployment target to rotate against — owner ruled 2026-08-27 this is not a blocker on other work, footnote ¹⁰⁰; C-5/C-7 not started — vendor-dependent)_                                                                                                                                                                                                         | P0       | —            | 1 d      | G0   |
+| M0-03    | M0        | Externalise configuration secrets _(parent)_          | Security         | **Completed**¹¹                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | P0       | M0-00        | 1 d      | G0   |
+| M0-03-01 | M0        | — `appsettings.json` → environment / user-secrets     | Security         | **Completed**³                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | P0       | M0-00        | 0.5 d    | G0   |
+| M0-03-02 | M0        | — hardcoded connection strings in C#                  | Security         | **Completed**⁸                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | P0       | M0-03-01     | 0.5 d    | G0   |
+| M0-03-03 | M0        | — fail-fast startup validation                        | Security         | **Completed**⁹                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | P0       | M0-03-02     | 0.5 d    | G0   |
+| M0-05    | M0        | Purge secrets from git history                        | Security         | Blocked                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | P0       | M0-03, M0-04 | 1 d      | G0   |
+| M0-01    | M0        | Capture DDL for all 94 stored procedures _(parent)_   | Database         | **In Progress**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | P0       | —            | 4–5 d    | G0   |
+| M0-01-01 | M0        | — reconcile the 94-name inventory vs the 13 scripted  | Database         | **Completed**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | P0       | —            | 1 d      | G0   |
+| M0-01-02 | M0        | — script the missing procedures from a live tenant DB | Database         | **Completed**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | P0       | M0-01-01     | 2 d      | G0   |
+| M0-01-03 | M0        | — deployment script + rebuild runbook                 | Database         | **Needs Review**¹ ²¹ ³⁰ _(drill §§2–6 executed and passing; §7 and a named operator still outstanding; **merged** to `master` `1aa1106` 2026-08-21 on owner instruction — stays `Needs Review`: merging the runbook does not supply the operator)_                                                                                                                                                                                                                                                                    | P0       | M0-01-02     | 1 d      | G0   |
+| M0-02    | M0        | Confirm stored-procedure drift across tenants (Q-14)  | Investigation    | **Completed**⁶                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | P1       | M0-01-02     | 1 d      | G0   |
+| M0-12    | M0        | Test project + calculation tests _(parent)_           | Testing          | Not Started                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | P0       | M0-07        | 3 d      | G0   |
+| M0-12-01 | M0        | — create the test project and wire it into CI         | Testing          | **Completed**¹²                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | P0       | M0-07        | 0.5 d    | G0   |
+| M0-12-02 | M0        | — characterisation tests for `CalculationService`     | Testing          | **Completed**¹⁴                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | P0       | M0-12-01     | 2.5 d    | G0   |
+| M0-13    | M0        | Characterisation tests for `StockManagerService`      | Testing          | **Completed**¹³                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | P0       | M0-12-01     | 3 d      | G0   |
+| M0-09    | M0        | Fix the two unreachable delete guards (R-08)          | Backend          | **Completed**¹⁵                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | P1       | M0-12-01     | 0.5 d    | G0   |
+| M0-10    | M0        | Audit all `CanDelete…Async` guards (INV-025)          | Investigation    | **Completed**²⁹ _(merged to `master` `843a04e` on owner instruction 2026-08-21)_                                                                                                                                                                                                                                                                                                                                                                                                                                      | P1       | M0-09        | 2 d      | G0   |
+| M0-06    | M0        | Remove the seeded default Administrator credential    | Security         | **Blocked**⁹⁵ _(seed removed, empty-`Up()` migration, runbook written 2026-08-19; branch found unmerged and merged 2026-08-26. **Q-26 answered 2026-08-27** (option (a), ops procedure — no new code, see `KB-106` §1a) — acceptance criterion 2 now has a documented procedure. **Still `Blocked` on Q-25 alone**: needs production tenant-database access nobody on this project has, to confirm no tenant's only administrator is the seeded account before any existing-tenant removal may run. See footnote ⁹⁵)_ | P1       | M0-12-01     | 1 d      | G0   |
+| M0-14    | M0        | Gate `DetailedErrors` on `IsDevelopment()`            | Security         | **Completed**¹⁰                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | P2       | M0-03-01     | 0.5 d    | G0   |
+| M0-11    | M0        | **Product decision** — silent FIFO under-issue (Q-01) | Product Decision | **Completed**¹⁷˒⁹⁸ _(owner confirmed Completed 2026-08-27. `ADR-006-fifo-under-issue.md` written 2026-08-27, recording the owner's already-made 2026-08-19 decision — Option B, preserve-but-surface. Zero files touched under `V.SMART/` or `tests/`. See footnote ⁹⁸)_                                                                                                                                                                                                                                              | P0       | M0-13        | decision | G0   |
 
 ## M1 — Repository Understanding · Gate G1 ✅
 
-| Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
-|---|---|---|---|---|---|---|---|---|
-| M1-01 | M1 | Architecture, data, auth, tenancy, UI analysis | Investigation | **Completed** | P0 | — | — | G1 ✅ |
-| M1-02 | M1 | Module inventory + dependency graph | Investigation | **Completed** | P0 | — | — | G1 ✅ |
-| M1-03 | M1 | API surface + readiness assessment | Investigation | **Completed** | P0 | — | — | G1 ✅ |
-| M1-04 | M1 | Business-rule seed (12 rules) + template | Investigation | **Completed** | P0 | — | — | G1 ✅ |
-| M1-05 | M1 | Knowledge base + investigation registry + 5 ADRs | Documentation | **Completed** | P0 | — | — | G1 ✅ |
-| M1-06 | M1 | Per-module rule extraction (INV-012…020, 024…028) | Investigation | *Rolling* | P1 | per wave | per wave | — |
+| Task ID | Milestone | Task                                              | Type          | Status        | Priority | Depends On | Estimate | Gate  |
+| ------- | --------- | ------------------------------------------------- | ------------- | ------------- | -------- | ---------- | -------- | ----- |
+| M1-01   | M1        | Architecture, data, auth, tenancy, UI analysis    | Investigation | **Completed** | P0       | —          | —        | G1 ✅ |
+| M1-02   | M1        | Module inventory + dependency graph               | Investigation | **Completed** | P0       | —          | —        | G1 ✅ |
+| M1-03   | M1        | API surface + readiness assessment                | Investigation | **Completed** | P0       | —          | —        | G1 ✅ |
+| M1-04   | M1        | Business-rule seed (12 rules) + template          | Investigation | **Completed** | P0       | —          | —        | G1 ✅ |
+| M1-05   | M1        | Knowledge base + investigation registry + 5 ADRs  | Documentation | **Completed** | P0       | —          | —        | G1 ✅ |
+| M1-06   | M1        | Per-module rule extraction (INV-012…020, 024…028) | Investigation | _Rolling_     | P1       | per wave   | per wave | —     |
 
 M1-06 is intentionally never "Completed" — it is a recurring obligation discharged one wave
 ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding)).
@@ -103,185 +103,185 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 ### M2-A — Security and contract
 
-| Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
-|---|---|---|---|---|---|---|---|---|
-| M2-A01 | M2 | Server-side screen-right authorization *(parent)* | Security | **In Progress** | P0 | G0 | 1–2 wks | G2 |
-| M2-A01-01 | M2 | — implementation spec from ADR-004 | Architecture | **Completed**¹⁸ | P0 | G0 *(exception)* | 2 d | G2 |
-| M2-A01-02 | M2 | — implement `[RequireScreen]` / `[RequireRight]` | Security | **Completed**²⁵ | P0 | M2-A01-01 | 3 d | G2 |
-| M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Completed**²⁷ | P0 | M2-A01-02 | 2 d | G2 |
-| M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Completed**⁵⁹˒⁶² *(merged to `master` on owner instruction 2026-08-24)* | P0 | M2-A01-03 | 1 d | G2 |
-| M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | **Completed**⁶³˒⁶⁴˒⁸² *(the last criterion closed 2026-08-26 — owner added the required status check in GitHub branch protection; see footnote ⁸²)* | P0 | M2-A02 | 3 d | G2 |
-| M2-A04 | M2 | Refresh tokens + revocation | Security | **Completed**⁴⁸˒¹⁰⁰˒¹⁰¹˒¹⁰⁴ *(implemented 2026-08-27 — short access tokens, hashed rotating/revocable refresh tokens, one additive EF migration; 613/613 API tests pass, 0 build errors. Merged `72a5758`; owner-confirmed Completed 2026-08-27. See footnotes ¹⁰¹ and ¹⁰⁴)* | P0 | M2-A01-02, **M0-03-03** *(re-scoped from M0-04, footnote ¹⁰⁰)* | 3–5 d | G2 |
-| M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
-| M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
-| M2-A07 | M2 | `GET /api/v1/me` | Backend | **Completed**³⁷ *(merged to `master` `80c209b` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 2 d | G2 |
-| M2-A08 | M2 | Row-level scoping + account gates (Q-05…Q-08) | Security | **Completed**²⁹˒³⁹ *(merged to `master` `380c805` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 3 d | G2 |
-| M2-A09 | M2 | Remove the two phantom screen names from `ScreenCatalogue` (R-65) | Security | **Completed**⁶⁰˒⁶² *(merged to `master` on owner instruction 2026-08-24)* | P0 | M2-A01-03 | 0.5 d | G2 |
-| M2-A10 | M2 | Seed administrator rights on the API login path (Q-28) | Security | **Completed**⁶¹˒⁶² *(merged to `master` on owner instruction 2026-08-24)* | P1 | M2-A01-03 | 0.5 d | G2 |
+| Task ID   | Milestone | Task                                                              | Type         | Status                                                                                                                                                                                                                                                                       | Priority | Depends On                                                     | Estimate | Gate |
+| --------- | --------- | ----------------------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------- | -------- | ---- |
+| M2-A01    | M2        | Server-side screen-right authorization _(parent)_                 | Security     | **In Progress**                                                                                                                                                                                                                                                              | P0       | G0                                                             | 1–2 wks  | G2   |
+| M2-A01-01 | M2        | — implementation spec from ADR-004                                | Architecture | **Completed**¹⁸                                                                                                                                                                                                                                                              | P0       | G0 _(exception)_                                               | 2 d      | G2   |
+| M2-A01-02 | M2        | — implement `[RequireScreen]` / `[RequireRight]`                  | Security     | **Completed**²⁵                                                                                                                                                                                                                                                              | P0       | M2-A01-01                                                      | 3 d      | G2   |
+| M2-A01-03 | M2        | — per-request rights resolution + caching                         | Security     | **Completed**²⁷                                                                                                                                                                                                                                                              | P0       | M2-A01-02                                                      | 2 d      | G2   |
+| M2-A02    | M2        | Apply to `CurrencyController` + denial tests                      | Security     | **Completed**⁵⁹˒⁶² _(merged to `master` on owner instruction 2026-08-24)_                                                                                                                                                                                                    | P0       | M2-A01-03                                                      | 1 d      | G2   |
+| M2-A03    | M2        | Permission-matrix test harness (CI gate)                          | Testing      | **Completed**⁶³˒⁶⁴˒⁸² _(the last criterion closed 2026-08-26 — owner added the required status check in GitHub branch protection; see footnote ⁸²)_                                                                                                                          | P0       | M2-A02                                                         | 3 d      | G2   |
+| M2-A04    | M2        | Refresh tokens + revocation                                       | Security     | **Completed**⁴⁸˒¹⁰⁰˒¹⁰¹˒¹⁰⁴ _(implemented 2026-08-27 — short access tokens, hashed rotating/revocable refresh tokens, one additive EF migration; 613/613 API tests pass, 0 build errors. Merged `72a5758`; owner-confirmed Completed 2026-08-27. See footnotes ¹⁰¹ and ¹⁰⁴)_ | P0       | M2-A01-02, **M0-03-03** _(re-scoped from M0-04, footnote ¹⁰⁰)_ | 3–5 d    | G2   |
+| M2-A05    | M2        | Cross-origin SPA tenant resolution + real CORS                    | Security     | Blocked                                                                                                                                                                                                                                                                      | P0       | M2-A04                                                         | 3–5 d    | G2   |
+| M2-A06    | M2        | Exception middleware → `ProblemDetails`                           | Backend      | **Completed**²³                                                                                                                                                                                                                                                              | P0       | G0                                                             | 3–5 d    | G2   |
+| M2-A07    | M2        | `GET /api/v1/me`                                                  | Backend      | **Completed**³⁷ _(merged to `master` `80c209b` on owner instruction 2026-08-21)_                                                                                                                                                                                             | P0       | M2-A01-03                                                      | 2 d      | G2   |
+| M2-A08    | M2        | Row-level scoping + account gates (Q-05…Q-08)                     | Security     | **Completed**²⁹˒³⁹ _(merged to `master` `380c805` on owner instruction 2026-08-21)_                                                                                                                                                                                          | P0       | M2-A01-03                                                      | 3 d      | G2   |
+| M2-A09    | M2        | Remove the two phantom screen names from `ScreenCatalogue` (R-65) | Security     | **Completed**⁶⁰˒⁶² _(merged to `master` on owner instruction 2026-08-24)_                                                                                                                                                                                                    | P0       | M2-A01-03                                                      | 0.5 d    | G2   |
+| M2-A10    | M2        | Seed administrator rights on the API login path (Q-28)            | Security     | **Completed**⁶¹˒⁶² _(merged to `master` on owner instruction 2026-08-24)_                                                                                                                                                                                                    | P1       | M2-A01-03                                                      | 0.5 d    | G2   |
 
 ### M2-B — API structure
 
-| Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
-|---|---|---|---|---|---|---|---|---|
-| M2-B07 | M2 | Shared `AddVSmartDomain()` DI extension | Backend | **Completed**²⁰ | P0 | G0 | 3 d | G2 |
-| M2-B04 | M2 | Decouple `IApprovalService` + 13 `Pages` refs | Backend | **Completed**²⁸ *(merged to `master` `f054c75` on owner instruction 2026-08-21)* | P0 | M2-B07 | 1 wk | G2 |
-| M2-B01 | M2 | API versioning → `/api/v1` | Backend | **Completed**³³ | P1 | M2-B07 | 1 d | G2 |
-| M2-B02 | M2 | Paging / sort / filter contract | Backend | **Completed**²⁴ | P0 | M2-A06 | 1 wk | G2 |
-| M2-B03 | M2 | Codify the controller template | Documentation | **Completed**⁶⁵˒⁶⁶ *(merged to `master` on owner instruction 2026-08-24 — KB-114)* | P0 | M2-A02, M2-B02 | 2 d | G2 |
-| M2-B05 | M2 | Typed `StoreIds` constants (R-66, re-spec of `ScreenCodes`/R-10) | Backend | **Completed**³¹˒⁹⁴ *(re-specified, implemented and merged 2026-08-26 — `ScreenCodes`/R-10 premise stays falsified, not reintroduced; `StoreIds` generated from the `Store` seed, all 55 confirmed `storeId` literals replaced, value-equality proven, both builds 0 errors. **Owner-confirmed Completed same day despite the live two-screen smoke test not being performed** — no running Blazor instance was available; not recorded as done. See footnote ⁹⁴)* | P1 | — | 2 d | G2 |
-| M2-B06 | M2 | File upload / download endpoints | Backend | **Completed**³² ³⁵ *(merged to `master` 2026-08-21, `65d9666`)* | P1 | M2-A06, M2-B01 | 1 wk | G2 |
-| M2-B08 | M2 | Report + print endpoints (ADR-005) | Backend | **Needs Review**⁷³˒⁹¹˒⁹⁶ *(implemented and verified 2026-08-27 — `ApiPathProvider`, 3 print + 3 report seed entries, 7 controllers; **585/585 API tests** including a real integration gap the harness caught and this session fixed; all 7 referenced stored procedures confirmed executable against a live tenant database. Live-login 200-path not verified — see footnote ⁹⁶)* | P1 | **M2-B07**, M2-A01-03, G0 | 1 wk | G2 |
-| M2-B09 | M2 | Reference-data endpoints + caching | Backend | **Completed**³⁴ *(merged to `master` `501b12d` on owner instruction 2026-08-21)* | P1 | **M2-B07**, M2-B02, M2-B01 | 3 d | G2 |
-| M2-B10 | M2 | OpenAPI + TypeScript client generation in CI | DevOps | **Completed**⁶⁷˒⁶⁸ *(merged to `master` on owner instruction 2026-08-25)* | P0 | M2-B03 | 3 d | G2 |
-| M2-B11 | M2 | Health checks + structured logging (R-23) | DevOps | **Completed**³⁶ *(merged to `master` `955620a` on owner instruction 2026-08-21)* | P2 | M2-A06 | 3 d | G2 |
-| M2-B12 | M2 | Document numbering hardening *(parent)* | Backend | Not Started *(parent — never worked directly)* | P0 | M2-B07 | 1 wk | G2 |
-| M2-B12-01 | M2 | — INV-012 numbering investigation | Investigation | **Completed**²⁹˒⁸⁶ *(owner reviewed fix `8a54f96` directly and merged, 2026-08-26 — see footnote ⁸⁶)* | P0 | M2-B07 | 2 d | G2 |
-| M2-B12-02 | M2 | — verify unique constraints in a live DB (Q-10) | Database | **Completed**⁸⁷ *(owner reviewed and closed 2026-08-26, merged `2cb9925`; Q-10 answered for `NexGenErpDb`. See footnote ⁸⁷ and KB-101 §5)* | P0 | M2-B12-01 | 1 d | G2 |
-| M2-B13 | M2 | — money-as-string JSON convention (Q-85) | Backend | **Completed**⁹⁰ *(implements the `M2-C10` diagnosis's decision — `MoneyJsonConverter`, `KB-114` §8a, `ADR-002` §2b, 6 new tests, full suite 514/514 passing. See footnote ⁹⁰)* | P0 | — | 0.5 d | G2 |
-| M2-B12-03 | M2 | — race-safe allocation + idempotency (R-12) | Backend | Blocked⁸⁸˒⁹¹ *(Hard prerequisite `M2-B12-02` now `Completed` — part 1 of the five-part test clears. **`M2-B08`'s SDK-unobtainable environment finding is itself stale on this workstation** — `dotnet --version` reports `10.0.400`, the exact pin, installed and working, verified building/testing `V.SMART.Api` repeatedly this session. See footnote ⁹¹)* | P0 | M2-B12-02 | 3 d | G2 |
+| Task ID   | Milestone | Task                                                             | Type          | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Priority | Depends On                 | Estimate | Gate |
+| --------- | --------- | ---------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------- | -------- | ---- |
+| M2-B07    | M2        | Shared `AddVSmartDomain()` DI extension                          | Backend       | **Completed**²⁰                                                                                                                                                                                                                                                                                                                                                                                                                                                   | P0       | G0                         | 3 d      | G2   |
+| M2-B04    | M2        | Decouple `IApprovalService` + 13 `Pages` refs                    | Backend       | **Completed**²⁸ _(merged to `master` `f054c75` on owner instruction 2026-08-21)_                                                                                                                                                                                                                                                                                                                                                                                  | P0       | M2-B07                     | 1 wk     | G2   |
+| M2-B01    | M2        | API versioning → `/api/v1`                                       | Backend       | **Completed**³³                                                                                                                                                                                                                                                                                                                                                                                                                                                   | P1       | M2-B07                     | 1 d      | G2   |
+| M2-B02    | M2        | Paging / sort / filter contract                                  | Backend       | **Completed**²⁴                                                                                                                                                                                                                                                                                                                                                                                                                                                   | P0       | M2-A06                     | 1 wk     | G2   |
+| M2-B03    | M2        | Codify the controller template                                   | Documentation | **Completed**⁶⁵˒⁶⁶ _(merged to `master` on owner instruction 2026-08-24 — KB-114)_                                                                                                                                                                                                                                                                                                                                                                                | P0       | M2-A02, M2-B02             | 2 d      | G2   |
+| M2-B05    | M2        | Typed `StoreIds` constants (R-66, re-spec of `ScreenCodes`/R-10) | Backend       | **Completed**³¹˒⁹⁴ _(re-specified, implemented and merged 2026-08-26 — `ScreenCodes`/R-10 premise stays falsified, not reintroduced; `StoreIds` generated from the `Store` seed, all 55 confirmed `storeId` literals replaced, value-equality proven, both builds 0 errors. **Owner-confirmed Completed same day despite the live two-screen smoke test not being performed** — no running Blazor instance was available; not recorded as done. See footnote ⁹⁴)_ | P1       | —                          | 2 d      | G2   |
+| M2-B06    | M2        | File upload / download endpoints                                 | Backend       | **Completed**³² ³⁵ _(merged to `master` 2026-08-21, `65d9666`)_                                                                                                                                                                                                                                                                                                                                                                                                   | P1       | M2-A06, M2-B01             | 1 wk     | G2   |
+| M2-B08    | M2        | Report + print endpoints (ADR-005)                               | Backend       | **Needs Review**⁷³˒⁹¹˒⁹⁶ _(implemented and verified 2026-08-27 — `ApiPathProvider`, 3 print + 3 report seed entries, 7 controllers; **585/585 API tests** including a real integration gap the harness caught and this session fixed; all 7 referenced stored procedures confirmed executable against a live tenant database. Live-login 200-path not verified — see footnote ⁹⁶)_                                                                                | P1       | **M2-B07**, M2-A01-03, G0  | 1 wk     | G2   |
+| M2-B09    | M2        | Reference-data endpoints + caching                               | Backend       | **Completed**³⁴ _(merged to `master` `501b12d` on owner instruction 2026-08-21)_                                                                                                                                                                                                                                                                                                                                                                                  | P1       | **M2-B07**, M2-B02, M2-B01 | 3 d      | G2   |
+| M2-B10    | M2        | OpenAPI + TypeScript client generation in CI                     | DevOps        | **Completed**⁶⁷˒⁶⁸ _(merged to `master` on owner instruction 2026-08-25)_                                                                                                                                                                                                                                                                                                                                                                                         | P0       | M2-B03                     | 3 d      | G2   |
+| M2-B11    | M2        | Health checks + structured logging (R-23)                        | DevOps        | **Completed**³⁶ _(merged to `master` `955620a` on owner instruction 2026-08-21)_                                                                                                                                                                                                                                                                                                                                                                                  | P2       | M2-A06                     | 3 d      | G2   |
+| M2-B12    | M2        | Document numbering hardening _(parent)_                          | Backend       | Not Started _(parent — never worked directly)_                                                                                                                                                                                                                                                                                                                                                                                                                    | P0       | M2-B07                     | 1 wk     | G2   |
+| M2-B12-01 | M2        | — INV-012 numbering investigation                                | Investigation | **Completed**²⁹˒⁸⁶ _(owner reviewed fix `8a54f96` directly and merged, 2026-08-26 — see footnote ⁸⁶)_                                                                                                                                                                                                                                                                                                                                                             | P0       | M2-B07                     | 2 d      | G2   |
+| M2-B12-02 | M2        | — verify unique constraints in a live DB (Q-10)                  | Database      | **Completed**⁸⁷ _(owner reviewed and closed 2026-08-26, merged `2cb9925`; Q-10 answered for `NexGenErpDb`. See footnote ⁸⁷ and KB-101 §5)_                                                                                                                                                                                                                                                                                                                        | P0       | M2-B12-01                  | 1 d      | G2   |
+| M2-B13    | M2        | — money-as-string JSON convention (Q-85)                         | Backend       | **Completed**⁹⁰ _(implements the `M2-C10` diagnosis's decision — `MoneyJsonConverter`, `KB-114` §8a, `ADR-002` §2b, 6 new tests, full suite 514/514 passing. See footnote ⁹⁰)_                                                                                                                                                                                                                                                                                    | P0       | —                          | 0.5 d    | G2   |
+| M2-B12-03 | M2        | — race-safe allocation + idempotency (R-12)                      | Backend       | Blocked⁸⁸˒⁹¹ _(Hard prerequisite `M2-B12-02` now `Completed` — part 1 of the five-part test clears. **`M2-B08`'s SDK-unobtainable environment finding is itself stale on this workstation** — `dotnet --version` reports `10.0.400`, the exact pin, installed and working, verified building/testing `V.SMART.Api` repeatedly this session. See footnote ⁹¹)_                                                                                                     | P0       | M2-B12-02                  | 3 d      | G2   |
 
 ### M2-C — Frontend foundation (Angular, per [ADR-007](../decisions/ADR-007-angular-stack.md))
 
-| Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
-|---|---|---|---|---|---|---|---|---|
-| M2-C00 | M2 | Rewrite KB-050 frontend architecture for Angular | Documentation | **Completed**²⁶˒³⁸ *(merged to `master` `0da6a35` on owner instruction 2026-08-21)* | P0 | G0 | 2 d | G2 |
-| M2-C01 | M2 | Angular CLI + TS strict + lint + test + CI | Frontend | **Completed**²⁶˒⁴⁰ *(merged to `master` `2dd4e53` on owner instruction 2026-08-21)* | P0 | M2-C00 | 3 d | G2 |
-| M2-C11 | M2 | Retire the Angular pilot (`frontend/vsmart-erp/`) | DevOps | **Completed**²⁶˒³⁸˒⁹⁷ *(Q-38 answered and owner-confirmed Completed 2026-08-27, option (a) — pilot removed, 40 files, tag `pre-m2-c11-archive`; `nexgen-web` build independently confirmed unaffected. See footnote ⁹⁷)* | P2 | M2-C00 | 0.5 d | G2 |
-| M2-C12 | M2 | **Re-specify the superseded M2-C / M2-D tree for Angular** *(parent)* | Documentation | **Completed**⁴¹˒⁴⁶ *(parent — all five sub-tasks Completed and merged; 25 of 25 specs re-specified, zero ⛔ banners remain)* | P0 | M2-C00, M2-C01 | 4 d | G2 |
-| M2-C12-01 | M2 | — re-spec the design-system tree (M2-C04*) | Documentation | **Completed**⁴²˒⁴³ *(merged to `master` 2026-08-22 on owner instruction; the `FAIL` was a defect in criterion 7, not in the work — see footnote ⁴³)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
-| M2-C12-02 | M2 | — re-spec auth, routing, decimal, pilot-adoption | Documentation | **Completed**⁴¹ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
-| M2-C12-03 | M2 | — re-spec the list / CRUD shell (M2-C05*, M2-C06) | Documentation | **Completed**⁴⁴ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
-| M2-C12-04 | M2 | — re-spec documents + reports (M2-C07…C09) | Documentation | **Completed**⁴⁵ *(merged to `master` on owner instruction 2026-08-22)* | P0 | M2-C00, M2-C01 | 1 d | G2 |
-| M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Completed**⁴⁶ *(merged to `master` `27dfc5d` on owner instruction 2026-08-23)* | P0 | M2-C12-01…04 | 1 d | G2 |
-| M2-C13 | M2 | Defer the confirm-dialog host; bundle back inside budget (R-69) | Frontend | **Completed**⁵⁵˒⁵⁶˒⁵⁷ | P1 | M2-C04-03 | 1 d | G2 |
-| M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Completed**²⁶˒⁴⁶˒⁴⁷˒⁵²˒⁸⁵˒⁸⁹˒⁹²˒⁹³ *(**Merged and integration-verified 2026-08-26**, owner-confirmed Completed same day — `decimal.js` module, `money` pipe, ESLint/spec-scan enforcement; a real lint gap against `M2-C05-01`'s DataGrid found and fixed, not glossed over. Full suite: `test:ci` 526/526, `build` clean, 0 bundle regression. `DECIMAL_PORT` production wiring remains an open gap for a future task. See footnote ⁹³)* | P0 | M2-C01 | 2 d | G2 |
-| M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | **Completed**⁴⁶˒¹⁰⁴˒¹⁰⁵˒¹⁰⁶˒¹⁰⁷ *(implemented and merged to `master` `6298732` 2026-08-27; owner-confirmed Completed same day — login, single-flight refresh, route guards, permission store, idle timeout all built and verified; two real bugs and one real functional gap found and fixed during implementation, two disclosed deviations recorded, post-merge re-verification clean. See footnotes ¹⁰⁵–¹⁰⁷)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
-| M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | **Completed**⁴⁶˒⁵⁴ *(parent — all three children `Completed` and merged)* | P0 | M2-C01 | 2 wks | G2 |
-| M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
-| M2-C04-02 | M2 | — form controls + validation display | Frontend | **Completed**⁵¹˒⁵² *(merged to `master` on owner instruction 2026-08-23; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 4 d | G2 |
-| M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Completed**⁵³˒⁵⁴ *(merged to `master` on owner instruction 2026-08-24; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 3 d | G2 |
-| M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | **Needs Review**⁴⁶˒¹⁰⁷˒¹⁰⁸ *(implemented 2026-08-27 — INV-033 nav mapping, permission-filtered sidebar/palette, header, breadcrumbs, responsive shell, real routes tree; `typecheck`/`lint`/`format:check`/`build`/`e2e` clean, every new spec passes in isolation. Two real test-infrastructure leaks found and fixed. See footnote ¹⁰⁸)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
-| M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
-| M2-C05-01 | M2 | — server-paged table core | Frontend | **Completed**⁷⁴ *(the `Needs Review`/"unmerged" reading was stale — `git log --first-parent` shows `bf2b4cd` "Merge M2-C05-01" on `master`'s own first-parent line, and all 18 files are present at `HEAD`; corrected 2026-08-26)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
-| M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Blocked**⁷⁹ *(dispatched 2026-08-26, stopped at implement — the endpoint pair does not exist, no real fixture capture, and `M2-C02` is `Blocked`; see footnote ⁷⁹)* | P1 | M2-C05-01 | 2 d | G2 |
-| M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Completed**⁷⁵˒⁷⁶ *(owner instructed the merge 2026-08-26; merged `--no-ff`, verified on the merged result)* | P1 | M2-C05-01 | 2 d | G2 |
-| M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Completed**⁷⁵˒⁸³ *(merged to `master` 2026-08-26 on owner instruction; independently validated PASS)* | P0 | M2-C05-01 | 1 wk | G2 |
-| M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | **Completed**⁴⁶˒⁹⁹˒¹⁰²˒¹⁰³˒¹⁰⁴ *(implemented 2026-08-27 — all 18 planned files, 566/566 frontend tests pass, `typecheck`/`lint`/`format:check`/`build` all clean; the 200-row typing-latency figure, genuinely not obtained at first close-out, was measured 2026-08-27 by a follow-up session — 0.1–0.3 ms/keystroke, well inside the 50 ms target. Merged `72a5758`; owner-confirmed Completed 2026-08-27. See footnotes ¹⁰² – ¹⁰⁴)* | P0 | M2-C05-01, M2-C10, M2-C04-02, M2-C04-03 | 2 wks | G2 |
-| M2-C08 | M2 | `DocumentEditor` shell *(parent)* | Frontend | Not Started¹⁰⁴ *(parent — never worked directly, so never `Ready`; re-specified by `M2-C12-04`; its Hard prerequisite `M2-C07` is `Completed` and merged as of 2026-08-27 — see M2-C08-01)* | P0 | M2-C07 | 2 wks | G2 |
-| M2-C08-01 | M2 | — layout: header + lines + totals + commands | Frontend | **Ready**⁴⁶˒¹⁰⁴ *(re-specified by `M2-C12-04`; its Hard prerequisite `M2-C07` is `Completed` and merged as of 2026-08-27. See footnote ¹⁰⁴)* | P0 | M2-C07 | 4 d | G2 |
-| M2-C08-02 | M2 | — server-authoritative totals wiring | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)* | P0 | M2-C08-01 | 3 d | G2 |
-| M2-C08-03 | M2 | — workflow command pattern | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)* | P0 | M2-C08-01 | 3 d | G2 |
-| M2-C09 | M2 | `ReportPage` framework | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-B08`)* | P1 | M2-C05-01, M2-B08 | 1 wk | G2 |
+| Task ID   | Milestone | Task                                                                  | Type          | Status                                                                                                                                                                                                                                                                                                                                                                                                                                             | Priority | Depends On                              | Estimate | Gate |
+| --------- | --------- | --------------------------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------- | -------- | ---- |
+| M2-C00    | M2        | Rewrite KB-050 frontend architecture for Angular                      | Documentation | **Completed**²⁶˒³⁸ _(merged to `master` `0da6a35` on owner instruction 2026-08-21)_                                                                                                                                                                                                                                                                                                                                                                | P0       | G0                                      | 2 d      | G2   |
+| M2-C01    | M2        | Angular CLI + TS strict + lint + test + CI                            | Frontend      | **Completed**²⁶˒⁴⁰ _(merged to `master` `2dd4e53` on owner instruction 2026-08-21)_                                                                                                                                                                                                                                                                                                                                                                | P0       | M2-C00                                  | 3 d      | G2   |
+| M2-C11    | M2        | Retire the Angular pilot (`frontend/vsmart-erp/`)                     | DevOps        | **Completed**²⁶˒³⁸˒⁹⁷ _(Q-38 answered and owner-confirmed Completed 2026-08-27, option (a) — pilot removed, 40 files, tag `pre-m2-c11-archive`; `nexgen-web` build independently confirmed unaffected. See footnote ⁹⁷)_                                                                                                                                                                                                                           | P2       | M2-C00                                  | 0.5 d    | G2   |
+| M2-C12    | M2        | **Re-specify the superseded M2-C / M2-D tree for Angular** _(parent)_ | Documentation | **Completed**⁴¹˒⁴⁶ _(parent — all five sub-tasks Completed and merged; 25 of 25 specs re-specified, zero ⛔ banners remain)_                                                                                                                                                                                                                                                                                                                       | P0       | M2-C00, M2-C01                          | 4 d      | G2   |
+| M2-C12-01 | M2        | — re-spec the design-system tree (M2-C04*)                            | Documentation | **Completed**⁴²˒⁴³ _(merged to `master` 2026-08-22 on owner instruction; the `FAIL` was a defect in criterion 7, not in the work — see footnote ⁴³)_                                                                                                                                                                                                                                                                                               | P0       | M2-C00, M2-C01                          | 1 d      | G2   |
+| M2-C12-02 | M2        | — re-spec auth, routing, decimal, pilot-adoption                      | Documentation | **Completed**⁴¹ _(merged to `master` on owner instruction 2026-08-22)_                                                                                                                                                                                                                                                                                                                                                                             | P0       | M2-C00, M2-C01                          | 1 d      | G2   |
+| M2-C12-03 | M2        | — re-spec the list / CRUD shell (M2-C05*, M2-C06)                     | Documentation | **Completed**⁴⁴ _(merged to `master` on owner instruction 2026-08-22)_                                                                                                                                                                                                                                                                                                                                                                             | P0       | M2-C00, M2-C01                          | 1 d      | G2   |
+| M2-C12-04 | M2        | — re-spec documents + reports (M2-C07…C09)                            | Documentation | **Completed**⁴⁵ _(merged to `master` on owner instruction 2026-08-22)_                                                                                                                                                                                                                                                                                                                                                                             | P0       | M2-C00, M2-C01                          | 1 d      | G2   |
+| M2-C12-05 | M2        | — re-spec the M2-D tree + restate the tracker                         | Documentation | **Completed**⁴⁶ _(merged to `master` `27dfc5d` on owner instruction 2026-08-23)_                                                                                                                                                                                                                                                                                                                                                                   | P0       | M2-C12-01…04                            | 1 d      | G2   |
+| M2-C13    | M2        | Defer the confirm-dialog host; bundle back inside budget (R-69)       | Frontend      | **Completed**⁵⁵˒⁵⁶˒⁵⁷                                                                                                                                                                                                                                                                                                                                                                                                                              | P1       | M2-C04-03                               | 1 d      | G2   |
+| M2-C10    | M2        | Decimal handling — no float money arithmetic                          | Frontend      | **Completed**²⁶˒⁴⁶˒⁴⁷˒⁵²˒⁸⁵˒⁸⁹˒⁹²˒⁹³ _(**Merged and integration-verified 2026-08-26**, owner-confirmed Completed same day — `decimal.js` module, `money` pipe, ESLint/spec-scan enforcement; a real lint gap against `M2-C05-01`'s DataGrid found and fixed, not glossed over. Full suite: `test:ci` 526/526, `build` clean, 0 bundle regression. `DECIMAL_PORT` production wiring remains an open gap for a future task. See footnote ⁹³)_        | P0       | M2-C01                                  | 2 d      | G2   |
+| M2-C02    | M2        | Auth: login, refresh, guards, permission store                        | Frontend      | **Completed**⁴⁶˒¹⁰⁴˒¹⁰⁵˒¹⁰⁶˒¹⁰⁷ _(implemented and merged to `master` `6298732` 2026-08-27; owner-confirmed Completed same day — login, single-flight refresh, route guards, permission store, idle timeout all built and verified; two real bugs and one real functional gap found and fixed during implementation, two disclosed deviations recorded, post-merge re-verification clean. See footnotes ¹⁰⁵–¹⁰⁷)_                                   | P0       | M2-C01, M2-A04, M2-A07                  | 1 wk     | G2   |
+| M2-C04    | M2        | Design-system primitives _(parent)_                                   | Frontend      | **Completed**⁴⁶˒⁵⁴ _(parent — all three children `Completed` and merged)_                                                                                                                                                                                                                                                                                                                                                                          | P0       | M2-C01                                  | 2 wks    | G2   |
+| M2-C04-01 | M2        | — tokens, theme, light/dark                                           | Frontend      | **Completed**⁴⁹˒⁵⁰ _(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)_                                                                                                                                                                                                                                              | P0       | M2-C01                                  | 3 d      | G2   |
+| M2-C04-02 | M2        | — form controls + validation display                                  | Frontend      | **Completed**⁵¹˒⁵² _(merged to `master` on owner instruction 2026-08-23; all six frontend gates re-run green on the merged result)_                                                                                                                                                                                                                                                                                                                | P0       | M2-C04-01                               | 4 d      | G2   |
+| M2-C04-03 | M2        | — modal, drawer, toast, states                                        | Frontend      | **Completed**⁵³˒⁵⁴ _(merged to `master` on owner instruction 2026-08-24; all six frontend gates re-run green on the merged result)_                                                                                                                                                                                                                                                                                                                | P0       | M2-C04-01                               | 3 d      | G2   |
+| M2-C03    | M2        | App shell: header, sidebar, breadcrumbs, ⌘K                           | Frontend      | **Needs Review**⁴⁶˒¹⁰⁷˒¹⁰⁸˒¹⁰⁹ _(implemented and merged to `master` `73e91e8` 2026-08-27 — INV-033 nav mapping, permission-filtered sidebar/palette, header, breadcrumbs, responsive shell, real routes tree; `typecheck`/`lint`/`format:check`/`build`/`e2e` clean pre- and post-merge, every new spec passes in isolation. Two real test-infrastructure leaks found and fixed. Not `Completed` — owner sign-off pending. See footnotes ¹⁰⁸–¹⁰⁹)_ | P0       | M2-C02, M2-C04-01                       | 1.5 wks  | G2   |
+| M2-C05    | M2        | `DataGrid` _(parent)_                                                 | Frontend      | Blocked⁴⁶ _(parent — never worked directly; re-specified for Angular by `M2-C12-03`)_                                                                                                                                                                                                                                                                                                                                                              | P0       | M2-C04-02, M2-B02                       | 1.5 wks  | G2   |
+| M2-C05-01 | M2        | — server-paged table core                                             | Frontend      | **Completed**⁷⁴ _(the `Needs Review`/"unmerged" reading was stale — `git log --first-parent` shows `bf2b4cd` "Merge M2-C05-01" on `master`'s own first-parent line, and all 18 files are present at `HEAD`; corrected 2026-08-26)_                                                                                                                                                                                                                 | P0       | M2-C04-02, M2-B02                       | 4 d      | G2   |
+| M2-C05-02 | M2        | — column preferences + persistence                                    | Frontend      | **Blocked**⁷⁹ _(dispatched 2026-08-26, stopped at implement — the endpoint pair does not exist, no real fixture capture, and `M2-C02` is `Blocked`; see footnote ⁷⁹)_                                                                                                                                                                                                                                                                              | P1       | M2-C05-01                               | 2 d      | G2   |
+| M2-C05-03 | M2        | — empty / loading / error states + export                             | Frontend      | **Completed**⁷⁵˒⁷⁶ _(owner instructed the merge 2026-08-26; merged `--no-ff`, verified on the merged result)_                                                                                                                                                                                                                                                                                                                                      | P1       | M2-C05-01                               | 2 d      | G2   |
+| M2-C06    | M2        | `RecordPickerDialog`                                                  | Frontend      | **Completed**⁷⁵˒⁸³ _(merged to `master` 2026-08-26 on owner instruction; independently validated PASS)_                                                                                                                                                                                                                                                                                                                                            | P0       | M2-C05-01                               | 1 wk     | G2   |
+| M2-C07    | M2        | `LineItemGrid` — keyboard-first editable grid                         | Frontend      | **Completed**⁴⁶˒⁹⁹˒¹⁰²˒¹⁰³˒¹⁰⁴ _(implemented 2026-08-27 — all 18 planned files, 566/566 frontend tests pass, `typecheck`/`lint`/`format:check`/`build` all clean; the 200-row typing-latency figure, genuinely not obtained at first close-out, was measured 2026-08-27 by a follow-up session — 0.1–0.3 ms/keystroke, well inside the 50 ms target. Merged `72a5758`; owner-confirmed Completed 2026-08-27. See footnotes ¹⁰² – ¹⁰⁴)_             | P0       | M2-C05-01, M2-C10, M2-C04-02, M2-C04-03 | 2 wks    | G2   |
+| M2-C08    | M2        | `DocumentEditor` shell _(parent)_                                     | Frontend      | Not Started¹⁰⁴ _(parent — never worked directly, so never `Ready`; re-specified by `M2-C12-04`; its Hard prerequisite `M2-C07` is `Completed` and merged as of 2026-08-27 — see M2-C08-01)_                                                                                                                                                                                                                                                        | P0       | M2-C07                                  | 2 wks    | G2   |
+| M2-C08-01 | M2        | — layout: header + lines + totals + commands                          | Frontend      | **Ready**⁴⁶˒¹⁰⁴ _(re-specified by `M2-C12-04`; its Hard prerequisite `M2-C07` is `Completed` and merged as of 2026-08-27. See footnote ¹⁰⁴)_                                                                                                                                                                                                                                                                                                       | P0       | M2-C07                                  | 4 d      | G2   |
+| M2-C08-02 | M2        | — server-authoritative totals wiring                                  | Frontend      | Blocked⁴⁶ _(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)_                                                                                                                                                                                                                                                                                                                                                                             | P0       | M2-C08-01                               | 3 d      | G2   |
+| M2-C08-03 | M2        | — workflow command pattern                                            | Frontend      | Blocked⁴⁶ _(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)_                                                                                                                                                                                                                                                                                                                                                                             | P0       | M2-C08-01                               | 3 d      | G2   |
+| M2-C09    | M2        | `ReportPage` framework                                                | Frontend      | Blocked⁴⁶ _(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-B08`)_                                                                                                                                                                                                                                                                                                                                                                 | P1       | M2-C05-01, M2-B08                       | 1 wk     | G2   |
 
 ### M2-D — Vertical slice
 
-| Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
-|---|---|---|---|---|---|---|---|---|
-| M2-D01 | M2 | Currency end-to-end in Angular | Frontend | **Ready**⁷⁸˒¹⁰⁷ *(`depends_on` corrected `2281740`: all 7 Hard deps — `M2-C05-03`, `M2-A02`, `M2-B10`, `M2-C02`, `M2-A07`, `M2-A06`, `M2-B01` — are `Completed` and merged as of 2026-08-27. See footnote ¹⁰⁷)* | P0 | M2-C05-03, M2-A02, M2-B10, M2-C02, M2-A07, M2-A06, M2-B01 | 3 d | G2 |
-| M2-D02 | M2 | Customer Master *(parent)* | Migration | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-05`; real blocker is `M2-D01`)* | P0 | M2-D01 | 1.5 wks | G2 |
-| M2-D02-01 | M2 | — `@code` triage + logic extraction | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D01`. Allocates the `BR-CUST-*` series)* | P0 | M2-D01 | 4 d | G2 |
-| M2-D02-02 | M2 | — `CustomersController` + API tests | Backend | Blocked⁴⁶ *(re-specified by `M2-C12-05`; real blocker is `M2-D02-01`)* | P0 | M2-D02-01 | 3 d | G2 |
-| M2-D02-03 | M2 | — Angular screens + component tests | Frontend | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-05`; real blocker is `M2-D02-02`)* | P0 | M2-D02-02 | 4 d | G2 |
-| M2-D03 | M2 | Blazor ↔ Angular parity test | Testing | Blocked⁴⁶ *(re-specified for Angular by `M2-C12-05`; real blocker is `M2-D02-03`, plus a non-production tenant database — a day-1 infrastructure escalation)* | P0 | M2-D02-03 | 3 d | G2 |
+| Task ID   | Milestone | Task                                | Type      | Status                                                                                                                                                                                                          | Priority | Depends On                                                | Estimate | Gate |
+| --------- | --------- | ----------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------- | -------- | ---- |
+| M2-D01    | M2        | Currency end-to-end in Angular      | Frontend  | **Ready**⁷⁸˒¹⁰⁷ _(`depends_on` corrected `2281740`: all 7 Hard deps — `M2-C05-03`, `M2-A02`, `M2-B10`, `M2-C02`, `M2-A07`, `M2-A06`, `M2-B01` — are `Completed` and merged as of 2026-08-27. See footnote ¹⁰⁷)_ | P0       | M2-C05-03, M2-A02, M2-B10, M2-C02, M2-A07, M2-A06, M2-B01 | 3 d      | G2   |
+| M2-D02    | M2        | Customer Master _(parent)_          | Migration | Blocked⁴⁶ _(parent — never worked directly; re-specified by `M2-C12-05`; real blocker is `M2-D01`)_                                                                                                             | P0       | M2-D01                                                    | 1.5 wks  | G2   |
+| M2-D02-01 | M2        | — `@code` triage + logic extraction | Backend   | Blocked⁴⁶ _(re-specified by `M2-C12-05`; real blocker is `M2-D01`. Allocates the `BR-CUST-*` series)_                                                                                                           | P0       | M2-D01                                                    | 4 d      | G2   |
+| M2-D02-02 | M2        | — `CustomersController` + API tests | Backend   | Blocked⁴⁶ _(re-specified by `M2-C12-05`; real blocker is `M2-D02-01`)_                                                                                                                                          | P0       | M2-D02-01                                                 | 3 d      | G2   |
+| M2-D02-03 | M2        | — Angular screens + component tests | Frontend  | Blocked⁴⁶ _(re-specified for Angular by `M2-C12-05`; real blocker is `M2-D02-02`)_                                                                                                                              | P0       | M2-D02-02                                                 | 4 d      | G2   |
+| M2-D03    | M2        | Blazor ↔ Angular parity test        | Testing   | Blocked⁴⁶ _(re-specified for Angular by `M2-C12-05`; real blocker is `M2-D02-03`, plus a non-production tenant database — a day-1 infrastructure escalation)_                                                   | P0       | M2-D02-03                                                 | 3 d      | G2   |
 
 ## M3 — Core Modules · Gate G3
 
 Each wave expands to 14 tasks per the module pattern ([KB-080 §10](README.md#10-module-migration-task-pattern)).
 Task files are generated at wave start — see [KB-080 §11](README.md#11-m3--core-modules).
 
-| Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
-|---|---|---|---|---|---|---|---|---|
-| M3-1-01 | M3 | Wave M3-1 business-rule investigation *(exemplar written)* | Investigation | Blocked | P0 | G2 | 3 d | G3 |
-| M3-1-02…14 | M3 | Masters — Accounts, General | Migration | Not Started | P0 | M3-1-01 | 3 wks | G3 |
-| M3-2-01…14 | M3 | Masters — Inventory (Item, BOM, Process, Store, HSN) | Migration | Not Started | P0 | M3-1-14 | 4 wks | G3 |
-| M3-3-01…14 | M3 | Masters — Admin & Settings, permission matrix | Migration | Not Started | P0 | M3-2-14 | 2 wks | G3 |
-| M3-4-01…14 | M3 | Approvals inbox | Migration | Not Started | P1 | M3-3-14 | 1.5 wks | G3 |
-| M3-5-01…14 | M3 | Sales: Leads → … → **Sales Order** | Migration | Not Started | P0 | M3-3-14, M2-C08 | 4 wks | G3 |
-| M3-6-01…06 | M3 | Report framework + first 10 reports | Frontend | Not Started | P1 | M2-C09 | 2 wks | G3 |
-| M3-7-01…08 | M3 | Dashboard | Frontend | Not Started | P2 | M3-1-14 | 1.5 wks | G3 |
-| M3-8-01…03 | M3 | Feature-flag infrastructure | DevOps | Not Started | P0 | G2 | 1 wk | G3 |
-| M3-9-01 | M3 | Re-baseline M4 from measured M3-5 cost | Documentation | Not Started | P0 | M3-5-14 | 2 d | G3 |
+| Task ID    | Milestone | Task                                                       | Type          | Status      | Priority | Depends On      | Estimate | Gate |
+| ---------- | --------- | ---------------------------------------------------------- | ------------- | ----------- | -------- | --------------- | -------- | ---- |
+| M3-1-01    | M3        | Wave M3-1 business-rule investigation _(exemplar written)_ | Investigation | Blocked     | P0       | G2              | 3 d      | G3   |
+| M3-1-02…14 | M3        | Masters — Accounts, General                                | Migration     | Not Started | P0       | M3-1-01         | 3 wks    | G3   |
+| M3-2-01…14 | M3        | Masters — Inventory (Item, BOM, Process, Store, HSN)       | Migration     | Not Started | P0       | M3-1-14         | 4 wks    | G3   |
+| M3-3-01…14 | M3        | Masters — Admin & Settings, permission matrix              | Migration     | Not Started | P0       | M3-2-14         | 2 wks    | G3   |
+| M3-4-01…14 | M3        | Approvals inbox                                            | Migration     | Not Started | P1       | M3-3-14         | 1.5 wks  | G3   |
+| M3-5-01…14 | M3        | Sales: Leads → … → **Sales Order**                         | Migration     | Not Started | P0       | M3-3-14, M2-C08 | 4 wks    | G3   |
+| M3-6-01…06 | M3        | Report framework + first 10 reports                        | Frontend      | Not Started | P1       | M2-C09          | 2 wks    | G3   |
+| M3-7-01…08 | M3        | Dashboard                                                  | Frontend      | Not Started | P2       | M3-1-14         | 1.5 wks  | G3   |
+| M3-8-01…03 | M3        | Feature-flag infrastructure                                | DevOps        | Not Started | P0       | G2              | 1 wk     | G3   |
+| M3-9-01    | M3        | Re-baseline M4 from measured M3-5 cost                     | Documentation | Not Started | P0       | M3-5-14         | 2 d      | G3   |
 
 ## M4 — Advanced Modules · Gate G4
 
 **All M4 estimates are provisional until M3-9-01.** Execution order differs from the wave
 ids: Inventory (M4-2) precedes Purchase (M4-1) — see [KB-080 §12](README.md#12-m4--advanced-modules).
 
-| Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
-|---|---|---|---|---|---|---|---|---|
-| M4-2-01…14 | M4 | Inventory / Stock | Migration | Not Started | P0 | G3, M0-11 applied | 4 wks | G4 |
-| M4-1-01…14 | M4 | Out Sourcing + Purchase | Migration | Not Started | P0 | M4-2-14 | 5 wks | G4 |
-| M4-3-01…14 | M4 | Planning | Migration | Not Started | P0 | M4-1-14 | 4 wks | G4 |
-| M4-4-01…14 | M4 | Production + shop-floor Production Log | Migration | Not Started | P0 | M4-3-14 | 4 wks | G4 |
-| M4-5-01…14 | M4 | Manufacturing Work + e-Invoice / e-Way | Migration | Not Started | P0 | M4-4-14 | 4 wks | G4 |
-| M4-6-01…14 | M4 | Sub Contract | Migration | Not Started | P1 | M4-5-14 | 3 wks | G4 |
-| M4-7-01…14 | M4 | Labour Work — largest single item | Migration | Not Started | P1 | M4-6-14 | 4 wks | G4 |
-| M4-8-01…14 | M4 | Accounts / Cash Flow | Migration | Not Started | P1 | G3 | 3 wks | G4 |
-| M4-9-01…14 | M4 | HR incl. Payroll | Migration | Not Started | P2 | G3 | 3 wks | G4 |
-| M4-10-01…14 | M4 | Inspection / QC, Maintenance, Utilities | Migration | Not Started | P2 | G3 | 2 wks | G4 |
-| M4-11-01…08 | M4 | Remaining ~30 reports | Frontend | Not Started | P2 | M3-6-06 | 2 wks | G4 |
+| Task ID     | Milestone | Task                                    | Type      | Status      | Priority | Depends On        | Estimate | Gate |
+| ----------- | --------- | --------------------------------------- | --------- | ----------- | -------- | ----------------- | -------- | ---- |
+| M4-2-01…14  | M4        | Inventory / Stock                       | Migration | Not Started | P0       | G3, M0-11 applied | 4 wks    | G4   |
+| M4-1-01…14  | M4        | Out Sourcing + Purchase                 | Migration | Not Started | P0       | M4-2-14           | 5 wks    | G4   |
+| M4-3-01…14  | M4        | Planning                                | Migration | Not Started | P0       | M4-1-14           | 4 wks    | G4   |
+| M4-4-01…14  | M4        | Production + shop-floor Production Log  | Migration | Not Started | P0       | M4-3-14           | 4 wks    | G4   |
+| M4-5-01…14  | M4        | Manufacturing Work + e-Invoice / e-Way  | Migration | Not Started | P0       | M4-4-14           | 4 wks    | G4   |
+| M4-6-01…14  | M4        | Sub Contract                            | Migration | Not Started | P1       | M4-5-14           | 3 wks    | G4   |
+| M4-7-01…14  | M4        | Labour Work — largest single item       | Migration | Not Started | P1       | M4-6-14           | 4 wks    | G4   |
+| M4-8-01…14  | M4        | Accounts / Cash Flow                    | Migration | Not Started | P1       | G3                | 3 wks    | G4   |
+| M4-9-01…14  | M4        | HR incl. Payroll                        | Migration | Not Started | P2       | G3                | 3 wks    | G4   |
+| M4-10-01…14 | M4        | Inspection / QC, Maintenance, Utilities | Migration | Not Started | P2       | G3                | 2 wks    | G4   |
+| M4-11-01…08 | M4        | Remaining ~30 reports                   | Frontend  | Not Started | P2       | M3-6-06           | 2 wks    | G4   |
 
 ## M5 — Hardening · Gate G5
 
-| Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
-|---|---|---|---|---|---|---|---|---|
-| M5-01 | M5 | Unit tests for extracted business rules | Testing | *Continuous* | P0 | each `<W>-03` | — | G5 |
-| M5-02 | M5 | API integration tests per controller | Testing | *Continuous* | P0 | each `<W>-06` | — | G5 |
-| M5-03 | M5 | Component tests for design-system primitives | Testing | *Continuous*⁷¹ *(corrected 2026-08-25 — was `Blocked`, which contradicted [KB-080 §13](README.md#13-m5--hardening) and the work already delivered)* | P0 | M2-C04 | — | G5 |
-| M5-04 | M5 | E2E per module critical path | Testing | *Continuous* | P0 | each `<W>-10` | — | G5 |
-| M5-05 | M5 | Permission-matrix testing (merge-blocking) | Testing | *Continuous*⁷² *(corrected 2026-08-25 — the harness is on `master`; only the *merge-blocking* half is outstanding, and it is a GitHub setting, not work)* | P0 | M2-A03 | — | G5 |
-| M5-06 | M5 | Parity testing per module | Testing | *Continuous* | P0 | each `<W>-11` | — | G5 |
-| M5-07 | M5 | Performance: grids, documents, concurrency | Testing | Not Started | P1 | G4 | 2 wks | G5 |
-| M5-08 | M5 | Security: tenant isolation, IDOR, JWT, XSS | Security | Not Started | P0 | G4 | 2 wks | G5 |
-| M5-09 | M5 | Accessibility: axe in CI + keyboard pass | Testing | *Continuous* | P1 | M2-C04 | — | G5 |
-| M5-10 | M5 | Load test + live index review (INV-026) | Testing | Not Started | P1 | G4 | 2 wks | G5 |
+| Task ID | Milestone | Task                                         | Type     | Status                                                                                                                                                    | Priority | Depends On    | Estimate | Gate |
+| ------- | --------- | -------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------- | -------- | ---- |
+| M5-01   | M5        | Unit tests for extracted business rules      | Testing  | _Continuous_                                                                                                                                              | P0       | each `<W>-03` | —        | G5   |
+| M5-02   | M5        | API integration tests per controller         | Testing  | _Continuous_                                                                                                                                              | P0       | each `<W>-06` | —        | G5   |
+| M5-03   | M5        | Component tests for design-system primitives | Testing  | *Continuous*⁷¹ _(corrected 2026-08-25 — was `Blocked`, which contradicted [KB-080 §13](README.md#13-m5--hardening) and the work already delivered)_       | P0       | M2-C04        | —        | G5   |
+| M5-04   | M5        | E2E per module critical path                 | Testing  | _Continuous_                                                                                                                                              | P0       | each `<W>-10` | —        | G5   |
+| M5-05   | M5        | Permission-matrix testing (merge-blocking)   | Testing  | *Continuous*⁷² _(corrected 2026-08-25 — the harness is on `master`; only the *merge-blocking* half is outstanding, and it is a GitHub setting, not work)_ | P0       | M2-A03        | —        | G5   |
+| M5-06   | M5        | Parity testing per module                    | Testing  | _Continuous_                                                                                                                                              | P0       | each `<W>-11` | —        | G5   |
+| M5-07   | M5        | Performance: grids, documents, concurrency   | Testing  | Not Started                                                                                                                                               | P1       | G4            | 2 wks    | G5   |
+| M5-08   | M5        | Security: tenant isolation, IDOR, JWT, XSS   | Security | Not Started                                                                                                                                               | P0       | G4            | 2 wks    | G5   |
+| M5-09   | M5        | Accessibility: axe in CI + keyboard pass     | Testing  | _Continuous_                                                                                                                                              | P1       | M2-C04        | —        | G5   |
+| M5-10   | M5        | Load test + live index review (INV-026)      | Testing  | Not Started                                                                                                                                               | P1       | G4            | 2 wks    | G5   |
 
 ## M6 — Production Migration · Gate G6
 
-| Task ID | Milestone | Task | Type | Status | Priority | Depends On | Estimate | Gate |
-|---|---|---|---|---|---|---|---|---|
-| M6-01 | M6 | Deployment topology (Q-16) | DevOps | Not Started | P0 | G4 | 1 wk | G6 |
-| M6-02 | M6 | Monitoring: logs, APM, error tracking | DevOps | Not Started | P0 | M6-01 | 1 wk | G6 |
-| M6-03 | M6 | Staged rollout by feature flag (Q-12) | Migration | Not Started | P0 | M6-02 | 2 wks | G6 |
-| M6-04 | M6 | Rollback drill in production | Migration | Not Started | P0 | M6-03 | 3 d | G6 |
-| M6-05 | M6 | User migration + training | Migration | Not Started | P1 | M6-03 | 1 wk | G6 |
-| M6-06 | M6 | Per-tenant EF migration rollout (Q-02) | DevOps | Not Started | P0 | M6-01 | 1 wk | G6 |
-| M6-07 | M6 | Decommission Blazor routes | Migration | Not Started | P1 | M6-04 + ≥1 financial period | 2 wks | G6 |
-| M6-08 | M6 | Decide the MAUI app's future (Q-11) | Product Decision | Not Started | P2 | M6-07 | decision | G6 |
+| Task ID | Milestone | Task                                   | Type             | Status      | Priority | Depends On                  | Estimate | Gate |
+| ------- | --------- | -------------------------------------- | ---------------- | ----------- | -------- | --------------------------- | -------- | ---- |
+| M6-01   | M6        | Deployment topology (Q-16)             | DevOps           | Not Started | P0       | G4                          | 1 wk     | G6   |
+| M6-02   | M6        | Monitoring: logs, APM, error tracking  | DevOps           | Not Started | P0       | M6-01                       | 1 wk     | G6   |
+| M6-03   | M6        | Staged rollout by feature flag (Q-12)  | Migration        | Not Started | P0       | M6-02                       | 2 wks    | G6   |
+| M6-04   | M6        | Rollback drill in production           | Migration        | Not Started | P0       | M6-03                       | 3 d      | G6   |
+| M6-05   | M6        | User migration + training              | Migration        | Not Started | P1       | M6-03                       | 1 wk     | G6   |
+| M6-06   | M6        | Per-tenant EF migration rollout (Q-02) | DevOps           | Not Started | P0       | M6-01                       | 1 wk     | G6   |
+| M6-07   | M6        | Decommission Blazor routes             | Migration        | Not Started | P1       | M6-04 + ≥1 financial period | 2 wks    | G6   |
+| M6-08   | M6        | Decide the MAUI app's future (Q-11)    | Product Decision | Not Started | P2       | M6-07                       | decision | G6   |
 
 ---
 
 ## Rollup
 
-| Milestone | Tasks | Completed | Gate | Gate status |
-|---|---|---|---|---|
-| M0 | 24 | **17** | G0 | ⚠️ **Passed with exceptions** 2026-08-19 — criteria **2 and 3 are not satisfied**, deferred by owner decision; `M0-04`/`M0-05` stay `Blocked`. See [KB-080 § G0 deferral](README.md#g0-deferral--criteria-2-and-3-decided-by-the-repository-owner-2026-08-19) |
-| M1 | 6 | 5 (+1 rolling) | G1 | ✅ Passed 2026-08-12 |
-| M2 | **62** | **33** | G2 | **OPEN** — 33 of 62 done (53%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls |
-| M3 | ~100 | 0 | G3 | ⬜ Not met |
-| M4 | ~150 | 0 | G4 | ⬜ Not met |
-| M5 | 10 | 0 | G5 | ⬜ Not met |
-| M6 | 8 | 0 | G6 | ⬜ Not met |
+| Milestone | Tasks  | Completed      | Gate | Gate status                                                                                                                                                                                                                                                   |
+| --------- | ------ | -------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M0        | 24     | **17**         | G0   | ⚠️ **Passed with exceptions** 2026-08-19 — criteria **2 and 3 are not satisfied**, deferred by owner decision; `M0-04`/`M0-05` stay `Blocked`. See [KB-080 § G0 deferral](README.md#g0-deferral--criteria-2-and-3-decided-by-the-repository-owner-2026-08-19) |
+| M1        | 6      | 5 (+1 rolling) | G1   | ✅ Passed 2026-08-12                                                                                                                                                                                                                                          |
+| M2        | **62** | **33**         | G2   | **OPEN** — 33 of 62 done (53%). Frontend unblocked 2026-08-23: `M2-C12` cleared all 25 superseded specs, and `M2-C01`/`M2-C04-01`/`M2-C04-02` landed the Angular workspace, design tokens and form controls                                                   |
+| M3        | ~100   | 0              | G3   | ⬜ Not met                                                                                                                                                                                                                                                    |
+| M4        | ~150   | 0              | G4   | ⬜ Not met                                                                                                                                                                                                                                                    |
+| M5        | 10     | 0              | G5   | ⬜ Not met                                                                                                                                                                                                                                                    |
+| M6        | 8      | 0              | G6   | ⬜ Not met                                                                                                                                                                                                                                                    |
 
 ### Current state — 2026-08-24
 
 **53 `Completed`, 3 `Needs Review`, 2 `Ready`, 30 `Blocked`, 2 `In Progress`, 33 `Not Started`,
-7 `Continuous`** *(2026-08-25, after three row corrections in one day: `M2-C05-01` moved
+7 `Continuous`** _(2026-08-25, after three row corrections in one day: `M2-C05-01` moved
 `Blocked` → `Needs Review` — footnote ⁷⁰; `M5-03` and `M5-05` moved `Blocked` → `*Continuous*` —
 footnotes ⁷¹ and ⁷². **None of the three was ever actually blocked.** Each row's status column
-had simply outlived the thing it summarised.)*
+had simply outlived the thing it summarised.)_
 Derived from the rows above, which are the authority; the M3/M4 rollup totals are task
-*estimates*, not rows. (2026-08-24 close-out: `M2-A09` moved `Ready` → `Needs Review`,
+_estimates_, not rows. (2026-08-24 close-out: `M2-A09` moved `Ready` → `Needs Review`,
 implemented and independently validated `PASS`, unmerged — see footnote ⁶⁰. Later the same day,
 `M2-A10` moved `Ready` → `Needs Review` the same way — see footnote ⁶¹. The two remaining
 `Ready` rows, `M0-06` and `M0-11`, both fail the five-part "can actually be done" test: `M0-06`
 on a sibling branch already open (`migration/M0-06-remove-default-admin`, unmerged), `M0-11` on
-being a `Product Decision` (owner-only). No task is currently selectable.) *(Row counts above
+being a `Product Decision` (owner-only). No task is currently selectable.) _(Row counts above
 predate this note's own sequence of close-outs and are superseded by the per-task paragraphs
 below; between those events, also 2026-08-24, `M2-B03` moved `Ready` → `Needs Review`,
 implemented and independently validated `PASS`, unmerged — footnote ⁶⁵. With it, `M2-A03`'s
 `M2-B03` prerequisite half is satisfied, but `M2-B03` itself was `Needs Review`, not `Completed`
-and merged, so `M2-B10` stayed `Blocked` at that point.)* **Most recent event, also 2026-08-24:
+and merged, so `M2-B10` stayed `Blocked` at that point.)_ **Most recent event, also 2026-08-24:
 `M2-B03` was subsequently `Completed` and merged to `master`, which released `M2-B10` to
 `Ready`; `M2-B10` was then implemented and independently validated `PASS`, closing `Needs
 Review` — see footnote ⁶⁷. No row on the tracker now reads `Ready` and clears the five-part
@@ -289,7 +289,7 @@ Review` — see footnote ⁶⁷. No row on the tracker now reads `Ready` and cle
 No task is currently selectable.**
 
 **Correction and most recent event — 2026-08-25: `M2-C05-01` was never actually blocked.** Its
-row read `Blocked`⁴⁶ with the note *"real blockers are `M2-C04-02`, `M2-B02`"* — but `M2-B02`
+row read `Blocked`⁴⁶ with the note _"real blockers are `M2-C04-02`, `M2-B02`"_ — but `M2-B02`
 reached `Completed` and merged (`feec964`) on 2026-08-20 and `M2-C04-02` on 2026-08-23, and
 nothing moved the row. Its own task file's frontmatter still read `status: Not Started`, not
 `Blocked`, which is the tell. The five-part "can actually be done" test was re-run against it
@@ -334,13 +334,13 @@ note below.
 
 **Five decisions, in order of what they unblock:**
 
-| # | Decision | Unblocks |
-|---|---|---|
-| 1 | **`M0-04`** — rotate the exposed credentials (deferred end-of-milestone 2026-08-19) | `M2-A04` → `M2-A05` → `M2-C02`, and G0 criteria 2/3 |
-| 2 | **Q-28 + R-65** | `M2-A02` → `M2-A03` → **G2 criterion 3**; and `M2-A02` → `M2-B03` → `M2-B10` → **G2 criteria 4 and 6**. *(Corrected 2026-08-24: these two criteria were previously recorded as having no owning task. They are owned — by `M2-B03` and `M2-B10` — and blocked on this one question.)* |
-| 3 | **`M2-C10`'s environment** — a reachable DB + credential, or relax its "MEASURED wire format" criterion to static analysis | `M2-C10`, then `M2-C07` |
-| 4 | **Q-38** — what `M2-C11` is *for*, now `M2-C01` has built the workspace it existed to adopt | `M2-C11` |
-| 5 | **`stash@{0}`** — orphaned work from a dead run, carrying out-of-scope `AuthController.cs` and `.sln` edits | nothing; recommend discard |
+| #   | Decision                                                                                                                   | Unblocks                                                                                                                                                                                                                                                                              |
+| --- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **`M0-04`** — rotate the exposed credentials (deferred end-of-milestone 2026-08-19)                                        | `M2-A04` → `M2-A05` → `M2-C02`, and G0 criteria 2/3                                                                                                                                                                                                                                   |
+| 2   | **Q-28 + R-65**                                                                                                            | `M2-A02` → `M2-A03` → **G2 criterion 3**; and `M2-A02` → `M2-B03` → `M2-B10` → **G2 criteria 4 and 6**. _(Corrected 2026-08-24: these two criteria were previously recorded as having no owning task. They are owned — by `M2-B03` and `M2-B10` — and blocked on this one question.)_ |
+| 3   | **`M2-C10`'s environment** — a reachable DB + credential, or relax its "MEASURED wire format" criterion to static analysis | `M2-C10`, then `M2-C07`                                                                                                                                                                                                                                                               |
+| 4   | **Q-38** — what `M2-C11` is _for_, now `M2-C01` has built the workspace it existed to adopt                                | `M2-C11`                                                                                                                                                                                                                                                                              |
+| 5   | **`stash@{0}`** — orphaned work from a dead run, carrying out-of-scope `AuthController.cs` and `.sln` edits                | nothing; recommend discard                                                                                                                                                                                                                                                            |
 
 > ~~**Read [R-69](../risks/technical-debt-register.md) before starting `M2-C03`.** The initial
 > bundle is **711.75 kB raw**, past the 600 kB warning and **88 kB short of the 800 kB error
@@ -400,14 +400,14 @@ baseline.
 > had catalogued**, and `M0-10` is the task that audits the rest. It is no longer a
 > speculative sweep; it has a concrete lead and evidence the pattern repeats.
 
-> **`M0-12-02` closed at 11 of 12 criteria, with the twelfth *waived*, not met.** Criterion 8's
-> second half — *"the suite passes in CI on the branch"* — requires pushing the branch so a
+> **`M0-12-02` closed at 11 of 12 criteria, with the twelfth _waived_, not met.** Criterion 8's
+> second half — _"the suite passes in CI on the branch"_ — requires pushing the branch so a
 > hosted Actions run exists, which an execution session may not do. The owner waived it
 > in-conversation on 2026-08-19, on the **`M0-07` precedent** (signed off `Completed` with the
 > identical gap open, `d79e1a4`). The reasoning, recorded so it is not mistaken for an
 > oversight: `M0-12-01` had already proven this pipeline runs this suite end to end — green,
 > **red at the `Test - V.SMART.Shared.Tests` step**, green again — so criterion 8 would have
-> re-tested the *pipeline* rather than this task. **Both G0 characterisation tasks are now
+> re-tested the _pipeline_ rather than this task. **Both G0 characterisation tasks are now
 > done.**
 
 > **`M0-06` is no longer `Ready` — closed `Blocked`¹⁶ on 2026-08-19, on the repository owner
@@ -416,13 +416,13 @@ baseline.
 > acceptance criterion 2 — see footnote 16. This does not unblock `M0-10`, which still needs
 > `M0-09` reviewed and merged.
 
-> **`M0-11` is released, and it is now blocked on *you*, not on a task.** Its sole Hard
+> **`M0-11` is released, and it is now blocked on _you_, not on a task.** Its sole Hard
 > prerequisite `M0-13` is `Completed`, so the dependency is genuinely clear. But `M0-11` is a
 > **Product Decision** — the Q-01 call on silent FIFO under-issue — and rule 1 of the
 > [Ready-task selection rule](dependency-graph.md#ready-task-selection-rule) excludes a task
 > "blocked on a human step nobody has scheduled… **surfacing it to that owner is itself the
 > useful action**". So it stays `Blocked`, with **Vivek** as the named owner, and no runner may
-> self-select it. What changed is the *reason*: it is no longer waiting on engineering work.
+> self-select it. What changed is the _reason_: it is no longer waiting on engineering work.
 > `M0-13`'s 25 tests pin the current behaviour — including R-07's silent under-allocation,
 > asserted deliberately as-is rather than fixed — so the decision is now made against a fixed
 > baseline instead of a moving one.
@@ -450,14 +450,14 @@ Every other M0 task remains `Completed`, `Blocked` on a named human, or
 deviation is visible rather than silent.
 
 `M2-A01-01` declares `depends_on: [G0]`, and [KB-080 §9](README.md#9-m2--foundation) states
-*"Gate G0 must have passed. Not negotiable."* Zero of G0's seven exit criteria were ticked on
+_"Gate G0 must have passed. Not negotiable."_ Zero of G0's seven exit criteria were ticked on
 2026-08-18. The task was nonetheless opened by the **explicit in-session decision of the
 repository owner (Vivek)**, after the four G0 blockers (`M0-01-03`'s rebuild drill, `M0-04`,
 `M0-07`'s hosted-runner/branch-protection gap, `M0-12-01`) were laid out to him.
 
 **Rationale.** `M2-A01-01` produces documentation only and changes no behaviour. The two
 things G0 guarantees — a reproducible environment from stored-procedure DDL, and
-characterisation tests proving behaviour preservation — are prerequisites for *changing*
+characterisation tests proving behaviour preservation — are prerequisites for _changing_
 behaviour. Every input this task needed already existed in the working tree.
 
 **The exception is confined to `M2-A01-01`.** It does **not** transfer to `M2-A01-02` or any
@@ -566,7 +566,7 @@ name (`migration/M0-03-01-externalise-appsettings-secrets`); the work is on the 
 disk by an unknown prior actor before this task ran (the directory is untracked, so git has
 no provenance) and are correctly **not** part of this branch's diff. `M0-03-02` stays
 `Blocked` — its Hard prerequisite is this task at `Completed`, and `Needs Review` does not
-satisfy that per the *Ready-task selection rule*'s "not `REVIEW`" clause.
+satisfy that per the _Ready-task selection rule_'s "not `REVIEW`" clause.
 
 ⁴ **M0-04: `Blocked` — DEFERRED to the end of the milestone by the owner, 2026-08-19.**
 The owner confirmed production SQL / GST e-Invoice gateway access is not available now and
@@ -576,8 +576,8 @@ deferred** — see [KB-080 § G0 deferral](README.md#g0-deferral--criteria-2-and
 
 > **The exposure is live meanwhile, and this is not a bookkeeping detail.** R-01 records live
 > database credentials committed to source control, in a repository that is **public** by
-> deliberate decision (KB-085 / INV-034). The KB's own assessment is that *"the values are
-> compromised regardless"*. `M0-05` cannot fix that on its own: purging history from a public
+> deliberate decision (KB-085 / INV-034). The KB's own assessment is that _"the values are
+> compromised regardless"_. `M0-05` cannot fix that on its own: purging history from a public
 > repository does not retract what is already cloned, forked or cached. **Rotation — `M0-04`,
 > the deferred item — is the only actual remedy.** The owner was told this before deciding.
 
@@ -589,7 +589,7 @@ such person is identified anywhere in the repository**. Who unblocks it is itsel
 question; it must be answered from the operations/infrastructure team, and that person has to
 participate in-session or the rotation stays blocked pending their availability.
 
-The status is recorded here so the *Ready-task selection rule* stops re-selecting it — while it
+The status is recorded here so the _Ready-task selection rule_ stops re-selecting it — while it
 read `Ready` at P0, every run picked it and stopped in the same place. Move it back to `Ready`
 once an owner is named.
 
@@ -613,11 +613,11 @@ superseded earlier attempt also exists at `migration/M0-08-gitignore-build-outpu
 (`e0a7092`) — left unmerged and untouched; a reviewer should pick one branch to merge. Full
 record: [tasks/M0-08.md § Execution Record](tasks/M0-08.md#execution-record-2026-08-17).
 `M0-07` is now **`Ready`** — both its Hard prerequisites (`M0-15`, `M0-08`) reached `Completed`
-on 2026-08-17 when the repository owner signed them off, so the *Ready-task selection rule*'s
+on 2026-08-17 when the repository owner signed them off, so the _Ready-task selection rule_'s
 "not `REVIEW`" clause no longer excludes it. It is the top P0 candidate, and clearing it
 unblocks nine further tasks behind `M0-12-01`.
 
-⁶ **M0-02: `Completed` 2026-08-18 — Q-14 explicitly deferred by Vivek, then signed off and merged. `Completed` here means the *task* closed, NOT that Q-14 was answered.** Was `Blocked` on a human, not on a task; that block is closed by decision rather than by evidence. Committed on
+⁶ **M0-02: `Completed` 2026-08-18 — Q-14 explicitly deferred by Vivek, then signed off and merged. `Completed` here means the _task_ closed, NOT that Q-14 was answered.** Was `Blocked` on a human, not on a task; that block is closed by decision rather than by evidence. Committed on
 `migration/M0-02-sp-drift-across-tenants` (`c1ab752`), merged via `8f358ed`; the deferral
 itself on `migration/M0-02-defer-q14` (`f4d9482`), merged via `71f2f56`. The **tooling half is
 complete**: `db/tools/list-deployed-procedures.sql` extended with `hash_raw` +
@@ -643,7 +643,7 @@ tooling.
 deferral is merged (`71f2f56`). The task moves `Needs Review` → `Completed`; the M0 rollup goes
 from 10 to 11. Nothing depends on M0-02, so no other row moves.
 
-**Read this closure precisely, because it is easy to misread.** `Completed` means the *task*
+**Read this closure precisely, because it is easy to misread.** `Completed` means the _task_
 discharged its obligation — [KB-080 §7](README.md) accepts "Q-14 answered **or explicitly
 deferred with reason**", and this took the second path. It does **not** mean the question was
 answered. **Zero tenants were fingerprinted and zero compared, so stored-procedure drift is
@@ -652,8 +652,8 @@ every procedure `identical`; that is arithmetic, not evidence. INV-030 correctly
 `Partial` and KB-103 §4 correctly remains `TBD`; neither should be "finished" by anyone tidying
 up.
 
-**Risk accepted while deferred:** `db/stored-procedures/` stays a single artefact set *by
-assumption*, and `db/deploy-stored-procedures.ps1` has no per-tenant path — so a deployment can
+**Risk accepted while deferred:** `db/stored-procedures/` stays a single artefact set _by
+assumption_, and `db/deploy-stored-procedures.ps1` has no per-tenant path — so a deployment can
 overwrite one tenant's customised procedure with another tenant's, silently, with no test to
 catch it (INV-023). The captured DDL's provenance compounds it: it originated in the demo
 database `IQSMARTDEMO_DB_2025-26`, so it may describe no production tenant at all. **Reopen on
@@ -665,7 +665,7 @@ the field.**
 for the G0 deliverable, which [KB-080 §7](README.md) states as "Q-14 answered **or explicitly
 deferred with reason**". **Zero tenants were fingerprinted and zero compared, so drift is
 undecided — this is emphatically not a finding of "no drift".** Risk knowingly accepted:
-`db/stored-procedures/` stays a single artefact set *by assumption* and
+`db/stored-procedures/` stays a single artefact set _by assumption_ and
 `db/deploy-stored-procedures.ps1` has no per-tenant path, so a deployment can overwrite one
 tenant's customised procedure with another's, silently, with no test to catch it. Reopen on any
 CSV landing in `db/drift/` or any per-tenant report surprise in the field; the tooling is
@@ -676,14 +676,14 @@ complete and must not be re-derived. Full record:
 explicitly carried forward (see below).** It had been `Blocked` on six acceptance criteria that
 could not be satisfied from this workstation. Vivek cleared five of them on 2026-08-18:
 
-| Criterion | State |
-|---|---|
-| Branch pushed to `origin` | ✅ `migration/M0-07-ci-pipeline` pushed |
-| A GitHub-hosted Actions run executes | ✅ run [`32158375284`](https://github.com/ErpStore/NexERP_B/actions/runs/32158375284) on `772fea3` |
-| That run goes **green** | ✅ `conclusion: success`, all ten steps, 16:05:37→16:12:54 UTC (~7m17s) |
-| Both analyzer warning gates pass on a runner | ✅ `Analyzer warning gate — V.SMART.Api` and `— V.SMART.Web` both `success` |
-| Merged to `master` | ✅ this merge |
-| Branch protection requires the check | ❌ **still outstanding** — a GitHub settings action |
+| Criterion                                    | State                                                                                              |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Branch pushed to `origin`                    | ✅ `migration/M0-07-ci-pipeline` pushed                                                            |
+| A GitHub-hosted Actions run executes         | ✅ run [`32158375284`](https://github.com/ErpStore/NexERP_B/actions/runs/32158375284) on `772fea3` |
+| That run goes **green**                      | ✅ `conclusion: success`, all ten steps, 16:05:37→16:12:54 UTC (~7m17s)                            |
+| Both analyzer warning gates pass on a runner | ✅ `Analyzer warning gate — V.SMART.Api` and `— V.SMART.Web` both `success`                        |
+| Merged to `master`                           | ✅ this merge                                                                                      |
+| Branch protection requires the check         | ❌ **still outstanding** — a GitHub settings action                                                |
 
 The hosted run also settles what local verification could not: the gate passes against the
 committed baseline as measured by the runner, after `M0-03-02`, `M0-03-03` and `M0-14` had
@@ -691,8 +691,8 @@ already landed on `master`. The hygiene guard (`check-no-build-output.sh`, from 
 actually enforced by CI rather than only documented.
 
 **Sign-off, 2026-08-18 — and the one criterion carried forward, not met.** Vivek signed off
-M0-07 with **five of six** acceptance criteria satisfied. The sixth — *branch protection
-requires the CI check as a required status* — is **still not done**, and `Completed` here does
+M0-07 with **five of six** acceptance criteria satisfied. The sixth — _branch protection
+requires the CI check as a required status_ — is **still not done**, and `Completed` here does
 not assert otherwise. It is a GitHub settings action no session can perform.
 
 **Correction, same day — where that setting lives is NOT confirmed.** An earlier version of this
@@ -702,7 +702,7 @@ must be made through a pull request"), and the API contradicts it:
 `GET /repos/ErpStore/NexERP_B/rulesets` returns `[]`, including with `?includes_parents=true`, so
 **no ruleset is visible at all** — the repository owner confirms none was created.
 
-What *is* Confirmed: `GET /repos/ErpStore/NexERP_B/branches/master` reports `"protected": true`,
+What _is_ Confirmed: `GET /repos/ErpStore/NexERP_B/branches/master` reports `"protected": true`,
 so protection exists by some mechanism. Which mechanism is **Unknown** from an unauthenticated
 session — `/branches/master/protection` and `/orgs/ErpStore/rulesets` both return `401`. Most
 likely **classic branch protection** (Settings → **Branches**), possibly an org-level ruleset
@@ -710,7 +710,7 @@ that an unauthenticated caller cannot enumerate. **Check Settings → Branches f
 Settings → Rules.** Recorded rather than quietly amended, because M0-07's outstanding criterion
 depends on knowing where the control actually is.
 
-**Consequence while it stays undone:** CI runs and reports, but nothing *enforces* it. A red
+**Consequence while it stays undone:** CI runs and reports, but nothing _enforces_ it. A red
 build does not block a merge, and `master` can still be pushed directly. The pipeline is
 advisory until that setting lands.
 
@@ -729,7 +729,7 @@ lines): the restore/build workflow, the analyzer warning gate with a committed b
 protection. **Owner:** repository owner / DevOps. Once they push the branch and let Actions
 run, validation can resume from the same commit — do not re-implement.
 
-Recorded here so the *Ready-task selection rule* stops re-selecting it: while this row read
+Recorded here so the _Ready-task selection rule_ stops re-selecting it: while this row read
 `Ready` at P0 it was the top candidate, so every run picked it and stopped in the same place.
 Note the branch carries its own copy of this status change; reconcile when it is merged.
 
@@ -761,7 +761,7 @@ close-out commit `3378656` was originally made directly on `master`, contrary to
 rule; it was moved to `kb/M0-03-02-closeout` and merged through review instead.
 
 ⁹ **M0-03-03: `Completed` 2026-08-18 — reviewed, approved by Vivek, and merged.** Implemented and committed on
-`migration/M0-03-03-startup-config-validation` (`34be11a`), merged to `master` 2026-08-18.  That commit's parent is
+`migration/M0-03-03-startup-config-validation` (`34be11a`), merged to `master` 2026-08-18. That commit's parent is
 `d4ba526` — `master`'s tip at the time this task opened, not `0a20d62` as the branch's own
 close-out records first stated; `0a20d62` is only a transitive ancestor, corrected here.
 Independently validated **PASS** on attempt 1 of 3, 0 escalations, `scopeOk: true`,
@@ -778,7 +778,7 @@ The implementing session had incorrectly self-set `status: Completed` in the tas
 close-out corrects it to `Needs Review` per
 [KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) — the task's completion
 conditions include a human review-and-merge step, which no session may perform on its own
-authority. `M0-14` remains the only other `Ready` P0/P2 candidate — see the *Currently `Ready`*
+authority. `M0-14` remains the only other `Ready` P0/P2 candidate — see the _Currently `Ready`_
 note above, now current again.
 
 One open item carried forward for **M0-04**'s author (not a defect in this task): one of the
@@ -808,8 +808,8 @@ The implementing session had incorrectly self-set `status: Completed` in the tas
 close-out corrects it to `Needs Review` per
 [KB-088 "Who may set COMPLETED"](workflow.md#who-may-set-completed) — the task's completion
 conditions include a human review-and-merge step, which no session may perform on its own
-authority. No task in the tracker is `Ready` after this close-out — see the *Currently
-`Ready`* note above.
+authority. No task in the tracker is `Ready` after this close-out — see the _Currently
+`Ready`_ note above.
 
 **Sign-off, 2026-08-18.** **Vivek** reviewed M0-14 and approved it ("looks fine"), and it was
 merged to `master` as `275c6e2`. That is the human review-and-merge step this footnote
@@ -839,7 +839,7 @@ commented alternatives gone; `StartupConfigurationValidator.Validate` is wired i
 `docs/CONFIGURATION.md` documents the developer keys; the Api build is 0 errors; and R-01
 carries `file:line` evidence for all five C# files.
 
-**What this does not do:** M0-03 closes the *working-tree* half of G0's secrets criterion
+**What this does not do:** M0-03 closes the _working-tree_ half of G0's secrets criterion
 only. The **history** half is `M0-05`, which stays `Blocked` — its other prerequisite `M0-04`
 (rotation) is still blocked on an unidentified owner. The committed credentials remain live
 and exposed in git history until both run.
@@ -886,8 +886,8 @@ close-out: still no `migration/M0-12-01-*` branch, still no `tests/` directory, 
 status --porcelain` clean, `master` tip unchanged. Nothing was implemented on either attempt.
 
 This footnote's own attempt-1 text named the exact falsification condition that has now been
-met: *"If attempt 2 fails the same way, that repetition is the signal worth investigating — a
-single 529 is not."* Two consecutive empty implementer returns, same task, same model, same
+met: _"If attempt 2 fails the same way, that repetition is the signal worth investigating — a
+single 529 is not."_ Two consecutive empty implementer returns, same task, same model, same
 complexity classification, is that repetition. This close-out session cannot independently
 re-confirm a second `529 Overloaded` — the workflow's agent-completion log that let the first
 misdiagnosis get corrected is visible only from inside the run that produced it, not from a
@@ -895,16 +895,16 @@ close-out session reading the repository afterward. **So this is recorded honest
 `Blocked` on a human — specifically, someone who can read the runner's dispatch/agent-invocation
 logs for both cycles and confirm or rule out a systemic (not transient) cause — rather than
 re-dispatched a third time on the same unverified assumption.** Attempts used: **2 of 3 — one remains**, held in reserve until the cause is checked.
-*(Denominator corrected 2026-08-19: the budget is 3, not 4 — [KB-091 §6.4](autonomous-runner.md#64-retry-rules),
+_(Denominator corrected 2026-08-19: the budget is 3, not 4 — [KB-091 §6.4](autonomous-runner.md#64-retry-rules),
 "Attempt 3 fails → BLOCKED. Stop. … Do not attempt a fourth", matching `migration-runner.js:43`
 `maxRetries: 2, // 2 retries = up to 3 implementation attempts`. Earlier text here read "of 4",
-which no authority supports.)* Full record:
+which no authority supports.)_ Full record:
 [`tasks/M0-12-01.md` § Execution Record (2026-08-18) — Attempt 2](tasks/M0-12-01.md#execution-record-2026-08-18--attempt-2-repeated-empty-return);
 attempt logged in [`failure-log.md`](failure-log.md#m0-12-01--attempt-2--2026-08-18). See also
 open question **Q-21** in [`open-questions.md`](../open-questions.md).
 
-**Update, 2026-08-19 — Q-21 answered. The *investigation* the gate asked for is complete; the
-*decision* it asked for is still the owner's, and the task stays `Blocked` until he makes it.**
+**Update, 2026-08-19 — Q-21 answered. The _investigation_ the gate asked for is complete; the
+_decision_ it asked for is still the owner's, and the task stays `Blocked` until he makes it.**
 The paragraph above is wrong on one point of fact: the agent-completion log is **not**
 visible only from inside its own run. The per-agent transcripts persist on disk at
 `~/.claude/projects/<project>/<sessionId>/subagents/workflows/<runId>/agent-<agentId>.jsonl`,
@@ -924,18 +924,18 @@ same day by two runner invocations dispatching 4 of 4 agents with `agents_error:
 > correctly, because this footnote's gate reserves the confirmation for **a human**, and
 > performing the check does not confer authority to declare it satisfied. The flip was
 > withdrawn, the evidence was put to the owner, and **Vivek cleared it in his own words** —
-> *"yes, the 529 evidence clears the gate — run it"*. `M0-12-01` is `Ready` **on his
-> authority**. The precedent this sets is narrow: an AI session may *gather* the evidence a
+> _"yes, the 529 evidence clears the gate — run it"_. `M0-12-01` is `Ready` **on his
+> authority**. The precedent this sets is narrow: an AI session may _gather_ the evidence a
 > human-owned gate asks for, but only the named human may declare the gate passed.
 >
 > **Still undecided, and deliberately not assumed:** whether the two `529` aborts consumed
 > retry budget at all (the KB-091 §6.4 reading below). The conservative count governs —
 > **2 of 3 used, one remains.** If attempt 3 also dies on infrastructure without producing
-> work, halt and put *that* question to the owner rather than declaring the task `Blocked` for
+> work, halt and put _that_ question to the owner rather than declaring the task `Blocked` for
 > good.
 
 > **Open interpretation, flagged not applied.** [KB-091 §6.4](autonomous-runner.md#64-retry-rules)
-> counts *validation failures* ("Attempt 1 fails → `DIAGNOSING`… Attempt 2 fails → `ESCALATED`").
+> counts _validation failures_ ("Attempt 1 fails → `DIAGNOSING`… Attempt 2 fails → `ESCALATED`").
 > Neither M0-12-01 attempt produced work or a validation verdict — both aborted on infrastructure
 > before implementing anything. On that reading the two `529` aborts should not consume the
 > retry budget at all, and the task still has its full three. **This session did not apply that
@@ -968,8 +968,8 @@ HEAD~1 HEAD -- V.SMART/` empty. **10 of the 11 acceptance criteria are `MET`.**
 The criterion requires observing a deliberately-failing test turn a live GitHub Actions run
 red, on a pushed branch, with the run identifier recorded. Task step 14
 (`tasks/M0-12-01.md:289-291`) instructs exactly this — "push the branch, confirm CI goes red" —
-but `CLAUDE.md` § Standing constraints is explicit: *"Never merge or push without an explicit
-instruction in the current conversation"*, and the runner dispatches with `allowMerge=false`.
+but `CLAUDE.md` § Standing constraints is explicit: _"Never merge or push without an explicit
+instruction in the current conversation"_, and the runner dispatches with `allowMerge=false`.
 No local substitute exists (`gh`, `act`, docker — none installed on this workstation). The
 branch has never been pushed (`git branch -r` shows no
 `origin/migration/M0-12-01-test-project`; `git rev-parse --abbrev-ref @{u}` reports no
@@ -1028,14 +1028,14 @@ owner reviews and merges this branch.
 ¹⁴ **M0-12-02: `Completed` and merged (`a83f1e2`, 2026-08-19) — 11 of 12 acceptance criteria
 `MET`, the twelfth WAIVED by the repository owner.**
 
-> **Read the waiver as a waiver, not as a pass.** Criterion 8's second half — *"the suite
-> passes in CI on the branch"* — was **never satisfied**. It requires pushing the branch so a
+> **Read the waiver as a waiver, not as a pass.** Criterion 8's second half — _"the suite
+> passes in CI on the branch"_ — was **never satisfied**. It requires pushing the branch so a
 > hosted Actions run exists, which `CLAUDE.md` forbids an execution session to do. The owner
 > waived it in-conversation on the **`M0-07` precedent** (`d79e1a4`, signed off `Completed`
 > with the identical gap open). Justification recorded so a later reader does not mistake this
 > for sloppiness: `M0-12-01` had already proven this pipeline runs this suite end to end —
 > green, **red at the `Test - V.SMART.Shared.Tests` step**, green again — so criterion 8 would
-> have re-tested the *pipeline*, not this task. **If a future task needs per-branch CI
+> have re-tested the _pipeline_, not this task. **If a future task needs per-branch CI
 > evidence, this waiver is not a precedent for skipping it** — it rests specifically on
 > `M0-12-01` having already demonstrated the gate works.
 
@@ -1055,7 +1055,7 @@ baseline. KB-030, KB-060, KB-004 (new **Q-23**, **Q-24**) and KB-003 (INV-011 an
 all updated in the same commit.
 
 **What is not met — criterion 8's second half, and why it cannot be met from inside an
-execution session.** *"the suite passes in CI on the branch"* requires pushing
+execution session.** _"the suite passes in CI on the branch"_ requires pushing
 `migration/M0-12-02-calculationservice-characterisation` to `origin` so `ci.yml` executes on
 a hosted runner. `git ls-remote --heads origin` lists eight branches and this one is not
 among them; `CLAUDE.md` § Standing constraints forbids pushing without an explicit
@@ -1129,7 +1129,7 @@ Full record: [`tasks/M0-09.md` § Execution Record
 
 ¹⁷ **M0-11: `Blocked` → `Ready`, 2026-08-19 — the human step it was waiting for has happened.**
 This task was never blocked on engineering. It was blocked on a product decision only the
-repository owner could take, and he took it: **Q-01 is answered — *preserve but surface*.** The
+repository owner could take, and he took it: **Q-01 is answered — _preserve but surface_.** The
 API will reproduce today's allocation behaviour exactly (a short issue still succeeds, still
 allocates what is available) but the shortfall is returned to the caller and shown, instead of
 being silent.
@@ -1139,14 +1139,14 @@ being silent.
 someone to choose between. The acceptance criteria still apply in full, including arguing both
 options in good faith and mapping every behavioural statement to an `M0-13` test by exact name;
 a decision brief that omits the rejected option is not a brief, it is an announcement. Note the
-task file's own criterion — *"Option B addresses **visibility**, not merely 'leave it as it
-is'"* — anticipated exactly this answer.
+task file's own criterion — _"Option B addresses **visibility**, not merely 'leave it as it
+is'"_ — anticipated exactly this answer.
 
 **What this task does NOT cover, and must not silently absorb:** the owner deferred the
-*implementation* of surfacing until after Milestone 2. That work has **no task id yet** and is
+_implementation_ of surfacing until after Milestone 2. That work has **no task id yet** and is
 not part of `M0-11`, `M0-13`, or any current M2 task. When it is scheduled it must address two
 things beyond the obvious: (a) `StockManagerService.cs:154-155` commits an orphan `StockIssue`
-row for the full quantity **before** allocation is attempted, so even a *refused* issue leaves
+row for the full quantity **before** allocation is attempted, so even a _refused_ issue leaves
 a row that does not match reality; (b) tests `S13`–`S16` pin the current behaviour and must be
 updated in the same commit as any change, or they will correctly go red.
 
@@ -1157,15 +1157,15 @@ on `ADR-006`. See [KB-080 § Exit Gate — G0](README.md#exit-gate--g0).
 
 > ### ✅ The waived half is now SATISFIED — 2026-08-20, on `master`
 >
-> `master` was pushed `20be92f..e63716e` (41 commits) and the workflow ran **green**, owner-confirmed. That was the **first hosted execution** of the `frontend` job: 150 Vitest tests *and* the `branches: 100` coverage gate, on a runner rather than a workstation.
+> `master` was pushed `20be92f..e63716e` (41 commits) and the workflow ran **green**, owner-confirmed. That was the **first hosted execution** of the `frontend` job: 150 Vitest tests _and_ the `branches: 100` coverage gate, on a runner rather than a workstation.
 >
-> **Read what changed, precisely.** The criterion said *"green on the **branch**"*; what is now proven is *"green on **`master`**, after merge"*. That is the same guarantee arriving later, not the original criterion being met — an execution session still cannot produce a hosted run, so the waiver was correct when it was taken. It is retired by evidence, not withdrawn as a mistake.
+> **Read what changed, precisely.** The criterion said _"green on the **branch**"_; what is now proven is _"green on **`master`**, after merge"_. That is the same guarantee arriving later, not the original criterion being met — an execution session still cannot produce a hosted run, so the waiver was correct when it was taken. It is retired by evidence, not withdrawn as a mistake.
 >
-> Retired alongside it: `M2-A06`'s *"not verified, and not verifiable from an execution session — that the new CI step is green on a hosted runner."* `Test - V.SMART.Api.Tests` ran green on the same push, its first execution anywhere but this workstation.
+> Retired alongside it: `M2-A06`'s _"not verified, and not verifiable from an execution session — that the new CI step is green on a hosted runner."_ `Test - V.SMART.Api.Tests` ran green on the same push, its first execution anywhere but this workstation.
 >
-> **Still open, and unaffected:** **Q-20**'s remaining half. CI running green is not CI *gating* merges — there is still no required status check, and this very push reported `Bypassed rule violations … Changes must be made through a pull request`. Green CI that nothing enforces is a smoke alarm with the battery out.
+> **Still open, and unaffected:** **Q-20**'s remaining half. CI running green is not CI _gating_ merges — there is still no required status check, and this very push reported `Bypassed rule violations … Changes must be made through a pull request`. Green CI that nothing enforces is a smoke alarm with the battery out.
 
-> **Read the waiver as a waiver.** Criterion 10's second half — *"the `frontend` job ... is green on the branch"* — was **never satisfied at the time**. It needs a push, which an execution session may not make. Waived by the owner on the `M0-07` (`d79e1a4`) and `M0-12-02` (`a83f1e2`) precedent. Everything locally verifiable was independently re-run before merging: `typecheck`, `lint --max-warnings=0`, `test`, `build` all exit 0; entry chunk **289.69 kB / 90.90 kB gzipped**; `git status` clean after a build; `dotnet test` still **79 passed**. Scope confirmed: no `node_modules/`, `dist/`, `playwright-report/` or `test-results/` committed; `package-lock.json` committed; `frontend/vsmart-erp/` untouched; exactly one component library (`@mantine/core`); the pre-existing CI job intact.
+> **Read the waiver as a waiver.** Criterion 10's second half — _"the `frontend` job ... is green on the branch"_ — was **never satisfied at the time**. It needs a push, which an execution session may not make. Waived by the owner on the `M0-07` (`d79e1a4`) and `M0-12-02` (`a83f1e2`) precedent. Everything locally verifiable was independently re-run before merging: `typecheck`, `lint --max-warnings=0`, `test`, `build` all exit 0; entry chunk **289.69 kB / 90.90 kB gzipped**; `git status` clean after a build; `dotnet test` still **79 passed**. Scope confirmed: no `node_modules/`, `dist/`, `playwright-report/` or `test-results/` committed; `package-lock.json` committed; `frontend/vsmart-erp/` untouched; exactly one component library (`@mantine/core`); the pre-existing CI job intact.
 
 **Footnote renumbered from ¹⁸ to ¹⁹ on merge** — ¹⁸ had just been assigned to `M2-A01-01`, and this branch was cut before that landed. The same cross-branch allocation defect as the six-id KB/INV/Q collision; see [INDEX.md](../INDEX.md) § doc_id allocation.
 
@@ -1177,7 +1177,7 @@ against commands actually run — `npm ci`, `typecheck`, `lint`, `format:check`,
 `coverage`, `build`, `e2e` all exit 0; only `@mantine/core` is present in the dependency tree;
 every ADR-003 major matches; `src/` matches KB-050; no `V.SMART/` or `frontend/vsmart-erp/`
 file touched; KB-083 updated. The sole `NOT MET`: criterion 10 (`tasks/M2-C01.md:373-374`),
-*"`.github/workflows/ci.yml` contains a `frontend` job … **and it is green on the branch**"* —
+_"`.github/workflows/ci.yml` contains a `frontend` job … **and it is green on the branch**"_ —
 the job exists and is well-formed, but no GitHub Actions run can exist without a push, which
 `CLAUDE.md` forbids absent an explicit in-conversation instruction (`git ls-remote --heads
 origin` does not list this branch; `gh` is not installed on this workstation). This is the
@@ -1190,11 +1190,11 @@ owner) — the only person who can authorise publishing the branch (option A) or
 
 ²⁰ **M2-B07: `Completed` and merged (`ffbb1dd`, 2026-08-19) — every mechanical criterion met, the render criterion WAIVED.**
 
-> **Read the waiver as a waiver.** *"The Blazor app starts and three screens from three different modules render without a DI resolution error"* was **never satisfied**. It needs a signed-in interactive Blazor Server circuit; the one provisioned ERP user's password is hashed and owner-held, and no session may acquire or reuse a credential (Q-14 / R-01). The three screens `302` to `/access-denied` under server-side screen-right authorization — **identically on `master`**, so this is not a regression the task introduced. Waived by the owner on the `M2-C01` (`12f172f`), `M0-12-02` (`a83f1e2`) and `M0-07` (`d79e1a4`) precedent.
+> **Read the waiver as a waiver.** _"The Blazor app starts and three screens from three different modules render without a DI resolution error"_ was **never satisfied**. It needs a signed-in interactive Blazor Server circuit; the one provisioned ERP user's password is hashed and owner-held, and no session may acquire or reuse a credential (Q-14 / R-01). The three screens `302` to `/access-denied` under server-side screen-right authorization — **identically on `master`**, so this is not a regression the task introduced. Waived by the owner on the `M2-C01` (`12f172f`), `M0-12-02` (`a83f1e2`) and `M0-07` (`d79e1a4`) precedent.
 >
 > **What verified the DI graph instead** — independently re-run before merging, not taken from the run's report: `dotnet test` **84 passed, 0 failed** (79 + 5 new); `dotnet build V.SMART.Api` **0 errors**; and `V.SMART.Web` started, resolved its tenant, queried EF and served `GET /` → **200 with zero DI resolution errors**. The 5 new tests in `tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs` call `BuildServiceProvider(validateScopes: true, validateOnBuild: true)` over the whole graph with host seams supplied — **a stricter check than rendering three screens.**
 >
-> **It carries a debt, accepted deliberately.** `V.SMART.Api` now opts out of `ValidateOnBuild` (`31a10ba`). `WebApplicationBuilder` enables it automatically in Development, and seven seam-coupled registrations aborted API startup — a **runtime** failure that no compile check catches, and which the first attempt shipped undetected. The opt-out keeps `ValidateScopes` on, names the seven registrations as *measured* rather than assumed, and carries a `REMOVE THIS BLOCK` marker tied to `M2-B06`/`M2-B08`. **This task introduced that loosening.** Tracked in [technical-debt-register.md](../risks/technical-debt-register.md).
+> **It carries a debt, accepted deliberately.** `V.SMART.Api` now opts out of `ValidateOnBuild` (`31a10ba`). `WebApplicationBuilder` enables it automatically in Development, and seven seam-coupled registrations aborted API startup — a **runtime** failure that no compile check catches, and which the first attempt shipped undetected. The opt-out keeps `ValidateScopes` on, names the seven registrations as _measured_ rather than assumed, and carries a `REMOVE THIS BLOCK` marker tied to `M2-B06`/`M2-B08`. **This task introduced that loosening.** Tracked in [technical-debt-register.md](../risks/technical-debt-register.md).
 >
 > **Attempt accounting, corrected.** Two real implement/validate cycles, plus one dispatch lost to an `ENOTFOUND` transport failure that — per the `M0-12-01` precedent — does not consume budget. The pre-merge record below says "3 of 3 exhausted"; **the task closed on an owner waiver, not on budget exhaustion**, and one attempt remained.
 
@@ -1234,9 +1234,9 @@ attempt 3 of 3](tasks/M2-B07.md#execution-record-2026-08-19--close-out-attempt-3
 ²¹ **M0-01-03: `Needs Review` → `Ready` 2026-08-19 — the premise that blocked it was false.**
 
 This task has sat unfinished all milestone because the rebuild drill needs a SQL Server to
-rebuild *onto*, and three consecutive sessions recorded that no such server was available.
-[KB-107](M0-milestone-review.md) built its closing recommendation on that: *"obtain a
-disposable SQL Server … nothing else on this list is blocked on so little."*
+rebuild _onto_, and three consecutive sessions recorded that no such server was available.
+[KB-107](M0-milestone-review.md) built its closing recommendation on that: _"obtain a
+disposable SQL Server … nothing else on this list is blocked on so little."_
 
 **A SQL Server Express instance has been installed on the development workstation the whole
 time.** Confirmed independently during `M2-B07`, 2026-08-19: `MSSQL$SQLEXPRESS` running,
@@ -1253,11 +1253,11 @@ next session read it as settled. It was never entered as `Unknown` in
 [`open-questions.md`](../open-questions.md); it became `Confirmed` purely by repetition.
 
 **The process lesson, which outlives this task:** a negative result needs the same
-`file:line`-grade evidence as a positive one. *"I could not find X"* is a claim about the
+`file:line`-grade evidence as a positive one. _"I could not find X"_ is a claim about the
 search, not about X. `CLAUDE.md` already says never to write an inference so that it reads as
 fact — this is what it costs when that slips.
 
-**What this does and does not mean.** The drill is now *runnable*; it has **not been run**.
+**What this does and does not mean.** The drill is now _runnable_; it has **not been run**.
 `db/REBUILD-DRILL-LOG.md` is still a skeleton with every field `TBD`, and G0 criterion 1 is
 still **DEFERRED** — but deferred on work, not on hardware, and its owner-agreed deferral now
 rests on a stated reason that no longer holds. Use a throwaway database on this instance;
@@ -1271,8 +1271,8 @@ password.
 
 **Not selected as the next task during the `M2-A08` close-out (2026-08-20), despite being
 `Ready`.** "Runnable" is a hardware fact; the task file's own Implementation Step 7 is a
-policy instruction independent of hardware — *"Hand the drill to a human. You cannot execute
-it"* — and that line was not reopened by this footnote. Treated per
+policy instruction independent of hardware — _"Hand the drill to a human. You cannot execute
+it"_ — and that line was not reopened by this footnote. Treated per
 [dependency-graph.md § Ready-task selection rule](dependency-graph.md#ready-task-selection-rule)
 step 1, bullet 4 as blocked on an unscheduled human step; `M2-B04` was selected instead. If the
 owner wants an AI session to run the drill against the now-confirmed local SQL Server Express
@@ -1284,11 +1284,11 @@ instance, say so explicitly and this task file's Step 7 should be amended accord
 >
 > **Re-verified independently before merging, and again on `master` after:** `npm run coverage` **150 passed, branches 100 %**, exit 0; `typecheck`, `lint`, `build` all exit 0; entry bundle **91.59 kB gzip** against KB-050's `< 250 kB` budget; `dotnet test` **84 passed** — unchanged, and it could not have moved, since no file under `V.SMART/` or `tests/` is in the diff.
 >
-> **The coverage regression was fixed by raising coverage, not by lowering the floor.** Attempt 1 added ~700 partly-covered lines under a `branches: 100` threshold and broke `npm run coverage` (exit 0 → 1). `vitest.config.ts` is **byte-identical to `master`** — verified, not assumed — and its own comment reads *"Thresholds are set to the MEASURED starting value (M2-C01), so the number can only ever be raised. Do not lower these."* Part of the fix **deleted** branches rather than testing them: `ThemeToggle`'s arrow-key ring indexed a tuple with a computed number, which under `noUncheckedIndexedAccess` forced two guards the type system already makes unreachable. Unreachable branches cannot be covered, only ignored.
+> **The coverage regression was fixed by raising coverage, not by lowering the floor.** Attempt 1 added ~700 partly-covered lines under a `branches: 100` threshold and broke `npm run coverage` (exit 0 → 1). `vitest.config.ts` is **byte-identical to `master`** — verified, not assumed — and its own comment reads _"Thresholds are set to the MEASURED starting value (M2-C01), so the number can only ever be raised. Do not lower these."_ Part of the fix **deleted** branches rather than testing them: `ThemeToggle`'s arrow-key ring indexed a tuple with a computed number, which under `noUncheckedIndexedAccess` forced two guards the type system already makes unreachable. Unreachable branches cannot be covered, only ignored.
 >
-> **Eight KB-051 colours were raised, not shipped as specified.** They failed WCAG at the values KB-051 gave: `--border` light **1.18:1**, `--text-disabled` light **2.26:1**, `--success`/`--warning` **4.38:1**, and a `--focus-ring` specified as a *40 % wash* that cannot reach 3:1 against any light background (WCAG 2.2 §2.4.11 requires it to). **The thresholds were never lowered to fit the palette.** The validator re-derived this from scratch with its own WCAG implementation — 110 pairs, 0 failing, both themes.
+> **Eight KB-051 colours were raised, not shipped as specified.** They failed WCAG at the values KB-051 gave: `--border` light **1.18:1**, `--text-disabled` light **2.26:1**, `--success`/`--warning` **4.38:1**, and a `--focus-ring` specified as a _40 % wash_ that cannot reach 3:1 against any light background (WCAG 2.2 §2.4.11 requires it to). **The thresholds were never lowered to fit the palette.** The validator re-derived this from scratch with its own WCAG implementation — 110 pairs, 0 failing, both themes.
 >
-> **The 12 px workhorse type scale is an owner decision, not a default.** `--text-sm: 12px` (table body, form inputs), `--text-base: 14px`, 30 px compact rows — confirmed by Vivek 2026-08-20, weighed explicitly against the "more user-friendly than the reference ERPs" goal and kept. **The reasoning, so it is not re-litigated:** density *is* the usability feature in a data-heavy ERP; rows-per-screen is what an operator entering line items all day actually feels, and larger type costs visible rows on the highest-frequency task in the system. `M2-C04-02`, `M2-C05-01` and `M2-C07` inherit this scale and should not reopen it.
+> **The 12 px workhorse type scale is an owner decision, not a default.** `--text-sm: 12px` (table body, form inputs), `--text-base: 14px`, 30 px compact rows — confirmed by Vivek 2026-08-20, weighed explicitly against the "more user-friendly than the reference ERPs" goal and kept. **The reasoning, so it is not re-litigated:** density _is_ the usability feature in a data-heavy ERP; rows-per-screen is what an operator entering line items all day actually feels, and larger type costs visible rows on the highest-frequency task in the system. `M2-C04-02`, `M2-C05-01` and `M2-C07` inherit this scale and should not reopen it.
 >
 > **Still owed at review, and genuinely not automatable:** both themes at **200 % zoom with `prefers-reduced-motion` enabled**. `jsdom` applies no stylesheet, so no test can cover it. This is a review step, **not an unmet acceptance criterion** — recorded here so it is not mistaken for one, and not silently dropped either.
 
@@ -1327,7 +1327,7 @@ acceptance criteria ask for is independently confirmed.
 
 **Releases, once reviewed and merged:** `M2-C04-02` and `M2-C04-03` (both list this as a Hard
 prerequisite), and — together with `M2-C02` — `M2-C03`. None of the three move to `Ready` on
-`Needs Review` alone, per the *Ready-task selection rule*'s "not `REVIEW`" clause; they stay
+`Needs Review` alone, per the _Ready-task selection rule_'s "not `REVIEW`" clause; they stay
 `Blocked` until this is merged.
 
 ---
@@ -1338,7 +1338,7 @@ prerequisite), and — together with `M2-C02` — `M2-C03`. None of the three mo
 > `.github/workflows/ci.yml`**, which runs exactly one test project:
 > `dotnet test tests/V.SMART.Shared.Tests/...`. Verified, not inferred — the solution lists five
 > projects and this is not among them; the CI file's own "WHAT IS DELIBERATELY NOT HERE" comment
-> still reads *"Any test project other than `tests/V.SMART.Shared.Tests`."*
+> still reads _"Any test project other than `tests/V.SMART.Shared.Tests`."_
 >
 > **All 21 tests pass locally** (re-run at owner review: `Failed: 0, Passed: 21`). Nothing is
 > broken. The gap is that **nothing on a hosted runner would notice if they broke** — they can rot
@@ -1346,11 +1346,11 @@ prerequisite), and — together with `M2-C02` — `M2-C03`. None of the three mo
 >
 > **This was not recorded anywhere** — not in the task file, not in the execution record, not in
 > the close-out. The acceptance criteria did not ask for `.sln`/CI wiring, so the `PASS` is
-> correct and the eighteen criteria genuinely are `MET`; this is a gap in *what the task asked
-> for*, not a validation failure. `M0-12-01` set the precedent that a new test project gets wired
+> correct and the eighteen criteria genuinely are `MET`; this is a gap in _what the task asked
+> for_, not a validation failure. `M0-12-01` set the precedent that a new test project gets wired
 > into CI in the same change that creates it.
 >
-> **✅ FIXED BEFORE MERGE**, on owner instruction (*"wire it into CI then merge"*), commit
+> **✅ FIXED BEFORE MERGE**, on owner instruction (_"wire it into CI then merge"_), commit
 > `a499989`. `tests/V.SMART.Api.Tests/` is now in the solution (`dotnet sln list` → six projects)
 > and has its own `Test - V.SMART.Api.Tests` step in `ci.yml`'s `build` job — a **separate** step,
 > so the job log names which suite failed without anyone opening a `.trx`. The
@@ -1369,9 +1369,9 @@ prerequisite), and — together with `M2-C02` — `M2-C03`. None of the three mo
 
 > **Re-verified before merging and again on `master` after:** `dotnet build V.SMART.Api` **0 errors / 6,694 warnings** (baseline 6,695); `dotnet test V.SMART.Api.Tests` **21 passed**; `dotnet test V.SMART.Shared.Tests` **84 passed**, no regression.
 >
-> **BR-SO-001 was honoured** — the one thing here that could have destroyed behaviour while reading as an improvement in a diff. `ApiProblems.BusinessRuleRefusal` carries the service's own message into `title` **verbatim**: *"not reworded, not prefixed, not truncated. Those strings are product UX written by the domain team."*
+> **BR-SO-001 was honoured** — the one thing here that could have destroyed behaviour while reading as an improvement in a diff. `ApiProblems.BusinessRuleRefusal` carries the service's own message into `title` **verbatim**: _"not reworded, not prefixed, not truncated. Those strings are product UX written by the domain team."_
 >
-> **The validator probed the running host rather than trusting the build.** It started the API with a throwaway JWT secret and an unreachable `MasterDb` and confirmed over HTTP: `application/problem+json` with matching `X-Correlation-Id`/`traceId` on 401, 404, 503 and a CORS preflight 204; **no connection string** in the unresolved-tenant body (R-01); a caller-supplied correlation header ignored. The implementer had explicitly reported *not* doing this — the validator did not take that as settled.
+> **The validator probed the running host rather than trusting the build.** It started the API with a throwaway JWT secret and an unreachable `MasterDb` and confirmed over HTTP: `application/problem+json` with matching `X-Correlation-Id`/`traceId` on 401, 404, 503 and a CORS preflight 204; **no connection string** in the unresolved-tenant body (R-01); a caller-supplied correlation header ignored. The implementer had explicitly reported _not_ doing this — the validator did not take that as settled.
 >
 > **A deliberate breaking change ships here:** `DELETE /api/currencies/{id}`'s refusal moves **`400` → `409`** per ADR-002 §4. Intended, and the only contract change in the diff.
 >
@@ -1387,8 +1387,8 @@ Pre-merge record follows. Branch `migration/M2-A06-problem-details`, tip `f69891
 may set it `Completed`.**
 
 All eighteen acceptance criteria independently re-checked `MET` (two — updating `M2-A02`'s
-tests, and the `M2-A03` permission harness — correctly marked *not applicable* / *not
-checkable*, since neither prerequisite has landed). `dotnet build V.SMART.Api --no-incremental`:
+tests, and the `M2-A03` permission harness — correctly marked _not applicable_ / _not
+checkable_, since neither prerequisite has landed). `dotnet build V.SMART.Api --no-incremental`:
 **0 errors, 6,694 warnings** (baseline 6,695). `dotnet test tests/V.SMART.Api.Tests/…`: **21
 passed, 0 failed** (new project, created by this task). `dotnet test
 tests/V.SMART.Shared.Tests/…`: **84 passed, 0 failed** — no regression. `git diff --stat
@@ -1420,11 +1420,11 @@ all list `M2-A06` as a Hard prerequisite. None moves to `Ready` on `Needs Review
 
 > **Third consecutive M2 task to close with nothing waived.**
 >
-> **Re-verified before merging and again on `master` after:** `dotnet build V.SMART.Web` **0 errors** — built *deliberately*, because this task touches `V.SMART.Shared`, the **live Blazor app's business layer**, not just the API; `dotnet build V.SMART.Api` **0 errors**; `dotnet test V.SMART.Api.Tests` **56 passed** (21 → +35); `dotnet test V.SMART.Shared.Tests` **84 passed**, no regression.
+> **Re-verified before merging and again on `master` after:** `dotnet build V.SMART.Web` **0 errors** — built _deliberately_, because this task touches `V.SMART.Shared`, the **live Blazor app's business layer**, not just the API; `dotnet build V.SMART.Api` **0 errors**; `dotnet test V.SMART.Api.Tests` **56 passed** (21 → +35); `dotnet test V.SMART.Shared.Tests` **84 passed**, no regression.
 >
 > **The shared-layer change is genuinely additive — checked, not taken on assertion.** `ICurrencyService` gains a 4-arg overload; the 3-arg member keeps its signature and delegates with `sort: null`. An empty term list returns `query.OrderByDescending(x => x.CurrId)` — exactly the previous ordering path — and **`CurrencyList.razor` is not in the diff**, so the live Blazor caller still binds to the 3-arg overload by named arguments. The running UI is untouched.
 >
-> **Two pieces of engineering worth keeping visible.** `ApplyOrder` appends `ThenByDescending(CurrId)` whenever the sort key is not unique — paging over a non-unique key lets SQL Server break ties differently per query, so rows silently repeat or vanish between pages; that is a correctness bug most paging implementations ship with. And **an unknown sort field throws**, deliberately opposite to `CurrencyFilterBuilder`'s silent catch-all, with the reason recorded: *"a request that silently sorts nothing while answering 200 is worse than one that fails."* The allow-list is an explicit `switch` over string literals, never reflection, so the sortable set is a reviewable compile-time fact.
+> **Two pieces of engineering worth keeping visible.** `ApplyOrder` appends `ThenByDescending(CurrId)` whenever the sort key is not unique — paging over a non-unique key lets SQL Server break ties differently per query, so rows silently repeat or vanish between pages; that is a correctness bug most paging implementations ship with. And **an unknown sort field throws**, deliberately opposite to `CurrencyFilterBuilder`'s silent catch-all, with the reason recorded: _"a request that silently sorts nothing while answering 200 is worse than one that fails."_ The allow-list is an explicit `switch` over string literals, never reflection, so the sortable set is a reviewable compile-time fact.
 >
 > **The one stated limitation was verified, not accepted.** The record says the `toDate` 23:59 boundary could not be exercised against real SQL because every dev-tenant `Currency` row has a null `CreatedDate`. Checked directly against the local `SQLEXPRESS` tenant (read-only, integrated auth): `SELECT COUNT(*), COUNT(CreatedDate) FROM Currency` → **`3, 0`**. Three rows, none with a `CreatedDate`. **The limitation is real and was reported honestly** — the boundary was tested one level below HTTP through the untouched `CurrencyFilterBuilder` predicate instead.
 >
@@ -1486,23 +1486,23 @@ all list `M2-B02` as a Hard prerequisite. None moves to `Ready` on `Needs Review
 >
 > ### The D-5 / R-80 contradiction was not resolved by guessing
 >
-> *(Cited as `R-40` here when this footnote was written 2026-08-20 — the `UserId == 1`
+> _(Cited as `R-40` here when this footnote was written 2026-08-20 — the `UserId == 1`
 > undeclared-superuser risk was not yet in `technical-debt-register.md` under any id, because
 > the branch that defines it (`M0-06`) was still unmerged. `R-40` was independently claimed by
 > a different risk in the interim and the superuser risk landed as `R-80` when `M0-06` finally
-> merged, 2026-08-26. Corrected here rather than left dangling.)*
+> merged, 2026-08-26. Corrected here rather than left dangling.)_
 >
 > This was the whole risk of the task, so it was checked directly rather than taken from the report — a plausible-looking compromise here would have baked an **undeclared superuser into the new API's security model**, and it would have read as reasonable in a diff.
 >
 > - `grep` of `V.SMART.Api/Authorization/` for `UserId == 1`, `IsAdmin`, `Administrator`, `superuser`, `bypass`, `.Role` → **zero matches**.
-> - **KB-105's D-5 still reads *"No `Administrator` bypass. None. Anywhere."* verbatim.** The spec *was* touched, but **additively** — an implementation-status block recording two deliberate departures, which also corrects its own stale `Program.cs` line numbers. D-5 was **not** softened to fit the code.
+> - **KB-105's D-5 still reads _"No `Administrator` bypass. None. Anywhere."_ verbatim.** The spec _was_ touched, but **additively** — an implementation-status block recording two deliberate departures, which also corrects its own stale `Program.cs` line numbers. D-5 was **not** softened to fit the code.
 > - `T13_an_Administrator_with_no_row_is_denied` pins it: an identity carrying a `Role=Administrator` claim against an empty rights set is denied.
 >
 > **Why it did not fire — which matters more than that it didn't.** R-80's bypass lives in `Login.razor`'s **login** path, not in `RightsHelper` or the rights check. The filter reads `UserRight` rows and nothing else, so an administrator with no rows is denied, correctly. **The contradiction was never this task's to hit.** It stays live for **`M2-A02`**, and sharper there: an API-only administrator holds **zero rows**, because `AuthController.Login` never calls `SyncRightsForUserAsync` (**Q-28**). Implement `M2-A02` before settling Q-28 and the administrator authenticates into an empty UI.
 >
 > ### One security-relevant departure — recorded, not hidden
 >
-> **D-4 is only partly implemented.** An authenticated action on a controller carrying **no** `[RequireScreen]` at all is presently **allowed through** rather than refused, at request time *and* at startup. The reasoning is sound — enforcing it now would make the host refuse to start over `CurrencyController`'s five unannotated endpoints, and this task requires all six to behave exactly as before — and the half-annotated directions (T-11, T-12) **are** enforced, as is D-6's catalogue check.
+> **D-4 is only partly implemented.** An authenticated action on a controller carrying **no** `[RequireScreen]` at all is presently **allowed through** rather than refused, at request time _and_ at startup. The reasoning is sound — enforcing it now would make the host refuse to start over `CurrencyController`'s five unannotated endpoints, and this task requires all six to behave exactly as before — and the half-annotated directions (T-11, T-12) **are** enforced, as is D-6's catalogue check.
 >
 > **But until `M2-A02` closes it, the filter is opt-in, not deny-by-default at the controller level** — the opposite of what "deny by default" implies. Tracked against **R-03** ([KB-060](../risks/technical-debt-register.md)). This belongs in front of whoever writes `M2-A02`, not in a footnote nobody re-reads.
 >
@@ -1567,18 +1567,18 @@ lists `M2-A01-02` as a Hard prerequisite.
 
 ²⁶ **The M2-C tree was re-scoped from React to Angular on 2026-08-20 — [ADR-007](../decisions/ADR-007-angular-stack.md).**
 
-> **Owner decision.** His background is C# and WPF with no frontend experience; the runner writes the screens but **he** reviews and maintains them. Angular's component-plus-service shape, constructor DI and typed Reactive Forms map onto MVVM and XAML in a way React's hooks model does not. The finding that reopened it: **ADR-003 never evaluated Angular at all** — every rationale it recorded was a choice *within* React. Full reasoning in ADR-007.
+> **Owner decision.** His background is C# and WPF with no frontend experience; the runner writes the screens but **he** reviews and maintains them. Angular's component-plus-service shape, constructor DI and typed Reactive Forms map onto MVVM and XAML in a way React's hooks model does not. The finding that reopened it: **ADR-003 never evaluated Angular at all** — every rationale it recorded was a choice _within_ React. Full reasoning in ADR-007.
 >
 > ### What changed in this tree
 >
-> | Task | Was | Now |
-> |---|---|---|
-> | **`M2-C00`** *(new)* | — | **`Ready`** — rewrite [KB-050](../frontend-new/react-architecture.md) for Angular. **Gates the whole tree**: until it lands there is no authoritative structure to specify against |
-> | `M2-C01` | `Completed`¹⁹ (React scaffold, merged `12f172f`) | **`Ready`**, re-scoped to Angular CLI. Now depends on `M2-C00` |
-> | `M2-C04-01` | `Completed`²² (design tokens, merged `56b8ae2`) | `Blocked`, re-scoped. **`tokens.css` ports nearly verbatim** — plain CSS custom properties, carrying the eight WCAG contrast corrections and the 12 px type-scale decision |
-> | `M2-C11` | "**Archive** the Angular pilot" | "**Adopt** the Angular pilot as the app baseline" — it has 9 components including auth service, route guard and HTTP interceptor |
-> | `M2-C10`, `M2-C04-02`, `M2-C04-03` | `Ready` | `Blocked` on `M2-C00` |
-> | `M2-D01`, `M2-D02-03`, `M2-D03` | "in React" / "React screens" / "Blazor ↔ React parity" | Angular |
+> | Task                               | Was                                                    | Now                                                                                                                                                                                |
+> | ---------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | **`M2-C00`** _(new)_               | —                                                      | **`Ready`** — rewrite [KB-050](../frontend-new/react-architecture.md) for Angular. **Gates the whole tree**: until it lands there is no authoritative structure to specify against |
+> | `M2-C01`                           | `Completed`¹⁹ (React scaffold, merged `12f172f`)       | **`Ready`**, re-scoped to Angular CLI. Now depends on `M2-C00`                                                                                                                     |
+> | `M2-C04-01`                        | `Completed`²² (design tokens, merged `56b8ae2`)        | `Blocked`, re-scoped. **`tokens.css` ports nearly verbatim** — plain CSS custom properties, carrying the eight WCAG contrast corrections and the 12 px type-scale decision         |
+> | `M2-C11`                           | "**Archive** the Angular pilot"                        | "**Adopt** the Angular pilot as the app baseline" — it has 9 components including auth service, route guard and HTTP interceptor                                                   |
+> | `M2-C10`, `M2-C04-02`, `M2-C04-03` | `Ready`                                                | `Blocked` on `M2-C00`                                                                                                                                                              |
+> | `M2-D01`, `M2-D02-03`, `M2-D03`    | "in React" / "React screens" / "Blazor ↔ React parity" | Angular                                                                                                                                                                            |
 >
 > ### Footnotes ¹⁹ and ²² are NOT withdrawn
 >
@@ -1594,18 +1594,18 @@ lists `M2-A01-02` as a Hard prerequisite.
 > the condition it named (a real KB-050) was met before any file was rewritten. They no longer
 > describe the current state.
 >
-> That is ~25,000 lines of specification with 1,300+ React-specific references. Rewriting it now would mean **writing Angular detail against a KB-050 that does not exist yet**, for tasks months away, which is how specifications go stale — a risk this repository already names: *"A task file's Current Implementation section is a hypothesis, not fact."*
+> That is ~25,000 lines of specification with 1,300+ React-specific references. Rewriting it now would mean **writing Angular detail against a KB-050 that does not exist yet**, for tasks months away, which is how specifications go stale — a risk this repository already names: _"A task file's Current Implementation section is a hypothesis, not fact."_
 >
-> Each banner states what survives (acceptance-criteria *intent*, the ERP behaviour being reproduced, `file:line` evidence about the **existing Blazor** code, business rules, dependencies — none of which was ever a React decision) and what must be re-derived (every stack-specific instruction, `frontend/nexgen-web/` path, component API and command). **It also tells a runner to stop and report rather than infer**, because re-specifying is an owner-level documentation change.
+> Each banner states what survives (acceptance-criteria _intent_, the ERP behaviour being reproduced, `file:line` evidence about the **existing Blazor** code, business rules, dependencies — none of which was ever a React decision) and what must be re-derived (every stack-specific instruction, `frontend/nexgen-web/` path, component API and command). **It also tells a runner to stop and report rather than infer**, because re-specifying is an owner-level documentation change.
 >
 > Tasks get fully re-specified **as they come up**, against a real KB-050 — not in bulk against a guess.
 >
 > ### Cost, stated plainly
 >
 > Two merged tasks discarded and ~12 specs to re-derive: **1–2 weeks of real waste.** No backend work is affected — **all five remaining `Completed` M2 tasks are backend**, framework-neutral by design, which is the property that made this switch affordable at all. Deferring it would not have made it cheaper: `M2-C05`/`C07`/`C08` are 6–7 weeks by ADR-003's own estimate and all still ahead.
-²⁷ **M2-A01-03: `Completed` and merged (2026-08-20) — all acceptance criteria `MET`, no waiver.** 
+> ²⁷ **M2-A01-03: `Completed` and merged (2026-08-20) — all acceptance criteria `MET`, no waiver.**
 
-> **The cache key is tenant-scoped**, which was the one way this task could have introduced a cross-tenant data leak: `screenrights:v1:{tenantId}:{userId}`, with the hazard named in the code — *"two tenants can both have `UserId = 1` and a tenant-blind key would serve one tenant's rights to another."* Under database-per-tenant (KB-014) that is the whole risk, and it is closed. **Fail-closed on a missing tenant:** the filter resolves `tenantId` via `TryGetPositiveIntClaim` and **denies** when the claim is absent or unusable — it does not default to `0`. **No negative caching:** a throwing rights query writes nothing and propagates to the `M2-A06` handler, so a database fault can never be recorded as "no rights" (KB-105 §7.3). **The TTL cap is enforced in code:** default 60 s, max 300 s, `0` disables and restores exact `M2-A01-02` behaviour — the cap exists because the Blazor and API hosts are separate processes, so a `UserRight` write in Blazor cannot invalidate the API's in-process cache; only TTL expiry catches it. Verified before merging: `dotnet build V.SMART.Api` **0 errors**; `V.SMART.Api.Tests` **117 passed** (104 → +13); `V.SMART.Shared.Tests` **84 passed**.
+> **The cache key is tenant-scoped**, which was the one way this task could have introduced a cross-tenant data leak: `screenrights:v1:{tenantId}:{userId}`, with the hazard named in the code — _"two tenants can both have `UserId = 1` and a tenant-blind key would serve one tenant's rights to another."_ Under database-per-tenant (KB-014) that is the whole risk, and it is closed. **Fail-closed on a missing tenant:** the filter resolves `tenantId` via `TryGetPositiveIntClaim` and **denies** when the claim is absent or unusable — it does not default to `0`. **No negative caching:** a throwing rights query writes nothing and propagates to the `M2-A06` handler, so a database fault can never be recorded as "no rights" (KB-105 §7.3). **The TTL cap is enforced in code:** default 60 s, max 300 s, `0` disables and restores exact `M2-A01-02` behaviour — the cap exists because the Blazor and API hosts are separate processes, so a `UserRight` write in Blazor cannot invalidate the API's in-process cache; only TTL expiry catches it. Verified before merging: `dotnet build V.SMART.Api` **0 errors**; `V.SMART.Api.Tests` **117 passed** (104 → +13); `V.SMART.Shared.Tests` **84 passed**.
 >
 > **Releases `M2-A02`, `M2-A07`, `M2-A08`. `M2-A02` is gated on Q-28** — an API-only administrator holds **zero** `UserRight` rows because `AuthController.Login` never calls `SyncRightsForUserAsync`. Annotating a controller before that is settled produces an administrator who authenticates into an empty UI.
 >
@@ -1660,7 +1660,7 @@ entity `Banks`) retyped and verified behaviour-neutral against every `filter.` r
 `FundTransRepository.cs:46-92`, and a two-fact architecture guard added at
 `tests/V.SMART.Shared.Tests/Architecture/NoPagesReferenceFromDomainTests.cs` (reflection +
 source scan) which the validator **attacked with two independent seeded violations** rather
-than trusting. Builds and suites re-derived by the validator, each against its *matching*
+than trusting. Builds and suites re-derived by the validator, each against its _matching_
 baseline form: `V.SMART.Api` 0 errors / 6694 warnings, `V.SMART.Web` 0 errors / 6697, CI form
 6693 with `compare-warnings.sh` → `Gate: PASSED (equal to baseline)`; Shared tests 86 passed
 (84 + 2 new), Api tests 117 passed. Attempt 1's `6695` was never an anomaly — it was the plain
@@ -1706,13 +1706,13 @@ work that already exists.
 Each state below was read from the branch itself — `git log --oneline -2 <branch>` plus that
 branch's own tracker row — not inherited from a summary:
 
-| Task | Branch | Tip | Actual state |
-|---|---|---|---|
+| Task        | Branch                                  | Tip       | Actual state                                                                                                                                                                                                                                                                       |
+| ----------- | --------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `M2-B12-01` | `migration/M2-B12-01-inv-012-numbering` | `407d0ba` | 🚩 **`Blocked`, owner Vivek.** Escalation budget exhausted: validated `FAIL` at `fa4a2ad`, crossed `escalate_after_failures: 2`, the one permitted escalation was spent on a diagnosis committed as `8a54f96`, **and that fix has never been re-validated**. 2 of 3 attempts used. |
-| `M2-A08` | `…-row-scope-and-account-gates` | `bca92fd` | `Needs Review`, validated `PASS`. |
-| `M2-A08` ⚠ | `…-row-level-scoping` | `6e6633a` | Second branch, same task id, different content, live worktree. **Owner decides which is the real `M2-A08`.** |
-| `M2-B01` | `migration/M2-B01-api-versioning` | `045a7f4` | Close-out claims validated `PASS`, **11 of 12 criteria met, criterion 4 partial**. |
-| `M0-10` | `migration/M0-10-candelete-guard-audit` | `fc8e0c0` | Close-out claims `Needs Review` after attempt 3, regression repaired. |
+| `M2-A08`    | `…-row-scope-and-account-gates`         | `bca92fd` | `Needs Review`, validated `PASS`.                                                                                                                                                                                                                                                  |
+| `M2-A08` ⚠  | `…-row-level-scoping`                   | `6e6633a` | Second branch, same task id, different content, live worktree. **Owner decides which is the real `M2-A08`.**                                                                                                                                                                       |
+| `M2-B01`    | `migration/M2-B01-api-versioning`       | `045a7f4` | Close-out claims validated `PASS`, **11 of 12 criteria met, criterion 4 partial**.                                                                                                                                                                                                 |
+| `M0-10`     | `migration/M0-10-candelete-guard-audit` | `fc8e0c0` | Close-out claims `Needs Review` after attempt 3, regression repaired.                                                                                                                                                                                                              |
 
 **`M2-B01` and `M0-10` never updated their own tracker rows off `Ready`**, so even reading their
 branches directly, the tracker is not where their status lives — the commit subject and the task
@@ -1721,40 +1721,40 @@ file are. That is worth fixing at merge.
 **A false `PASS` was corrected in the course of this census.** The runner state carried into this
 session recorded `M2-B12-01` as validated `PASS` and awaiting merge; it had already propagated
 into more than one file, and this session propagated it onto `master` once before checking.
-`M2-B12-01`'s own tip commit says the opposite in its subject line — *"corrects a premature
-PASS"* — and its runner-state adds that **no genuine `PASS` of `58e7bee` exists anywhere in this
+`M2-B12-01`'s own tip commit says the opposite in its subject line — _"corrects a premature
+PASS"_ — and its runner-state adds that **no genuine `PASS` of `58e7bee` exists anywhere in this
 repository**. It was caught only because `git stash list` incidentally printed that commit
 subject next to the branch name.
 
 **The rule this earns, which belongs with footnote ²¹'s:** a status inherited from a sibling
-branch is a *claim*, not a fact, and it decays exactly as fast as the branches move. Confirming
+branch is a _claim_, not a fact, and it decays exactly as fast as the branches move. Confirming
 it costs one `git log` per branch. `git worktree list` belongs in the same check — three sibling
 worktrees were live this session and the tracker cannot see any of them.
 
 ³⁰ **M0-01-03: the rebuild drill ran on 2026-08-21 — §§2–6 passing, §7 and the named operator
 still outstanding.** Branch `migration/M0-01-03-rebuild-drill` (`34b5e32`), unmerged. Full
-record: `db/REBUILD-DRILL-LOG.md`, and *Execution Record (2026-08-21)* in
+record: `db/REBUILD-DRILL-LOG.md`, and _Execution Record (2026-08-21)_ in
 [`tasks/M0-01-03.md`](tasks/M0-01-03.md).
 
-**The task file's own step 7 was stale and blocked this task twice.** It says *"You cannot
+**The task file's own step 7 was stale and blocked this task twice.** It says _"You cannot
 execute it — there is no SQL Server instance reachable from this session and no credential to
-use if there were."* Both clauses were false: `MSSQL$SQLEXPRESS` was running and reachable by
+use if there were."_ Both clauses were false: `MSSQL$SQLEXPRESS` was running and reachable by
 **Windows integrated authentication**, so no credential was needed at all. Footnote ²¹ recorded
 exactly this on 2026-08-19 and moved the task `Needs Review` → `Ready`, **but nobody updated
 the task file**, so the next session read the old premise as current and the autonomous runner
-stopped on it again. *Same failure shape footnote ²¹ was written about: a negative result is a
-claim about the search, not about the world, and it decays.*
+stopped on it again. _Same failure shape footnote ²¹ was written about: a negative result is a
+claim about the search, not about the world, and it decays._
 
 **What the drill established.** An empty database becomes a working tenant database from
 repository artefacts alone in about a minute: `MasterDbContext` applied, one `Tenants` row,
 **108 migrations in ~50 s** producing 197 tables, 150 `Screens` and the `Administrator` user,
 then **91 stored procedures in 2.16 s, 0 failed**, idempotent on a second run.
 `db/deploy-stored-procedures.ps1` loses its `UNVERIFIED` banner on evidence and its ordering
-assumption moves from *Inferred* to **Confirmed**. R-04's "add a deployment step" half closes.
+assumption moves from _Inferred_ to **Confirmed**. R-04's "add a deployment step" half closes.
 One failure, fixed in the runbook: `--connection` alone cannot work, because M0-03-01 replaced
 the design-time factories' hardcoded credential with a fail-fast resolver that throws before
-`dotnet ef` applies it — so the runbook's old *"a step that succeeds without a connection
-string silently used the hardcoded one"* warning is now obsolete, and that is an improvement.
+`dotnet ef` applies it — so the runbook's old _"a step that succeeds without a connection
+string silently used the hardcoded one"_ warning is now obsolete, and that is an improvement.
 
 **🚩 The drill's most valuable output is a security finding that has nothing to do with the
 drill — R-65, and it lands on `M2-A02`.** `V.SMART.Api/Authorization/ScreenCatalogue.cs`
@@ -1775,9 +1775,9 @@ corrected).
 
 **Why it is not `Completed`.** Two acceptance criteria are genuinely open, not merely
 unverified: runbook **§7** (start the Blazor host, log in, run one report, print one document —
-the *"and the app runs against it"* half of G0 criterion 1) was **not attempted**, and the task
+the _"and the app runs against it"_ half of G0 criterion 1) was **not attempted**, and the task
 requires **a named person** to execute the drill, which an autonomous session is not. The
-instance was also not a *fresh, empty* SQL Server — the drill created two throwaway databases
+instance was also not a _fresh, empty_ SQL Server — the drill created two throwaway databases
 on the pre-existing development instance and wrote to nothing else, which leaves that half of
 the G0 wording unevidenced too. **Both drill databases were deliberately left in place** so a
 named operator can run §7 without repeating §§2–6; `db/REBUILD-DRILL-LOG.md` names them and
@@ -1789,13 +1789,13 @@ written.** Owner **Vivek**; the task needs re-specifying, not retrying. Full evi
 [`tasks/M2-B05.md`](tasks/M2-B05.md), and the corrected **R-10** in
 [`technical-debt-register.md`](../risks/technical-debt-register.md).
 
-The task exists to *"replace the magic integer literals currently passed as `screenCode`"*.
+The task exists to _"replace the magic integer literals currently passed as `screenCode`"_.
 **There are none.** The screen code is resolved at runtime from the database by screen name —
 `GetScreenCodeByScreenNameAsync`, **166** call sites across **61** Razor pages. Of **244**
 stock-call expressions inspected, **zero** pass an integer literal in the `screenCode`
 position, and the only `screenCode = <integer>` assignment in the repository is commented out.
 Its literal-replacement deliverable and Implementation Steps 8–10 — including the one the task
-file itself calls *"the single most important verification step"* — have no subject, and
+file itself calls _"the single most important verification step"_ — have no subject, and
 generating the constants class alone would commit a file no call site uses.
 
 **The risk R-10 describes is real; it named the wrong parameter.** `AddOrUpdateStockAsync`'s
@@ -1804,16 +1804,16 @@ generating the constants class alone would commit a file no call site uses.
 development database, with all 9 `Stores` rows migration-seeded and identical between them.
 Filed as **R-66**, and the obvious candidate for whatever M2-B05 is re-cut into. Note the
 asymmetry that makes it worse than R-10 as written: `screenCode` is looked up by name and
-therefore *cannot* be got wrong, while `storeId` sits at position 2 beside `itemId`, unnamed
+therefore _cannot_ be got wrong, while `storeId` sits at position 2 beside `itemId`, unnamed
 and unchecked, encoding a business assumption in 55 places.
 
 **How this was missed until now.** R-10 was marked `Confirmed` without a call site being
 opened — the same shape as `M0-01-03`'s stale "no SQL Server is reachable" (footnote ³⁰) and
-KB-105's seed-derived "152 screens" (**R-65**). *Three times in two sessions, a claim about the
-source stood in for a claim about the running system.* Reading the signature is not reading the
+KB-105's seed-derived "152 screens" (**R-65**). _Three times in two sessions, a claim about the
+source stood in for a claim about the running system._ Reading the signature is not reading the
 call site; reading the seed is not reading the database.
 
-**What survives re-specification:** M2-B05's *secondary* value. ADR-004's `[RequireScreen("…")]`
+**What survives re-specification:** M2-B05's _secondary_ value. ADR-004's `[RequireScreen("…")]`
 still takes a hand-typed string and `ScreenCatalogue.cs` still hard-codes two screen names no
 database contains (**R-65**). A generated, database-derived catalogue would serve that and fix
 R-65 together — but that belongs with **M2-A02**.
@@ -1822,36 +1822,36 @@ R-65 together — but that belongs with **M2-A02**.
 own `depends_on` does not declare.** No code written, no branch. This was the last candidate in
 the pool, and finding it exhausts the selectable set entirely.
 
-**The conflict.** M2-B06's *API Changes* table mandates *"plural kebab-case under `/api/v1`"*
+**The conflict.** M2-B06's _API Changes_ table mandates _"plural kebab-case under `/api/v1`"_
 and every endpoint it specifies is `/api/v1/...`. **`master` has no `/api/v1`.** Its two
 controllers are `[Route("api/auth")]` and `[Route("api/currencies")]`. The version prefix, and
 the `ApiRoutes.V1` constant that owns it, exist **only** on the unmerged
 `migration/M2-B01-api-versioning` branch — whose own doc comment states the rule this task
-would have to break: *"no controller author writes the version string by hand."*
+would have to break: _"no controller author writes the version string by hand."_
 
 A branch cut from `master` therefore has three options, all bad:
 
-| Option | Why it fails |
-|---|---|
-| Hard-code `api/v1/files` | Writes the version string by hand — the exact thing `ApiRoutes` exists to prevent — and desynchronises from M2-B01 |
-| Use `api/files`, matching master | Violates M2-B06's own acceptance criteria and ADR-002 §6 |
-| Recreate `ApiRoutes.cs` | Duplicates a **new file** that already exists on M2-B01's branch — the worst kind of merge collision |
+| Option                           | Why it fails                                                                                                       |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Hard-code `api/v1/files`         | Writes the version string by hand — the exact thing `ApiRoutes` exists to prevent — and desynchronises from M2-B01 |
+| Use `api/files`, matching master | Violates M2-B06's own acceptance criteria and ADR-002 §6                                                           |
+| Recreate `ApiRoutes.cs`          | Duplicates a **new file** that already exists on M2-B01's branch — the worst kind of merge collision               |
 
 **M2-B06 becomes genuinely `Ready` the moment `M2-B01` merges**, and needs no re-specification
 — unlike `M2-B05` (footnote ³¹), this task is sound, it is only mis-sequenced. Add `M2-B01` to
 its `depends_on`.
 
-**Note what did *not* block it.** M2-B06 names React 13 times and has a `## React Changes`
+**Note what did _not_ block it.** M2-B06 names React 13 times and has a `## React Changes`
 section, which on `CLAUDE.md`'s literal ADR-007 test makes it stale. It is not: those hits are
 boilerplate plus prose describing the consuming client, and its deliverable — replacing
 `IBrowserFile`/`IFileOpener` with HTTP file endpoints — is stack-agnostic and survives the
-Angular switch untouched. That test needs tightening; see `failure-log.md`, *"ADR-007 staleness
-test is unusable as written"*. **Do not re-block this task on the grep when M2-B01 lands.**
+Angular switch untouched. That test needs tightening; see `failure-log.md`, _"ADR-007 staleness
+test is unusable as written"_. **Do not re-block this task on the grep when M2-B01 lands.**
 
 **One thing to settle before it runs.** Its security section requires `[RequireScreen]` on
 every endpoint. Suitable seeded screens do exist for the Excel endpoints — `Excel Upload` (97)
 and `Master Upload` (25) — but there is **no generic "Files" screen**, and the task says only
-that download *"requires the right on the screen that owns the file"*, which is a design the
+that download _"requires the right on the screen that owns the file"_, which is a design the
 implementer would have to invent. That interacts with **R-65** (two catalogue names exist in no
 database) and with the still-open fact that `[RequireScreen]` is **opt-in, not
 deny-by-default** — an unannotated controller is currently allowed through, which `M2-A02` is
@@ -1866,8 +1866,8 @@ owner's explicit instruction. Validated `PASS`, **11 of 12 acceptance criteria M
 `tests/V.SMART.Shared.Tests` **84 passed**. Both controllers now read
 `[Route($"{ApiRoutes.V1}/auth")]` and `[Route($"{ApiRoutes.V1}/currencies")]`.
 
-*(The Shared suite is 84 here, not the 86 that `M2-B04`'s record cites — the two extra are that
-branch's architecture-guard tests, still unmerged. Not a regression.)*
+_(The Shared suite is 84 here, not the 86 that `M2-B04`'s record cites — the two extra are that
+branch's architecture-guard tests, still unmerged. Not a regression.)_
 
 **Criterion 4 is `PARTIAL` and was accepted knowingly.** `POST /api/v1/auth/login` reaches and
 executes the action, and `POST /api/auth/login` now returns **404**, so the routing content —
@@ -1914,7 +1914,7 @@ per-tenant `DbContext`; a URL-only key serves tenant A's data to tenant B. Missi
 unparseable, non-positive or unauthenticated → caching is disabled rather than degraded to an
 unkeyed entry.
 
-**Measured, not assumed** — against the M0-01-03 drill database *and* the live one, which agree
+**Measured, not assumed** — against the M0-01-03 drill database _and_ the live one, which agree
 exactly: 40 states, 49 uoms, 3 currencies, **150** screens, **0** terms; 300 queries in **16 ms**
 (≈0.05 ms each). **KB-124 states plainly that the database cost is negligible** and the cache is
 justified by request-count collapsing, not by expensive queries — so no later reader cites a
@@ -1969,7 +1969,7 @@ exact baselines, the Razor change adding none; `tests/V.SMART.Api.Tests` **117 �
 pass and are reported individually, plus a byte-identity round trip.
 
 **One hazard that had to be designed around.** `CompanyService` used to call
-`OpenReadStream(maxAllowedSize: maxFileSize)` *after* its own size check. Moving the stream to the
+`OpenReadStream(maxAllowedSize: maxFileSize)` _after_ its own size check. Moving the stream to the
 caller inverts the order, and `OpenReadStream` **throws** when the file exceeds the limit it is
 handed — which would have replaced the screen's "File size is too large" toast with an exception,
 an observable Blazor behaviour change. The call site opens with
@@ -1993,7 +1993,6 @@ screens disagree about which to read. Fixing it changes live behaviour and needs
 no blob storage, CDN or virus scanning exists anywhere), and a storage half added to **Q-16** —
 uploads live on a local filesystem, and a containerised or multi-instance deployment loses or splits
 them silently.
-
 
 ³⁶ **M2-B11: `Ready` → `Needs Review` 2026-08-21.** Health checks (`GET /health/live`,
 `GET /health/ready`) and a new `ILogger`-based `StructuredLoggingService` land on
@@ -2047,16 +2046,16 @@ may set it `Completed`.
 > `password`/`connectionstring`/`server=`: none. `dotnet build V.SMART.Api`: **0 errors, 6,695
 > warnings** — exact baseline. `dotnet test tests/V.SMART.Api.Tests`: **148/148** (117 → +31).
 > `dotnet test tests/V.SMART.Shared.Tests`: **84/84**, no regression. `git diff --stat HEAD~1
-> HEAD`: 9 files, +1184/-13; nothing under `V.SMART.Shared/`, `V.SMART.Web/`, `V.SMART/V.SMART/`,
+HEAD`: 9 files, +1184/-13; nothing under `V.SMART.Shared/`, `V.SMART.Web/`, `V.SMART/V.SMART/`,
 > `V.SMART.Api/Auth/`, `V.SMART.Api/Authorization/`; no EF migration.
 >
 > **Two criteria are recorded `NOT MET`/`NOT CHECKABLE` rather than silently dropped — the
-> `M2-A06` precedent (this footnote table, ²³).** (1) *"`CanCreate = false` ⇒ `403` from `POST
-> /api/currencies`, proven by test"* is not satisfiable today: `CurrencyController` carries no
+> `M2-A06` precedent (this footnote table, ²³).** (1) _"`CanCreate = false` ⇒ `403` from `POST
+/api/currencies`, proven by test"_ is not satisfiable today: `CurrencyController` carries no
 > `[RequireScreen]`/`[RequireRight]` — that annotation is `M2-A02`'s, gated on `Q-28`. The
 > substitute test feeds one `ScreenRightSet` to both `MeController` and the real filter and
-> asserts agreement, the strongest available today. (2) *"On the `M2-A03` exempt allow-list ...
-> and the harness passes"* — the exemption mechanism itself, `[NoScreenRight(justification)]`,
+> asserts agreement, the strongest available today. (2) _"On the `M2-A03` exempt allow-list ...
+> and the harness passes"_ — the exemption mechanism itself, `[NoScreenRight(justification)]`,
 > is shipped and was observed accepted by `ScreenRightStartupValidator` at boot on the live
 > host; there is no separate harness to run because `M2-A03` is `Blocked`.
 >
@@ -2066,7 +2065,7 @@ may set it `Completed`.
 > asserted by declaration inside a controller test, not observed as a real response — which is
 > exactly why the validator went to the live host itself for the two checks above. **New risk
 > found by the validator: R-44** — probing a token whose `TenantId` claim names no `Tenants` row
-> returned `200` with a *different* tenant's rights, because `TenantProvider.cs:46-58`'s
+> returned `200` with a _different_ tenant's rights, because `TenantProvider.cs:46-58`'s
 > host-based fallback and `UserRightsProvider`'s claimed-tenant cache key compose badly. Not an
 > `M2-A07` regression — both files are pre-existing and were out of scope — but it contradicts
 > `UserRightsProvider.cs:17-22`'s unqualified cross-tenant claim. Tracked as **Q-37**, routed to
@@ -2074,7 +2073,7 @@ may set it `Completed`.
 >
 > Full record: [`tasks/M2-A07.md` § Execution Record
 > (2026-08-20)](tasks/M2-A07.md#execution-record-2026-08-20).
-³⁸ **M2-C00: `Needs Review` 2026-08-20 — implemented across 3 attempts, independently validated `PASS`, not merged.**
+> ³⁸ **M2-C00: `Needs Review` 2026-08-20 — implemented across 3 attempts, independently validated `PASS`, not merged.**
 
 > Rewrote [KB-050](../frontend-new/react-architecture.md) for Angular and re-specified `M2-C01`
 > in the same change, per scope. Branch `migration/M2-C00-kb050-angular-rewrite`, cut from
@@ -2096,11 +2095,11 @@ may set it `Completed`.
 >
 > **Only the repository owner may set `Completed`**
 > ([KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed)).
-³⁹ **M2-A08: `Needs Review`, not `Completed` — implemented and independently validated `PASS`**
-on `migration/M2-A08-row-scope-and-account-gates`, tip `0706263`, 2026-08-20, attempt 1 of 3,
-0 escalations. Not merged; per [KB-088 "Who may set
-COMPLETED"](workflow.md#who-may-set-completed) only the repository owner may set it
-`Completed`.
+> ³⁹ **M2-A08: `Needs Review`, not `Completed` — implemented and independently validated `PASS`**
+> on `migration/M2-A08-row-scope-and-account-gates`, tip `0706263`, 2026-08-20, attempt 1 of 3,
+> 0 escalations. Not merged; per [KB-088 "Who may set
+> COMPLETED"](workflow.md#who-may-set-completed) only the repository owner may set it
+> `Completed`.
 
 Every acceptance criterion independently re-checked `MET`, including the two the implementer
 had already ticked correctly: **row scope applied at the query, not the call site**
@@ -2177,20 +2176,20 @@ Full record: [`tasks/M2-C01.md` § Execution Record
 (2026-08-21)](tasks/M2-C01.md#execution-record-2026-08-21).
 
 ⁴¹ **M2-C12: created `Ready` 2026-08-21 — the task that unblocks the entire frontend tree.**
-Merging `M2-C01` (`2dd4e53`) cleared the last *dependency* on `M2-C04-01`, `M2-C10`, `M2-C04` and
+Merging `M2-C01` (`2dd4e53`) cleared the last _dependency_ on `M2-C04-01`, `M2-C10`, `M2-C04` and
 `M2-C02`, and unblocked **none** of them: all 25 task files in `M2-C02…C11` and `M2-D01…D03`
 still carry the byte-identical `⛔ STOP — this specification is superseded` banner and specify
 React. [CLAUDE.md](../../../CLAUDE.md) makes that banner a **stop-and-report**, never a licence to
 infer the missing specification, so selection step 4 refuses every one of them regardless of what
 the dependency graph says.
 
-**The banner named its own release condition and that condition is now met.** It reads *"Gating
+**The banner named its own release condition and that condition is now met.** It reads _"Gating
 task: `M2-C00` rewrites KB-050 for Angular. Until that lands there is no authoritative structure
-to specify against."* `M2-C00` landed at `0da6a35`; `M2-C01` then put a real Angular workspace on
+to specify against."_ `M2-C00` landed at `0da6a35`; `M2-C01` then put a real Angular workspace on
 disk at `frontend/nexgen-web/`. There are now two authoritative sources to specify against, so
 the deliberate deferral is over.
 
-**`M2-C00` is the precedent, not an analogy** — it rewrote KB-050 *and* re-specified `M2-C01` in
+**`M2-C00` is the precedent, not an analogy** — it rewrote KB-050 _and_ re-specified `M2-C01` in
 the same change, which is the sole reason `M2-C01` was selectable. `M2-C12` does for the
 remaining 25 what `M2-C00` did for one.
 
@@ -2199,15 +2198,15 @@ exception recorded for `M2-A01-01` in footnote ¹⁸: no code, no schema, no run
 an acceptance criterion that proves the diff is confined to `docs/kb/`.
 
 **One of the 25 cannot be re-specified and that is specified as such.** `M2-C11` is gated on the
-unanswered **Q-38** — what it is *for*, now that `M2-C01` has already created the Angular
+unanswered **Q-38** — what it is _for_, now that `M2-C01` has already created the Angular
 workspace it existed to adopt. `M2-C12` replaces its supersession banner with a statement of
 Q-38 and leaves it `Blocked` on **Vivek**, rather than inferring an answer.
 
 **Split into five sub-tasks 2026-08-22, after attempt 1 failed as a single task.** One
 implementer was given all 25 files and ~2,100 stack references. It removed the ⛔ banner from 24
 of them and added the re-specification note — then **did not re-derive the bodies**, and went
-silent mid-run having committed nothing. `M2-C04-01` was left specifying *"a Mantine 7 theme"*
-and *"a bare `MantineProvider`"* with its guard removed; `M2-C02` still named Zustand, Axios and
+silent mid-run having committed nothing. `M2-C04-01` was left specifying _"a Mantine 7 theme"_
+and _"a bare `MantineProvider`"_ with its guard removed; `M2-C02` still named Zustand, Axios and
 `PermissionGate.tsx`. Measured across the tree: **2 files properly re-specified, 23
 banner-removed-but-React-bearing.** The working tree was discarded (0 commits, nothing durable
 lost) and all 25 banners restored.
@@ -2225,7 +2224,7 @@ that cannot finish a file leaves that file's banner in place and reports it as n
 
 ⁴² **M2-C12-01: `Blocked` 2026-08-22 after three implementation attempts and one escalation —
 blocked on a human, not a task.** Branch `migration/M2-C12-01-respec` (tip `09001a3`) carries the
-four `M2-C04*` files re-specified for Angular, and the batch's *substance* is verified sound —
+four `M2-C04*` files re-specified for Angular, and the batch's _substance_ is verified sound —
 independently re-derived PrimeNG selectors, correct `Companydetails.cs`/`DebitNote.cs`/
 `UserThemePreference.cs` citations, the axe accessibility criterion restored after attempt 2
 weakened it. What fails is **acceptance criterion 7** (`tasks/M2-C12-01.md:83-84`, the diff must
@@ -2244,10 +2243,10 @@ every remaining batch will fail the identical way until Q-70 is answered. Not me
 
 ⁴³ **M2-C12-01: `Blocked` → `Completed` 2026-08-22 — the validator was right, the criterion was
 wrong, and the work was always sound.** Attempt 3 returned `FAIL`, category `architecture`, with
-the escalation budget spent, on this reasoning: criterion 7 demanded the branch diff list *"nothing
-else"* than the four `M2-C04*` files, while criterion 2 required the greps be quoted **in the
+the escalation budget spent, on this reasoning: criterion 7 demanded the branch diff list _"nothing
+else"_ than the four `M2-C04*` files, while criterion 2 required the greps be quoted **in the
 Execution Record** (which lives in `tasks/M2-C12-01.md`), the Documentation Updates table required
-a `KB-081` row, and [KB-088 §4](workflow.md) makes `tasks/<TASK-ID>.md` an *Always* update. The
+a `KB-081` row, and [KB-088 §4](workflow.md) makes `tasks/<TASK-ID>.md` an _Always_ update. The
 minimum compliant diff is therefore six paths and criterion 7 permitted four. **Unsatisfiable by
 construction — a defect in the specification, which this session wrote.** The runner refusing to
 declare `PASS` on a criterion it could not meet, and raising **Q-70** instead of quietly ignoring
@@ -2259,7 +2258,7 @@ trust** — the same checks that caught attempt 1 of the unsplit parent: the **a
 historical prose); `depends_on`, `business_rules`, `priority` and `estimate` **byte-unchanged** in
 all four; the Blazor `file:line` citation **sets identical** (only repetition counts differ, as
 rewritten prose will); and Angular content positively present — 17, 103, 45 and 50 stack lines
-respectively, so React was *replaced*, not merely deleted. Merged `--no-ff`; tag
+respectively, so React was _replaced_, not merely deleted. Merged `--no-ff`; tag
 `pre-merge-M2-C12-01` marks the prior tip.
 
 **Criterion 7 was rewritten in all five sub-tasks** to state the real footprint — the batch files,
@@ -2280,7 +2279,7 @@ installed today — `M2-C04-01` installs `axe-core` as a dev dependency and ever
 batch reaches it through a Hard `depends_on` chain, so the deletion changed acceptance-criteria
 semantics, which `M2-C12.md:140-142` forbids. **Q-69**, already answered in the conservative
 direction by `M2-C12-01`'s own attempt 3, was never consulted. **Attempt 2** (`1c412ba`) restored
-the criterion, translated only in *how* (an `a11y.spec.ts` under the existing `npm run test:ci`,
+the criterion, translated only in _how_ (an `a11y.spec.ts` under the existing `npm run test:ci`,
 no new command or dependency, kept alongside the added `angular-eslint`/keyboard coverage rather
 than instead), and corrected two imprecise `ADR-007` line citations.
 
@@ -2288,7 +2287,7 @@ than instead), and corrected two imprecise `ADR-007` line citations.
 directly rather than trusted — banner grep (16 unrelated files, none of this batch), atomicity
 grep (zero matches, all five), re-spec notes present, `frontend/nexgen-web/` paths and every
 quoted command verbatim against KB-083, frontmatter/`Gate`-row byte-diffs empty, `V.SMART/`
-citation set-diff empty except one loss traced to the deleted *Fresh-Session Execution Prompt*
+citation set-diff empty except one loss traced to the deleted _Fresh-Session Execution Prompt_
 block and confirmed to survive elsewhere, criterion-7 diff confined to the declared footprint
 (8 paths, all `docs/kb/`), all 13 KB-090 headings present in all five files. `scopeOk: true`,
 `failureCategory: none`, no regressions observed. BR-SO-001 independently re-verified against
@@ -2305,19 +2304,19 @@ Branch cut from `master` at `f8b4dad`. `M2-C07.md`, `M2-C08.md`, `M2-C08-01.md`,
 `M2-C08-03.md` and `M2-C09.md` were re-specified for Angular/ADR-007, each `⛔` banner removed **in
 the same change that removed its React content** — the atomicity rule held for all six, with the
 per-file grep output quoted in `tasks/M2-C12-04.md`'s Execution Record. The obsolete trailing
-*Fresh-Session Execution Prompt* blocks were dropped as [KB-090](task-template.md) §*Existing task
-files* directs for a regenerated file, and each file was restructured onto KB-090's section set,
+_Fresh-Session Execution Prompt_ blocks were dropped as [KB-090](task-template.md) §_Existing task
+files_ directs for a regenerated file, and each file was restructured onto KB-090's section set,
 the same shape `M2-C12-03` used.
 
 **Two substantive judgement calls, recorded rather than buried.** (1) **Q-83** — `ADR-007`'s
-tables row promises *"`LineItemGrid` re-evaluated, see below"* (`ADR-007-angular-stack.md:98`) with
+tables row promises _"`LineItemGrid` re-evaluated, see below"_ (`ADR-007-angular-stack.md:98`) with
 no resolving section under it. `M2-C07` is the task that names `LineItemGrid`, so the re-specified
 file cites `:144-152` **directly** (PrimeNG's table covers `DataGrid`; AG Grid is the fallback and
-*"that evaluation is `M2-C07`'s to make and record"*), specifies the measurement as a required
+_"that evaluation is `M2-C07`'s to make and record"_), specifies the measurement as a required
 investigation with escalation on a negative result, and does **not** pre-decide a table technology.
 Q-83 stays open and owner-owned; the accepted ADR is untouched. (2) `M2-C08-03` gained two **new**
 `file:line` citations, `ApiProblems.cs:43` and `ProblemTypes.cs:17`, replacing the replaced text's
-vaguer *"correlation id"* with the field name the middleware actually ships (`traceId`) and the
+vaguer _"correlation id"_ with the field name the middleware actually ships (`traceId`) and the
 stable branch key (`type`); both were verified against source on 2026-08-22. No pre-existing
 `V.SMART/` citation was altered or removed in any of the six files.
 
@@ -2337,28 +2336,28 @@ Branch cut from `master` at `cb788e5`. `M2-D01.md`, `M2-D02.md`, `M2-D02-01.md`,
 `M2-D02-03.md` and `M2-D03.md` were re-specified for Angular/ADR-007, each `⛔` banner removed **in
 the same change that removed its React content** — the atomicity rule held for all six, with the
 per-file grep output quoted in `tasks/M2-C12-05.md`'s Execution Record. The obsolete trailing
-*Fresh-Session Execution Prompt* blocks were dropped and each file restructured onto
+_Fresh-Session Execution Prompt_ blocks were dropped and each file restructured onto
 [KB-090](task-template.md)'s section set, the same shape `M2-C12-03` and `-04` used.
 
 **This closes the batch.** `grep -rl '⛔ STOP — this specification is superseded'
 docs/kb/execution/tasks/` now returns **nothing at all** — not merely "none of this batch". All 25
 files across the `M2-C` and `M2-D` trees are re-specified, and the frontend tree is reachable again
-for the first time since ADR-007 landed on 2026-08-20. Footnote ²⁶'s subsection *"All 26
-`M2-C*`/`M2-D*` task files carry a ⛔ STOP banner"* is annotated as superseded rather than rewritten;
+for the first time since ADR-007 landed on 2026-08-20. Footnote ²⁶'s subsection _"All 26
+`M2-C*`/`M2-D*` task files carry a ⛔ STOP banner"_ is annotated as superseded rather than rewritten;
 its reasoning was correct for its date.
 
 **This sub-task also owned the whole-tree restatement**, which is why the diff touches twenty-odd
 rows it did not itself re-specify. Two rows were materially **wrong** and are corrected: `M2-C10`
-and `M2-C04-01` still read *"still ⛔ superseded … must be re-specified for Angular before it can be
-selected"*, which stopped being true when `M2-C12-02` and `M2-C12-01` merged earlier the same day. A
+and `M2-C04-01` still read _"still ⛔ superseded … must be re-specified for Angular before it can be
+selected"_, which stopped being true when `M2-C12-02` and `M2-C12-01` merged earlier the same day. A
 row that refuses a selectable task is as costly as one that offers an unselectable one. Every other
 `M2-C*`/`M2-D*` row now names **which sub-batch re-specified it and what its real remaining blocker
 is** — dependency or gate, never supersession.
 
 **`dependency-graph.md` (KB-082) was checked and deliberately left unchanged.** The batch's
-*Documentation Updates* table assigns it "de-React the M2-C tree description", but a
+_Documentation Updates_ table assigns it "de-React the M2-C tree description", but a
 case-insensitive search of all 311 lines for `react|mantine|tanstack|zustand|vite|\.tsx|zod` returns
-**one** hit — `:151`, *"how logic silently lands in TypeScript"*, which is framework-neutral and
+**one** hit — `:151`, _"how logic silently lands in TypeScript"_, which is framework-neutral and
 true of Angular. The graph describes edges and ordering, never a stack. **Negative result recorded
 rather than a no-op edit made**, per KB-088 §4's rule that a document is touched only when something
 actually changed.
@@ -2387,11 +2386,11 @@ Decision, no unresolved gating question, no sibling branch — `git branch --no-
 checked). **`M2-C04-01` was selected** over `M2-C10` at rank: both `P0`; `M2-C04-01` unblocks two
 direct children (`M2-C04-02`, `M2-C04-03`) against `M2-C10`'s one (`M2-C07`, itself further gated
 on `M2-C05-01` and **Q-83**); and `M2-C04-01` sits on the ancestry of the stated critical path
-(`M2-C04-01 → M2-C04-02 → M2-C05-01 → M2-C05-03 → M2-D01 → …`, `dependency-graph.md` § *Project
-critical path*) while `M2-C10` feeds only the off-path `M2-C07`. `M2-C04-01` carries **Q-68**
+(`M2-C04-01 → M2-C04-02 → M2-C05-01 → M2-C05-03 → M2-D01 → …`, `dependency-graph.md` § _Project
+critical path_) while `M2-C10` feeds only the off-path `M2-C07`. `M2-C04-01` carries **Q-68**
 (whether resetting its status to `Ready` after its earlier React implementation was deleted is
-what the owner intends), but `Q-68`'s own "Impact if unresolved" column reads *"Nothing
-technically"* — it governs tracker wording, not whether the work is gated — so it is not a
+what the owner intends), but `Q-68`'s own "Impact if unresolved" column reads _"Nothing
+technically"_ — it governs tracker wording, not whether the work is gated — so it is not a
 rank-3 blocker. `M2-C10` is recorded `Ready` rather than dispatched; it remains the next
 candidate behind `M2-C04-01` if that selection changes.
 ⁴⁹ **M2-C04-01: `Blocked` — implemented and independently validated `FAIL`, `acceptance-criterion`,
@@ -2407,7 +2406,7 @@ contrast recomputation over 110 token pairs finding zero failures, not merely tr
 1. **Lint gap over external templates — fixed, commit `e16693a`.** The raw-colour ESLint ban
    was registered only on the `files: ['**/*.ts']` block; `angular.json` also lints
    `src/**/*.html` and a raw hex in an external template passed lint. One file
-   (`eslint.config.js`, already on the task's *Files Expected to Change* list) now bans the same
+   (`eslint.config.js`, already on the task's _Files Expected to Change_ list) now bans the same
    literals in the Angular-template AST. Re-verified: probes in both `.ts` and `.html` now fail
    lint as intended; `typecheck`/`test:ci`/`build` all still pass; no regression.
 2. **`npm run format:check` fails — not fixed, blocked on the owner.** 27 pre-existing scaffold
@@ -2439,11 +2438,11 @@ entry immediately after it); `runner-state.md`. Owner: **Vivek**.
 ⁴⁸ **M2-A04: `Blocked` — confirmed **correct** 2026-08-23, after three sessions flagged it as
 possibly-stale bookkeeping. It is not stale; the reason was simply never in this table.**
 
-The row's `depends_on` read `M2-A01-02`, which *is* `Completed` and merged — which is exactly why
+The row's `depends_on` read `M2-A01-02`, which _is_ `Completed` and merged — which is exactly why
 the status looked orphaned. But [`tasks/M2-A04.md`](tasks/M2-A04.md)'s own Dependencies table
-declares a second prerequisite this tracker never carried: **`M0-03 / M0-04`, Hard** — *"`Jwt:Secret`
+declares a second prerequisite this tracker never carried: **`M0-03 / M0-04`, Hard** — _"`Jwt:Secret`
 is committed (R-02) and the SA/`bspl` credentials are published. Rotate and externalise first, or
-this task hardens sessions around a published secret."* `depends_on` is corrected above.
+this task hardens sessions around a published secret."_ `depends_on` is corrected above.
 
 **`M0-03` is `Completed`; `M0-04` is not.** `M0-04` is `Blocked`, deferred to the end of the
 milestone by the owner on 2026-08-19 (footnote ⁴), pending production SQL / GST e-Invoice gateway
@@ -2458,26 +2457,26 @@ Revocation is the sharpest case: a forged refresh token appears on no revocation
 
 **Consequence worth tracking.** `M2-A04` gates `M2-A05` (Hard — both reshape the token, and
 [KB-080 §9](README.md) forbids parallelising them) and, with `M2-A07`, gates **`M2-C02`**.
-`M2-C12-02` has just made `M2-C02`'s *specification* implementable, so `M2-C02` will now read
+`M2-C12-02` has just made `M2-C02`'s _specification_ implementable, so `M2-C02` will now read
 spec-ready while remaining dependency-blocked. That is correct, not a contradiction: the frontend
 auth slice consumes `/refresh` and `/logout`, which do not exist yet.
 
 **`M2-A04` becomes selectable when `M0-04` lands, and not before.** Nothing else about it needs a
 decision: it is not a `Product Decision`, carries no ⛔ banner, and has no unanswered question of
 its own. Its file already authorises the single EF migration it may need, recording **Q-02** (the
-per-tenant rollout procedure) as unresolved-but-*Information* rather than blocking.
+per-tenant rollout procedure) as unresolved-but-_Information_ rather than blocking.
 
 ⁵⁰ **M2-C04-01: `Blocked` → `Completed` 2026-08-23. The `FAIL` was one environment defect, and
 the work behind it was sound.** The validator's verdict rested on `npm run format:check` failing
 across **27 files** — every one of them untouched `M2-C01` scaffold output. Diagnosis blamed
 **R-45**: `core.autocrlf=true` and `.gitattributes` `* text=auto` write CRLF on checkout, while
 `.prettierrc` set no `endOfLine` and Prettier defaults to `lf`. **Verified independently before
-acting rather than accepted**: `prettier src/main.ts` output is *byte-identical to the source once
-`\r` is stripped*, so not one file had a genuine formatting issue. The runner was right to refuse
+acting rather than accepted**: `prettier src/main.ts` output is _byte-identical to the source once
+`\r` is stripped_, so not one file had a genuine formatting issue. The runner was right to refuse
 — the only real fix touches `.prettierrc`, outside this task's authorised list — and right to
 classify it `environment` rather than retry.
 
-**The owner chose `"endOfLine": "auto"`** (`4af2f4f`, committed to `master` *before* the merge, as
+**The owner chose `"endOfLine": "auto"`** (`4af2f4f`, committed to `master` _before_ the merge, as
 its own change): Prettier accepts whatever ending a file already carries, so the gate passes on
 Windows and Linux alike, and `.gitattributes` still normalises in git. R-45 is **resolved** in
 [KB-060](../risks/technical-debt-register.md).
@@ -2522,8 +2521,8 @@ generation complete.", 446.36 kB / 106.63 kB. No regression: `git diff --stat ma
 V.SMART frontend/vsmart-erp` empty; the 8 pre-existing `M2-C01`/`M2-C04-01` spec files still
 pass inside the 29/215 total.
 
-**Two items are openly still owed, neither blocking `PASS` and neither a retry item:** (1) *"A
-human has completed a keyboard-only pass through a composed sample form"* — a Completion
+**Two items are openly still owed, neither blocking `PASS` and neither a retry item:** (1) _"A
+human has completed a keyboard-only pass through a composed sample form"_ — a Completion
 Condition, not an acceptance criterion, and by definition not something an automated session
 can satisfy; `a11y.spec.ts`'s composed-form TEMPLATE (`:55-116`) is the starting point, and
 three keys are named as genuinely blocked from `userEvent`/jsdom automation (radio-group arrow
@@ -2679,12 +2678,12 @@ criterion that mattered was proved by negative control rather than asserted.**
 
 **R-69 is resolved.** Initial bundle **711.75 kB → 571.20 kB raw** (158.28 → 136.72 kB gzip),
 back inside Angular's 600 kB warning budget: `npm run build` now emits **no budget line at all**,
-where before it reported *"bundle initial exceeded maximum budget … not met by 111.75 kB"*. The
+where before it reported _"bundle initial exceeded maximum budget … not met by 111.75 kB"_. The
 88 kB margin to the 800 kB **error** budget is now **229 kB**.
 
 **Criterion 3 was the point of the task, and it was verified, not claimed.** Deferring the host
 introduces a silent defect unless the service absorbs it: PrimeNG's `requireConfirmation$` is a
-plain `Subject`, so the very `confirm()` call that *triggers* the mount emits with no subscriber
+plain `Subject`, so the very `confirm()` call that _triggers_ the mount emits with no subscriber
 and its promise never resolves — no error, no timeout, just a caller waiting forever. The fix
 queues pre-mount requests and replays them from `markHostMounted()`. The proof is a **negative
 control**: mutating the service to emit directly produced `Tests 4 failed | 1 passed (5)` against
@@ -2709,7 +2708,7 @@ of the six G2 exit criteria** — the largest single release in this run.
 permission-less user is denied, which holds whether or not seeding exists. **Option B was
 explicitly rejected** and the rejection is load-bearing — `SyncRightsForUserAsync` writes all four
 operation rights `true` (`UserRightService.cs:66-71`), so seeding every user would grant delete on
-150 screens to a view-only clerk. `M2-A10`'s criterion 1 is a *negative* test asserting the call
+150 screens to a view-only clerk. `M2-A10`'s criterion 1 is a _negative_ test asserting the call
 is not made for a non-`1` user, so option B cannot arrive later by accident.
 
 **R-65 — A.** Delete `Bill Pending List` and `Bill Paid List` from `ScreenCatalogue.cs`, as
@@ -2725,7 +2724,7 @@ database is briefly unreachable.
 on `M2-A01-03`, which is `Completed` and merged. `M2-A09` is P0 and cheap, so it should land
 first, but nothing forces it.
 
-**One thing deliberately left open.** Both the Blazor path and `M2-A10` treat *administrator* as
+**One thing deliberately left open.** Both the Blazor path and `M2-A10` treat _administrator_ as
 `UserId == 1`. That is a magic number and no evidence was found that it is guaranteed. KB-109
 flags it; `M2-A10` is forbidden from acting on it. It needs its own question if it matters.
 
@@ -2749,7 +2748,7 @@ owner the repository owner. See
 for the full validator transcript. **Closed `Needs Review`, not `Completed`** — only the
 repository owner may set `Completed` (KB-088 "Who may set Completed"); the branch is left for
 review, not merged, not pushed. **Releases nothing yet**: `M2-A03` and `M2-B03` need `M2-A02`
-*merged to `master`*, which a `Needs Review` branch does not satisfy.
+_merged to `master`_, which a `Needs Review` branch does not satisfy.
 
 ⁶⁰ **`M2-A09` implemented 2026-08-24 on `migration/M2-A09-screen-catalogue-phantoms` (tip
 `c3c595e`), independently validated `PASS`** (attempt 1 of 3, `scopeOk: true`,
@@ -2846,7 +2845,7 @@ harness alone 106/106; the generated matrix 60/60 (10 gated endpoints × 6 right
 real surface is 6 controllers / 18 actions, not the task file's stale "2 controllers / 6
 endpoints"). **The one unmet criterion**: "the harness runs in CI ... as a **required** job"
 (`tasks/M2-A03.md` acceptance criteria). Runs-on-every-push/PR is true and observed
-(`.github/workflows/ci.yml:56-61,213-219`); *required-for-merge* is GitHub branch-protection
+(`.github/workflows/ci.yml:56-61,213-219`); _required-for-merge_ is GitHub branch-protection
 configuration outside the git tree, unreadable from this workstation
 (`gh api repos/ErpStore/NexERP_B/branches/master/protection` → `gh: command not found`) and
 unsettable by any execution session — the branch is not even on `origin`, and no session may
@@ -2861,8 +2860,7 @@ validation - 2026-08-24 - FAIL (environment)`; `runner-state.md`.
 ⁶⁴ **M2-A03: harness merged 2026-08-24 (`d94d8ce`); status `Needs Review`, not `Completed`,
 because the one unmet criterion is a setting only the owner can make.**
 
-**The work is done and it proved something.** 470 Api tests pass (364 → 470; the harness adds
-106) and the matrix found **no enforcement holes** — every endpoint × right combination is
+**The work is done and it proved something.** 470 Api tests pass (364 → 470; the harness adds 106) and the matrix found **no enforcement holes** — every endpoint × right combination is
 correctly protected. That is an independent confirmation of the enforcement `M2-A02` landed,
 which is worth more than the harness merely existing. `HarnessSelfTests.cs` seeds a violation and
 asserts the harness catches it, so it cannot pass vacuously.
@@ -2871,14 +2869,14 @@ asserts the harness catches it, so it cannot pass vacuously.
 `tests/` and `docs/kb/`. A harness that changes nothing it tests is the right shape.
 
 **What remains is not a code defect and no retry can clear it.** Criterion `M2-A03.md:317`
-requires the harness run in CI *as a **required** job*. Branch protection has no representation in
+requires the harness run in CI _as a **required** job_. Branch protection has no representation in
 the repository, cannot be read here (no `gh` CLI), and cannot be set by an execution session (no
 push; the branch is not on origin). Classified `environment`, stopped rather than retried —
 correct, and the same shape as `M0-01-03` waiting on a named operator.
 
 **Worth knowing: the harness already runs in CI today.** `ci.yml`'s `Test - V.SMART.Api.Tests`
 step executes it with an explicit `$LASTEXITCODE` check, so a permission regression already fails
-the job. Only the *required-status-check* setting is missing. The owner action is
+the job. Only the _required-status-check_ setting is missing. The owner action is
 **Settings → Branches → `master` → Require status checks to pass → add `Test - V.SMART.Api.Tests`**.
 
 ⁶⁵ **`M2-B03` implemented 2026-08-24 on `migration/M2-B03-controller-conventions` (tip
@@ -2918,7 +2916,7 @@ asserted flatly that `IsDuplicate…Async` "is a 409 out of create/update". True
 `MfgPOUpsert.razor:3745-3753` refuses a duplicate PO while `MfgPoService.cs:985 UpsertPoAsync`
 never calls `IsDuplicatePoAsync` (`:964`). A `POST` copied from the template would have created
 the duplicate the live screen refuses. §9 now carries a decision instead of an assertion. This is
-the failure mode a template *causes*: one wrong sentence, copied into every controller after it.
+the failure mode a template _causes_: one wrong sentence, copied into every controller after it.
 
 **The reference controller was compiled, not merely written.** A scratch
 `ScratchSalesOrdersController` over the real `IMfgPoService` and `ReportService` was built
@@ -2930,10 +2928,10 @@ shipped code block are stated in KB-114 §2. A template that has never compiled 
 longer exist** — `M2-A06` closed that (R-24, 2026-08-20). KB-114 documents the corrected pattern
 and names the anti-pattern so it stays greppable.
 
-> **G2 criterion 6 is now *half* met, and the remaining half is not this task's to close.** The
-> criterion reads *"controller template **and** error contract documented **and adopted**"*, and
-> [KB-080 §9](README.md)'s Definition of Done requires the template be *"demonstrably followed by
-> both existing controllers — the template is only real once it has two independent users."* The
+> **G2 criterion 6 is now _half_ met, and the remaining half is not this task's to close.** The
+> criterion reads _"controller template **and** error contract documented **and adopted**"_, and
+> [KB-080 §9](README.md)'s Definition of Done requires the template be _"demonstrably followed by
+> both existing controllers — the template is only real once it has two independent users."_ The
 > template now exists and the error contract is adopted, but KB-114 §13 records **two live
 > divergences**: `CurrencyController` declares `[ProducesResponseType]` on `GetAll` only, and
 > `AuthController.Login` declares none — so the OpenAPI document `M2-B10` will generate has no
@@ -3009,14 +3007,14 @@ remote: - Changes must be made through a pull request.
 **Two things follow, and the second is the uncomfortable one.**
 
 **1. `M2-A03`'s block is smaller than it looked.** That task stopped because its final criterion —
-the permission-matrix job must be a *required* status check — is branch-protection configuration
-"which has no representation anywhere in the repository". The *unreadable-from-here* half is true.
-The *does-not-exist* implication is false: protection is configured, and it already enforces a
+the permission-matrix job must be a _required_ status check — is branch-protection configuration
+"which has no representation anywhere in the repository". The _unreadable-from-here_ half is true.
+The _does-not-exist_ implication is false: protection is configured, and it already enforces a
 pull-request rule. So the owner action is **adding a required status check to an existing ruleset**,
 not creating protection from scratch. Recorded against footnote ⁶⁴.
 
-**2. Every merge in this run bypassed that rule.** The repository's own policy is *"changes must be
-made through a pull request"*, and this run merged twenty-plus branches straight to local `master`
+**2. Every merge in this run bypassed that rule.** The repository's own policy is _"changes must be
+made through a pull request"_, and this run merged twenty-plus branches straight to local `master`
 and pushed the result. The owner holds bypass rights and exercised them knowingly by running the
 push, so nothing was done without authority — but the practice and the policy disagree, and the
 disagreement was invisible until the remote said so. **This is a question for the owner, not a
@@ -3031,7 +3029,7 @@ instructed to develop on by its harness, and that deviation is recorded here rat
 silently reconciled.
 
 **Selected because the `Blocked` row was stale, not because the rule was bent.** See the
-*Correction* paragraph in § Current state: both Hard prerequisites were `Completed` and merged
+_Correction_ paragraph in § Current state: both Hard prerequisites were `Completed` and merged
 weeks before, and the task file's own frontmatter still read `status: Not Started`.
 
 **The measurement was run first, as the task file requires, and it passed.** A throwaway
@@ -3076,9 +3074,9 @@ held).
 wrong in two independent ways.**
 
 **First, it contradicted the roadmap.** [KB-080 §13](README.md#13-m5--hardening) states that
-**`M5-01`…`M5-06` have no standalone task files by design** — *"they are steps inside the module
+**`M5-01`…`M5-06` have no standalone task files by design** — _"they are steps inside the module
 pattern (§10). Giving them separate files would let a wave ship untested and defer its tests to a
-phase that arrives months later."* Its four siblings — `M5-01`, `M5-02`, `M5-04`, `M5-06` — all
+phase that arrives months later."_ Its four siblings — `M5-01`, `M5-02`, `M5-04`, `M5-06` — all
 read `*Continuous*` in this table. `M5-03` alone read `Blocked` at P0, which invites a session to
 try to select it, find no task file, and stop. That is the same class of stale row that cost
 three sessions before `M2-C05-01` (footnote ⁷⁰) — a status column disagreeing with the thing it
@@ -3087,13 +3085,13 @@ is supposed to summarise.
 **Second, the work it names is already being delivered, continuously, exactly as §13 intends.**
 Measured on `master` 2026-08-25:
 
-| Evidence | Count |
-|---|---|
-| Spec files, `shared/components/form/` (M2-C04-02) | 21 |
-| Spec files, `shared/components/overlay/` (M2-C04-03) | 9 |
-| Spec files, `shared/components/feedback/` (M2-C04-03) | 9 |
-| Runtime `axe` scans (`*/a11y.spec.ts`) | 4 |
-| Token/theme specs (`core/theme/`, M2-C04-01) | 4 |
+| Evidence                                              | Count |
+| ----------------------------------------------------- | ----- |
+| Spec files, `shared/components/form/` (M2-C04-02)     | 21    |
+| Spec files, `shared/components/overlay/` (M2-C04-03)  | 9     |
+| Spec files, `shared/components/feedback/` (M2-C04-03) | 9     |
+| Runtime `axe` scans (`*/a11y.spec.ts`)                | 4     |
+| Token/theme specs (`core/theme/`, M2-C04-01)          | 4     |
 
 309 frontend tests pass on `master`. Every design-system task since `M2-C04-01` has shipped its
 own component tests in the same commit as the component — which is what `M5-03` asks for.
@@ -3105,14 +3103,14 @@ primitive owes its tests when it lands, and the obligation only discharges at G5
 
 ⁷² **`M5-05` corrected `Blocked` → `*Continuous*`, 2026-08-25. No work was done.** The row said
 `Blocked` on `M2-A03`, but [KB-080 §13](README.md#13-m5--hardening) already records this one as
-*"delivered 2026-08-24 by `M2-A03`"*, and the harness is on `master`: `d94d8ce` is an ancestor of
+_"delivered 2026-08-24 by `M2-A03`"_, and the harness is on `master`: `d94d8ce` is an ancestor of
 `origin/master` (verified with `git merge-base --is-ancestor`), and
 `tests/V.SMART.Api.Tests/PermissionMatrix/` holds eight files including
 `PermissionMatrixHarness.cs`, `ApiEndpointDiscovery.cs` and `ExemptEndpointAllowList.cs`. It runs
-in CI inside the *Test — V.SMART.Api.Tests* step on every push and pull request.
+in CI inside the _Test — V.SMART.Api.Tests_ step on every push and pull request.
 
 **What is genuinely outstanding is the two words "merge-blocking" in the task name, and they are
-not work.** `ci.yml` makes the suite a blocking *step*; whether the *job* is required for merge
+not work.** `ci.yml` makes the suite a blocking _step_; whether the _job_ is required for merge
 is GitHub branch-protection configuration, outside this repository and unsettable from any
 execution session. That is the single criterion keeping `M2-A03` itself at `Needs Review`
 (footnote ⁶³), owner **Vivek**, and it is tracked there rather than duplicated as a second
@@ -3124,7 +3122,7 @@ written. Owner: Vivek.**
 It was selected from a sweep of **every** row rather than only the `Ready` ones, and the
 selection was sound: `M2-B07` and `M2-A01-03` are `Completed` and merged, G0 is passed by the
 owner's 2026-08-19 decision, the file carries no ⛔ banner, no sibling branch exists, and the
-ADR-005 *mandatory prerequisite* — R-04, "82 of 94 procedures unscripted" — **has since been
+ADR-005 _mandatory prerequisite_ — R-04, "82 of 94 procedures unscripted" — **has since been
 discharged**: `db/stored-procedures/` holds 82 scripted procedures, captured 2026-08-13 by
 `M0-01-02`. That sentence in the task file's Dependencies table is now false and is flagged there.
 
@@ -3172,7 +3170,7 @@ attempt 2 of 5 `PASS`, all 17 acceptance criteria `MET`; it releases nothing fur
 names it as a Hard prerequisite. `M2-C05-03` (empty/loading/error states + server-side export)
 landed independently on `migration/M2-C05-03-grid-states-and-export` (tip `2da7723`), `PASS`;
 its own close-out found that `M2-C05-02` cannot be dispatched alongside it — `M2-C05-02.md`'s
-*Expected changed files* row names `data-grid.component.ts`, `data-grid.component.html` and
+_Expected changed files_ row names `data-grid.component.ts`, `data-grid.component.html` and
 `data-grid.model.ts`, exactly the files `M2-C05-03`'s branch changed — so `M2-C05-02` stays
 `Ready` but fails part 5 of the "can actually be done" test until `M2-C05-03` merges or is
 abandoned. Both rows below corrected from `Ready` to `Needs Review`. **No row in the tracker
@@ -3181,13 +3179,13 @@ now reads `Ready` that clears the five-part test** — `M0-06` and `M0-11` were 
 
 ⁷⁶ **M2-C05-03: `Needs Review` → `Completed`, merged 2026-08-26 on owner instruction.**
 Merged `--no-ff` into `master`. **Verified on the merged result, not inherited from the branch:**
-`typecheck` exit 0 · `lint` *"All files pass linting"* · `test:ci` **436 passed / 55 files, 0
+`typecheck` exit 0 · `lint` _"All files pass linting"_ · `test:ci` **436 passed / 55 files, 0
 failed** · `build` succeeds. Three conflicts, all `docs/kb/` bookkeeping — no code conflicted;
 the 21 `frontend/` files merged clean. All three resolved to `master`'s side, which carried the
 later runner correction (footnote ⁷⁵): the branch's own copy still read `M2-C06` as `Ready`⁷⁴,
 stale because it was cut before `M2-C06` finished.
 
-**What this releases: `M2-C05-02`.** It was the one task failing part 5 on a *genuine* same-file
+**What this releases: `M2-C05-02`.** It was the one task failing part 5 on a _genuine_ same-file
 conflict — its expected changed files (`data-grid.component.ts`, `.html`, `.model.ts`) are
 exactly what this branch changed. With this merged, that conflict is gone and `M2-C05-02`
 becomes the first self-selectable task since `M2-C06`. **`M2-C06` stays `Needs Review`** on
@@ -3212,7 +3210,7 @@ selected this pass.
 
 ⁷⁸ **`M2-D01`: `Ready` → `Blocked`, 2026-08-26 select-only pass (following footnote ⁷⁷'s
 selection).** `M2-D01` was dispatched on `migration/M2-D01-currency-end-to-end` and stopped on
-arrival: its own *Dependencies* table (`tasks/M2-D01.md:244-250`) declares seven Hard rows, but
+arrival: its own _Dependencies_ table (`tasks/M2-D01.md:244-250`) declares seven Hard rows, but
 `depends_on` (the field the five-part test actually reads) listed only three — `M2-C05-03`,
 `M2-A02`, `M2-B10` — all `Completed`/merged, which is why footnote ⁷⁷'s test passed it
 legitimately. The other four are `M2-C02`, `M2-A07`, `M2-A06`, `M2-B01`; three of those
@@ -3230,18 +3228,19 @@ on the unmerged `migration/M2-D01-currency-end-to-end` branch and is not duplica
 `depends_on` defect. Audited: it affects 34 task files (Q-102).**
 
 **Three independent blockers, two of them anticipated by the task file itself.**
-1. **The endpoint pair does not exist** — zero hits in `V.SMART.Api`. The task's *Out of Scope*
-   forbids adding the controller under this id, and Requirement 4 says *"stop, record the gap,
-   and report `Blocked` with a proposed contract"*, which the implementer did:
+
+1. **The endpoint pair does not exist** — zero hits in `V.SMART.Api`. The task's _Out of Scope_
+   forbids adding the controller under this id, and Requirement 4 says _"stop, record the gap,
+   and report `Blocked` with a proposed contract"_, which the implementer did:
    `GET`/`PUT /api/v1/me/column-preferences/{screenName}`, wrapping the **already-existing**
    `IColumnPreferenceService` (`V.SMART/V.SMART.Shared/Services/IColumnPreferenceService.cs:5-9`
    — verified: exactly the two methods needed), which the API host does not register though
    `V.SMART.Web/Program.cs:250` does.
 2. **No real fixture capture exists** (Q-100). Testing Requirements 9–11 demand fixtures from
-   captured `PreferenceJson`/`ColumnJson` rows, *"not from JSON you wrote to match your own
-   serialiser"*. Needs tenant-database access. **This blocker survives even if the endpoint lands.**
-3. **`M2-C02` is `Blocked`** and its Dependencies table names it `Hard` (*"supplies the
-   authenticated identity"*).
+   captured `PreferenceJson`/`ColumnJson` rows, _"not from JSON you wrote to match your own
+   serialiser"_. Needs tenant-database access. **This blocker survives even if the endpoint lands.**
+3. **`M2-C02` is `Blocked`** and its Dependencies table names it `Hard` (_"supplies the
+   authenticated identity"_).
 
 **The finding worth carrying beyond this task — Q-98, verified from source, not accepted on
 report.** The preference key is a **username**, not an id: `CurrentUserService.GetUsernameAsync()`
@@ -3280,7 +3279,7 @@ valid frontmatter, **0** malformed.
 **Worst offenders, for scale:** `M2-D02-02` declared **9** `Hard` rows and listed **1**;
 `M2-C08` declared 7, listed 1; `M2-C09` declared 7, listed 2.
 
-**What this does not do.** It does not touch the *Prerequisites* prose sections, which in at
+**What this does not do.** It does not touch the _Prerequisites_ prose sections, which in at
 least one file (`M2-D01:210`) understate the dependencies in the same way — the tables are now
 authoritative and the prose is not. It also cannot catch a Hard dependency that a task file
 never declares anywhere; `M2-C03` was cited as blocking `M2-D01` but appears in no Dependencies
@@ -3291,7 +3290,7 @@ table, so no mechanical pass would find it.
 key to be rotated in the **deployed** API's configuration. **There is no deployed API** — the
 owner confirmed on 2026-08-26 that `V.SMART.Api` runs only on his own machine. So there is
 currently no live host issuing tokens signed with the published key, and nothing in production
-to rotate. C-4 becomes *applicable* at first deployment, not before.
+to rotate. C-4 becomes _applicable_ at first deployment, not before.
 
 **What was actually done.** A fresh 48-byte random value was generated and stored via
 `dotnet user-secrets set "Jwt:Secret"` against `V.SMART.Api` (`UserSecretsId`
@@ -3325,13 +3324,13 @@ the checklist entry belongs in the runbook when that branch merges.
 
 ⁸² **`M2-A03`: `Needs Review` → `Completed`, 2026-08-26 — the owner made the branch-protection
 setting that was the one unmet criterion.** In the GitHub UI (`ErpStore/NexERP_B` → Settings →
-Branches → `master` rule), *Require status checks to pass before merging* is enabled and the
+Branches → `master` rule), _Require status checks to pass before merging_ is enabled and the
 check for the CI job **"Restore, build and gate analyzer warnings"** (`ci.yml` job `build`,
 which runs `V.SMART.Api.Tests` — the permission-matrix harness — with an explicit exit-code
 gate) was added as required. Owner-confirmed in session, 2026-08-26; **not independently
 verifiable from this workstation** (branch protection has no representation in the git tree and
 `gh` is not installed — same limitation footnote ⁶³ recorded). One correction to footnote ⁶⁴'s
-instruction worth keeping: it named the *step* `Test - V.SMART.Api.Tests` as the thing to add,
+instruction worth keeping: it named the _step_ `Test - V.SMART.Api.Tests` as the thing to add,
 but GitHub's required-status-check picker only accepts **job-level** check names — the step name
 finds nothing. The correct name is the job's `name:` value, `Restore, build and gate analyzer
 warnings` (`.github/workflows/ci.yml:73-74`). With this, all 18 of 18 acceptance criteria are
@@ -3360,8 +3359,8 @@ instruction — the runbook, inventory and checklist are delivered; nothing is r
 Adds `docs/runbooks/credential-rotation.md` (C-1…C-7, per-credential owner/blast-radius/
 window/procedure/rollback/verification, and the unsigned §8 human checklist) and
 `docs/kb/execution/owner-action-list.md`. Its credential-usage investigation is `INV-057`
-*(renumbered at this merge from the branch's own `INV-052`, which collided with
-`M2-C05-01`'s already-merged claim on that id — no content changed, only the id)*.
+_(renumbered at this merge from the branch's own `INV-052`, which collided with
+`M2-C05-01`'s already-merged claim on that id — no content changed, only the id)_.
 
 **Corrected as part of this merge, not carried over as written: C-2 is void.** The runbook
 and every KB file that touched it recorded `154.61.76.112,1533` as "the production host" —
@@ -3447,8 +3446,8 @@ cherry-picking once the duplicate M0-04/M0-06/M2-B12-01 merges beneath it are ac
 from the stale duplicate lineage documented in footnote ⁸⁶ rather than merging that branch
 wholesale.** That branch's own copy of this commit is unusable as-is: it was written on top
 of a divergent M0-04 merge that never received this session's C-2 correction, and it names
-`154.61.76.112,1533` — now confirmed **not this project's host** — as *"the SQL Server
-instance"* to run the census against. Cherry-picked cleanly (two trivial bookkeeping
+`154.61.76.112,1533` — now confirmed **not this project's host** — as _"the SQL Server
+instance"_ to run the census against. Cherry-picked cleanly (two trivial bookkeeping
 conflicts in `INDEX.md`/this file, both id-ledger entries; the actual delivered files —
 `docs/kb/execution/runbooks/Q-10-numbering-constraints.sql`, its companion `.md` runbook
 (KB-101), `tasks/M2-B12-02.md`, `modules/document-numbering.md` §11 — applied without
@@ -3465,8 +3464,8 @@ commit message:** the script contains **none** of `CREATE`/`ALTER`/`DROP`/`INSER
 case-insensitive substring grep, run fresh against the cherry-picked copy.
 
 **What changed once this project's actual reachable instance was used, unlike the branch's
-assumption:** the original close-out's designed terminal state — *"if no DBA execution was
-obtained, the task reports `Blocked`, which is an acceptable outcome"* — assumed a production
+assumption:** the original close-out's designed terminal state — _"if no DBA execution was
+obtained, the task reports `Blocked`, which is an acceptable outcome"_ — assumed a production
 DBA who does not exist in this repository. That was never this project's real blocker: the
 owner holds direct access to the one instance this project actually has, demonstrated earlier
 this session (M0-04's C-1/C-3 rotation). Phases 2 and 3 were run in this session rather than
@@ -3517,24 +3516,24 @@ check it directly rather than assume either way.
 
 ⁸⁵ **M2-C10: the `environment` blocker is stale, and was overstated when raised — diagnosed 2026-08-25.**
 Footnote ⁵² recorded `M2-C10` as `Blocked`/`environment` on 2026-08-23 because its binding criterion
-*"needs a MEASURED wire format from a live `[Authorize]`d endpoint"* and this workstation has empty
+_"needs a MEASURED wire format from a live `[Authorize]`d endpoint"_ and this workstation has empty
 `ConnectionStrings:MasterDb` and `Jwt:Secret`. **Three findings contradict that, all verifiable at `HEAD`:**
 
-1. **The criterion was never strictly unsatisfiable.** `tasks/M2-C10.md` reads *"INV-032 is recorded with
-   the measured wire format … **or an explicit `Unknown` plus a raised question in KB-004**"*. The
+1. **The criterion was never strictly unsatisfiable.** `tasks/M2-C10.md` reads _"INV-032 is recorded with
+   the measured wire format … **or an explicit `Unknown` plus a raised question in KB-004**"_. The
    fallback clause was in the acceptance criterion the whole time and was not applied.
 2. **The measurement already exists, and post-dates the block by one day.** `INV-051` (Complete,
    2026-08-24, `M2-B10`) measured `decimal` → `type: number, format: double` → TypeScript `number`, and
-   **explicitly routed the consequence to this task**: *"Money crosses the boundary as an IEEE-754
-   double — flagged to M2-C10, deliberately not resolved here."* The evidence is committed:
+   **explicitly routed the consequence to this task**: _"Money crosses the boundary as an IEEE-754
+   double — flagged to M2-C10, deliberately not resolved here."_ The evidence is committed:
    `api/openapi.json` (`GstRatesResponse.igst`/`cgstSgst`) and
    `frontend/nexgen-web/src/app/core/api/generated/models/gst-rates-response.ts:12-13`.
-3. **The specific environment claim is refuted by `INV-051`'s own negative result:** *"nothing in
-   startup opens a database connection, so placeholders suffice"* — `dotnet swagger tofile` runs here
+3. **The specific environment claim is refuted by `INV-051`'s own negative result:** _"nothing in
+   startup opens a database connection, so placeholders suffice"_ — `dotnet swagger tofile` runs here
    with four placeholder environment variables. An empty `MasterDb` never blocked capturing the contract.
 
 **The finding that matters more than the status.** Money reaches the browser as an IEEE-754 double, and
-`System.Text.Json` writes `decimal` losslessly as JSON *text* — so the wire is exact and the precision is
+`System.Text.Json` writes `decimal` losslessly as JSON _text_ — so the wire is exact and the precision is
 lost at `JSON.parse`, **upstream of every line this task proposes to write**. A `decimal.js` module can
 guard arithmetic, but `fromApi(x: number)` receives digits that are already gone. **`M2-C10` as specified
 is necessary but not sufficient**, and the fix it would need (serialize money as a string) touches
@@ -3588,7 +3587,7 @@ exact version `global.json` pins (`rollForward: latestFeature`) — and `dotnet 
 shows it installed alongside `10.0.300`. `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj`
 and `dotnet test tests/V.SMART.Api.Tests/` both ran clean multiple times this session (most
 recently: 514/514 tests passing). **This does not itself re-open `M2-B08`** — that attempt's
-own finding was specific to *that* session's environment (`10.0.111` was the highest
+own finding was specific to _that_ session's environment (`10.0.111` was the highest
 obtainable there, and `builds.dotnet.microsoft.com` was denied at `CONNECT`), and this
 workstation is not confirmed to be the same execution context every future session will run
 in. It is recorded so the next session checks `dotnet --version` directly, first, rather than
@@ -3626,7 +3625,7 @@ DataGrid (landed after), which does legitimate pixel/row-count arithmetic the ru
 distinguish from money without help. Read each of the 5 flagged `data-grid-*`/`drawer`
 call sites individually before exempting any of them — none touches money or quantity, all
 confirmed pixel widths or row-count pagination. The 6th, `fake-decimal-port.ts`, was a
-genuine hit: a documented test-only stand-in (*"M2-C10 owns the real decimal module"*, written
+genuine hit: a documented test-only stand-in (_"M2-C10 owns the real decimal module"_, written
 before it existed) whose 5 consumers are all test specs. Fixed with scoped exemptions in both
 `eslint.config.js` and the matching `EXEMPT` map in `no-float-money.spec.ts` (the
 architecture-level scan the module's own README says a lint rule alone cannot replace),
@@ -3652,7 +3651,7 @@ task. **Owner confirmed `Completed` the same session** ("Mark it Completed", 202
 
 ⁹⁴ **`M2-B05`: re-specified and implemented 2026-08-26, in the same session as the owner's
 "Re-spec now as a StoreIds task" instruction.** The task under this id was originally
-*"Typed `ScreenCodes` constants generated from the Screens seed"*, `Blocked` since 2026-08-21
+_"Typed `ScreenCodes` constants generated from the Screens seed"_, `Blocked` since 2026-08-21
 on a falsified premise (`INV-044`: zero `screenCode` literals exist anywhere to replace).
 `INV-044` itself named the real hazard one parameter over — `storeId`, R-66 — as "the obvious
 candidate for M2-B05's re-specification," so that is what this file now specifies; the original
@@ -3726,7 +3725,7 @@ account (Q-25, Unknown — forbidden by `tasks/M0-06.md:141-144`) or never fires
 database, leaving the criterion unmet either way; it would also succeed and silently
 **cascade**-delete `UserRight`/`UserAuthority`/`UserThemePreference`, since all three FKs to
 `Users` are `Cascade` (`InitialCreate.cs:7196-7200`, `:7232-7236`), not `Restrict` as the task
-file assumed. This is the task's own **Dependencies** table naming *"a deployment owner"* as an
+file assumed. This is the task's own **Dependencies** table naming _"a deployment owner"_ as an
 unsatisfied **Hard** dependency the task "cannot silently choose on their behalf." Escalated as
 **Q-26** (`open-questions.md`) with three options (A: define tenant provisioning and make the
 `KB-106` runbook step mandatory; B: authorise guarded DML accepting the lock-out risk; C:
@@ -3822,7 +3821,7 @@ follow-up task. Full record:
 
 ⁹⁷ **`M2-C11`: implemented 2026-08-27, `Needs Review` — Q-38 answered, option (a).** The
 question ("what is `M2-C11` for, now that ADR-007 inverted the archive-vs-adopt framing")
-resolved to: port the pilot's *patterns*, not its directory. In practice this had already
+resolved to: port the pilot's _patterns_, not its directory. In practice this had already
 happened — `M2-C01` built `frontend/nexgen-web/` fresh a week before the decision, and every
 `M2-C` task since built on it — so the answer confirmed the status quo rather than requiring
 new work to reconcile it.
@@ -3834,7 +3833,7 @@ after the removal produced byte-identical output (571.20 kB raw / 136.72 kB gzip
 chunk set), because nothing in `nexgen-web` ever referenced the pilot. `.github/workflows/ci.yml`
 already had no job for the pilot (a comment there already said so). `KB-015`'s pilot section and
 `R-34`'s risk entry were both corrected: each had briefly (2026-08-20–2026-08-27) described the
-*directory-adoption* reading of "adopt" that Q-38 ultimately rejected — stale text needing a
+_directory-adoption_ reading of "adopt" that Q-38 ultimately rejected — stale text needing a
 second correction, not just the original pre-ADR-007 banner this decision was meant to settle.
 
 Left at `Needs Review` pending owner sign-off, per
@@ -3847,7 +3846,7 @@ as part of closing it. Full record: [`tasks/M2-C11.md` § Close-out](tasks/M2-C1
 ⁹⁸ **`M0-11`: implemented 2026-08-27, `Completed` — Q-01 was already answered.** Footnote
 ¹⁷ (2026-08-19) recorded that this task's blocking human step had happened; this footnote
 records that the task itself has now been executed. Re-reading the task on pickup found its
-governing decision (Q-01) had been answered by the owner *five days before* the task file's
+governing decision (Q-01) had been answered by the owner _five days before_ the task file's
 own `last_verified` date — the actual remaining work was not "produce a brief awaiting a
 decision" but "produce the formal written record of a decision already made."
 
@@ -3880,7 +3879,7 @@ check.
 
 Left at `Needs Review` on execution, pending owner sign-off, per
 [KB-088 § Who may set COMPLETED](workflow.md#who-may-set-completed) — this task produces a
-decision *record*, and per this project's own standing rule an execution session does not
+decision _record_, and per this project's own standing rule an execution session does not
 self-certify that record as the final one. `open-questions.md` (Q-01) and the technical-debt
 register (`R-07`) were both updated to point to `ADR-006`; `R-07` stays explicitly **open** —
 this decision does not fix the drift, it decides to keep it and stop hiding it, and closes
@@ -3888,7 +3887,7 @@ only once the deferred post-Milestone-2 surfacing task lands. `INDEX.md` registe
 
 **Owner confirmed `Completed` the same session** ("mark it as complete", 2026-08-27). Branch
 `migration/M0-11-fifo-under-issue-decision` merged to `master` as part of closing it. Note
-`R-07`'s open status is unaffected by this task's own completion — closing *this* task closes
+`R-07`'s open status is unaffected by this task's own completion — closing _this_ task closes
 the decision-recording work, not the underlying ledger drift. Full record:
 [`tasks/M0-11.md` § Close-out](tasks/M0-11.md).
 
@@ -3916,12 +3915,12 @@ touched.
 ¹⁰⁰ **Owner decision, 2026-08-27: the undecided deployment topology (`M6-01`/Q-16) does not
 gate other work, and `M2-A04` is unblocked on that basis.** Raised when asked how `M0-04`'s
 open `C-4` item (deployment-side `Jwt:Secret` rotation) could be resolved. The owner's own
-words: *"this we should yet decide the deployment but it should not block other task first we
-build a product which run clean on our machine then we can investigate on the deployment."*
+words: _"this we should yet decide the deployment but it should not block other task first we
+build a product which run clean on our machine then we can investigate on the deployment."_
 
 **What this changes, and what it does not.** `M0-04` itself stays `Blocked` — C-4 (deployment
 rotation) and C-5/C-7 (vendor-owned) are all still genuinely open, and nothing here closes the
-task. What changes is the one thing that was actually deriving from C-4's *deployment* half:
+task. What changes is the one thing that was actually deriving from C-4's _deployment_ half:
 `M2-A04`'s block (footnote ⁴⁸), which held that refresh tokens signed with a key whose value is
 published in a public repository's history are forgeable. That premise assumed the key in active
 use was the leaked one. It is not, as of 2026-08-26 (footnote ⁸¹): `Jwt:Secret` was rotated to a
@@ -3930,7 +3929,7 @@ fresh 48-byte value in the workstation's user-secret store, and `M0-03-03`'s
 key's SHA-256 digest, null, empty, or under 32 UTF-8 bytes — so the only host that can currently
 issue or verify a token (the workstation) cannot do so with the compromised secret. Refresh
 tokens minted and revocation-listed here are therefore not forgeable with the published key
-today. The residual risk footnote ⁸¹ named — *"a deployment with a fresh secret would"* answer
+today. The residual risk footnote ⁸¹ named — _"a deployment with a fresh secret would"_ answer
 this more durably than a workstation rotation — is accepted as a known, deferred item, not
 resolved: **when a real deployment target exists, its `Jwt:Secret` must be freshly generated
 there too, independent of the workstation value, and C-4 must be signed off against that
@@ -3950,26 +3949,27 @@ owner's deployment-deferral decision (footnote ¹⁰⁰) cleared it.
 **Delivered.** `Jwt:ExpiresMinutes` cut from 480 to 15 (configurable; justified in
 `JwtTokenService.cs` against the 1-minute `ClockSkew`). A new `RefreshToken` entity/table
 (`RefreshTokens`, one additive EF migration `20260827055557_AddRefreshTokens` — `CreateTable`
-+ a unique index on `TokenHash` + a `Cascade` FK to `Users`, no existing column touched),
-holding SHA-256-hashed tokens with expiry/created/revoked columns. `RefreshTokenService`
-(behind `IRefreshTokenService`, scoped) issues, rotates (one-time use — the presented row is
-revoked in the same call that mints its replacement) and revokes. `POST /api/v1/auth/refresh`
-and `POST /api/v1/auth/logout` added, both `[AllowAnonymous]` and both correctly represented
-on the M2-A03 harness's *anonymous* allow-list (`ExemptEndpointAllowList.AnonymousActions`,
-which the implementation discovered is a **second, separate** exemption list from the one
-`ScreenRightStartupValidator` itself walks — both had to be satisfied, not just one).
-`IsActive` is re-checked on every rotation. `LoginResponse` extended with `refreshToken` and
-`tokenExpiresAtUtc`, four original fields unchanged. 613/613 API tests pass (up from 470 at
-last measurement plus this task's own new suites), 97/97 `V.SMART.Shared.Tests` unaffected
-(1 pre-existing skip), `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` — 0 errors, 6,696
-warnings (baseline ~6,695, the +1 is `V.SMART.Shared`'s own pre-existing `xUnit2031`-class
-count drift, not a regression this task introduced — verified no new warning traces to a file
-this task touched).
+
+- a unique index on `TokenHash` + a `Cascade` FK to `Users`, no existing column touched),
+  holding SHA-256-hashed tokens with expiry/created/revoked columns. `RefreshTokenService`
+  (behind `IRefreshTokenService`, scoped) issues, rotates (one-time use — the presented row is
+  revoked in the same call that mints its replacement) and revokes. `POST /api/v1/auth/refresh`
+  and `POST /api/v1/auth/logout` added, both `[AllowAnonymous]` and both correctly represented
+  on the M2-A03 harness's _anonymous_ allow-list (`ExemptEndpointAllowList.AnonymousActions`,
+  which the implementation discovered is a **second, separate** exemption list from the one
+  `ScreenRightStartupValidator` itself walks — both had to be satisfied, not just one).
+  `IsActive` is re-checked on every rotation. `LoginResponse` extended with `refreshToken` and
+  `tokenExpiresAtUtc`, four original fields unchanged. 613/613 API tests pass (up from 470 at
+  last measurement plus this task's own new suites), 97/97 `V.SMART.Shared.Tests` unaffected
+  (1 pre-existing skip), `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` — 0 errors, 6,696
+  warnings (baseline ~6,695, the +1 is `V.SMART.Shared`'s own pre-existing `xUnit2031`-class
+  count drift, not a regression this task introduced — verified no new warning traces to a file
+  this task touched).
 
 **The storage and transport decisions this task's Investigation Requirements demanded,
 recorded in full at [INV-063](../investigation-registry.md):** a new EF-backed table was
 chosen over an in-memory store (durable, structurally tenant-isolated, the Q-02 per-tenant
-*rollout* cost stays a genuinely deferred deployment-time question rather than one this local
+_rollout_ cost stays a genuinely deferred deployment-time question rather than one this local
 migration had to answer); the refresh token travels in the request/response body, not an
 `HttpOnly` cookie, because Q-16 (deployment topology) is Unknown and a cookie's
 `Secure`/`SameSite`/domain attributes cannot be set correctly without it — disclosed in
@@ -4088,7 +4088,7 @@ orders of magnitude of margin.**
 used `requestAnimationFrame`-based double-rAF timing (the standard "wait for next paint"
 technique) and recorded **zero samples even after a 1 s wait** — traced to the automation
 environment's tab not being visually composited (confirmed via `computer` tool's own
-`screenshot` action refusing with *"the page is not compositing frames"*), which starves
+`screenshot` action refusing with _"the page is not compositing frames"_), which starves
 `requestAnimationFrame` entirely regardless of real elapsed time. Switched to bracketing
 `performance.now()` synchronously around the native `input` event's dispatch instead — a
 technique immune to tab-visibility effects — which produced clean, consistent, real
@@ -4166,7 +4166,7 @@ would have silently targeted the page's own origin; fixed in `core/api/app-boots
 (2) A private-class-field declaration-order bug in `AuthService`: `#bootstrapSettled`'s
 `Promise` executor (which runs synchronously at construction) wrote `this.#resolveBootstrap`
 before that field was installed, because JS installs `#`-private fields in declaration order
-and `#resolveBootstrap` was declared *after* `#bootstrapSettled`. `TypeError: Cannot write
+and `#resolveBootstrap` was declared _after_ `#bootstrapSettled`. `TypeError: Cannot write
 private member #resolveBootstrap to an object whose class did not declare it` — raised only by
 `auth.service.spec.ts` at runtime; `npm run typecheck`/`npm run build` both stayed green while
 this was live, since TypeScript does not model JS's field-installation order. Fixed by
@@ -4195,7 +4195,7 @@ is `{ username, password }` — **no `tenant` field** — because the real, Open
 (`ITenantProvider`) until `M2-A05`, contradicting this task's own (stale) Flow diagram, not the
 live API. (2) **Token custody: both the access token and the refresh token are held in-memory
 only** (`TokenStore`, never a public signal, never `localStorage`/`sessionStorage`) — this
-task's *recommended* default was access-in-memory / refresh-in-an-httpOnly-cookie, but the real
+task's _recommended_ default was access-in-memory / refresh-in-an-httpOnly-cookie, but the real
 `POST /api/v1/auth/refresh` returns the refresh token as a plain response-body string, not a
 `Set-Cookie` header, and building the cross-origin cookie transport is `M2-A05`'s scope, not
 this one's. Recorded consequence: a hard page reload always loses the session (`bootstrap()`
@@ -4275,10 +4275,10 @@ Hard prerequisite `Completed` **and** merged — now clears for `M2-C02`'s direc
 and merged) both move `Blocked` → `Ready` above. Neither is picked or started by this footnote
 alone — task selection and branch creation are a separate step.
 
-*(While updating this footnote, a formatting defect from footnote ¹⁰⁶'s own edit was found and
+_(While updating this footnote, a formatting defect from footnote ¹⁰⁶'s own edit was found and
 fixed: the `M2-C02` row above had been accidentally split across two physical lines by a prior
 edit, silently breaking the Markdown table for that row without erroring. Corrected to one line
-in the same change; no content was lost, only the line break removed.)*
+in the same change; no content was lost, only the line break removed.)_
 
 ¹⁰⁸ **`M2-C03` implemented 2026-08-27, branch `migration/M2-C03-app-shell`, left `Needs
 Review`.** Built: `core/navigation/` (`navigation.config.ts` — INV-033's output, ~145 items;
@@ -4334,5 +4334,31 @@ needed no new `Q-xx` — `INV-042` already answered it ("the API has no QR-login
 flag alone changes nothing today"), reused rather than re-raised.
 
 **Downstream effect: none yet.** Nothing currently names `M2-C03` in `depends_on`.
+
+¹⁰⁹ **`M2-C03` merged to `master` on owner instruction, 2026-08-27 ("merege" — merge), still
+`Needs Review` — not `Completed`.** As with `M2-C02` (footnote ¹⁰⁶), the instruction was
+specifically to merge, not a review sign-off; nothing here infers `Completed` from "merged"
+alone, per KB-088. Merge: `git checkout master && git merge --no-ff
+migration/M2-C03-app-shell` — clean, no conflicts (`73e91e8`).
+
+**Post-merge re-verification, all observed, run on the merged `master` tip:** `npm run lint`
+clean; `npm run typecheck` clean; `npm run format:check` flags the same 2 pre-existing files
+as on the branch (`eslint.config.js`, `no-float-money.spec.ts`), neither touched by this
+task; `npm run build` clean, bundle unchanged at 626.04 kB raw / **144.92 kB gzip transfer**,
+same disclosed 26.04 kB CLI raw-budget warning as footnote ¹⁰⁸. `npm run test:ci`: first run
+680/682 — the two failures were `data-grid.component.spec.ts` ("renders header, rows and the
+pager from one paged response," a timeout) and `record-picker-dialog.component.spec.ts`
+("refuses disabled rows...", the same pre-existing flake documented at footnote ¹⁰⁴/¹⁰⁶) —
+both pre-existing, neither touched by `M2-C03`; a second run was 682/682 clean, matching the
+self-healing signature already characterised at footnote ¹⁰⁶, not a regression from this
+merge. `npm run e2e` 2/2 passing post-merge (`smoke.spec.ts` + the new `shell.spec.ts`).
+Backend untouched by this merge — no `V.SMART` files in the diff — so `dotnet build` was not
+re-run.
+
+**Downstream effect.** Rule 1 of the five-part "can actually be done" test requires
+`Completed` **and** merged, not merely merged — nothing currently names `M2-C03` in
+`depends_on`, so there is no dependent to release yet, but `M2-C03` itself stays `Needs
+Review` until the owner reviews the Close-out ([`tasks/M2-C03.md`](tasks/M2-C03.md)) and
+explicitly sets `Completed`.
 `Needs Review` does not satisfy rule 1 of the five-part "can actually be done" test in any
 case — the owner has not yet reviewed this branch.

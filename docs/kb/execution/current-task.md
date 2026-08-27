@@ -15,21 +15,29 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 
 # Current Task
 
-> **This file holds exactly one task — the active one.** It is a *pointer plus the minimum
-> needed to start*, never a copy of the knowledge base. Follow the references.
+> **This file holds exactly one task — the active one.** It is a _pointer plus the minimum
+> needed to start_, never a copy of the knowledge base. Follow the references.
 >
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
 ## Selected: `M2-C03` — App shell: header, sidebar, breadcrumbs, ⌘K
 
-Full spec: [`tasks/M2-C03.md`](tasks/M2-C03.md). Not yet dispatched.
+Full spec: [`tasks/M2-C03.md`](tasks/M2-C03.md). **Implemented and merged to `master`
+(`73e91e8`), 2026-08-27 — status `Needs Review`, not `Completed` (owner sign-off pending).**
+Branch `migration/M2-C03-app-shell`. See [`tasks/M2-C03.md`](tasks/M2-C03.md)'s Close-out and
+Merge sections, and [`task-tracker.md`](task-tracker.md) footnotes ¹⁰⁸–¹⁰⁹, for the full
+build, verification, and post-merge re-verification record. Nothing currently names `M2-C03`
+in any task's `depends_on` (confirmed again at merge time), so this merge releases no other
+task to `Ready` by itself. Per [KB-088](workflow.md#who-may-set-completed), the next step is
+the owner's — review the Close-out and either confirm `Completed` or ask for changes — before
+a future session should pick a next task following this file's own standing instruction.
 
 **Owner override, 2026-08-27: `M2-C03` explicitly chosen over the ranking below.** This pass's
 own five-part test and downstream-unblocking ranking (kept below for the record) put `M2-D01`
 ahead of `M2-C03`. Presented with both `Ready` options, the owner picked `M2-C03` directly
 ("Pick M2-C03") — an explicit, in-conversation instruction that overrides the ranking
-heuristic, which exists to pick *a* defensible option absent one, not to bind the owner's own
+heuristic, which exists to pick _a_ defensible option absent one, not to bind the owner's own
 choice. `M2-C03` independently clears every part of the five-part test on its own merits (see
 below); the owner's reason for preferring it over `M2-D01` was not asked for and is not
 assumed here. `M2-D01` remains `Ready` and unstarted, its own pre-existing unmerged branch
@@ -155,7 +163,7 @@ master.
 
 The inherited `current-task.md` pointer ("`M2-D01`, attempt 0, not yet dispatched") was stale.
 `git log --all` shows `M2-D01` was in fact dispatched, on its own branch
-(`migration/M2-D01-currency-end-to-end`), and stopped on arrival: its own *Dependencies* table
+(`migration/M2-D01-currency-end-to-end`), and stopped on arrival: its own _Dependencies_ table
 (`tasks/M2-D01.md:244-250`) declares seven Hard rows, but `depends_on` had listed only three
 (`M2-C05-03`, `M2-A02`, `M2-B10`), all `Completed`/merged, which is why the prior pass's
 five-part test passed it. The other four — `M2-C02`, `M2-A07`, `M2-A06`, `M2-B01` — were never
@@ -225,7 +233,7 @@ Not a safety stop: tree clean, `master` tip verified at `2281740`, branch to be 
   (`migration/M0-04-credential-rotation-runbook`) — its own designed terminal state, since no
   human with production access participated. A merge decision, not a selection one.
 - **`M0-06`** (fails part 5, unmerged `Blocked` branch) and **`M0-11`** (fails part 2, `Product
-  Decision`, owner-only) remain excluded, unchanged from every prior pass.
+Decision`, owner-only) remain excluded, unchanged from every prior pass.
 - **`M2-A03`** — closed **`Completed`** 2026-08-26: the owner added the required status check
   ("Restore, build and gate analyzer warnings", the `ci.yml` `build` job) to `master` branch
   protection in session. See tracker footnote ⁸².
