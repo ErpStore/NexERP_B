@@ -1619,6 +1619,15 @@ Full context: [KB-108](../architecture/row-scope-and-account-gates.md).
 **Confirmed.** `AddSingleton` with one `_lastActivity` field → all users share one idle
 clock.
 **Action.** Do not port. Implement idle timeout client-side plus server token expiry.
+**SPA replacement implemented by `M2-C02` (2026-08-27).**
+`frontend/nexgen-web/src/app/core/auth/idle-timeout.service.ts` is `providedIn: 'root'` with
+every field an **instance** field, per browser tab — the opposite shape of the Blazor
+singleton. Regression-tested directly: `idle-timeout.service.spec.ts` constructs two instances
+without going through one shared `TestBed` injector and proves activity recorded on one never
+resets the other's timer. **The Blazor `SessionTimeoutService` defect itself remains open** —
+`V.SMART/V.SMART.Shared/Services/SessionTimeoutService.cs` was not touched and was explicitly
+forbidden from being touched; this risk closes only for SPA traffic, not for the Blazor app,
+which keeps running throughout the strangler period.
 
 ### R-18 — `CurrentUserService.GetUserRoleAsync()` always returns empty
 **Confirmed.** Reads claim type `"role"`; the providers write `ClaimTypes.Role`. Currently

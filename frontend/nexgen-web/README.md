@@ -4,10 +4,12 @@ Angular + PrimeNG frontend for V.SMART, created by task **M2-C01** under
 [ADR-007](../../docs/kb/decisions/ADR-007-angular-stack.md). It replaces the React scaffold that
 previously occupied this directory; ADR-007 discarded that stack on 2026-08-20.
 
-Today it renders **one placeholder route**. The app shell is `M2-C03`, authentication and
-permissions are `M2-C02`, design tokens are `M2-C04-01`, and the generated OpenAPI client is
-`M2-B10`. Nothing here computes anything: the server stays authoritative for validation,
-calculations, permissions and document numbering.
+Today it renders **one placeholder route** behind login and a permission check. The app shell
+is `M2-C03`; authentication and permissions are `M2-C02` (implemented 2026-08-27, `Needs
+Review` — see [Authentication and permissions](#authentication-and-permissions)); design
+tokens are `M2-C04-01`; the generated OpenAPI client is `M2-B10`. Nothing here computes
+anything: the server stays authoritative for validation, calculations, permissions and
+document numbering.
 
 ## Toolchain actually observed at scaffold time (2026-08-21, Windows)
 
@@ -67,13 +69,68 @@ The mechanism here:
 
 1. `src/environments/environment.ts` / `environment.prod.ts` carry only `production` and the
    **path** of the runtime configuration document. No host, no scheme, no port.
-2. `provideAppInitializer(loadAppConfig)` fetches `config/app-config.json` **before the app
-   renders** (`src/app/core/config/app-config.ts`).
-3. If that document cannot be fetched, or its `apiBaseUrl` is missing or blank, the initializer
-   **throws and bootstrap fails loudly**. It never falls back to a host.
+2. `provideAppInitializer(bootstrapApp)` (`src/app/core/api/app-bootstrap.ts`, **M2-C02**) fetches
+   `config/app-config.json` **before the app renders** (`src/app/core/config/app-config.ts`), then
+   wires `ApiConfiguration.rootUrl` — what every generated client call actually targets — to it,
+   then runs the silent-auth bootstrap (see [Authentication and
+   permissions](#authentication-and-permissions) below). All three steps are sequenced with real
+   `await`s in one function, not three separate initializers: Angular runs every
+   `provideAppInitializer` factory **concurrently** (`Promise.all`), so two separate initializers
+   here would race and a login/refresh call could fire before `rootUrl` was set.
+3. If the config document cannot be fetched, or its `apiBaseUrl` is missing or blank, the
+   initializer **throws and bootstrap fails loudly**. It never falls back to a host.
 4. `public/config/app-config.json` ships `"apiBaseUrl": "/api"` — a _same-origin relative path_,
    not a host. Deployments that serve the API from another origin overwrite this one file; nothing
    is rebuilt. `public/config/app-config.example.json` documents the shape.
+
+## Authentication and permissions
+
+Built by **M2-C02** (`src/app/core/auth/`, `src/app/core/http/`, `src/app/features/auth/`).
+
+**The client permission store is for RENDERING ONLY — it is not a security boundary.** The
+server re-checks the caller's `UserRight` rows on every request
+([ADR-004](../../docs/kb/decisions/ADR-004-server-side-authorization.md) §3); hiding a button
+here is a UX affordance, never enforcement. `PermissionService`'s own file header,
+`HasRightDirective`'s TSDoc and `forScreen()`'s TSDoc all repeat this so it cannot be missed by
+reading only one of them.
+
+- **Token custody: both the access token and the refresh token live in memory only**
+  (`TokenStore`), never `localStorage`, never `sessionStorage`, never a public signal. This
+  deviates from this task's own recommended default (access token in memory, refresh token in
+  an httpOnly cookie) because the real `POST /api/v1/auth/refresh` returns the refresh token as
+  a plain response-body string, not a `Set-Cookie` header — building the cross-origin cookie
+  transport is `M2-A05`'s scope. **Consequence: a hard page reload always ends the session** —
+  `bootstrap()` finds no refresh token on a fresh load and settles straight to `anonymous`. A
+  full login → refresh → logout cycle is asserted (by spying on `Storage.prototype.setItem`) to
+  write nothing to either Web Storage.
+- **Deny-by-default, matching `RightsHelper.cs`.** A screen the caller holds no `UserRight` row
+  for has no key in `PermissionService`'s rights map at all — `forScreen(name)` returns every
+  field `false` for a missing key, never `undefined` treated as "allow".
+- **Three permission-reading surfaces, one service:** the `requireScreen(screen, right)`
+  `CanActivateFn` factory only gates *authentication* — an authenticated caller always
+  activates the route regardless of the specific right, because `CanActivateFn` can only
+  return `true`/`false`/`UrlTree`, with no way to "activate but render something else."
+  Rendering the denial is the **routed component's own job**: read
+  `PermissionService.forScreen(name)` and branch to `app-permission-denied-state`, exactly as
+  `PlaceholderComponent` does for its own `requireScreen('Dashboard', 'view')` route. The
+  `*appHasRight` structural directive and `forScreen()` itself are the same pattern at
+  control-level and imperative-signal granularity respectively.
+- **Single-flight refresh.** `authInterceptor` attaches `Authorization: Bearer <token>` to every
+  non-`/api/v1/auth/*` request; a 401 triggers one shared in-flight refresh for every concurrent
+  waiter, each original request is retried exactly once, and a failed refresh performs a hard
+  logout with no second attempt.
+- **Idle timeout replaces `SessionTimeoutService`, not ports it.** That Blazor service is
+  `AddSingleton` with one shared `_lastActivity` field — every concurrent user shares one idle
+  clock (R-17). `IdleTimeoutService` is `providedIn: 'root'` with every field an instance field,
+  per browser tab, regression-tested by constructing two instances directly in one test.
+- **No `/register` route, page, form or link.** `Q-09` (is self-registration still wanted) was
+  answered **No** by the repository owner on 2026-08-27 — a self-registered user would land
+  deny-by-default with zero `UserRight` rows and an empty application.
+- **Known gaps, disclosed rather than fixed here:** no automated `axe` accessibility scan runs
+  over `/login` or the idle-warning dialog (keyboard operability and focus behaviour are
+  covered by unit tests, not an automated accessibility-tree scan); `npm run e2e` covers one
+  redirect-only smoke case, not a full credentialed login flow, since no live backend +
+  database is reachable from a plain dev checkout.
 
 ## Bundle baseline (`npm run build`, 2026-08-23, after M2-C04-01)
 

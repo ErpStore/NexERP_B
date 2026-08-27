@@ -241,44 +241,67 @@ Rules, each of which the pilot either already honours or is the counter-example 
 ## Authentication flow
 
 ```
-/login  --POST /api/v1/auth/login { tenant, username, password }
-          -> { accessToken, refreshToken, user, tenant, rights[] }
-          -> rights[] into the permission service (a signal)
-        --> redirect to the returnUrl or /dashboard
+/login  --POST /api/v1/auth/login { username, password }              (no tenant field — see below)
+          -> { token, refreshToken, tokenExpiresAtUtc, username, userId, tenantId, role }
+          -> GET /api/v1/me -> { userId, userName, tenantId, role, rights }
+          -> rights into the permission service (a signal)
+        --> redirect to the returnUrl or /
 
 Every request        -> functional HttpInterceptorFn attaches Authorization: Bearer <token>
                         (plus tenant / correlation headers)
-Every guarded route  -> functional CanActivateFn; a denial returns a UrlTree to /login
+authGuard             -> no session -> UrlTree to /login?returnUrl=…
+requireScreen(s, r)   -> gates authentication ONLY; an authenticated caller always activates
+                        the route regardless of the specific right — rendering the denial is
+                        the routed component's own job (forScreen()/*appHasRight), because a
+                        CanActivateFn can only return true/false/UrlTree, with no way to
+                        "activate but render something else" (see Permission-based rendering)
 401 on any request   -> single-flight refresh -> retry once -> else hard logout
 Idle timeout         -> warning dialog -> logout (replaces the broken singleton
                         SessionTimeoutService)
 ```
+
+**Login has no `tenant` field — confirmed against the real, shipped `AuthController`
+(`M2-C02`, 2026-08-27), not this document's earlier guess.** Tenant resolution stays
+Host-header-based (`ITenantProvider`) until `M2-A05` adds a client-side selector; this
+document's Flow diagram previously showed a `tenant` field it does not accept.
 
 The Angular shapes are the pilot's, and as shapes they are right: a `CanActivateFn` returning
 `true` or a `UrlTree` (`frontend/vsmart-erp/src/app/core/auth/auth.guard.ts:11-20`), and an
 `HttpInterceptorFn` cloning the request with a `Bearer` header
 (`frontend/vsmart-erp/src/app/core/auth/auth.interceptor.ts:12-24`), registered through
 `provideHttpClient(withInterceptors([...]))` (`frontend/vsmart-erp/src/app/app.config.ts:14`).
+**One shape was not copied as-is:** the pilot's guard always returns `true`/`UrlTree`, but this
+document originally implied every guarded route works that way. `M2-C02` found that a bare
+`CanActivateFn` cannot "activate but render something else," so `requireScreen` only ever
+gates authentication and the missing-*right* rendering moved to the routed component — see
+*Permission-based rendering* below, which is unchanged.
 
-### Token storage is an open decision owned by `M2-C02`
+### Token storage — closed by `M2-C02`, 2026-08-27
 
-**This document does not decide where the token lives, and no later task may treat any storage
-mechanism as settled by reading this section.** The decision belongs to **`M2-C02`**, taken against
-[ADR-004](../decisions/ADR-004-server-side-authorization.md) and recorded there — ADR-007 assigns it
-explicitly (`ADR-007-angular-stack.md:178-180`: *"`M2-C02` decides the token storage model … and
-must not copy the pilot's approach by default"*).
+**Decision: both the access token and the refresh token are held in-memory only**
+(`TokenStore`, `frontend/nexgen-web/src/app/core/auth/token-store.ts`) — never
+`localStorage`, never `sessionStorage`, never a public signal.
 
-The binding constraints on that decision:
+This is **not** this section's own recommended default (access token in memory, refresh token
+in an httpOnly cookie the server sets). The real, OpenAPI-verified `POST /api/v1/auth/refresh`
+returns the refresh token as a **plain response-body string**, not via `Set-Cookie` — there is
+no server-set cookie to receive. Building the cross-origin cookie transport such a response
+would need is [`M2-A05`](../execution/tasks/M2-A05.md)'s scope (tenant resolution + CORS), not
+`M2-C02`'s; inventing a client-side workaround to turn a body-returned secret into a cookie
+would be worse than the model taken.
 
-- **The pilot's `localStorage` JWT is explicitly not endorsed and must not be carried forward.**
-  `frontend/vsmart-erp/src/app/core/auth/auth.service.ts:29-35,60-61,66-72` stores both the token
-  (`TOKEN_KEY = 'vsmart_jwt'`) and the user object in `localStorage`. Any script executing in the
-  page can read it — XSS-exposed, flagged by ADR-003 and re-flagged by ADR-007.
-- **The client is never the enforcement point.** ADR-004 keeps the server authoritative for every
-  right check, so this is a token-theft question, not an authorisation question.
-- Whatever is chosen must still support the single-flight refresh and hard-logout behaviour above.
+**Consequence, recorded rather than discovered later:** a hard page reload always ends the
+session. `AuthService.bootstrap()` — the one function that decides `'anonymous'` vs
+`'authenticated'` at app start — finds no refresh token on a fresh load (memory does not
+survive a reload) and settles straight to `anonymous`, tested directly. This is the real cost
+of the decision, not a bug: nothing about the recommended cookie model was rejected on
+principle, only made moot by the real API's transport.
 
-Until `M2-C02` records its decision this is an **Unknown**, not an omission.
+Both binding constraints this section originally set are satisfied: the pilot's `localStorage`
+JWT was not carried forward (`git grep` confirms zero writes under `core/auth/`), and the
+client remains never the enforcement point (ADR-004 unchanged). A full login → refresh →
+logout cycle is asserted, by spying on `Storage.prototype.setItem`, to write nothing to either
+Web Storage — see `auth.service.spec.ts`.
 
 ### Environment configuration — a defect in the pilot, not a pattern
 
@@ -346,7 +369,12 @@ Three layers, all reading the same `PermissionService` signal. **The 152 × 5 ma
 only the rendering syntax changes** — a structural directive instead of a wrapper component.
 
 ```ts
-// 1. Route guard - a functional CanActivateFn produced by a factory
+// 1. Route guard - a functional CanActivateFn produced by a factory. It gates
+// AUTHENTICATION only (redirects an anonymous caller to /login) — an authenticated
+// caller always activates this route, regardless of the Sales Order right. Rendering
+// the denial inline is SalesOrderListComponent's own job via forScreen()/*appHasRight
+// below, because CanActivateFn can only return true/false/UrlTree — there is no way
+// for the guard itself to "activate but render something else" (M2-C02, 2026-08-27).
 {
   path: 'sales/orders',
   canActivate: [requireScreen('Sales Order', 'view')],

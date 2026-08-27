@@ -227,6 +227,34 @@ endpoint with a valid JWT, regardless of their `UserRight` rows.
 > `_lastActivity` field (`V.SMART.Web/Program.cs`; `Services/SessionTimeoutService.cs`).
 > All concurrent users share one idle clock.
 
+### SPA client (as built, `M2-C02`, 2026-08-27)
+
+`frontend/nexgen-web/src/app/core/auth/` implements the Angular side of mechanism #2 above.
+Three points close the loop with this section's critical finding and related defects:
+
+- **The client store is rendering-only, restated everywhere it can be missed.**
+  `PermissionService`'s file header, `HasRightDirective`'s TSDoc, `forScreen()`'s TSDoc and
+  `frontend/nexgen-web/README.md` §*Authentication and permissions* all state that the server
+  re-checks the caller's `UserRight` rows on every request (ADR-004 §3) and that hiding a
+  control here is a UX affordance, never enforcement — directly because this section's critical
+  finding is that no such check exists anywhere else today.
+- **Deny-by-default parity with `RightsHelper.cs` is exact and tested.** A screen with no
+  matching `UserRight` row has no key in the client's rights map at all; `forScreen(name)`
+  returns every field `false` for a missing key. `IsHide` is read only as a navigation-listing
+  hint (`view && !hidden`), never a second access gate — confirmed from `RightsHelper.cs` and
+  `BaseUserRightsComponent.cs` (no consuming branch treats `IsHide` as a gate once `CanView` is
+  true), recorded as an amendment to [INV-004](../investigation-registry.md).
+- **`SessionTimeoutService`'s shared-clock defect (above) was deliberately not ported.**
+  `IdleTimeoutService` is `providedIn: 'root'` with every field an instance field, per browser
+  tab — regression-tested by constructing two instances directly in one test and proving
+  activity on one never resets the other's timer. The Blazor singleton defect itself remains
+  **open**; see [KB-060](../risks/technical-debt-register.md) R-17.
+
+Token custody — the access and refresh tokens are both held **in-memory only**, never
+`localStorage`/`sessionStorage` — is recorded in full, with its reasoning against ADR-004, in
+[KB-050 §Token storage](../frontend-new/react-architecture.md#token-storage-is-an-open-decision-owned-by-m2-c02)
+and in [`tasks/M2-C02.md`](../execution/tasks/M2-C02.md)'s own Close-out.
+
 ## 3. Approval authority (multi-level document approval)
 
 `UserAuthority` grants approval rights per document type, each as a `bool` + a `string`

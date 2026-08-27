@@ -115,6 +115,149 @@
         }
       }
     },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "M2-A04 — exchanges a live refresh token for a new access/refresh pair. One-time use\r\nwith rotation: the presented token is revoked in the same call that issues its\r\nreplacement (`RefreshTokenService.RotateAsync`), so replaying it always fails.\r\n            \r\n\r\n<b>Why `[AllowAnonymous]`.</b> The access token that would normallyauthenticate this caller may already be expired — that is the entire reason thisendpoint exists. The refresh token itself is the credential.\r\n<b>Tenant binding (BR-TEN-002).</b> Deliberately not re-derived from a JWTclaim — an expired access token authenticates nobody, so `HttpContext.User` herecarries no claims to read. Tenant context instead comes from the same`ITenantProvider` host-resolution path `Login` already uses (Host header /tenant.json), which is how `ApplicationDbContext` — and therefore which tenant's`RefreshTokens` table this call ever sees — was already resolved before thisaction runs. A token issued in tenant A is simply absent from tenant B's database;there is no cross-tenant row to find, so there is nothing to switch.",
+        "operationId": "refresh",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "M2-A04 — revokes the presented refresh token. Revokes exactly that one token, not\r\nevery token belonging to the user: the request contract is \"the refresh token to\r\nrevoke\" (singular), matching one-session-per-device logout. A revoke-all/\"sign out\r\neverywhere\" capability is a natural extension, left to whichever future task needs it\r\nrather than assumed here.\r\n            \r\n\r\nIdempotent by design (Target Result 4 / the logout error-model row): revoking anunknown or already-revoked token still returns `204` — the response must neverleak whether a token was ever valid.",
+        "operationId": "logout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/currencies": {
       "get": {
         "tags": [
@@ -1353,6 +1496,68 @@
         }
       }
     },
+    "/api/v1/job-orders/{id}/print": {
+      "get": {
+        "tags": [
+          "Job Order"
+        ],
+        "operationId": "printJobOrder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me": {
       "get": {
         "tags": [
@@ -1395,6 +1600,68 @@
                 }
               },
               "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/purchase-pos/{id}/print": {
+      "get": {
+        "tags": [
+          "Purchase Order"
+        ],
+        "operationId": "printPurchaseOrder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/pdf": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
@@ -1757,6 +2024,571 @@
           }
         }
       }
+    },
+    "/api/v1/reports/hsn-summary": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "getHsnSummaryReport",
+        "parameters": [
+          {
+            "name": "reportType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "pageNumber",
+            "in": "query",
+            "description": "1-based page index. Default 1. Wire name `pageNumber`.",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Rows per page. Default 20, maximum 100. Wire name `pageSize`.",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Comma-separated sort fields, `-` prefix for descending — e.g.\r\n`-createdDate,currName`. Omit it to keep the resource's existing default ordering.\r\nValidated against V.SMART.Api.Contracts.PagedQuery.SortableFields; an unknown field is a 400 that lists\r\nthe permitted values. Wire name `sort`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectPagedResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectPagedResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectPagedResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reports": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "getReportCatalogue",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReportCatalogueEntry"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReportCatalogueEntry"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReportCatalogueEntry"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reports/sales-track": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "getSalesTrackReport",
+        "parameters": [
+          {
+            "name": "fromDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "customerId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageNumber",
+            "in": "query",
+            "description": "1-based page index. Default 1. Wire name `pageNumber`.",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Rows per page. Default 20, maximum 100. Wire name `pageSize`.",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Comma-separated sort fields, `-` prefix for descending — e.g.\r\n`-createdDate,currName`. Omit it to keep the resource's existing default ordering.\r\nValidated against V.SMART.Api.Contracts.PagedQuery.SortableFields; an unknown field is a 400 that lists\r\nthe permitted values. Wire name `sort`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectPagedResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectPagedResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectPagedResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reports/vendor-pr-rating": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "getVendorPrRatingReport",
+        "parameters": [
+          {
+            "name": "fromDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "vendorCode",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageNumber",
+            "in": "query",
+            "description": "1-based page index. Default 1. Wire name `pageNumber`.",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Rows per page. Default 20, maximum 100. Wire name `pageSize`.",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Comma-separated sort fields, `-` prefix for descending — e.g.\r\n`-createdDate,currName`. Omit it to keep the resource's existing default ordering.\r\nValidated against V.SMART.Api.Contracts.PagedQuery.SortableFields; an unknown field is a 400 that lists\r\nthe permitted values. Wire name `sort`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectPagedResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectPagedResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectPagedResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/salary-slips/{id}/print": {
+      "get": {
+        "tags": [
+          "Salary"
+        ],
+        "operationId": "printSalarySlip",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1987,6 +2819,14 @@
             "type": "string",
             "nullable": true
           },
+          "refreshToken": {
+            "type": "string",
+            "nullable": true
+          },
+          "tokenExpiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
           "username": {
             "type": "string",
             "nullable": true
@@ -2000,6 +2840,16 @@
             "format": "int32"
           },
           "role": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "LogoutRequest": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
             "type": "string",
             "nullable": true
           }
@@ -2036,6 +2886,30 @@
         "additionalProperties": false,
         "description": "\r\n`Rights` is keyed by `Screens.ScreenName` verbatim, so a client lookup is the            one-step equivalent of            `rights.FirstOrDefault(r => r.Screens.ScreenName == screenName)?.CanX ?? false`            (`V.SMART/V.SMART.Shared/Shared/RightsHelper.cs:7-20`).\r\n\r\n<b>Absent rows are omitted, not materialised</b> (BR-AUTH-002). A screen the caller            holds no `UserRight` row for simply has no key — the response never carries 152            all-`false` entries. The client's default for a missing key is therefore            <b>deny</b>, matching the database and matching the `?? false` the Blazor UI has            always applied. A client that defaults a missing key to \"allow\" is wrong, and this            contract says so.\r\n\r\nNo `User` flag beyond the identity is included, and no connection string, password            or token ever is (R-01). See the endpoint's remarks for the per-field justification."
       },
+      "ObjectPagedResult": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { },
+            "nullable": true
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The single paged-list response body for every list endpoint in this API (M2-B02).\r\n            \r\n\r\nThe property names are ADR-002 §2's `{ items, totalCount, pageNumber, pageSize }`verbatim; with ASP.NET Core's default camel-case JSON policy they serialise to exactlythose four names. This is <b>one generic type</b>, deliberately replacing thecontroller-local paged-response record pattern (the one `CurrencyController` used to declare): 60–80 structurally identicalresponse records would become 60–80 distinct interfaces in the generated TypeScriptclient (M2-B10).\r\n<b>Why there is no `totalPages`.</b> ADR-002 §2 names four properties and thegenerated client is frozen at M2-B03, so adding a fifth here is a contract decision, not aconvenience. It is derivable on the client from `totalCount` and `pageSize`.Note that an unrelated, unused `V.SMART.Shared.ViewModels.PagedResult<T>`(`RejectionMasterVM.cs:33-40`) does carry `TotalPages` — it has zero referencesand is not this type. Do not confuse the two; if a file needs both namespaces it mustalias one.\r\n`TotalCount` is the count of the <b>filtered, unpaged</b> query — see`CurrencyService.cs:76`, where `CountAsync()` runs after the filters and before`Skip`/`Take`. Every service in `BusinessLayer/` follows that convention(INV-002); a list endpoint that reports anything else is a defect."
+      },
       "ProblemDetails": {
         "type": "object",
         "properties": {
@@ -2062,6 +2936,90 @@
           }
         },
         "additionalProperties": { }
+      },
+      "RefreshRequest": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RefreshResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "nullable": true
+          },
+          "refreshToken": {
+            "type": "string",
+            "nullable": true
+          },
+          "tokenExpiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReportCatalogueEntry": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "description": "The value to substitute into `GET /api/v1/reports/{slug}`.",
+            "nullable": true
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Human-readable name.",
+            "nullable": true
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportParameterDescriptor"
+            },
+            "description": "The typed parameters the report's own endpoint accepts.",
+            "nullable": true
+          },
+          "screenName": {
+            "type": "string",
+            "description": "The screen right that gates the report's data endpoint — declared\r\n            here so a client can decide whether to even offer the report before trying it, but the\r\n            data endpoint enforces it independently regardless of what the client does with this.",
+            "nullable": true
+          },
+          "paging": {
+            "type": "string",
+            "description": "Always `\"in-memory\"` for every entry today — see the remark on\r\n            V.SMART.Api.Reporting.ReportRegistry. Present on every row rather than assumed, so a client cannot\r\n            mistake this for a server-paged list.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The catalogue-response shape for `GET /api/v1/reports` — one row per\r\n            registered slug. Each report's own data endpoint lives on its own controller (see\r\n            V.SMART.Api.Controllers.ReportsController remarks); this only lists what exists."
+      },
+      "ReportParameterDescriptor": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The wire query-parameter name.",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "description": "A short type label for the catalogue — `\"string\"`, `\"date\"`\r\n            or `\"int\"`. Not a .NET type name; this is a client-facing hint, not a contract.",
+            "nullable": true
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether the report can run without it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One typed parameter a report slug accepts, for the catalogue response."
       },
       "ScreenDto": {
         "type": "object",
@@ -2220,12 +3178,28 @@
       "description": "File upload and download over HTTP (M2-B06) — the replacement for Blazor's\r\n`IBrowserFile` on the way in and `IFileOpener`'s JS interop on the way out. Over\r\nHTTP a download <i>is</i> a response; there is no base64-over-SignalR equivalent and no\r\nreason to want one.\r\n            \r\n\r\n<b>Screen and rights.</b>`[RequireScreen(\"Correspondences\")]` is the seededscreen that owns these files (`ScreenCatalogue.cs:56`; the upload UI it mirrors is`CorrespondenceUpload.razor`). Upload requires `Create`, download requires`View`, per ADR-004 / KB-105 — the rights are evaluated by the globally registered`ScreenRightAuthorizationFilter` against the tenant database, never against acompile-time list.\r\n<b>Tenant isolation is structural, not a check.</b> The download resolves`{id}` through `IUnitOfWork.Correspondances`, which is scoped to thetenant-resolved `ApplicationDbContext` (M2-B07). A tenant-B token therefore queriestenant B's database, where tenant A's id either does not exist or is a different row; theanswer for \"not yours\" and \"does not exist\" is the same 404, so the response never revealswhether an id exists elsewhere.\r\n<b>The upload is not idempotent.</b> Every POST creates a new file (the`Guid.NewGuid()` prefix guarantees a distinct name) and a new row, so a client thatretries a timed-out request creates a duplicate. A general idempotency-key mechanism is`M2-B12-03`; until it lands, clients must not retry blind."
     },
     {
+      "name": "Reports",
+      "description": "M2-B08 analytical-report endpoint for the `hsn-summary` slug. One controller per\r\nslug, not a shared `ReportsController` action, for the same reason the print entries\r\nare split — V.SMART.Api.Authorization.RequireScreenAttribute is class-level, and each slug in\r\nV.SMART.Api.Reporting.ReportRegistry can carry a different screen."
+    },
+    {
+      "name": "Job Order",
+      "description": "M2-B08 print-only stub — see V.SMART.Api.Controllers.PurchaseOrdersController's remarks for why\r\n            this is its own controller rather than a shared one."
+    },
+    {
       "name": "Me",
       "description": "M2-A07 — the SPA bootstrap endpoint: who the caller is, which tenant they are in, their\r\nrole, and their complete screen-rights map, in one call.\r\n\r\n<b>PRESENTATION ONLY (ADR-004 §3).</b> The map this endpoint returns exists so the clientcan render a permission-correct navigation and disable controls the caller cannot use. Itis <b>never</b> the enforcement point. The server re-checks every request independentlythrough V.SMART.Api.Authorization.ScreenRightAuthorizationFilter, and nothing here relaxes that filter.A client must not treat this response as authoritative.\r\n<b>Route (M2-A07 decision, for M2-B01).</b> This ships at `/api/v1/me` — the nameADR-004 §3, KB-105 and KB-080 §9 all use, and the name M2-C02 will code against — making itthe first versioned route in an API whose other routes are still `api/auth` and`api/currencies`. The version segment is a literal here because the versioningmechanism does not exist yet. When M2-B01 lands it must re-express this route through theversioning convention <b>without changing the URL</b>; the URL is the contract, the literalis not.\r\n<b>Thin controller (ADR-002 §2).</b> Read claims, one provider call, map, return. Nobusiness logic, no database access of its own: every value in the response comes eitherfrom the caller's own token or from V.SMART.Api.Authorization.IUserRightsProvider."
     },
     {
+      "name": "Purchase Order",
+      "description": "M2-B08 print-only stub. This is not the Purchase Order resource controller — no CRUD\r\nexists here; a future module-wave task (M3/M4) that builds one is expected to fold this\r\naction in, at the same route, and delete this file. Placed on its own resource-shaped\r\ncontroller rather than a shared print controller because V.SMART.Api.Authorization.RequireScreenAttribute\r\nis class-level only (KB-105 §2.2) and this route needs a different screen than the other\r\ntwo seeded print entries."
+    },
+    {
       "name": "Reference",
       "description": "M2-B09 — the small, slow-changing lookup lists every screen needs before it can render a\r\ndropdown, behind one cached route group. Closes KB-041 item <b>B6</b> and the\r\nreference-data half of <b>C1</b>.\r\n            \r\n\r\n<b>Every action is a single `ICommonService` call plus a projection.</b> Noquery is written against `ApplicationDbContext` here and no business logic liveshere (ADR-002 §2). The one action that is not a service call — `gst-rates` — readsthe domain's own constants rather than restating them.\r\n<b>Why `[NoScreenRight]` and not `[RequireScreen]`.</b> Reference data iswhat a screen needs <i>in order to render at all</i>; there is no single screen that owns\"the list of states\". Gating it on a screen right would deadlock the UI for exactly thereason KB-105 §2.4 gives for `GET /api/v1/me` — a user must be able to fetch thevocabulary before the app can decide what to show them. The endpoints still requireauthentication and are still tenant-scoped; this is an explicit, greppable opt-out fromthe screen-right axis, not from authorization."
+    },
+    {
+      "name": "Salary",
+      "description": "M2-B08 print-only stub. Deliberately the entry that exercises\r\nV.SMART.Api.Reporting.PrintGenerator.GenerateSalarySlipReport rather than\r\n`ReportService.Generate_Report` — proving the registry's second generator branch,\r\nnot just the dominant one. See V.SMART.Api.Controllers.PurchaseOrdersController's remarks for why\r\nthis is its own controller."
     }
   ]
 }
