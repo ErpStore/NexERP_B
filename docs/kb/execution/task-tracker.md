@@ -178,7 +178,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID   | Milestone | Task                                | Type      | Status                                                                                                                                                                                                          | Priority | Depends On                                                | Estimate | Gate |
 | --------- | --------- | ----------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------- | -------- | ---- |
-| M2-D01    | M2        | Currency end-to-end in Angular      | Frontend  | **Ready**⁷⁸˒¹⁰⁷ _(`depends_on` corrected `2281740`: all 7 Hard deps — `M2-C05-03`, `M2-A02`, `M2-B10`, `M2-C02`, `M2-A07`, `M2-A06`, `M2-B01` — are `Completed` and merged as of 2026-08-27. See footnote ¹⁰⁷)_ | P0       | M2-C05-03, M2-A02, M2-B10, M2-C02, M2-A07, M2-A06, M2-B01 | 3 d      | G2   |
+| M2-D01    | M2        | Currency end-to-end in Angular      | Frontend  | **Blocked**⁷⁸˒¹⁰⁷˒¹¹⁷ _(`depends_on` clears — all 7 Hard deps `Completed` and merged — but the task file's own "transitively required" table names `M2-C03`, still `Needs Review`, not `Completed`. `M2-A05`, the prior blocker on this same row, is now cleared. See footnote ¹¹⁷)_ | P0       | M2-C05-03, M2-A02, M2-B10, M2-C02, M2-A07, M2-A06, M2-B01 | 3 d      | G2   |
 | M2-D02    | M2        | Customer Master _(parent)_          | Migration | Blocked⁴⁶ _(parent — never worked directly; re-specified by `M2-C12-05`; real blocker is `M2-D01`)_                                                                                                             | P0       | M2-D01                                                    | 1.5 wks  | G2   |
 | M2-D02-01 | M2        | — `@code` triage + logic extraction | Backend   | Blocked⁴⁶ _(re-specified by `M2-C12-05`; real blocker is `M2-D01`. Allocates the `BR-CUST-*` series)_                                                                                                           | P0       | M2-D01                                                    | 4 d      | G2   |
 | M2-D02-02 | M2        | — `CustomersController` + API tests | Backend   | Blocked⁴⁶ _(re-specified by `M2-C12-05`; real blocker is `M2-D02-01`)_                                                                                                                                          | P0       | M2-D02-01                                                 | 3 d      | G2   |
@@ -4555,3 +4555,22 @@ re-verification were reported first, and this status change is recorded here onl
 the owner then said so directly, after seeing that report. No new work performed by this
 footnote; both task files' own frontmatter `status` and `## Status`/Close-out sections
 updated to match.
+
+¹¹⁷ **`M2-D01`: `Ready` → `Blocked` (again), 2026-08-27 select-only pass, triggered by
+`M2-A05`/`M2-A11` closing (footnote ¹¹⁶) — per the standing instruction to pick the next
+dispatchable task when one closes.** `M2-D01`'s `depends_on` (all 7 rows) is genuinely
+`Completed` and merged — rule 1 of the five-part test passes mechanically, same as footnote
+¹⁰⁷ found. But `tasks/M2-D01.md:160-177` names a second, stricter self-check — a
+"transitively required" table, separate from `depends_on`, with its own explicit
+instruction: *"stop and report Blocked. Do not stub the missing piece."* Checked every row
+in it just now: **`M2-A05` — the row that blocked this exact task last time (footnote
+¹¹¹) — is now cleared**, `Completed` and merged. But one other row is not:
+**`M2-C03`** is still `Needs Review`, not `Completed` (line 164, footnotes ¹⁰⁸–¹⁰⁹) — owner
+sign-off on its Close-out is still pending, the same open item footnote ¹¹⁰ already named
+for `M2-C08-01`. Every remaining row in the table (`M2-C01`, `M2-C02`, `M2-C04-01/-02/-03`,
+`M2-C05-01`, `M2-A04`, `M2-A06`, `M2-A07`, `M2-B01/-02/-03`, `M2-B07`) is independently
+confirmed `Completed` and merged. **Not dispatched.** Row corrected to `Blocked` above so it
+does not read as dispatchable at a glance. **One owner decision — review
+[`tasks/M2-C03.md`](tasks/M2-C03.md)'s Close-out and set `Completed` or send back
+changes — unblocks both `M2-C08-01` and `M2-D01` at once.** Full detail:
+[`runner-state.md`](runner-state.md) (KB-093).

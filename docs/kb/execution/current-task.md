@@ -21,7 +21,26 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Selected: `M2-A05` — Cross-origin SPA tenant resolution + real CORS
+## No task selected — nothing genuinely dispatchable, 2026-08-27 select-only pass, master tip `9187abb`
+
+**Triggered by `M2-A05`/`M2-A11` closing** (marked `Completed` on explicit owner
+instruction — see the superseded pointer below), per the standing instruction to pick the
+next dispatchable task when one closes. Exactly one tracker row reads `Ready`: **`M2-D01`**
+— its `depends_on` (all 7 Hard rows) is genuinely `Completed` and merged, rule 1 of the
+five-part test passes mechanically. But its own task file names a second, stricter
+self-check — a "transitively required" table, separate from `depends_on` — and one row in
+it, **`M2-C03`**, is still `Needs Review`, not `Completed`. `M2-A05`, the row that blocked
+this same task last pass, is now cleared. Not dispatched; row corrected to `Blocked` on the
+tracker. Full detail: [`task-tracker.md`](task-tracker.md) footnote ¹¹⁷,
+[`runner-state.md`](runner-state.md) (KB-093).
+
+**Requires human decision:** review [`tasks/M2-C03.md`](tasks/M2-C03.md)'s Close-out and
+either confirm `Completed` or send back changes. This single decision unblocks both
+`M2-C08-01` (footnote ¹¹⁰) and `M2-D01` (footnote ¹¹⁷) at once.
+
+---
+
+## Superseded pointer, retained for lineage — `M2-A05`/`M2-A11` `Completed`, merged (2026-08-27, master tip `9187abb`)
 
 Full spec: [`tasks/M2-A05.md`](tasks/M2-A05.md). **Implemented, 2026-08-27, branch
 `migration/M2-A05-tenant-resolution-cors` (stacked on the unmerged `M2-A11` re-specification

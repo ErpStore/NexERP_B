@@ -13,6 +13,42 @@ last_verified: 2026-08-27
 dependencies: [KB-089, KB-091, KB-092, KB-081]
 model_routing_this_run: none — select-only pass, no candidate cleared the five-part test
 
+## Status — 2026-08-27 (select-only pass, this session — after `M2-A05`/`M2-A11` marked `Completed`, master tip `9187abb`)
+
+**STOPPED** — no dependency-ready task remains
+
+**This pass:** Triggered by `M2-A05`/`M2-A11` being marked `Completed` on explicit owner
+instruction (see `task-tracker.md` footnote ¹¹⁶), which is the standing project instruction
+("when it closes, pick the next task that can actually be done"). `grep -n "\*\*Ready\*\*"
+task-tracker.md` shows exactly one row: **`M2-D01`** (line 181) — all seven of its Hard
+`depends_on` prerequisites (`M2-C05-03`, `M2-A02`, `M2-B10`, `M2-C02`, `M2-A07`, `M2-A06`,
+`M2-B01`) are `Completed` and merged, so rule 1 of the five-part test passes mechanically.
+
+**But `M2-D01` fails its own file's stricter self-check.** `tasks/M2-D01.md:160-177` names a
+second, "transitively required" table — separate from `depends_on` — with its own explicit
+instruction: *"If any of these is incomplete, stop and report Blocked. Do not stub the
+missing piece."* Checked every row in it against the tracker just now: `M2-A05` (the row
+that blocked this exact task in the prior pass, footnote ¹¹¹) is now `Completed` and merged
+— that blocker is genuinely cleared. But one other row is not: **`M2-C03`** (line 167 of the
+table) is still `Needs Review`, not `Completed` — owner sign-off on its Close-out is still
+pending (`task-tracker.md` line 164, footnotes ¹⁰⁸–¹⁰⁹). Every other row in the table
+(`M2-C01`, `M2-C02`, `M2-C04-01/-02/-03`, `M2-C05-01`, `M2-A04`, `M2-A06`, `M2-A07`,
+`M2-B01/-02/-03`, `M2-B07`) is independently confirmed `Completed` and merged. `M2-D01`
+stays **not dispatched** — see `task-tracker.md` footnote ¹¹⁷.
+
+**Current task:** empty (no task dispatched)
+
+**Next dependency-ready task:** empty — `M2-D01` is the closest candidate and needs exactly
+one thing: owner review of `tasks/M2-C03.md`'s Close-out and an explicit `Completed`
+decision, which is the same open item footnote ¹¹⁰/¹¹¹ already named for `M2-C08-01`.
+
+**Requires human decision:** YES
+
+**Human decision needed:**
+- Owner: review [`tasks/M2-C03.md`](tasks/M2-C03.md)'s Close-out and either confirm
+  `Completed` or send back changes. This single decision unblocks both `M2-C08-01`
+  (footnote ¹¹⁰) and `M2-D01` (this pass) simultaneously.
+
 ## Status — 2026-08-27 (select-only pass, this session — after `M2-C03`'s merge, master tip `f235aeb`)
 
 **STOPPED** — no dependency-ready task remains
