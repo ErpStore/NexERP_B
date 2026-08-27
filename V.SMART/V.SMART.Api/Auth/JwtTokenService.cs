@@ -16,7 +16,7 @@ namespace V.SMART.Api.Auth
             _configuration = configuration;
         }
 
-        public string CreateToken(User user, int tenantId)
+        public IssuedAccessToken CreateToken(User user, int tenantId)
         {
             // M0-03-03: defer to the one code path that decides whether Jwt:Secret is
             // acceptable, so this guard cannot drift from the startup one. Startup
@@ -34,16 +34,29 @@ namespace V.SMART.Api.Auth
                 new(ClaimTypes.Role, user.Role?.ToString() ?? string.Empty)
             };
 
-            var expiresMinutes = int.TryParse(_configuration["Jwt:ExpiresMinutes"], out var m) ? m : 480;
+            // M2-A04 — shortened from the previous 480-minute (8-hour) default. 15 minutes is
+            // roughly 1/32 of that window: comfortably short enough that IsActive is re-checked
+            // often (RefreshTokenService.RotateAsync), while the 1-minute ClockSkew configured at
+            // Program.cs:~192 stays under 7% of the lifetime it is skewing — clock drift cannot
+            // meaningfully extend a stolen access token's usable life. Configurable, not
+            // hard-coded; this is only the fallback if Jwt:ExpiresMinutes is unset or unparsable.
+            var expiresMinutes = int.TryParse(_configuration["Jwt:ExpiresMinutes"], out var m) ? m : 15;
+
+            var expiresAtUtc = DateTime.UtcNow.AddMinutes(expiresMinutes);
 
             var token = new JwtSecurityToken(
                 issuer: _configuration["Jwt:Issuer"],
                 audience: _configuration["Jwt:Audience"],
                 claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(expiresMinutes),
+                expires: expiresAtUtc,
                 signingCredentials: credentials);
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            return new IssuedAccessToken(new JwtSecurityTokenHandler().WriteToken(token), expiresAtUtc);
         }
     }
+
+    /// <summary>M2-A04 — the access-token expiry travels with the token itself, rather than the
+    /// caller re-deriving it from <c>Jwt:ExpiresMinutes</c> (which would drift the moment the two
+    /// reads happen against different config, or someone changes the default in only one place).</summary>
+    public sealed record IssuedAccessToken(string Token, DateTime ExpiresAtUtc);
 }

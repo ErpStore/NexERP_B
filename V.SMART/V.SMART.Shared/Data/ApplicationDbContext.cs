@@ -147,6 +147,9 @@ namespace V.SMART.Shared.Data
         public DbSet<UserRight> UserRights { get; set; }
         public DbSet<UserAuthority> UserAuthority { get; set; }
 
+        // M2-A04 — refresh tokens, one row per issued token. See RefreshToken.cs.
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
+
 
         //Inventory
         public DbSet<Category> Category { get; set; }
@@ -1833,6 +1836,20 @@ namespace V.SMART.Shared.Data
                 new Currency { CurrId = 2, CurrName = "US Dollar", CurrSub = "Cent", Symbol = "$", IsSystemDefined = true },
                 new Currency { CurrId = 3, CurrName = "Euro", CurrSub = "Cent", Symbol = "€", IsSystemDefined = true }
             );
+
+            // M2-A04 — refresh tokens. Unique on TokenHash (the lookup key on every refresh/logout
+            // call); Cascade on the User FK so deleting a user does not orphan their token rows —
+            // the same convention UserRight/UserAuthority already rely on via EF's default
+            // required-FK behaviour, made explicit here rather than left implicit.
+            builder.Entity<RefreshToken>()
+                .HasIndex(t => t.TokenHash)
+                .IsUnique();
+
+            builder.Entity<RefreshToken>()
+                .HasOne(t => t.User)
+                .WithMany()
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // For Store MapFor all Screens
             builder.Entity<StoreMap>().HasData(StoreMapSeeder.GetDefaultStoreMaps());

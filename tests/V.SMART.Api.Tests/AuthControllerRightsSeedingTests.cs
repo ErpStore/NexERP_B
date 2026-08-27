@@ -263,6 +263,12 @@ namespace V.SMART.Api.Tests
             return new AuthController(
                 unitOfWork.Object,
                 new JwtTokenService(configuration),
+                // M2-A04 — every test in this file reaches Login's success path, which now also
+                // issues a refresh token. A stub is enough: nothing here asserts on the refresh
+                // token's value, only on rights-seeding behaviour.
+                Mock.Of<IRefreshTokenService>(s =>
+                    s.IssueAsync(It.IsAny<int>()) ==
+                    Task.FromResult(new IssuedRefreshToken("test-refresh-token", DateTime.UtcNow.AddDays(14)))),
                 tenantProvider.Object,
                 configuration,
                 userRightService,

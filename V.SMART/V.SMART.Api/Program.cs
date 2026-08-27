@@ -323,6 +323,12 @@ builder.Services.AddScoped<IRowScopeProvider, RowScopeProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider, ApiAuthStateProvider>();
 builder.Services.AddSingleton(new JwtTokenService(builder.Configuration));
 
+// M2-A04 — scoped, not singleton like JwtTokenService above: RefreshTokenService depends on
+// ApplicationDbContext, which is itself scoped (tenant-resolved per request, see
+// AddVSmartDomain()'s comment above it). A singleton here would capture the first request's
+// tenant database for the lifetime of the host.
+builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+
 // M2-B11 — this host resolves the STRUCTURED ILoggingService; the other two do not.
 //
 // AddVSmartDomain() above registers ILoggingService -> FileLoggingService
