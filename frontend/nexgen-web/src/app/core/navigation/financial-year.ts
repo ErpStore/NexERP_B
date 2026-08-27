@@ -36,7 +36,5 @@ export function financialYearFromStartYear(startYear: number): FinancialYear {
 
 /** The current FY plus `count - 1` preceding ones, current first. */
 export function recentFinancialYears(current: FinancialYear, count: number): FinancialYear[] {
-  return Array.from({ length: count }, (_, i) =>
-    financialYearFromStartYear(current.startYear - i),
-  );
+  return Array.from({ length: count }, (_, i) => financialYearFromStartYear(current.startYear - i));
 }

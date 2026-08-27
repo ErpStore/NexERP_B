@@ -26,10 +26,7 @@ function stubNavFilter(tree: NavTree): Pick<NavFilterService, 'filteredTree' | '
 async function renderWithTree(tree: NavTree) {
   return render(SidebarComponent, {
     inputs: { mode: 'expanded' },
-    providers: [
-      provideRouter([]),
-      { provide: NavFilterService, useValue: stubNavFilter(tree) },
-    ],
+    providers: [provideRouter([]), { provide: NavFilterService, useValue: stubNavFilter(tree) }],
   });
 }
 
@@ -44,7 +41,9 @@ describe('app-sidebar — renders exactly the tree NavFilterService hands it', (
           sections: [
             {
               heading: 'Account Master',
-              links: [{ label: 'Currency Master', route: '/masters/currencies', screenName: 'Currency' }],
+              links: [
+                { label: 'Currency Master', route: '/masters/currencies', screenName: 'Currency' },
+              ],
             },
           ],
         },
@@ -65,5 +64,4 @@ describe('app-sidebar — renders exactly the tree NavFilterService hands it', (
     expect(screen.queryByRole('button', { name: 'Master' })).toBeNull();
     expect(screen.queryByRole('link', { name: /Currency Master/ })).toBeNull();
   });
-
 });

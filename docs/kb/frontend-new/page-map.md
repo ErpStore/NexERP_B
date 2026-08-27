@@ -16,6 +16,14 @@ dependencies: [KB-015, KB-052]
 **Left column: as-is (Confirmed — extracted from 440 `@page` directives across 333
 components).** **Right column: proposal.**
 
+> **The screen-name column this table never had is `M2-C03`'s
+> `frontend/nexgen-web/src/app/core/navigation/navigation.config.ts`** (2026-08-27,
+> [INV-033](../investigation-registry.md)) — the sidebar/palette nav tree, joining each of
+> the ~145 items the Blazor sidebar actually links to its proposed route (reused from this
+> table, verbatim) and its `Screens.ScreenName` (mapped from source, not guessed). That file
+> is the source of truth for the join; this table's own proposed-route column was not
+> retrofitted with a third column, to avoid two documents disagreeing about the same fact.
+
 ## Route conventions
 
 | Existing | Proposed |

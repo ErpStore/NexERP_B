@@ -31,9 +31,7 @@ describe('app-tabs', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'History' }));
     fixture.detectChanges();
 
-    expect(screen.getByRole('tab', { name: 'History' }).getAttribute('aria-selected')).toBe(
-      'true',
-    );
+    expect(screen.getByRole('tab', { name: 'History' }).getAttribute('aria-selected')).toBe('true');
   });
 
   it('ArrowRight/ArrowLeft move selection and focus, wrapping at the ends', async () => {
@@ -51,9 +49,7 @@ describe('app-tabs', () => {
 
     await userEvent.keyboard('{ArrowLeft}');
     fixture.detectChanges();
-    expect(screen.getByRole('tab', { name: 'History' }).getAttribute('aria-selected')).toBe(
-      'true',
-    );
+    expect(screen.getByRole('tab', { name: 'History' }).getAttribute('aria-selected')).toBe('true');
   });
 
   it('Home and End jump to the first and last tab', async () => {
@@ -64,15 +60,11 @@ describe('app-tabs', () => {
     screen.getByRole('tab', { name: 'Lines' }).focus();
     await userEvent.keyboard('{End}');
     fixture.detectChanges();
-    expect(screen.getByRole('tab', { name: 'History' }).getAttribute('aria-selected')).toBe(
-      'true',
-    );
+    expect(screen.getByRole('tab', { name: 'History' }).getAttribute('aria-selected')).toBe('true');
 
     await userEvent.keyboard('{Home}');
     fixture.detectChanges();
-    expect(screen.getByRole('tab', { name: 'General' }).getAttribute('aria-selected')).toBe(
-      'true',
-    );
+    expect(screen.getByRole('tab', { name: 'General' }).getAttribute('aria-selected')).toBe('true');
   });
 
   it('aria-controls points at a panel id sharing the tab id, namespaced by idPrefix', async () => {

@@ -202,6 +202,26 @@ animation in grids.
   150 screens, or search customers/items/documents inline. This alone will be the most
   visible "this is a new product" signal.
 
+#### Built — `M2-C03` (2026-08-27)
+
+`layout/shell/` composes header, sidebar, `<router-outlet>` and the command palette;
+`layout/auth-layout/` and `layout/print-layout/` are the other two layout routes. Against the
+description above: **Sidebar** — built exactly as described (single-level accordion,
+permission-filtered via `NavFilterService`, pinned Recent/Favourites); rail mode's group
+flyout is an `app-popover` anchored to the icon, a deliberate simplification of the Blazor
+mini-rail's flyout-into-the-top-bar mechanic, not a port of it. **Header** — built as
+described; one disclosed gap: the "tenant name" slot shows `Tenant ${tenantId}`, not a real
+display name, because `GET /api/v1/me` deliberately carries no name field (`MeController.cs`'s
+own doc comment, R-01) — no task has added a name-only tenant lookup yet. **⌘K palette** —
+built; searches only the permission-filtered tree (a screen the caller lacks rights to is
+unreachable even by exact name), fuzzy-matches via a small dependency-free subsequence scorer,
+recent-first when the query is empty. The full nav data (`core/navigation/navigation.config.ts`)
+was mapped by `INV-033` (`docs/kb/investigation-registry.md`) — 145 items, screen names and
+routes traced to source, two likely Blazor `ScreenName` copy-paste defects found and
+reproduced verbatim rather than silently corrected. Full detail, including the two-part
+responsive/`axe` gap disclosed rather than hidden: `docs/kb/execution/tasks/M2-C03.md` §
+Close-out and `frontend/nexgen-web/README.md` § Navigation and shell.
+
 ## Component inventory
 
 ### Navigation

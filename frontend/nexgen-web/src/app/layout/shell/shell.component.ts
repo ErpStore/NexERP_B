@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { Drawer } from 'primeng/drawer';
 
@@ -10,7 +17,10 @@ import { CommandPaletteComponent } from '../../shared/components/command-palette
 import { SkeletonComponent } from '../../shared/components/feedback/skeleton.component';
 import { HeaderComponent } from '../../shared/components/header/header.component';
 import type { NavLink } from '../../core/navigation/navigation.models';
-import { SidebarComponent, type SidebarVisualMode } from '../../shared/components/sidebar/sidebar.component';
+import {
+  SidebarComponent,
+  type SidebarVisualMode,
+} from '../../shared/components/sidebar/sidebar.component';
 
 /**
  * M2-C03 — the authenticated app frame: header, sidebar, `<router-outlet>` and the command

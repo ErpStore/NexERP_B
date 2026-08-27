@@ -255,6 +255,16 @@ Token custody — the access and refresh tokens are both held **in-memory only**
 [KB-050 §Token storage](../frontend-new/react-architecture.md#token-storage-is-an-open-decision-owned-by-m2-c02)
 and in [`tasks/M2-C02.md`](../execution/tasks/M2-C02.md)'s own Close-out.
 
+**Navigation (`M2-C03`, 2026-08-27) closes the same loop for the sidebar and the ⌘K command
+palette.** Both read `core/navigation/nav-filter.service.ts`, not `PermissionService`
+directly — `shared/components/` (where the sidebar and palette live) may never import the
+authentication module, enforced by a repo-wide scan test — but the filtering logic is
+identical: `view && !hidden`, deny-by-default, role never read anywhere (R-31, below, not
+reproduced). The full nav data was mapped by
+[INV-033](../investigation-registry.md), which also confirmed — independent of, and
+consistent with, this section's own Finding 5 — that the Blazor sidebar itself filters on
+nothing but two role gates and has no rights-based filtering to have preserved.
+
 ## 3. Approval authority (multi-level document approval)
 
 `UserAuthority` grants approval rights per document type, each as a `bool` + a `string`

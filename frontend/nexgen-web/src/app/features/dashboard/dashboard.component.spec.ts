@@ -10,10 +10,7 @@ async function renderWithRights(rights: Parameters<PermissionService['setRights'
   permissions.setRights(rights);
 
   return render(DashboardComponent, {
-    providers: [
-      provideRouter([]),
-      { provide: PermissionService, useValue: permissions },
-    ],
+    providers: [provideRouter([]), { provide: PermissionService, useValue: permissions }],
   });
 }
 

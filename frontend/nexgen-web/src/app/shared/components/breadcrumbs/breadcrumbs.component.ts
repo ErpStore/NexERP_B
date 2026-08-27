@@ -57,8 +57,6 @@ export class BreadcrumbsComponent {
     }
 
     // The last crumb is the current page: drop its link, it is where the user already is.
-    return items.map((item, index) =>
-      index === items.length - 1 ? { ...item, url: null } : item,
-    );
+    return items.map((item, index) => (index === items.length - 1 ? { ...item, url: null } : item));
   }
 }

@@ -160,7 +160,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
 | M2-C04-02 | M2 | — form controls + validation display | Frontend | **Completed**⁵¹˒⁵² *(merged to `master` on owner instruction 2026-08-23; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 4 d | G2 |
 | M2-C04-03 | M2 | — modal, drawer, toast, states | Frontend | **Completed**⁵³˒⁵⁴ *(merged to `master` on owner instruction 2026-08-24; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 3 d | G2 |
-| M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | **Ready**⁴⁶˒¹⁰⁷ *(re-specified for Angular by `M2-C12-02`; both Hard prerequisites — `M2-C02`, `M2-C04-01` — are `Completed` and merged as of 2026-08-27. See footnote ¹⁰⁷)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
+| M2-C03 | M2 | App shell: header, sidebar, breadcrumbs, ⌘K | Frontend | **Needs Review**⁴⁶˒¹⁰⁷˒¹⁰⁸ *(implemented 2026-08-27 — INV-033 nav mapping, permission-filtered sidebar/palette, header, breadcrumbs, responsive shell, real routes tree; `typecheck`/`lint`/`format:check`/`build`/`e2e` clean, every new spec passes in isolation. Two real test-infrastructure leaks found and fixed. See footnote ¹⁰⁸)* | P0 | M2-C02, M2-C04-01 | 1.5 wks | G2 |
 | M2-C05 | M2 | `DataGrid` *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified for Angular by `M2-C12-03`)* | P0 | M2-C04-02, M2-B02 | 1.5 wks | G2 |
 | M2-C05-01 | M2 | — server-paged table core | Frontend | **Completed**⁷⁴ *(the `Needs Review`/"unmerged" reading was stale — `git log --first-parent` shows `bf2b4cd` "Merge M2-C05-01" on `master`'s own first-parent line, and all 18 files are present at `HEAD`; corrected 2026-08-26)* | P0 | M2-C04-02, M2-B02 | 4 d | G2 |
 | M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Blocked**⁷⁹ *(dispatched 2026-08-26, stopped at implement — the endpoint pair does not exist, no real fixture capture, and `M2-C02` is `Blocked`; see footnote ⁷⁹)* | P1 | M2-C05-01 | 2 d | G2 |
@@ -4279,3 +4279,60 @@ alone — task selection and branch creation are a separate step.
 fixed: the `M2-C02` row above had been accidentally split across two physical lines by a prior
 edit, silently breaking the Markdown table for that row without erroring. Corrected to one line
 in the same change; no content was lost, only the line break removed.)*
+
+¹⁰⁸ **`M2-C03` implemented 2026-08-27, branch `migration/M2-C03-app-shell`, left `Needs
+Review`.** Built: `core/navigation/` (`navigation.config.ts` — INV-033's output, ~145 items;
+`nav-filter.service.ts`; `sidebar-mode.service.ts`; `recent-screens.service.ts`;
+`favourites.service.ts`; `financial-year.ts`/`.service.ts`; `fuzzy-match.ts`;
+`unsaved-changes.guard.ts`), `core/theme/breakpoint.service.ts`, `layout/shell/`,
+`layout/auth-layout/`, `layout/print-layout/`, the `shared/components/` navigation
+primitives (sidebar, nav-group, nav-item, header, user-menu, financial-year-selector,
+breadcrumbs, page-header, tabs, command-palette), `features/dashboard/` (replacing
+`M2-C02`'s placeholder), and the real `app.routes.ts` tree. Verification, all observed:
+`typecheck`/`lint`/`format:check`/`build` clean; `build` — initial bundle 626.04 kB raw /
+**144.92 kB gzip transfer**, 58% of KB-050's 250 kB target, though the CLI's own separate
+600 kB raw budget is exceeded by 26.04 kB (a warning, disclosed, not investigated further);
+`e2e` 2/2 (a new `e2e/shell.spec.ts` — a real-browser keyboard-only pass: login, skip link,
+sidebar accordion, palette open/filter/activate/close, logout, all network-mocked since no
+live backend is reachable here); `git grep -n "role"` under `shared/components/` hits only
+`sidebar.roles.spec.ts`'s own documentation; `git diff --name-only` against both `V.SMART`
+and `frontend/vsmart-erp` empty.
+
+**One real architectural-boundary violation caught by an existing test, not missed.**
+`sidebar.component.ts` originally injected `PermissionService` directly; an existing
+repo-wide scan (`permission-denied-state.component.spec.ts`) already asserts nothing under
+`shared/components/` may import the auth module, and failed on it. Fixed by extracting
+`NavFilterService` into `core/navigation/` as the one seam — `shared/components/` stays
+auth-decoupled, and the real deny-by-default logic now has its own dedicated spec against a
+real `PermissionService`, separate from `SidebarComponent`'s presentational one.
+
+**Two real test-infrastructure leaks found and fixed, each traced to its actual root cause:**
+a `matchMedia` mock installed without `afterEach` cleanup in two new specs, leaking across
+this workspace's shared jsdom worker and cascading into ~14 unrelated files; and a bare
+`TestBed.createComponent()` fixture in `unsaved-changes.guard.spec.ts` left undestroyed,
+whose live `effect()` kept running and corrupted later specs with a garbled-string failure
+signature. Both fixed; every one of this task's own spec files now passes cleanly in
+isolated `--include` runs, confirmed repeatedly. Full-suite runs still show intermittent
+wider cascades among pre-existing, unrelated PrimeNG-heavy specs, correlating with this
+workstation's measured setup-duration variance (200 s–1600 s across otherwise-identical
+runs) rather than a deterministic leak — `--isolate` was tried as a diagnostic and did not
+eliminate it, which a genuine cross-file leak would predict it should. The one test that
+recurs most is `record-picker-dialog.component.spec.ts`'s already-documented pre-existing
+flake from this session's earlier `M2-A04`/`M2-C07` verification (footnote ¹⁰⁴), unchanged
+by this branch.
+
+**Real, disclosed gaps, not silently claimed done:** no automated `axe` scan; the `sm`-band
+overlay drawer's real rendering/focus-trap was not exercised in a real narrow viewport
+(`e2e/shell.spec.ts` runs at a fixed 1600 px); the header's "tenant name" is `Tenant
+${tenantId}`, not a real display name (`/me` has none, by `M2-A07`'s own deliberate design,
+R-01); `unsavedChangesGuard`/`useBeforeUnloadGuard` have no real consumer yet (`M2-C08` is
+the first candidate); only `/dashboard` is a real, registered route today, so
+"`requireScreen` refuses a hand-typed URL" is demonstrated on the one real route, not
+independently proven for the ~144 nav-data-only destinations `M2-D01` onward will add.
+Q-09 needed no action; the production-user-mode question (`IsQrLogin`/`IsProductionUser`)
+needed no new `Q-xx` — `INV-042` already answered it ("the API has no QR-login path, so the
+flag alone changes nothing today"), reused rather than re-raised.
+
+**Downstream effect: none yet.** Nothing currently names `M2-C03` in `depends_on`.
+`Needs Review` does not satisfy rule 1 of the five-part "can actually be done" test in any
+case — the owner has not yet reviewed this branch.

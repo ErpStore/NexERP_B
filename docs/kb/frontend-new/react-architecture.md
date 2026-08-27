@@ -188,8 +188,9 @@ Rules, each of which the pilot either already honours or is the counter-example 
 >   bundles it serves stay in `src/i18n/`.
 > - **`app/core/errors/`** — `global-error-handler.ts`, the `ErrorHandler` override this document's
 >   *Error handling* table already calls for at the "Global" layer, which had no folder named.
-> - **`app/features/placeholder/`** — the scaffold's single lazily-loaded page. It is not an ERP
->   module and `M2-C03` removes it when the real shell lands.
+> - **`app/features/placeholder/`** — the scaffold's single lazily-loaded page, removed by
+>   `M2-C03` (2026-08-27) as planned, replaced by `app/features/dashboard/` behind the real
+>   shell (`app/layout/shell/`). No longer present.
 > - **`e2e/`** at the workspace root (outside `src/`) — the Playwright specs, which cannot live
 >   under a `tsconfig.app.json` include.
 >
@@ -599,7 +600,7 @@ server-side. See the INV-006 amendment of 2026-08-23 in [KB-003](../investigatio
 
 | Metric | Target |
 |---|---|
-| Initial JS (shell + login) | < 250 KB gzip |
+| Initial JS (shell + login) | < 250 KB gzip — **met, measured 2026-08-27 (M2-C03): 144.92 kB gzip transfer (58% of budget). The shell itself (`shell-component`) is a separate lazy chunk, 40.68 kB gzip, not counted in the initial figure.** |
 | Route chunk | < 150 KB gzip |
 | Grid: 10,000 rows | virtualised, 60 fps scroll — **met, measured 2026-08-25 (M2-C05-01)** |
 | Line editor: 200 rows | typing latency < 50 ms — **met, measured 2026-08-27 (M2-C07 follow-up); see below for what was and was not obtained** |

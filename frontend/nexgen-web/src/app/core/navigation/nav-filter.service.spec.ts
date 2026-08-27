@@ -5,7 +5,9 @@ import { PermissionService } from '../auth/permission.service';
 import { NavFilterService } from './nav-filter.service';
 import { flattenLinks } from './navigation.models';
 
-function serviceWithRights(rights: Parameters<PermissionService['setRights']>[0]): NavFilterService {
+function serviceWithRights(
+  rights: Parameters<PermissionService['setRights']>[0],
+): NavFilterService {
   const permissions = new PermissionService();
   permissions.setRights(rights);
   TestBed.configureTestingModule({

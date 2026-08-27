@@ -97,7 +97,11 @@ describe('app-command-palette', () => {
 
   it('an empty query shows Recent screens first, filtered to still-permitted ones', async () => {
     const recentScreens = new RecentScreensService();
-    recentScreens.record({ label: 'Currency Master', route: '/masters/currencies', screenName: 'Currency' });
+    recentScreens.record({
+      label: 'Currency Master',
+      route: '/masters/currencies',
+      screenName: 'Currency',
+    });
 
     await render(CommandPaletteComponent, {
       inputs: { visible: true },

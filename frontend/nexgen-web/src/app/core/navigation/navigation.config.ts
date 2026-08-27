@@ -85,7 +85,11 @@ export const NAVIGATION_TREE: NavTree = {
             { label: 'Category Master', route: '/masters/categories', screenName: 'Category' },
             { label: 'Measurement Unit Master', route: '/masters/uom', screenName: 'UOM' },
             { label: 'Stores Master', route: '/masters/stores', screenName: 'Store' },
-            { label: 'Store Mapping Master', route: '/masters/store-mapping', screenName: 'Store Map' },
+            {
+              label: 'Store Mapping Master',
+              route: '/masters/store-mapping',
+              screenName: 'Store Map',
+            },
             { label: 'HSN/SAC Master', route: '/masters/hsn', screenName: 'HSN Master' },
             {
               label: 'Material Master',
