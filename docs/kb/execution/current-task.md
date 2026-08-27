@@ -21,10 +21,20 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Selected: `M2-D01` — Currency end-to-end in Angular
+## Selected: `M2-C03` — App shell: header, sidebar, breadcrumbs, ⌘K
 
-Full spec: [`tasks/M2-D01.md`](tasks/M2-D01.md). Not yet dispatched — awaiting owner
-confirmation before starting (see note below).
+Full spec: [`tasks/M2-C03.md`](tasks/M2-C03.md). Not yet dispatched.
+
+**Owner override, 2026-08-27: `M2-C03` explicitly chosen over the ranking below.** This pass's
+own five-part test and downstream-unblocking ranking (kept below for the record) put `M2-D01`
+ahead of `M2-C03`. Presented with both `Ready` options, the owner picked `M2-C03` directly
+("Pick M2-C03") — an explicit, in-conversation instruction that overrides the ranking
+heuristic, which exists to pick *a* defensible option absent one, not to bind the owner's own
+choice. `M2-C03` independently clears every part of the five-part test on its own merits (see
+below); the owner's reason for preferring it over `M2-D01` was not asked for and is not
+assumed here. `M2-D01` remains `Ready` and unstarted, its own pre-existing unmerged branch
+(`migration/M2-D01-currency-end-to-end`) still unresolved — both carried forward for whoever
+picks up that task next.
 
 ### How this pass found it, 2026-08-27, master tip `3a30401`
 
