@@ -53,9 +53,12 @@ no real origins; no live-backend e2e (this environment has no populated
 
 **Merged to `master` `0d313d5` 2026-08-27** on owner instruction ("merge"), carrying
 `M2-A11`'s stacked commits in with it — clean merge, no conflicts. Post-merge
-re-verification reproduced every number above on the merged tip. Still `Needs Review`, not
-`Completed` — merging is not a review sign-off. Full detail:
+re-verification reproduced every number above on the merged tip. Full detail:
 [`task-tracker.md`](task-tracker.md) footnote ¹¹⁵.
+
+**Marked `Completed` 2026-08-27 on explicit owner instruction** ("okay mark it as
+completed", applied to both `M2-A05` and `M2-A11`). Full detail:
+[`task-tracker.md`](task-tracker.md) footnote ¹¹⁶.
 
 ---
 
