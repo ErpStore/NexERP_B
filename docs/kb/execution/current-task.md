@@ -21,22 +21,41 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## No task selected — nothing genuinely dispatchable, 2026-08-27 select-only pass, master tip `9187abb`
+## Selected: `M2-D01` — Currency end-to-end in Angular
 
-**Triggered by `M2-A05`/`M2-A11` closing** (marked `Completed` on explicit owner
-instruction — see the superseded pointer below), per the standing instruction to pick the
-next dispatchable task when one closes. Exactly one tracker row reads `Ready`: **`M2-D01`**
-— its `depends_on` (all 7 Hard rows) is genuinely `Completed` and merged, rule 1 of the
-five-part test passes mechanically. But its own task file names a second, stricter
-self-check — a "transitively required" table, separate from `depends_on` — and one row in
-it, **`M2-C03`**, is still `Needs Review`, not `Completed`. `M2-A05`, the row that blocked
-this same task last pass, is now cleared. Not dispatched; row corrected to `Blocked` on the
-tracker. Full detail: [`task-tracker.md`](task-tracker.md) footnote ¹¹⁷,
-[`runner-state.md`](runner-state.md) (KB-093).
+Full spec: [`tasks/M2-D01.md`](tasks/M2-D01.md). **Not yet dispatched — selection only, no
+implementation.** Owner reviewed [`tasks/M2-C03.md`](tasks/M2-C03.md)'s Close-out
+in-conversation and set it `Completed` ("yes mark it as completed"), which cleared the one
+remaining gap in `M2-D01`'s own "transitively required" table (footnote ¹¹⁷'s `M2-C03` row)
+— `M2-A05`, the table's other gap, had already cleared the pass before. Both `M2-D01` and
+`M2-C08-01` moved `Blocked` → `Ready` on the same decision; ranked per
+[`dependency-graph.md`](dependency-graph.md) § *Selecting the next task*: both `P0` (tie),
+`M2-D01` wins on downstream unblocking (`M2-D02`, `M2-D02-01` both name it directly; nothing
+names `M2-C08-01`) and independently sits on the project critical path
+(`dependency-graph.md:212`), unlike `M2-C08-01`. Full detail:
+[`task-tracker.md`](task-tracker.md) footnote ¹¹⁸.
 
-**Requires human decision:** review [`tasks/M2-C03.md`](tasks/M2-C03.md)'s Close-out and
-either confirm `Completed` or send back changes. This single decision unblocks both
-`M2-C08-01` (footnote ¹¹⁰) and `M2-D01` (footnote ¹¹⁷) at once.
+A branch from `M2-D01`'s prior stopped attempt already exists —
+`migration/M2-D01-currency-end-to-end` (footnote ⁷⁸: dispatched 2026-08-26, stopped on
+arrival when `M2-C02` was found `Blocked`) — and is the one to resume, not a fresh cut;
+`M2-C02` is now `Completed` and merged, so the specific blocker that stopped that attempt no
+longer applies, but the branch should be re-read from its own state before continuing, not
+assumed current.
+
+**`M2-C08-01` stays `Ready`** and is the next candidate after `M2-D01`, unless a
+higher-priority row appears first.
+
+---
+
+## Superseded pointer, retained for lineage — no task selected, 2026-08-27 select-only pass, master tip `9187abb`
+
+**Triggered by `M2-A05`/`M2-A11` closing**, per the standing instruction to pick the next
+dispatchable task when one closes. Exactly one tracker row read `Ready`: `M2-D01` —
+`depends_on` cleared, but its own stricter "transitively required" table still named
+`M2-C03`, `Needs Review`, not `Completed`. Not dispatched; row corrected to `Blocked`. Full
+detail: [`task-tracker.md`](task-tracker.md) footnote ¹¹⁷. **Superseded above** — the owner
+reviewed `M2-C03`'s Close-out and set it `Completed` in the same conversation, clearing this
+gap; see the current `## Selected` section.
 
 ---
 

@@ -11,9 +11,37 @@ status: active
 confidence: n/a
 last_verified: 2026-08-27
 dependencies: [KB-089, KB-091, KB-092, KB-081]
-model_routing_this_run: none — select-only pass, no candidate cleared the five-part test
+model_routing_this_run: none — select-only pass, `M2-D01` selected but not dispatched
 
-## Status — 2026-08-27 (select-only pass, this session — after `M2-A05`/`M2-A11` marked `Completed`, master tip `9187abb`)
+## Status — 2026-08-27 (select-only pass, this session — after `M2-C03` marked `Completed`, master tip `9187abb`)
+
+**STOPPED (selected, not dispatched)** — `M2-D01` chosen, implementation is a separate step
+
+**This pass:** Triggered by the owner reviewing `tasks/M2-C03.md`'s Close-out in-conversation
+and setting it `Completed` ("yes mark it as completed"), which cleared the one remaining gap
+in the previous pass (`task-tracker.md` footnote ¹¹⁷). Both `M2-C08-01` and `M2-D01` moved
+`Blocked` → `Ready` on that single decision — see `task-tracker.md` footnote ¹¹⁸ for the
+full mechanics.
+
+**Ranked per [`dependency-graph.md`](dependency-graph.md) § *Selecting the next task*:**
+both `P0` (rank 1 ties). Rank 2, most downstream unblocking: `M2-D01` has two direct
+tracker-column dependents (`M2-D02`, `M2-D02-01`); nothing currently names `M2-C08-01`
+there (its siblings depend on the parent container `M2-C08`, not on it specifically).
+`M2-D01` wins outright. It also independently sits on the project critical path
+(`dependency-graph.md:212`), while `M2-C08-01` leads toward `M2-C08-02`/`-03` and `M3-5`, a
+separate branch — rank 3 agrees, redundantly. **`M2-D01` selected.**
+
+**Current task:** `M2-D01` — selected, **not dispatched**. A branch from its prior stopped
+attempt already exists (`migration/M2-D01-currency-end-to-end`, cut 2026-08-26, stopped on
+arrival when `M2-C02` was found `Blocked` — footnote ⁷⁸) and is the one to resume next
+session, not a fresh cut. `M2-C02` is now `Completed` and merged, so that specific stop
+condition no longer applies, but the branch's own state should be re-read before continuing
+— nothing here assumes it is current.
+
+**Next dependency-ready task after `M2-D01`:** `M2-C08-01` (`Ready`, not yet selected).
+
+**Requires human decision:** NO — `M2-D01` clears the five-part test in full, including its
+own stricter self-check. Next session's task is to dispatch and implement it.
 
 **STOPPED** — no dependency-ready task remains
 
