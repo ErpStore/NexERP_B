@@ -3975,18 +3975,28 @@ migration had to answer); the refresh token travels in the request/response body
 `Secure`/`SameSite`/domain attributes cannot be set correctly without it — disclosed in
 [open-questions.md](../open-questions.md) Q-16, not silently decided.
 
-**Two real gaps, disclosed rather than left implicit.** (1) **The migration was scaffolded
-and reviewed, not applied.** `dotnet ef database update` against the real local tenant
-database was **not run** — no verified, safe recipe for it exists yet in this repository's
-own KB (`prompt-template.md` records only `migrations add` as verified), and running it
-unverified against the database other work in this session depends on was judged the wrong
-place to establish that recipe. The migration file itself was read in full and is additive
-only; applying it is the next step before this branch should be considered fully closed. (2)
+**Two real gaps, disclosed rather than left implicit.** (1) **The migration was scaffolded,
+reviewed, and its live application was attempted — and blocked by a real, previously-unknown
+cross-cutting problem, not skipped.** `dotnet ef database update` against the real local
+tenant database (`NexGenErpDb`, tenant `Id=1`) was run using the workstation's own
+`nexgen_app_svc` credential (M0-04's rotated, least-privilege login). It failed:
+`CREATE TABLE permission denied in database 'NexGenErpDb'` — that login deliberately holds
+only `db_datareader`/`db_datawriter`, no `db_ddladmin`, so it cannot run DDL at all. **EF
+Core rolled back the entire pending batch as one transaction**, including the otherwise-
+successful, unrelated `RemoveDefaultAdministratorSeed` (M0-06) that applied immediately
+before the failure — verified directly against `__EFMigrationsHistory` and the `Users` table
+afterward: the database is exactly as it was before the attempt, no partial state. **The
+actual finding: no DDL-capable credential exists anywhere in this workstation's configured
+secrets post-M0-04** — recorded at [Q-02](../open-questions.md), which now has a concrete
+second half ("with which credential") it did not have before. Applying the migration is
+still the next step before this branch should be considered fully closed, but it now needs a
+migration-time credential that does not currently exist, not merely a keystroke. (2)
 **No live-host verification (R-43).** Like every test in this project, the new suites are
 controller-level — `IRefreshTokenService` mocked in `AuthControllerRefreshLogoutTests.cs`,
 a real EF InMemory pipeline in `RefreshTokenServiceTests.cs` — so the 200-path has not been
 exercised over an actual HTTP wire with a real database. Both gaps are pre-existing
-limitations of this repository's current tooling, not regressions this task introduced.
+limitations/consequences of this repository's current tooling and credential posture, not
+regressions this task introduced.
 
 **Verified, not claimed:** `git status --short` shows exactly the files task
 `M2-A04.md`'s own Git Strategy names, plus its own KB documentation set — **zero** files
