@@ -297,6 +297,10 @@ namespace V.SMART.Api.Tests
             return new AuthController(
                 unitOfWork.Object,
                 null!,
+                // M2-A04 — every login in this file is refused (by the trial/account gates)
+                // before the point where a refresh token would be issued, so a null stand-in is
+                // enough here, matching jwtTokenService above.
+                null!,
                 tenantProvider.Object,
                 new ConfigurationBuilder().Build(),
                 // M2-A10 added the IUserRightService and ILogger parameters. Every login in this

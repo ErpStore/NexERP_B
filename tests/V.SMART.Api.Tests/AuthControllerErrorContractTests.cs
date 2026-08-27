@@ -82,6 +82,9 @@ namespace V.SMART.Api.Tests
             return new AuthController(
                 unitOfWork.Object,
                 null!,
+                // M2-A04 — both tests in this file are refused before a refresh token would be
+                // issued (unresolved tenant / bad credentials), matching jwtTokenService above.
+                null!,
                 tenantProvider.Object,
                 new ConfigurationBuilder().Build(),
                 // M2-A10 added the IUserRightService and ILogger parameters. Both logins here are

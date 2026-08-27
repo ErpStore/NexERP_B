@@ -338,6 +338,24 @@ the known default (M0-03-01, M0-03-03).
 > (M0-00 committed `docs/`); the negative result is nonetheless still repeated in the task
 > file's *Investigation Registry Updates* block and should not be believed. INV-052, Q-84.
 
+> **Status update, 2026-08-27 (M2-A04 — R-02 stays OPEN, blast radius reduced, not closed.)**
+> This task does not rotate `Jwt:Secret` and does not touch R-02's still-unsigned checklist
+> items — that stays M0-04's job. What it adds is structural: the access token's lifetime
+> drops from 480 to 15 minutes (configurable), and a stolen or forged token now expires 32×
+> sooner than before. Separately, refresh tokens are stored hashed with rotation and
+> revocation, and `IsActive` is re-checked on every refresh — so deactivating a user now takes
+> effect within one 15-minute window instead of up to 8 hours, independent of whether R-02's
+> underlying secret exposure is ever closed. **This narrows the exposure `Jwt:Secret` being
+> forgeable creates; it does not narrow `Jwt:Secret` being forgeable itself** — a forged
+> access token is still valid for its (now shorter) lifetime, and a forged refresh token is
+> still mintable from the leaked value if it is ever presented before the corresponding real
+> session refreshes. Owner decision, 2026-08-27
+> ([task-tracker.md footnote ¹⁰⁰](../execution/task-tracker.md)): the workstation's own
+> rotated secret (footnote ⁸¹) plus M0-03-03's fail-closed validator were judged sufficient to
+> proceed with this task locally, without waiting on M0-04's deployment-side rotation (C-4) —
+> recorded there, not here, since it is a decision about task sequencing, not about this risk's
+> status.
+
 ### R-03 — Authorization enforced only in the UI layer
 **Confirmed.** `BaseUserRightsComponent` + `RightsHelper` are the only permission checks;
 no service or repository checks rights. `CurrencyController` carries a bare `[Authorize]`

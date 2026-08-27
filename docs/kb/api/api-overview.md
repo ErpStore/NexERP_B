@@ -9,11 +9,15 @@ source_files:
   - V.SMART/V.SMART.Api/Controllers/CurrencyController.cs
   - V.SMART/V.SMART.Api/Controllers/MeController.cs
   - V.SMART/V.SMART.Api/Auth/JwtTokenService.cs
+  - V.SMART/V.SMART.Api/Auth/RefreshTokenService.cs
+  - V.SMART/V.SMART.Api/Auth/IRefreshTokenService.cs
   - V.SMART/V.SMART.Api/Auth/ApiAuthStateProvider.cs
   - V.SMART/V.SMART.Api/appsettings.json
-entities: [User, Currency, TenantInfo, UserRight, Screens]
+entities: [User, Currency, TenantInfo, UserRight, Screens, RefreshToken]
 api_endpoints:
   - "POST /api/v1/auth/login"
+  - "POST /api/v1/auth/refresh"
+  - "POST /api/v1/auth/logout"
   - "GET /api/v1/currencies"
   - "GET /api/v1/currencies/{id}"
   - "POST /api/v1/currencies"
@@ -26,7 +30,7 @@ api_endpoints:
   - "GET /api/v1/reference/currencies"
   - "GET /api/v1/reference/screens"
   - "GET /api/v1/reference/terms"
-database_tables: [Users, Currency, Tenants, UserRights, Screens]
+database_tables: [Users, Currency, Tenants, UserRights, Screens, RefreshTokens]
 business_rules: [BR-AUTH-001, BR-AUTH-002, BR-TEN-002]
 status: complete
 confidence: confirmed
@@ -85,7 +89,7 @@ request logging. **Exception middleware and `ProblemDetails` are no longer absen
 
 | Status | Body | Condition |
 |---|---|---|
-| 200 | `{ "token", "username", "userId", "tenantId", "role" }` | success |
+| 200 | `{ "token", "refreshToken", "tokenExpiresAtUtc", "username", "userId", "tenantId", "role" }` | success |
 | 400 | `problem+json`, `type: …/tenant-unresolved`, `title: "Unable to resolve tenant. Check host or wwwroot/config/tenant.json."` | `ITenantProvider.GetCurrentTenant()` returned `null` |
 | 401 | `problem+json`, `type: …/unauthenticated`, `title: "Invalid username or password."` | `LoginAsync` returned `null` |
 
@@ -94,19 +98,107 @@ deliberately says no more than it did: one title for every authentication failur
 
 **Auth required.** None.
 **Business logic executed.** `ITenantProvider.GetCurrentTenant()` →
-`IUnitOfWork.Users.LoginAsync` (BR-AUTH-001) → `JwtTokenService.CreateToken(user, tenant.Id)`.
-**Entities.** `TenantInfo`, `User`.
+`IUnitOfWork.Users.LoginAsync` (BR-AUTH-001) → `JwtTokenService.CreateToken(user, tenant.Id)` →
+`IRefreshTokenService.IssueAsync(user.UserId)` (M2-A04).
+**Entities.** `TenantInfo`, `User`, `RefreshToken` (M2-A04).
 **Token.** HS256; claims `ClaimTypes.Name`, `UserId`, `TenantId`, `ClaimTypes.Role`;
-issuer `V.SMART.Api`; audience `V.SMART.Angular`; expiry `Jwt:ExpiresMinutes` (480).
+issuer `V.SMART.Api`; audience `V.SMART.Angular`; expiry `Jwt:ExpiresMinutes`
+(**15**, M2-A04 — was 480 before this task; the response's `tokenExpiresAtUtc` is the
+authoritative value, not a client-side recomputation from the config key).
 
-**Contract gaps.** No refresh token. No screen-permission claims — the client cannot know
-what to render, and the server cannot authorise beyond role. No tenant selector in the
-request (see [multi-tenancy](../architecture/multi-tenancy.md) problem 1). *(The ad-hoc
-`{ message }` error body was replaced by `problem+json` in M2-A06.)*
+**M2-A04 — breaking change for the response body.** `refreshToken` (string) and
+`tokenExpiresAtUtc` (UTC ISO-8601) are new fields, inserted after `token`; the four original
+fields keep their names, types and order. Breaking for the Angular pilot
+(`frontend/vsmart-erp/`), which M2-C11 already archived — recorded, not a live concern.
+
+**Contract gaps, updated by M2-A04.** ~~No refresh token.~~ **Closed** — see
+`POST /api/v1/auth/refresh` and `POST /api/v1/auth/logout` below. No screen-permission
+claims — the client cannot know what to render, and the server cannot authorise beyond role
+(unchanged; `GET /api/v1/me` is the answer). No tenant selector in the request (see
+[multi-tenancy](../architecture/multi-tenancy.md) problem 1). *(The ad-hoc `{ message }` error
+body was replaced by `problem+json` in M2-A06.)*
 
 **Defect (Confirmed).** A database failure inside `LoginAsync` is swallowed and returns
 `null` (`UserRepository.cs:44-48`), so an outage is reported to the user as
 "Invalid username or password".
+
+---
+
+### `POST /api/v1/auth/refresh` — added by M2-A04 (2026-08-27)
+
+`AuthController.Refresh` · `[AllowAnonymous]` — the access token this call authenticates with
+may already be expired; the refresh token itself is the credential (harness allow-list
+entry, `ExemptEndpointAllowList.AnonymousActions["AuthController.Refresh"]`).
+
+**Request**
+```json
+{ "refreshToken": "string (required)" }
+```
+
+**Responses**
+
+| Status | Body | Condition |
+|---|---|---|
+| 200 | `{ "token", "refreshToken", "tokenExpiresAtUtc" }` | rotation succeeded |
+| 400 | `problem+json`, `type: …/tenant-unresolved` | tenant could not be re-resolved (Host header / `tenant.json`) |
+| 401 | `problem+json`, `type: …/unauthenticated`, `title: "Invalid or expired refresh token."` | the presented token is unknown, revoked, expired, or its user is no longer active — **all four reasons produce this identical body**; the distinction is logged server-side only |
+
+**Rotation.** One-time use: the presented token is revoked in the same call that mints its
+replacement (`RefreshTokenService.RotateAsync`), so replaying a used or stolen-then-rotated
+token always fails.
+
+**Tenant binding (BR-TEN-002).** Not derived from a JWT claim — an expired access token
+authenticates nobody, so there is no claim to read. Tenant context comes from the same
+`ITenantProvider` Host-header/`tenant.json` resolution path `Login` already uses. A refresh
+token issued in tenant A's database is simply absent from tenant B's — database-per-tenant
+isolation, not an extra check this endpoint has to get right.
+
+**Transport decision (Q-16 dependency), recorded per the task's own requirement.** The
+refresh token travels in the JSON request/response body, **not** an `HttpOnly` cookie. An
+`HttpOnly` cookie would need a real answer to Q-16 (reverse-proxy/TLS topology, cookie
+domain, `SameSite`) to be configured correctly; Q-16 is Unknown. Body transport is
+topology-agnostic and does not presuppose that answer. **This is a deliberate, disclosed
+trade-off, not a final design**: a body-transported refresh token is exposed to the same
+`localStorage`/XSS surface KB-013 already flags for the access token, and moving to a
+cookie once Q-16 is answered is a natural hardening step for whichever task owns that
+(M2-C02 already carries the localStorage/XSS note).
+
+**Business logic executed.** `IRefreshTokenService.RotateAsync` → (on success)
+`IUnitOfWork.Users.FirstOrDefaultAsync` (a second, independent `IsActive` read) →
+`ITenantProvider.GetCurrentTenant()` → `JwtTokenService.CreateToken`.
+**Entities.** `RefreshToken`, `User`.
+
+---
+
+### `POST /api/v1/auth/logout` — added by M2-A04 (2026-08-27)
+
+`AuthController.Logout` · `[AllowAnonymous]` — must be reachable with an already-expired
+access token so a client can always end its session; revocation is keyed on the presented
+refresh token, not on bearer auth (harness allow-list entry,
+`ExemptEndpointAllowList.AnonymousActions["AuthController.Logout"]`).
+
+**Request**
+```json
+{ "refreshToken": "string (required)" }
+```
+
+**Responses**
+
+| Status | Body | Condition |
+|---|---|---|
+| 204 | *(none)* | always — see below |
+
+**Revocation scope — decided and documented, per the task's own requirement.** Revokes
+**exactly the one presented token**, not every token belonging to the user. The request
+contract is "the refresh token to revoke" (singular), matching one-session-per-device
+logout. A "sign out everywhere" capability is a natural extension, left to whichever future
+task needs it rather than assumed here.
+
+**Idempotent and opaque.** Revoking an unknown or already-revoked token still returns `204`
+— the response must never leak whether a token was ever valid.
+
+**Business logic executed.** `IRefreshTokenService.RevokeAsync`.
+**Entities.** `RefreshToken`.
 
 ---
 

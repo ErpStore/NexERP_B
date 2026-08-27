@@ -12,16 +12,17 @@ source_files:
   - V.SMART/V.SMART.Shared/Data/Master/Admin/User.cs
   - V.SMART/V.SMART.Shared/Data/Enum/UserRole.cs
   - V.SMART/V.SMART.Api/Auth/JwtTokenService.cs
+  - V.SMART/V.SMART.Api/Auth/RefreshTokenService.cs
   - V.SMART/V.SMART.Api/Controllers/AuthController.cs
   - V.SMART/V.SMART.Api/Controllers/MeController.cs
   - V.SMART/V.SMART.Api/Authorization/IUserRightsProvider.cs
-entities: [User, UserRight, UserAuthority, Screens, ApprovalHistory]
-api_endpoints: ["POST /api/v1/auth/login", "GET /api/v1/me"]
-database_tables: [Users, UserRights, UserAuthority, Screens, ApprovalHistory]
-business_rules: [BR-AUTH-001, BR-AUTH-002, BR-AUTH-003, BR-APPR-001]
+entities: [User, UserRight, UserAuthority, Screens, ApprovalHistory, RefreshToken]
+api_endpoints: ["POST /api/v1/auth/login", "POST /api/v1/auth/refresh", "POST /api/v1/auth/logout", "GET /api/v1/me"]
+database_tables: [Users, UserRights, UserAuthority, Screens, ApprovalHistory, RefreshTokens]
+business_rules: [BR-AUTH-001, BR-AUTH-002, BR-AUTH-003, BR-APPR-001, BR-TEN-002]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-24
+last_verified: 2026-08-27
 dependencies: [KB-010, KB-012]
 ---
 
@@ -118,18 +119,39 @@ kept as-is so existing credentials keep working.
    error and skips `NavigateTo("/dashboard")`, leaving them signed in but stranded on the login
    page. The actual divergence is that Blazor loses the navigation while the API returns its
    normal `200`. `Login.razor` is unchanged.
-5. `JwtTokenService.CreateToken(user, tenant.Id)`.
-6. Returns `{ token, username, userId, tenantId, role }`.
+5. `JwtTokenService.CreateToken(user, tenant.Id)`, then (M2-A04)
+   `IRefreshTokenService.IssueAsync(user.UserId)`.
+6. Returns `{ token, refreshToken, tokenExpiresAtUtc, username, userId, tenantId, role }`
+   (M2-A04 — `refreshToken`/`tokenExpiresAtUtc` are new; the original four fields keep
+   their names, types and order).
 
 JWT claims: `ClaimTypes.Name`, `"UserId"`, `"TenantId"`, `ClaimTypes.Role`.
-HS256, `ExpiresMinutes` default 480 (8 h), `ClockSkew` 1 minute, issuer/audience validated.
+HS256, `ExpiresMinutes` default **15** (M2-A04, was 480/8 h), `ClockSkew` 1 minute,
+issuer/audience validated.
 
-**Gaps in the API auth design (Confirmed):**
-- No refresh token, no rotation, no revocation list.
+**Gaps in the API auth design (Confirmed), updated by M2-A04 (2026-08-27):**
+- ~~No refresh token, no rotation, no revocation list.~~ **Closed.** `POST /api/v1/auth/refresh`
+  rotates (one-time use, presented token revoked in the same call);
+  `POST /api/v1/auth/logout` revokes on demand. Tokens are stored hashed (SHA-256) in a new
+  `RefreshTokens` table, one row per tenant database (`RefreshTokenService`,
+  [KB-040](../api/api-overview.md#post-apiv1authrefresh--added-by-m2-a04-2026-08-27)).
+  `IsActive` is re-checked on every rotation — this is what makes deactivating a user
+  effective within one 15-minute access-token lifetime instead of up to 8 hours.
 - **No screen-permission claims** — the token cannot authorise anything beyond role.
+  **Unchanged by M2-A04**, deliberately: ADR-004 §2 still forbids embedding rights in any
+  token, access or refresh.
 - Secret is `builder.Configuration["Jwt:Secret"]`, committed in `appsettings.json`.
-- 8-hour non-revocable token is long for an ERP.
-- The Angular pilot stores the JWT in `localStorage` (`auth.service.ts`), exposing it to XSS.
+  **Superseded in substance, not struck here** — M0-03/M0-03-01 externalised the config
+  path and M0-04 rotated the workstation's value away from the published one (still
+  `Blocked` on the deployment-side rotation, C-4); see `task-tracker.md` footnote ¹⁰⁰.
+- ~~8-hour non-revocable token is long for an ERP.~~ **Closed by M2-A04.** 15 minutes,
+  configurable via `Jwt:ExpiresMinutes`, justified against the 1-minute `ClockSkew` above.
+- The Angular pilot stores the JWT in `localStorage` (`auth.service.ts`), exposing it to
+  XSS. **Unchanged — out of this task's scope.** M2-A04 chose body transport for the new
+  refresh token specifically *because* Q-16 (deployment topology / TLS termination) is
+  Unknown, so an `HttpOnly` cookie cannot yet be configured correctly; the refresh token
+  therefore inherits the same `localStorage`/XSS exposure the access token already has.
+  Still M2-C02's note to carry, not resolved here.
 
 ## 2. Screen rights — the core permission model
 

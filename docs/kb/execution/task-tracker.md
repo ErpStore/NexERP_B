@@ -111,7 +111,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Completed**²⁷ | P0 | M2-A01-02 | 2 d | G2 |
 | M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Completed**⁵⁹˒⁶² *(merged to `master` on owner instruction 2026-08-24)* | P0 | M2-A01-03 | 1 d | G2 |
 | M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | **Completed**⁶³˒⁶⁴˒⁸² *(the last criterion closed 2026-08-26 — owner added the required status check in GitHub branch protection; see footnote ⁸²)* | P0 | M2-A02 | 3 d | G2 |
-| M2-A04 | M2 | Refresh tokens + revocation | Security | **Ready**⁴⁸˒¹⁰⁰ *(was `Blocked` on **M0-04**'s unrotated `Jwt:Secret`, ruled 2026-08-23; owner decision 2026-08-27 supersedes that — the workstation rotation, footnote ⁸¹, plus the fail-closed startup validator discharge the forgeability concern for local-only operation. See footnote ¹⁰⁰)* | P0 | M2-A01-02, **M0-03-03** *(re-scoped from M0-04, footnote ¹⁰⁰)* | 3–5 d | G2 |
+| M2-A04 | M2 | Refresh tokens + revocation | Security | **Needs Review**⁴⁸˒¹⁰⁰˒¹⁰¹ *(implemented 2026-08-27 — short access tokens, hashed rotating/revocable refresh tokens, one additive EF migration; 613/613 API tests pass, 0 build errors. See footnote ¹⁰¹)* | P0 | M2-A01-02, **M0-03-03** *(re-scoped from M0-04, footnote ¹⁰⁰)* | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
 | M2-A07 | M2 | `GET /api/v1/me` | Backend | **Completed**³⁷ *(merged to `master` `80c209b` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 2 d | G2 |
@@ -3943,3 +3943,59 @@ on now; `M0-04` is dropped from `depends_on` but stays named in this footnote fo
 `Ready` — those still need `M2-A04` itself at genuine `Completed` and merged to `master` before
 rule 1 of the five-part "can actually be done" test clears. `M2-A04` becomes the next
 selectable task in this chain, not a bypass of the chain.
+
+¹⁰¹ **`M2-A04`: implemented 2026-08-27 — `Needs Review`.** Picked up immediately after the
+owner's deployment-deferral decision (footnote ¹⁰⁰) cleared it.
+
+**Delivered.** `Jwt:ExpiresMinutes` cut from 480 to 15 (configurable; justified in
+`JwtTokenService.cs` against the 1-minute `ClockSkew`). A new `RefreshToken` entity/table
+(`RefreshTokens`, one additive EF migration `20260827055557_AddRefreshTokens` — `CreateTable`
++ a unique index on `TokenHash` + a `Cascade` FK to `Users`, no existing column touched),
+holding SHA-256-hashed tokens with expiry/created/revoked columns. `RefreshTokenService`
+(behind `IRefreshTokenService`, scoped) issues, rotates (one-time use — the presented row is
+revoked in the same call that mints its replacement) and revokes. `POST /api/v1/auth/refresh`
+and `POST /api/v1/auth/logout` added, both `[AllowAnonymous]` and both correctly represented
+on the M2-A03 harness's *anonymous* allow-list (`ExemptEndpointAllowList.AnonymousActions`,
+which the implementation discovered is a **second, separate** exemption list from the one
+`ScreenRightStartupValidator` itself walks — both had to be satisfied, not just one).
+`IsActive` is re-checked on every rotation. `LoginResponse` extended with `refreshToken` and
+`tokenExpiresAtUtc`, four original fields unchanged. 613/613 API tests pass (up from 470 at
+last measurement plus this task's own new suites), 97/97 `V.SMART.Shared.Tests` unaffected
+(1 pre-existing skip), `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` — 0 errors, 6,696
+warnings (baseline ~6,695, the +1 is `V.SMART.Shared`'s own pre-existing `xUnit2031`-class
+count drift, not a regression this task introduced — verified no new warning traces to a file
+this task touched).
+
+**The storage and transport decisions this task's Investigation Requirements demanded,
+recorded in full at [INV-063](../investigation-registry.md):** a new EF-backed table was
+chosen over an in-memory store (durable, structurally tenant-isolated, the Q-02 per-tenant
+*rollout* cost stays a genuinely deferred deployment-time question rather than one this local
+migration had to answer); the refresh token travels in the request/response body, not an
+`HttpOnly` cookie, because Q-16 (deployment topology) is Unknown and a cookie's
+`Secure`/`SameSite`/domain attributes cannot be set correctly without it — disclosed in
+[open-questions.md](../open-questions.md) Q-16, not silently decided.
+
+**Two real gaps, disclosed rather than left implicit.** (1) **The migration was scaffolded
+and reviewed, not applied.** `dotnet ef database update` against the real local tenant
+database was **not run** — no verified, safe recipe for it exists yet in this repository's
+own KB (`prompt-template.md` records only `migrations add` as verified), and running it
+unverified against the database other work in this session depends on was judged the wrong
+place to establish that recipe. The migration file itself was read in full and is additive
+only; applying it is the next step before this branch should be considered fully closed. (2)
+**No live-host verification (R-43).** Like every test in this project, the new suites are
+controller-level — `IRefreshTokenService` mocked in `AuthControllerRefreshLogoutTests.cs`,
+a real EF InMemory pipeline in `RefreshTokenServiceTests.cs` — so the 200-path has not been
+exercised over an actual HTTP wire with a real database. Both gaps are pre-existing
+limitations of this repository's current tooling, not regressions this task introduced.
+
+**Verified, not claimed:** `git status --short` shows exactly the files task
+`M2-A04.md`'s own Git Strategy names, plus its own KB documentation set — **zero** files
+under `V.SMART/V.SMART.Web/`, `V.SMART/V.SMART/` or `frontend/`, confirmed directly.
+`UserRepository.LoginAsync` and the password hasher are byte-unchanged (grepped, not
+assumed). `ConnectionStrings`/`Jwt:Secret` **values** untouched — only `Jwt:ExpiresMinutes`
+and a new `Jwt:RefreshTokenExpiresDays` key were added to `appsettings.json`.
+
+Left at `Needs Review` per [KB-088 § Who may set
+COMPLETED](workflow.md#who-may-set-completed) — this task also has the two disclosed gaps
+above beyond the ordinary owner-sign-off requirement. Full record:
+[`tasks/M2-A04.md`](tasks/M2-A04.md).
