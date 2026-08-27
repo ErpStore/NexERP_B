@@ -107,7 +107,7 @@ reading only one of them.
   for has no key in `PermissionService`'s rights map at all — `forScreen(name)` returns every
   field `false` for a missing key, never `undefined` treated as "allow".
 - **Three permission-reading surfaces, one service:** the `requireScreen(screen, right)`
-  `CanActivateFn` factory only gates *authentication* — an authenticated caller always
+  `CanActivateFn` factory only gates _authentication_ — an authenticated caller always
   activates the route regardless of the specific right, because `CanActivateFn` can only
   return `true`/`false`/`UrlTree`, with no way to "activate but render something else."
   Rendering the denial is the **routed component's own job**: read
