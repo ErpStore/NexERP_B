@@ -1,0 +1,64 @@
+@if (hasNoRights()) {
+  <app-empty-state
+    title="Your account has no screen permissions yet."
+    description="Contact your administrator."
+  />
+} @else if (!currencyRight().view) {
+  <app-permission-denied-state screen="Currency" right="view" />
+} @else {
+  <app-page-header title="Currencies">
+    <div appPageActions>
+      <button *appHasRight="'Currency'; right: 'create'" type="button" (click)="onNew()">
+        New currency
+      </button>
+    </div>
+  </app-page-header>
+
+  <app-data-grid
+    [columns]="columns"
+    [rows]="query.rows()"
+    [totalCount]="query.totalCount()"
+    [state]="query.state()"
+    [loading]="query.loading()"
+    [refetching]="query.refetching()"
+    [error]="query.error()"
+    [hasActiveFilters]="query.hasActiveFilters()"
+    [getRowId]="getRowId"
+    ariaLabel="Currencies"
+    emptyTitle="No currencies yet"
+    [emptyActionLabel]="currencyRight().create ? 'New currency' : undefined"
+    (stateChange)="query.apply($event)"
+    (rowActivate)="onRowActivate($event)"
+    (emptyAction)="onNew()"
+    (clearFilters)="query.clearFilters()"
+    (retry)="query.refresh()"
+  >
+    <ng-template #toolbar>
+      <app-data-grid-toolbar
+        [state]="query.state()"
+        [exportOperation]="exportOperation"
+        fallbackBaseName="currencies"
+      />
+    </ng-template>
+
+    <ng-template #rowActions let-row>
+      @if (currencyRight().edit || currencyRight().delete) {
+        <button type="button" (click)="onRowActivate(row)">Edit</button>
+        @if (currencyRight().delete) {
+          <button type="button" (click)="onDelete(row)">Delete</button>
+        }
+      }
+    </ng-template>
+  </app-data-grid>
+
+  @if (drawerMode(); as mode) {
+    <app-currency-form-drawer
+      [visible]="drawerVisible()"
+      [mode]="mode"
+      [currencyId]="editingId()"
+      [canEdit]="currencyRight().edit"
+      (visibleChange)="onDrawerVisibleChange($event)"
+      (saved)="onSaved()"
+    />
+  }
+}

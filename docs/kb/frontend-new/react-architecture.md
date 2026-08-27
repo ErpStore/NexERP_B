@@ -18,7 +18,7 @@ database_tables: []
 business_rules: [BR-CALC-001, BR-STK-001, BR-SO-001, BR-SO-003, BR-AUTH-002]
 status: proposal
 confidence: n/a
-last_verified: 2026-08-27
+last_verified: 2026-08-28
 dependencies: [KB-013, KB-015, KB-040, KB-041, KB-051, KB-105, ADR-002, ADR-004, ADR-007]
 ---
 
@@ -780,3 +780,83 @@ Angular and supersedes ADR-003's React, so read "the SPA client" throughout. Evi
    presentation-only rule covers row scope exactly as it covers screen rights: the server is
    authoritative, and a client filter over a server response that already leaked the rows is
    not a control at all.
+
+## Slice review — Currency (M2-D01)
+
+The first real screen built against everything above: login → tenant resolution → generated
+client → server-side authorization → `ProblemDetails` → `app-data-grid` → typed Reactive Form
+→ mutation → explicit `refresh()`, end to end. What follows is what the slice actually taught,
+per this task's own instruction — the deliverable is this section, not the screen.
+
+**What fitted, cleanly:**
+
+- The generated-client seam (`core/api/currency-api.ts` re-exporting `CurrencyApiService`,
+  mirroring `core/api/auth-api.ts`'s pattern exactly) worked on the first attempt — no
+  friction, no surprise.
+- `DataGridQueryState` + `app-data-grid` composed with the Currency contract with zero
+  translation: `DataGridWireQuery`'s keys already match `GetCurrencies$Params`'s wire names,
+  exactly as `data-grid-query.adapter.ts`'s own doc comment claims (confirmed, not assumed).
+- `applyServerErrors`/`clearServerErrors` (`form/server-validation.ts`) mapped the 400
+  `errors` dictionary onto form controls with no adaptation needed — the exact mechanism the
+  form layer was built for, proven against a real entity for the first time.
+- `PermissionService.forScreen('Currency')` + `PermissionDeniedStateComponent`, composed the
+  same way `DashboardComponent` (M2-C03) demonstrated, needed no new pattern.
+
+**The KB-052/KB-053 conflict, resolved as this file predicted:** KB-052 says "List + Drawer
+form"; KB-053 assigns dedicated routes (`/masters/currencies`, `/new`, `/:id`). Resolved by
+making the drawer route-addressable — `currency.routes.ts` registers three sibling route
+configs, all rendering the same `CurrencyListComponent`, which reads `data.drawerMode` (bound
+by `withComponentInputBinding()`) to decide whether the drawer is open. **A real,
+disclosed trade-off this surfaced:** because the three routes are separate configs (not
+nested children), Angular's default `RouteReuseStrategy` does not reuse the component
+instance between them — opening or closing the drawer tears down and rebuilds the whole grid,
+including a fresh `DataGridQueryState` and its first request. Functionally correct (the same
+request the URL would produce on a fresh load) but not free; a future task with a heavier
+grid should consider a route-reuse strategy or a nested-outlet shape instead of copying this
+one uncritically.
+
+**The signal-service + explicit-`refresh()` convention this file itself describes (§
+Data-fetching conventions) did *not* hold up unchanged on a real screen — a genuine, disclosed
+tension, not a silent deviation.** That section's shape — a feature service holding
+`list`/`loading` signals with an explicit `refresh()` — predates M2-C05-01's
+`DataGridQueryState`, which now owns exactly that (rows, totalCount, loading, refetching,
+error, its own `refresh()`, wired to the URL) for any grid. `CurrencyFeatureService`
+therefore does **not** duplicate list state — that would be the second grid-state mechanism
+M2-D01's own Implementation Requirement 6 forbids — and instead exposes only the request
+methods (`list`, `getById`, `create`, `update`, `remove`, `exportOperation`) plus one signal
+of its own scope, `saving`, for mutation-in-flight state `DataGridQueryState` has no notion
+of. **This section's example code should be corrected** the next time a task touches it, to
+show a grid-backed feature deferring list state to `DataGridQueryState` rather than the
+`SalesOrderService` shape shown above, which no longer matches how a list screen is actually
+built.
+
+**A naming collision, anticipated and resolved:** the generated client already exports a
+class named `CurrencyService`; the feature-level facade is `CurrencyFeatureService`, not
+`CurrencyService`, to avoid an unreadable identifier collision in the same import graph. Any
+future `<Entity>Service` feature facade should check for this before naming itself.
+
+**A real, measured Playwright/PrimeNG interaction, not a code defect:** `getByLabel()` —
+even scoped to the open drawer, even anchored with `^`-prefixed regex — resolved to zero
+elements against `app-form-field`'s rendered markup, despite a correctly-linked
+`<label for>`/`<input id>` pair (confirmed directly from `outerHTML`). The `*` required-marker
+span (`aria-hidden="true"`) is one plausible cause; not chased further once
+`app-form-field[label="…"] input` proved a reliable alternative. `e2e/currency.spec.ts`'s
+`fieldInput()` helper documents this in place — worth re-checking if a future e2e spec hits
+the same wall.
+
+**A real, disclosed API-client gap this task found, not fixed (see
+[technical-debt-register.md](../risks/technical-debt-register.md) R-80):** `deleteCurrency()`
+is generated with `responseType: 'text'` because its success body is empty (`204`) — but
+Angular's `HttpClient` applies that same `responseType` to an *error* response too, so a 409's
+`problem+json` body arrives as a raw string and `error.interceptor.ts`'s `normaliseProblem()`
+loses `title` entirely, falling back to a generic client message. Not specific to Currency —
+every DELETE endpoint generated the same way carries it. `M2-D01`'s own delete-refusal e2e
+test asserts the client's honest fallback text, not the server's message, because that is
+what genuinely renders today.
+
+**What M2-D02 (Customer, the real case) must do differently:** Currency's service is already
+complete (`ICurrencyService` has every method the controller needs), so this slice never
+exercised a service **extraction** — `M2-D02-01`'s actual new variable, per this task's own
+Why This Task Exists section. Everything else here — the routes shape, the drawer resolution,
+the feature-service scope, the error-mapping pattern — should carry forward unchanged; only
+the backend-extraction step is new work M2-D02 adds on top of this slice's pattern.

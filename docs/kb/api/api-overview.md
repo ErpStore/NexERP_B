@@ -34,7 +34,7 @@ database_tables: [Users, Currency, Tenants, UserRights, Screens, RefreshTokens]
 business_rules: [BR-AUTH-001, BR-AUTH-002, BR-TEN-002]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-27
+last_verified: 2026-08-28
 dependencies: [KB-013, KB-014]
 ---
 
@@ -345,6 +345,15 @@ through the versioning convention **without changing the URL**; the URL is the c
 ### `GET /api/v1/currencies`
 
 `CurrencyController.GetAll` · `[Authorize]` · `[RequireScreen("Currency")]` `[RequireRight(Right.View)]`
+
+> **First real consumer: `M2-D01` (2026-08-28).** This contract — as documented below — was
+> re-verified directly against source before the Angular Currency Master feature was built
+> against it, and matched exactly; no divergence found between this document and
+> `CurrencyController.cs`/`CurrencyQuery.cs`/`PagedQuery.cs` as they stand today. One gap the
+> slice found in the **client's** own generated-code integration, not in this contract, is
+> recorded as R-80 in [technical-debt-register.md](../risks/technical-debt-register.md):
+> `deleteCurrency()`'s generated request loses a 409's `title` because its `responseType`
+> (set for the empty `204` success body) also governs how the error body is parsed.
 
 > **403 (M2-A02, 2026-08-24).** Every one of the five Currency endpoints below now answers
 > `403 application/problem+json`, `type: …/screen-right-denied`,

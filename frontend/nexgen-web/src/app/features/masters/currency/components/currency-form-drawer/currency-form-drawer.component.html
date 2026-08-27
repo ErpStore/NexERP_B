@@ -1,0 +1,52 @@
+<app-drawer [title]="title()" persistKey="masters-currency" [(visible)]="visible">
+  @if (loadError(); as problem) {
+    <app-inline-alert
+      severity="error"
+      [message]="problem.title || problem.detail || 'The currency could not be loaded.'"
+    />
+  } @else {
+    <app-busy-overlay [busy]="currencyApi.saving()" message="Saving currency">
+      <form [formGroup]="form" (ngSubmit)="layout.onSubmit()">
+        <app-form-layout
+          #layout
+          [form]="form"
+          [mode]="mode() === 'create' ? 'create' : 'edit'"
+          [loading]="loading()"
+          [submitting]="currencyApi.saving()"
+          [formErrors]="formErrors()"
+          [columns]="1"
+          (formSubmit)="onLayoutSubmit()"
+        >
+          <app-form-section title="Currency">
+            @if (systemDefined()) {
+              <app-inline-alert
+                severity="info"
+                message="This is a system-defined currency and cannot be edited."
+              />
+            }
+            <app-form-field label="Currency name" [errorMessages]="currNameErrors">
+              <app-text-input formControlName="currName" [maxlength]="100" />
+            </app-form-field>
+            <app-form-field label="Sub currency name" [errorMessages]="currSubErrors">
+              <app-text-input formControlName="currSub" [maxlength]="100" />
+            </app-form-field>
+            <app-form-field
+              label="Symbol"
+              hint="One of ₹, $, €, £, ¥, ₩, ₿, ₽"
+              [errorMessages]="symbolErrors"
+            >
+              <app-text-input formControlName="symbol" />
+            </app-form-field>
+          </app-form-section>
+
+          <ng-container formActions>
+            <button type="button" (click)="visible.set(false)">Cancel</button>
+            @if (!formDisabled()) {
+              <button type="submit" [disabled]="currencyApi.saving()">Save</button>
+            }
+          </ng-container>
+        </app-form-layout>
+      </form>
+    </app-busy-overlay>
+  }
+</app-drawer>
