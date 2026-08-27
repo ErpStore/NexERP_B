@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-26
+last_verified: 2026-08-27
 dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 ---
 
@@ -21,7 +21,39 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## No task selected — nothing dependency-ready (re-confirmed 2026-08-26, master tip `ab9a348`)
+## Selected: `M2-C02` — Auth: login, refresh, guards, permission store
+
+Full spec: [`tasks/M2-C02.md`](tasks/M2-C02.md). Not yet dispatched.
+
+### How this pass found it, 2026-08-27, master tip `e96e333`
+
+`M2-A04` and `M2-C07` were both merged this session (`72a5758`) and then marked `Completed`
+on explicit owner instruction ("looks fine ... move to next task"; see
+[`task-tracker.md`](task-tracker.md) footnote ¹⁰⁴). That genuinely clears rule 1 of the
+five-part test (`Completed` **and** merged, not merely `Ready`/`Needs Review`) for two direct
+dependents at once:
+
+- **`M2-C02`** — Hard prerequisites `M2-C01`, `M2-A04`, `M2-A07` are all now `Completed`.
+- **`M2-C08-01`** — Hard prerequisite `M2-C07` is now `Completed`. (`M2-C08` itself, the
+  parent, stays `Not Started` — parents are never worked directly, so never `Ready`.)
+
+Both cleared the rest of the five-part test (neither is a `Product Decision`; neither is
+blocked on an unanswered `Q-nn`; neither task file carries a ⛔ banner; no sibling branch is
+open on either's files). **Ranked `M2-C02` ahead of `M2-C08-01`** on step 2 of the
+Ready-task-selection rule (most downstream unblocking): `M2-C02` gates `M2-C03`, `M2-D01`
+and transitively the whole `M2-D02*`/`M2-D03` chain, plus it was already named as the real
+blocker behind `M2-C05-02`'s own close-out — a materially larger release than `M2-C08-01`,
+which only gates its two `M2-C08-02`/`-03` siblings. Also on the critical path (KB-082): the
+document-editor/M3-5 Sales Order spine needs the auth slice before it needs the document
+shell. `M2-C08-01` remains the next candidate after `M2-C02` closes, not excluded — just
+ranked second.
+
+**Downstream not yet released:** `M2-C03` still needs `M2-C02` itself `Completed`, not
+`Ready`; same for `M2-D01`. `M2-C08-02`/`-03` need `M2-C08-01` `Completed`, not `Ready`.
+
+---
+
+## Superseded pointer, retained for lineage — no task selected (2026-08-26, master tip `ab9a348`)
 
 **This pointer is stale as of this session and has been corrected.** The prior text below
 ("Selected: `M2-C05-02`") described a pass at master tip `2281740`. Master has since advanced
