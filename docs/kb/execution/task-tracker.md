@@ -166,7 +166,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Blocked**⁷⁹ *(dispatched 2026-08-26, stopped at implement — the endpoint pair does not exist, no real fixture capture, and `M2-C02` is `Blocked`; see footnote ⁷⁹)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Completed**⁷⁵˒⁷⁶ *(owner instructed the merge 2026-08-26; merged `--no-ff`, verified on the merged result)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Completed**⁷⁵˒⁸³ *(merged to `master` 2026-08-26 on owner instruction; independently validated PASS)* | P0 | M2-C05-01 | 1 wk | G2 |
-| M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-C10`. Its table-technology evaluation is **Q-83**, owner-owned)* | P0 | M2-C05-01, M2-C10 | 2 wks | G2 |
+| M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | **Ready**⁴⁶˒⁹⁹ *(re-specified by `M2-C12-04`; all four Hard prerequisites — `M2-C05-01`, `M2-C10`, `M2-C04-02`, `M2-C04-03` — are `Completed` and merged. **`Q-83` answered 2026-08-27** (addendum to `ADR-007`, no new design decision — PrimeNG Table is the default, AG Grid the pre-approved fallback, this task still makes and records the specific call). See footnote ⁹⁹)* | P0 | M2-C05-01, M2-C10, M2-C04-02, M2-C04-03 | 2 wks | G2 |
 | M2-C08 | M2 | `DocumentEditor` shell *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-04`)* | P0 | M2-C07 | 2 wks | G2 |
 | M2-C08-01 | M2 | — layout: header + lines + totals + commands | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C07`)* | P0 | M2-C07 | 4 d | G2 |
 | M2-C08-02 | M2 | — server-authoritative totals wiring | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)* | P0 | M2-C08-01 | 3 d | G2 |
@@ -3891,3 +3891,25 @@ only once the deferred post-Milestone-2 surfacing task lands. `INDEX.md` registe
 `R-07`'s open status is unaffected by this task's own completion — closing *this* task closes
 the decision-recording work, not the underlying ledger drift. Full record:
 [`tasks/M0-11.md` § Close-out](tasks/M0-11.md).
+
+⁹⁹ **`Q-83` answered 2026-08-27 by the repository owner — the `ADR-007-angular-stack.md:98`
+"see below" pointer was a labelling gap, not a missing decision.** The owner confirmed the
+nearby prose (§ Key rationales, "PrimeNG over building headless," `:144-152`) is what "see
+below" always meant — it already says the same thing `§ What this ADR does not decide` says:
+PrimeNG Table is the default for every table including `LineItemGrid`; **AG Grid is the
+pre-approved fallback** if PrimeNG's editable-row model cannot deliver `M2-C07`'s
+keyboard-first line-item entry; and `M2-C07` — not `ADR-007` — makes and records that specific
+call when it runs. **No new design decision was made here.**
+
+Because accepted ADRs are immutable ([`CLAUDE.md`](../../CLAUDE.md)), the fix is a new
+addendum directly beneath that paragraph —
+[`ADR-007` § Key rationales, Addendum (Q-83, 2026-08-27)](../decisions/ADR-007-angular-stack.md#addendum--the-lineitemgrid-see-below-pointer-resolved-q-83-2026-08-27)
+— not an edit to the original `:98` text, which stays exactly as accepted. `open-questions.md`
+(Q-83) updated to point at the addendum.
+
+**This clears `M2-C07`'s last remaining blocker.** All four of its Hard prerequisites
+(`M2-C05-01`, `M2-C10`, `M2-C04-02`, `M2-C04-03`) are independently `Completed` and merged to
+`master`, and `M2-C07.md` carries no ⛔ stale banner and has no sibling branch open. The row
+above is moved from `Blocked` to `Ready`. Branch `migration/Q-83-adr-007-linegrid-addendum`;
+this footnote's own change is documentation-only — no code, no `V.SMART/` or `tests/` files
+touched.
