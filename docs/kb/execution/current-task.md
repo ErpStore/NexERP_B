@@ -21,17 +21,45 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Selected: `M2-C03` — App shell: header, sidebar, breadcrumbs, ⌘K
+## No task selected — nothing genuinely dispatchable, 2026-08-27 select-only pass, master tip `f235aeb`
+
+**Every candidate checked past its tracker `Ready` tag failed a real check.** Full detail:
+[`task-tracker.md`](task-tracker.md) footnotes ¹¹⁰–¹¹¹, [`runner-state.md`](runner-state.md)
+(KB-093).
+
+- **`M2-C08-01`** read `Ready` on the tracker but its own frontmatter `depends_on` (corrected
+  by `Q-102`) names `M2-C03` as Hard, and `M2-C03` is `Needs Review`, not `Completed`.
+  Corrected to `Blocked` on the tracker.
+- **`M2-D01`** genuinely clears rule 1 (all seven Hard deps `Completed` and merged), but its
+  own task file's "transitively required" table — which it explicitly says to check, "because
+  each is a silent blocker" — names **`M2-A05`**, which is `Blocked`/`Not Started`. Verified
+  concretely, not just by tag: `Program.cs:166-169` hardcodes CORS to
+  `http://localhost:4200`; the Angular e2e dev server runs at a different origin,
+  `127.0.0.1:4300`. A real live-backend login/e2e pass — which `M2-D01` requires — is
+  genuinely blocked, and fixing CORS is outside `M2-D01`'s own declared scope.
+- **`M2-A05`** was checked next and mechanically clears the five-part test, but was **not**
+  dispatched: its task file still says "the React app" throughout and carries a whole _React
+  Changes_ section — stale in the sense CLAUDE.md warns about explicitly, never re-specified
+  for Angular the way `M2-C03`/`M2-D01`/`M2-C08-01` were. It also names an unanswered blocking
+  question (**Q-16** — deployment topology / CORS origins) with no entry in
+  `open-questions.md`, and touches `TenantProvider.cs`, shared by two **live** hosts.
+
+**Requires human decision** (see `runner-state.md` for the full list): review `M2-C03`'s
+Close-out and set `Completed` or send back changes; answer or explicitly defer Q-16; and
+someone should re-specify `M2-A05` for Angular before it is dispatched.
+
+---
+
+## Superseded pointer, retained for lineage — `M2-C03` merged, `Needs Review` (2026-08-27, master tip `73e91e8`)
 
 Full spec: [`tasks/M2-C03.md`](tasks/M2-C03.md). **Implemented and merged to `master`
 (`73e91e8`), 2026-08-27 — status `Needs Review`, not `Completed` (owner sign-off pending).**
 Branch `migration/M2-C03-app-shell`. See [`tasks/M2-C03.md`](tasks/M2-C03.md)'s Close-out and
 Merge sections, and [`task-tracker.md`](task-tracker.md) footnotes ¹⁰⁸–¹⁰⁹, for the full
-build, verification, and post-merge re-verification record. Nothing currently names `M2-C03`
-in any task's `depends_on` (confirmed again at merge time), so this merge releases no other
-task to `Ready` by itself. Per [KB-088](workflow.md#who-may-set-completed), the next step is
-the owner's — review the Close-out and either confirm `Completed` or ask for changes — before
-a future session should pick a next task following this file's own standing instruction.
+build, verification, and post-merge re-verification record. **Correction:** the claim
+originally made here — "nothing currently names `M2-C03` in any task's `depends_on`" — was
+wrong; see the pass above. Per [KB-088](workflow.md#who-may-set-completed), the next step is
+the owner's — review the Close-out and either confirm `Completed` or ask for changes.
 
 **Owner override, 2026-08-27: `M2-C03` explicitly chosen over the ranking below.** This pass's
 own five-part test and downstream-unblocking ranking (kept below for the record) put `M2-D01`
