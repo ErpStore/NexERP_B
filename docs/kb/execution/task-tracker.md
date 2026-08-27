@@ -155,7 +155,8 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C12-05 | M2 | — re-spec the M2-D tree + restate the tracker | Documentation | **Completed**⁴⁶ *(merged to `master` `27dfc5d` on owner instruction 2026-08-23)* | P0 | M2-C12-01…04 | 1 d | G2 |
 | M2-C13 | M2 | Defer the confirm-dialog host; bundle back inside budget (R-69) | Frontend | **Completed**⁵⁵˒⁵⁶˒⁵⁷ | P1 | M2-C04-03 | 1 d | G2 |
 | M2-C10 | M2 | Decimal handling — no float money arithmetic | Frontend | **Completed**²⁶˒⁴⁶˒⁴⁷˒⁵²˒⁸⁵˒⁸⁹˒⁹²˒⁹³ *(**Merged and integration-verified 2026-08-26**, owner-confirmed Completed same day — `decimal.js` module, `money` pipe, ESLint/spec-scan enforcement; a real lint gap against `M2-C05-01`'s DataGrid found and fixed, not glossed over. Full suite: `test:ci` 526/526, `build` clean, 0 bundle regression. `DECIMAL_PORT` production wiring remains an open gap for a future task. See footnote ⁹³)* | P0 | M2-C01 | 2 d | G2 |
-| M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | **Needs Review**⁴⁶˒¹⁰⁴˒¹⁰⁵ *(implemented 2026-08-27 on `migration/M2-C02-auth-and-permission-store` — login, single-flight refresh, route guards, permission store, idle timeout all built and verified; two real bugs and one real functional gap found and fixed during implementation, two disclosed deviations recorded. `typecheck`/`lint`/`format:check`/`build` clean, `test:ci` 612/612, `e2e` 1/1, backend build unaffected. Not `Completed` — only the owner may set that (KB-088). See footnote ¹⁰⁵)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
+| M2-C02 | M2 | Auth: login, refresh, guards, permission store | Frontend | **Needs Review**⁴⁶˒¹⁰⁴˒¹⁰⁵˒¹⁰⁶ *(implemented 2026-08-27, merged to `master` `6298732` on owner instruction 2026-08-27 (plus a one-line post-merge
+`format:check` fix, `0e9b26c`) — login, single-flight refresh, route guards, permission store, idle timeout all built and verified; two real bugs and one real functional gap found and fixed during implementation, two disclosed deviations recorded. Post-merge re-verification clean. **Merged is not `Completed`** — the owner said "merged," not "Completed," and only the owner may set that (KB-088); this row stays `Needs Review` until they do. See footnotes ¹⁰⁵–¹⁰⁶)* | P0 | M2-C01, M2-A04, M2-A07 | 1 wk | G2 |
 | M2-C04 | M2 | Design-system primitives *(parent)* | Frontend | **Completed**⁴⁶˒⁵⁴ *(parent — all three children `Completed` and merged)* | P0 | M2-C01 | 2 wks | G2 |
 | M2-C04-01 | M2 | — tokens, theme, light/dark | Frontend | **Completed**⁴⁹˒⁵⁰ *(merged to `master` on owner instruction 2026-08-23 after **R-45** was fixed at `4af2f4f`; the `FAIL` was that one environment defect, and with it gone all 16 criteria are met)* | P0 | M2-C01 | 3 d | G2 |
 | M2-C04-02 | M2 | — form controls + validation display | Frontend | **Completed**⁵¹˒⁵² *(merged to `master` on owner instruction 2026-08-23; all six frontend gates re-run green on the merged result)* | P0 | M2-C04-01 | 4 d | G2 |
@@ -4222,3 +4223,37 @@ answered **No** by the owner on 2026-08-27 before this task's implementation beg
 actually be done" test — `M2-C03` and `M2-D01` still require `M2-C02` at `Completed` **and**
 merged, and stay `Blocked` until the owner reviews this branch and either merges it or sends it
 back.
+
+¹⁰⁶ **`M2-C02` merged to `master` on owner instruction, 2026-08-27 ("Yeah merged"), still
+`Needs Review` — not `Completed`.** The owner's instruction was specifically to merge, not a
+"looks fine, move on" review sign-off of the kind that changed `M2-A04`/`M2-C07` to
+`Completed` at footnote ¹⁰⁴; nothing here infers `Completed` from "merged" alone, per KB-088.
+Merge: `git merge --no-ff migration/M2-C02-auth-and-permission-store` — clean, no conflicts
+(`6298732`). **Post-merge re-verification, all observed, run on the merged `master` tip:**
+`npm run lint` clean, `npm run typecheck` clean, `npm run build` clean (initial bundle
+unchanged at 591.52 kB / 138.08 kB). `npm run format:check` initially flagged a third file —
+`frontend/nexgen-web/README.md` — that had not been flagged on the branch itself: Prettier's
+markdown formatter normalises `*italic*` to `_italic_`, and the merge's simultaneous changes to
+other files hadn't previously surfaced it. Fixed in one line, `0e9b26c`, content unchanged.
+
+**`npm run test:ci`, run four times on the merged result, is where a real (pre-existing, not
+introduced by this merge) flakiness pattern was newly characterised, not just re-confirmed
+once:** 612/612 clean; 611/612 (the already-known `record-picker-dialog.component.spec.ts`
+"refuses disabled rows" failure, footnote ¹⁰⁴); 611/612 again, but this time a **different**
+spec failed — `data-grid.component.spec.ts` "renders header, rows and the pager from one paged
+response" — while `record-picker-dialog` passed; 612/612 clean again. Two distinct,
+pre-existing, unrelated components (`record-picker-dialog` is `M2-C06`'s, `data-grid` is
+`M2-C05-01`'s; neither is touched by `M2-C02`) failed on different runs with nothing else
+changing between them, which is the signature of environment/timing-sensitive flakiness under
+this machine's load during the full suite (`import`/`environment` phases alone run
+100–130 s), not a regression from this merge. `M2-C02`'s own 8 spec files and the 3
+`placeholder.component.spec.ts` cases passed in **every** run without exception.
+`npm run e2e` 1/1 passing post-merge. `dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj` —
+0 errors, 6695 warnings, matching the documented MudBlazor `MUD0002` baseline exactly — backend
+confirmed unaffected.
+
+**Downstream effect, corrected from the "none yet" note above.** The branch is now merged, but
+rule 1 of the five-part "can actually be done" test requires `Completed` **and** merged, not
+merely merged — `M2-C03` and `M2-D01` both still name `M2-C02` as an unmet Hard prerequisite
+and stay `Blocked` until the owner reviews the Close-out ([`tasks/M2-C02.md`](tasks/M2-C02.md))
+and explicitly sets `Completed`.
