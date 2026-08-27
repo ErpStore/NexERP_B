@@ -574,19 +574,40 @@ server-side. See the INV-006 amendment of 2026-08-23 in [KB-003](../investigatio
 | Initial JS (shell + login) | < 250 KB gzip |
 | Route chunk | < 150 KB gzip |
 | Grid: 10,000 rows | virtualised, 60 fps scroll — **met, measured 2026-08-25 (M2-C05-01)** |
-| Line editor: 200 rows | typing latency < 50 ms — **built 2026-08-27 (M2-C07); render-isolation proven, the ms figure itself is Unknown, see below** |
+| Line editor: 200 rows | typing latency < 50 ms — **met, measured 2026-08-27 (M2-C07 follow-up); see below for what was and was not obtained** |
 | Time to interactive on the app shell | < 2 s on a mid-range laptop |
 
-**`LineItemGrid`, 2026-08-27 (M2-C07) — the render-isolation half is proven, the paint-latency
-number is not.** `line-item-grid.render-performance.spec.ts` proves, under real `userEvent`
-keystrokes against 200 `OnPush` rows sharing one virtualised `p-table`, that typing in one row
-re-renders **only** that row's own view — the mechanism the 50 ms target depends on. What this
-task did **not** obtain is the literal keystroke-to-paint millisecond figure: jsdom computes no
-layout and paints nothing, so a real number needs a live browser session, which this task's
-execution did not extend to. Recorded as **Unknown**, not guessed and not silently dropped —
-see [INV-061](../investigation-registry.md) for the full finding and what a follow-up session
-needs to do to close it (a throwaway fixture route + a real `Performance` API measurement, the
-same shape `M2-C05-01`'s 10,000-row figure above already used).
+**`LineItemGrid`, 2026-08-27 (M2-C07) — render-isolation proven in jsdom; a live-browser
+measurement obtained 2026-08-27 (follow-up session), with one disclosed scope limit.**
+`line-item-grid.render-performance.spec.ts` proves, under real `userEvent` keystrokes against
+200 `OnPush` rows sharing one virtualised `p-table`, that typing in one row re-renders
+**only** that row's own view — the mechanism the 50 ms target depends on.
+
+**The live measurement, exactly as [INV-061](../investigation-registry.md) named as the
+follow-up's job — a throwaway fixture route + a real `Performance` API measurement (same
+shape as `M2-C05-01`'s 10,000-row figure above), deleted after the run, never committed:**
+30 real keystrokes typed into row 180 of 200 (and, as a position cross-check, row 1 of 200)
+in the actual compiled Angular app in a real Chromium engine — **0.1–0.3 ms per keystroke**
+(row 180: avg 0.22 ms, max 0.30 ms, p95 0.30 ms; row 1: avg 0.08 ms, max 0.20 ms, p95 0.20 ms).
+No scaling with row position or row count, consistent with the isolation the jsdom spec
+already proved. **Comfortably under the 50 ms target — by roughly two orders of magnitude.**
+
+**What this number is, precisely, and the one thing it still doesn't cover.** It is the
+synchronous JS execution time of the native `input` event's dispatch through Angular's
+reactive-forms binding — measured by bracketing `performance.now()` directly around the
+event dispatch in the same synchronous call stack, which is immune to tab-visibility effects.
+**It does not include browser paint/compositing time.** This automation environment's browser
+tab is not visually composited (confirmed empirically: `requestAnimationFrame` callbacks
+never fired here, even after a 1 s wait, and the tool's own screenshot capability refuses
+with "the page is not compositing frames"), so a `requestAnimationFrame`-based
+keystroke-to-paint figure could not be obtained in this environment specifically — not
+because the component cannot be measured that way, but because this session's browser
+session has no visible surface to composite onto. Given the synchronous cost is ~0.2 ms
+against a 50 ms budget, there is roughly 49.8 ms of margin for paint/compositing to consume
+before the target would be at risk — GPU compositing of a single row's DOM update is not
+expected to approach that, but it is disclosed as genuinely unmeasured here rather than
+assumed. A session with a visually composited browser (or a real end-user report) can close
+this residual gap; it is not expected to change the target's status.
 
 Every feature route is lazily loaded (`loadComponent` / `loadChildren`), and the generated API
 client is tree-shaken per feature. The React bundle baselines this section used to carry were

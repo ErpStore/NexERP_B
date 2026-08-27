@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-26
+last_verified: 2026-08-27
 dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
@@ -166,7 +166,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C05-02 | M2 | — column preferences + persistence | Frontend | **Blocked**⁷⁹ *(dispatched 2026-08-26, stopped at implement — the endpoint pair does not exist, no real fixture capture, and `M2-C02` is `Blocked`; see footnote ⁷⁹)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C05-03 | M2 | — empty / loading / error states + export | Frontend | **Completed**⁷⁵˒⁷⁶ *(owner instructed the merge 2026-08-26; merged `--no-ff`, verified on the merged result)* | P1 | M2-C05-01 | 2 d | G2 |
 | M2-C06 | M2 | `RecordPickerDialog` | Frontend | **Completed**⁷⁵˒⁸³ *(merged to `master` 2026-08-26 on owner instruction; independently validated PASS)* | P0 | M2-C05-01 | 1 wk | G2 |
-| M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | **Needs Review**⁴⁶˒⁹⁹˒¹⁰⁰ *(implemented 2026-08-27 — all 18 planned files, 566/566 frontend tests pass, `typecheck`/`lint`/`format:check`/`build` all clean; one measurement genuinely not obtained — 200-row typing latency needs a live browser session. See footnote ¹⁰⁰)* | P0 | M2-C05-01, M2-C10, M2-C04-02, M2-C04-03 | 2 wks | G2 |
+| M2-C07 | M2 | `LineItemGrid` — keyboard-first editable grid | Frontend | **Needs Review**⁴⁶˒⁹⁹˒¹⁰⁰˒¹⁰¹ *(implemented 2026-08-27 — all 18 planned files, 566/566 frontend tests pass, `typecheck`/`lint`/`format:check`/`build` all clean; the 200-row typing-latency figure, genuinely not obtained at first close-out, was measured 2026-08-27 by a follow-up session — 0.1–0.3 ms/keystroke, well inside the 50 ms target. See footnotes ¹⁰⁰ and ¹⁰¹)* | P0 | M2-C05-01, M2-C10, M2-C04-02, M2-C04-03 | 2 wks | G2 |
 | M2-C08 | M2 | `DocumentEditor` shell *(parent)* | Frontend | Blocked⁴⁶ *(parent — never worked directly; re-specified by `M2-C12-04`)* | P0 | M2-C07 | 2 wks | G2 |
 | M2-C08-01 | M2 | — layout: header + lines + totals + commands | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C07`)* | P0 | M2-C07 | 4 d | G2 |
 | M2-C08-02 | M2 | — server-authoritative totals wiring | Frontend | Blocked⁴⁶ *(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)* | P0 | M2-C08-01 | 3 d | G2 |
@@ -3963,6 +3963,58 @@ export). **Zero** files under `V.SMART/` or `frontend/vsmart-erp/`, confirmed di
 than assumed from the task's own file list.
 
 Left at `Needs Review` per [KB-088 § Who may set
-COMPLETED](workflow.md#who-may-set-completed) — this task also has a real, disclosed gap (the
-live latency measurement) beyond the ordinary owner-sign-off requirement. Full record:
-[`tasks/M2-C07.md` § Close-out](tasks/M2-C07.md).
+COMPLETED](workflow.md#who-may-set-completed) — this task also had a real, disclosed gap (the
+live latency measurement) beyond the ordinary owner-sign-off requirement, closed by footnote
+¹⁰¹ below. Full record: [`tasks/M2-C07.md` § Close-out](tasks/M2-C07.md).
+
+¹⁰¹ **`M2-C07`: the 200-row typing-latency measurement, obtained 2026-08-27 by a follow-up
+session — the single item footnote ¹⁰⁰ named as the immediate next step before this branch
+should be considered fully closed.** No fresh task was cleanly selectable per the
+Ready-task-selection rule at the time (the tracker's only `Ready` row was this one, already
+substantially implemented on this branch — re-selecting it fresh from `master` would have
+duplicated existing work rather than progressed it), so this branch's own disclosed gap was
+advanced instead: a defensible, in-scope choice, not a fresh task pick.
+
+**Method, exactly as footnote ¹⁰⁰ recommended:** a throwaway fixture route (`temp-perf-harness`,
+200 real `LineItemGrid` rows built from the same `TEST_COLUMNS` fixture the specs already
+use) served via `ng serve`, driven with real keystrokes in a live Chromium tab through the
+Claude Browser tooling, deleted — route registration and component both — immediately after
+the measurement. `git status --short` was empty before the fixture was added and empty again
+after it was removed; no trace of it exists in any commit.
+
+**Result: 0.1–0.3 ms per keystroke**, measured two ways for cross-check — row 180 of 200
+(avg 0.22 ms, max 0.30 ms, p95 0.30 ms) and row 1 of 200 (avg 0.08 ms, max 0.20 ms, p95
+0.20 ms), 30 keystrokes each. No scaling with row position, consistent with the render-
+isolation the jsdom spec already proved. **Comfortably inside the 50 ms target — roughly two
+orders of magnitude of margin.**
+
+**A real tooling obstacle hit and worked around, not silently avoided.** The first attempt
+used `requestAnimationFrame`-based double-rAF timing (the standard "wait for next paint"
+technique) and recorded **zero samples even after a 1 s wait** — traced to the automation
+environment's tab not being visually composited (confirmed via `computer` tool's own
+`screenshot` action refusing with *"the page is not compositing frames"*), which starves
+`requestAnimationFrame` entirely regardless of real elapsed time. Switched to bracketing
+`performance.now()` synchronously around the native `input` event's dispatch instead — a
+technique immune to tab-visibility effects — which produced clean, consistent, real
+sub-millisecond samples. **This changes what the number precisely measures, disclosed rather
+than glossed over:** synchronous JS-processing time through Angular's reactive-forms binding,
+not confirmed browser paint/compositing time. Against a 50 ms budget and a ~0.2 ms measured
+cost, roughly 49.8 ms of margin remains for paint/compositing — not expected to change the
+target's status, but genuinely unmeasured in this environment rather than assumed safe.
+
+**Also attempted and abandoned, recorded as a negative result:** a `MutationObserver`-based
+check to independently re-verify render-isolation in a real browser (not just jsdom) found
+zero mutated rows for a real keystroke — this is **not** evidence of isolation; `<input>`'s
+`value` is an IDL property, not a reflected HTML attribute, so setting it via the property
+setter (as this measurement necessarily does, to fire a controlled, single, synthetic `input`
+event per character) never produces a `MutationObserver` record at all, for any row. The
+check was abandoned as uninformative rather than reported as a false positive. Render-
+isolation itself remains proven exactly where it already was: `line-item-grid.render-performance.spec.ts`.
+
+**Updated:** [KB-050 §Performance targets](../frontend-new/react-architecture.md#performance-targets),
+[INV-061](../investigation-registry.md), [`tasks/M2-C07.md`](tasks/M2-C07.md) (acceptance
+criterion moved `[ ]` → `[x]`, Close-out addendum added). **Not updated, and correctly so:**
+`M2-C07`'s overall status stays `Needs Review` — the keyboard jump-to-next-invalid-row
+shortcut and the three under-tested areas footnote ¹⁰⁰ already named remain genuinely open.
+Documentation-only change; no `V.SMART/` file touched; the only frontend files touched
+(the throwaway route and component) were removed before this note was written.
