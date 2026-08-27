@@ -4,7 +4,7 @@ title: Angular frontend stack selection — supersedes ADR-003
 module: decisions
 status: accepted
 confidence: n/a
-last_verified: 2026-08-20
+last_verified: 2026-08-27
 dependencies: [KB-015, KB-050, KB-051, ADR-003]
 ---
 
@@ -150,6 +150,29 @@ every bug in them. PrimeNG's table covers `DataGrid`; if its editable-row model 
 keyboard-first line-item entry `M2-C07` requires, **AG Grid is the fallback and its licence cost is
 cheaper than the maintenance cost** — that evaluation is `M2-C07`'s to make and record, not this
 ADR's to pre-empt.
+
+#### Addendum — the LineItemGrid see-below pointer resolved (Q-83, 2026-08-27)
+
+This addendum clarifies §Decision; it does not replace or change anything above. **Accepted ADRs
+are immutable** ([`CLAUDE.md`](../../../CLAUDE.md)), so this is a pointer fix recorded as an
+addendum, not an edit to the original text.
+
+The Decision table's Tables row (§Decision) reads *"PrimeNG Table; `LineItemGrid` re-evaluated,
+see below"* with no section literally titled or anchored as "below," which
+[Q-83](../open-questions.md) raised as a dangling pointer — possibly a missing resolution, possibly
+just an unlabelled one. **Owner-confirmed 2026-08-27: it is the latter.** The paragraph directly
+above this addendum — *"PrimeNG over building headless"* — **is** the resolution the Tables row
+points at, and [§ What this ADR does not decide](#what-this-adr-does-not-decide) already states
+the same thing in its own words: *"Whether PrimeNG's table suffices for `M2-C07`'s keyboard-first
+line-item entry, or AG Grid is required — `M2-C07` evaluates and records."* No new design decision
+is made here; this addendum exists only so a reader following the Tables row's "see below" lands
+somewhere, instead of a full-file grep turning up nothing.
+
+**For the avoidance of doubt, restated in one place:** `DataGrid` uses PrimeNG Table, decided now,
+by this ADR. `LineItemGrid`'s table technology is **not** decided by this ADR — PrimeNG Table is
+the default to attempt; **AG Grid is the named, pre-approved fallback** if PrimeNG's editable-row
+model cannot deliver keyboard-first line-item entry; and `M2-C07` — not this document — makes that
+call and records it when it runs, per its own task file.
 
 **Testing away from Karma.** The pilot ships Karma + Jasmine; Karma is deprecated. The scaffold
 task picks Jest or Vitest and records why.
