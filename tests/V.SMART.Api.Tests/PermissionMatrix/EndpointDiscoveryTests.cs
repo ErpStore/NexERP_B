@@ -94,13 +94,14 @@ namespace V.SMART.Api.Tests.PermissionMatrix
         // =====================================================================================
 
         /// <summary>
-        /// <c>POST /api/v1/auth/login</c> is the only anonymous endpoint in the API, and the
-        /// allow-list says so. Both directions are asserted: a new <c>[AllowAnonymous]</c> action
-        /// fails until it is listed, and a listed action that is no longer anonymous fails until
-        /// it is removed.
+        /// <c>POST /api/v1/auth/login</c>, <c>/refresh</c> and <c>/logout</c> are the only
+        /// anonymous endpoints in the API (M2-A04 added the latter two), and the allow-list says
+        /// so exactly. Both directions are asserted: a new <c>[AllowAnonymous]</c> action fails
+        /// until it is listed, and a listed action that is no longer anonymous fails until it is
+        /// removed.
         /// </summary>
         [Fact]
-        public void The_anonymous_allow_list_matches_the_assembly_exactly_and_has_one_entry()
+        public void The_anonymous_allow_list_matches_the_assembly_exactly_and_has_the_three_auth_entries()
         {
             var declared = ApiEndpointDiscovery.All
                 .Where(e => e.IsAnonymous)
@@ -114,10 +115,19 @@ namespace V.SMART.Api.Tests.PermissionMatrix
 
             Assert.Equal(listed, declared);
 
-            var only = Assert.Single(ExemptEndpointAllowList.AnonymousActions);
-            Assert.Equal("AuthController.Login", only.Key, StringComparer.Ordinal);
-            Assert.Equal("POST /api/v1/auth/login", only.Value.Route, StringComparer.Ordinal);
-            Assert.False(string.IsNullOrWhiteSpace(only.Value.Justification));
+            Assert.Equal(3, ExemptEndpointAllowList.AnonymousActions.Count);
+            Assert.All(
+                ExemptEndpointAllowList.AnonymousActions,
+                entry =>
+                {
+                    Assert.False(string.IsNullOrWhiteSpace(entry.Value.Route));
+                    Assert.False(string.IsNullOrWhiteSpace(entry.Value.Justification));
+                });
+
+            var expected = new[] { "AuthController.Login", "AuthController.Logout", "AuthController.Refresh" };
+            Assert.Equal(
+                expected.OrderBy(k => k, StringComparer.Ordinal),
+                ExemptEndpointAllowList.AnonymousActions.Keys.OrderBy(k => k, StringComparer.Ordinal));
         }
 
         /// <summary>

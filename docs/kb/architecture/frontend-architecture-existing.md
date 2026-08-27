@@ -16,7 +16,7 @@ database_tables: [UserColumnPreference, UserThemePreference, PrintSetting]
 business_rules: []
 status: complete
 confidence: confirmed
-last_verified: 2026-08-25
+last_verified: 2026-08-27
 dependencies: [KB-010, KB-013]
 ---
 
@@ -183,20 +183,43 @@ column definitions (`QuoteColumns`/`QuoteFields`/`QuoteHiddenColumns`).
 
 | Method | Behaviour |
 |---|---|
-| `ApplyCustomerSelectionAsync` (80 LOC) | cascades customer → currency, terms, consignee, cost centre, tax mode |
-| `OnItemChanged` (75 LOC) | item selection → last unit price, HSN, UOM, assembly existence check |
-| `OnQtyChange` / `UpdateQuantities` | quantity vs already-transacted balance arithmetic |
-| `IsItemAlreadySelected` | duplicate-line prevention |
-| `ValidateRowAsync` / `ValidateLastRowAsync` | line-level validation before add/save |
+| `ApplyCustomerSelectionAsync` (80 LOC, `:2256`) | cascades customer → currency, terms, consignee, cost centre, tax mode |
+| `OnItemChanged` (75 LOC, `:2483`) | item selection → last unit price, HSN, UOM, assembly existence check |
+| `OnQtyChange` (`:2569`) / `UpdateQuantities` (`:2631`) | quantity vs already-transacted balance arithmetic |
+| `IsItemAlreadySelected` (`:2558`) | duplicate-line prevention |
+| `ValidateRowAsync` (`:2654`) / `ValidateLastRowAsync` (`:2686`) | line-level validation before add/save |
+| `AddRow` (`:2706`) | appends a new row, guarded by `ValidateLastRowAsync` |
 | `AskToShortCloseAsync` / `ShortClosePo` | short-close workflow |
 | `CancelItem` (68 LOC) / `CancelPO` (70 LOC) | cancellation with downstream-transaction checks and mandatory reason |
-| `OnItemCancelChanged` (78 LOC) | per-line cancel with quantity revert |
-| `ResetSlno`, `DeleteAndResequenceAsync` orchestration | line renumbering |
-| `UpdateDueDate` | delivery-date derivation |
+| `OnItemCancelChanged` (78 LOC, `:3113`) | per-line cancel with quantity revert |
+| `ResetSlno` (`:2878`), `DeleteAndResequenceAsync` orchestration (called `:3468`) | line renumbering |
+| `UpdateDueDate` (`:2895`) | delivery-date derivation |
 
 **This pattern repeats across all ~65 Upsert pages.** Extracting it is the largest single
 work item in the migration and is the reason document modules are rated High/Very High
 complexity in [`frontend-new/feature-mapping.md`](../frontend-new/feature-mapping.md).
+
+**Absolute line numbers above re-verified 2026-08-27 by `M2-C07`** against the working tree —
+all ten re-checked (the eleventh, `AddRow`, added to this table for the first time) matched
+exactly, no drift since this file's own `last_verified` predecessor. `@code` still starts at
+`:2002`; a line number quoted elsewhere relative to that offset needs `+2002` before trusting
+it against this table.
+
+**The `Slno` question, answered with evidence (M2-C07's own task file required this):**
+`SlNo` is a real, persisted `[Required] int` column on `MfgPoSub`
+(`V.SMART/V.SMART.Shared/Data/SalesAndLabour/SalesPo/MfgPoSub.cs:26`) — not presentation-only
+in the narrow sense. But its **only** observed use anywhere in `BusinessLayer/` is as an
+`.OrderBy(x => x.SlNo)` sort key when redisplaying a document's own lines in their original
+order (confirmed by grep across ~15 services, e.g. `CostingService.cs:64`,
+`MINService.cs:651`, `ToolCribReturnService.cs:476`) — **never** as a foreign key, a join
+target, or a reference from another document type. Conclusion: sequential renumbering after
+add/delete/reorder (`ResetSlno`'s own job today) is safe for `LineItemGrid` to own as a
+mechanical row-lifecycle concern, the same way `DeleteAndResequenceAsync`'s persistence step
+already is — it decides nothing about money, stock or document eligibility. `LineItemGrid`
+itself is generic over `TLine` and does not assume a `SlNo`-shaped field exists, so the
+renumbering call is the **caller's** responsibility, triggered from the grid's
+`row-added`/`row-duplicated`/`row-removed`/`rows-reordered` lifecycle events — recorded here so
+a future session does not re-derive it.
 
 ## Shared components (22, `Components/`)
 
@@ -221,6 +244,52 @@ complexity in [`frontend-new/feature-mapping.md`](../frontend-new/feature-mappin
 The `DetailsModal` + `MasterModal` + `*Selection` trio is how the whole ERP does
 "pull lines from an upstream document" — reproducing this interaction well is the single
 biggest UX lever in the new frontend.
+
+> **Correction, 2026-08-26 (M2-C06, INV-054):** the "trio" framing is **inaccurate for
+> `MasterModal`**. It is 45 lines of modal chrome with a content slot — parameters
+> `IsVisible`, `Title`, `MaxWidth`, `ChildContent`, `OnClose` and nothing else
+> (`MasterModal.razor:32-39`) — with no table, no search and no selection. It maps to
+> M2-C04-03's generic `app-modal`, **not** to `RecordPickerDialog`. It is referenced by
+> **133** files, so mis-scoping it would be expensive. The `*Selection` pages are routable
+> pages that return via `ReturnUrl` (`CustomerSelection.razor:1-2`), not dialogs. Only
+> `DetailsModal` is `RecordPickerDialog`'s territory.
+
+### `DetailsModal.razor` — the 33-call-site survey (Confirmed, 2026-08-26, M2-C06)
+
+Full evidence and the classification table: [INV-054](../investigation-registry.md).
+Headlines, because they change what the replacement must do:
+
+- **33 files, but 41 instances** — five files render it more than once.
+- **All 41 are multi-select pulls from an upstream document. None is a single-record
+  master pick.** Master picking is done by the routable `CustomerSelection` /
+  `VendorSelection` pages. `RecordPickerDialog`'s single-select mode is therefore **new
+  capability, not migrated behaviour**.
+- **`HiddenColumns` is passed by all 41, never omitted** — a per-*screen* static list of
+  technical id columns (`Ref*SubId`, item and cost-centre ids) which the selection
+  handlers then read out of the returned rows. **Hidden does not mean absent.**
+- **`HeaderContent` is passed by 4 of 33**: three a Stock/All scope filter
+  (`SubContractDCOutUpsert.razor:53-61`, handler `:2360-2372`), one a colour legend
+  (`JobOrderUpsert_pages.razor:40-48`).
+- **The conditional cell highlighting has exactly one consumer**, and the flags behind it
+  are computed in Razor `@code` (`JobOrderUpsert_pages.razor:2494-2522`) — an unextracted
+  BOM-difference calculation, `<W>-03` work.
+- **Selection order is load-bearing**: 34 files append the returned rows in iteration
+  order and 48 renumber afterwards (`MfgPOUpsert.razor:4014` → `:4072` → `:4077`), so the
+  ticking sequence *is* the line order of the document being built.
+- **Pre-selection is dead code**: `["Selected"]` is written `false` in 75 places and `true`
+  in none.
+- **Candidate sets already come from ~75 dedicated server-side service methods**, with
+  eligibility already server-side — but **none of them pages, sorts or searches, and none
+  is exposed by `V.SMART.Api`**. That is per-wave backend work, ~75 methods plus a
+  controller each, and it belongs in the M3-5 estimate.
+
+**Defect, recorded and deliberately not fixed** (`DetailsModal.razor:144-169`, with the
+guard at `:156-168`): `ConfirmSelection` tests the result of `.ToList()` for `null` — which
+cannot be `null` — and throws `InvalidOperationException("Please select  Dc from the
+list.")`, while the `catch` immediately rethrows. The genuinely reachable case, an **empty**
+selection, is not handled at all, and the Update button is always enabled (`:90`). The
+Blazor component keeps serving all 33 call sites unchanged until each is migrated in its
+module wave; the replacement disables its confirm button instead.
 
 ## State management (as-is)
 
@@ -266,7 +335,7 @@ For the new frontend: the attribute layer is mechanically translatable to Zod; t
 
 All three are server-side already and become plain HTTP endpoints.
 
-## The Angular 19 pilot (`frontend/vsmart-erp/`)
+## The Angular 19 pilot (`frontend/vsmart-erp/`) — RETIRED 2026-08-27
 
 A **learning spike, not a product**. Angular 19.2 + PrimeNG 19.1 + PrimeFlex, standalone
 components, signals.
@@ -278,23 +347,36 @@ Its source comments are explicitly tutorial-style ("LEARNING — Signals for aut
 "LEARNING — Observables vs async/await"), confirming it was built to teach the team SPA
 concepts by mirroring `CurrencyController`.
 
-**Value to retain from it:**
-- It proves the `AuthController` → `CurrencyController` → SPA path works end to end.
-- Its `LoginResponse` shape (`token, username, userId, tenantId, role`) is the de-facto
-  contract already implemented server-side.
+**Final disposition (Q-38, answered 2026-08-27 by the repository owner — option (a)):** the
+directory is **removed** (`M2-C11`, tag `pre-m2-c11-archive` marks the last commit it existed
+at, per the archive-method fallback the original spec named when no owner was available — the
+owner did not need to weigh in on this mechanical detail specifically). Every pattern and
+anti-pattern worth keeping was **already extracted as text before removal, twice over**: once
+by `M2-C00` into [KB-050 § The Angular pilot — what to keep, what not to copy](../frontend-new/react-architecture.md#the-angular-pilot--what-to-keep-what-not-to-copy)
+(adopt/reject tables with full `file:line` evidence), and once by `M2-C11` itself into
+[tasks/M2-C11.md § Retained evidence](../execution/tasks/M2-C11.md#retained-evidence--true-under-either-reading).
+Nothing here needs to change now that the code is gone — both records already describe files
+that no longer exist on disk, by design, and remain the authoritative record of what the pilot
+proved. `frontend/nexgen-web/` (Angular 22, built by `M2-C00`/`M2-C01`, extended by every
+`M2-C` task since) is the one and only frontend from here forward.
 
-**Value to retain — reversed on 2026-08-20.** This section previously read *"none of the code.
-The user's decision is React; the Angular project should be archived, not converted."*
-[ADR-007](../decisions/ADR-007-angular-stack.md) **reversed that**: Angular is the decision, and
-the pilot's auth service, route guard and HTTP interceptor become the starting point rather than
-landfill. `M2-C11` changed from *archive* to *adopt*.
+**History, retained for context on how this got confusing.** This section briefly read (from
+2026-08-20 to 2026-08-27) that ADR-007 had "reversed" the archive decision into an *adopt*
+decision — conflating two different meanings of "adopt" that were only disambiguated later, as
+**Q-38**: (a) port the pilot's *patterns* into a fresh Angular 22 workspace, or (b) the pilot
+*directory itself* becomes the application. `M2-C01` had already, in practice, built fresh at
+`frontend/nexgen-web/` before Q-38 was answered — so by the time the question was formally
+decided, the facts on the ground already matched reading (a), and the pilot directory's own
+code was never actually adopted verbatim. What *was* genuinely adopted is the pattern
+inventory above (standalone bootstrap, functional guards/interceptors, signals with
+`asReadonly()`, `core`/`shared`/`features`/`layout` layering) — real influence on
+`nexgen-web`'s structure, just never a file copy.
 
-Three qualifications, all still true and none softened by the reversal:
-
-- **The pilot is Angular 19.2; the target is 22.x** — three majors apart. ADR-007 recommends
-  `ng new` on 22 with the ~500 lines of auth wiring ported across, rather than three chained
-  `ng update` migrations to preserve scaffolding the CLI regenerates for free.
-- **Its `localStorage` JWT is XSS-exposed and must not be copied.** Token storage is `M2-C02`'s
-  decision, against ADR-004.
-- **Its `dist/` and `.angular/cache/` are committed build output** and should still be removed
-  (risk R-14). Adopting the pilot's *code* does not mean adopting its *repository hygiene*.
+Three qualifications that stayed true throughout, whichever reading eventually won:
+- **The pilot's `localStorage` JWT storage was never copied** — XSS-exposed, and ADR-004
+  makes token storage `M2-C02`'s decision, still pending.
+- **Its unversioned `api/auth/login` route was never copied** — the current route is
+  `/api/v1/auth/login` (`M2-B01`), and the pilot predates that versioning entirely.
+- **Its `dist/`/`.angular/cache/` were never committed build output in the first place** — R-14
+  was retracted on inspection (`INV-029`, 2026-08-12): the register's original claim that they
+  were tracked was itself wrong.

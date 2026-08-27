@@ -4,10 +4,13 @@ Angular + PrimeNG frontend for V.SMART, created by task **M2-C01** under
 [ADR-007](../../docs/kb/decisions/ADR-007-angular-stack.md). It replaces the React scaffold that
 previously occupied this directory; ADR-007 discarded that stack on 2026-08-20.
 
-Today it renders **one placeholder route**. The app shell is `M2-C03`, authentication and
-permissions are `M2-C02`, design tokens are `M2-C04-01`, and the generated OpenAPI client is
-`M2-B10`. Nothing here computes anything: the server stays authoritative for validation,
-calculations, permissions and document numbering.
+Today it renders **one real destination, `/dashboard`**, behind login, a permission check and
+the real app shell. Authentication and permissions are `M2-C02`; the shell — header, sidebar,
+breadcrumbs, ⌘K palette — is `M2-C03` (both implemented 2026-08-27, `Needs Review` — see
+[Authentication and permissions](#authentication-and-permissions) and
+[Navigation and shell](#navigation-and-shell)); design tokens are `M2-C04-01`; the generated
+OpenAPI client is `M2-B10`. Nothing here computes anything: the server stays authoritative for
+validation, calculations, permissions and document numbering.
 
 ## Toolchain actually observed at scaffold time (2026-08-21, Windows)
 
@@ -52,9 +55,10 @@ ADR-007 left the choice open — _"the scaffold task picks Jest or Vitest and re
   familiarity carries over.
 
 [Angular Testing Library](https://testing-library.com/docs/angular-testing-library/intro) is
-installed alongside it and used in `src/app/features/placeholder/placeholder.component.spec.ts`;
-`src/app/app.component.spec.ts` uses `TestBed` directly because it asserts on the composed
-provider set rather than on rendered output.
+installed alongside it and used throughout — e.g.
+`src/app/features/dashboard/dashboard.component.spec.ts`; `src/app/app.component.spec.ts` uses
+`TestBed` directly because it asserts on the composed provider set rather than on rendered
+output.
 
 ## API base URL — configuration, not source
 
@@ -67,13 +71,141 @@ The mechanism here:
 
 1. `src/environments/environment.ts` / `environment.prod.ts` carry only `production` and the
    **path** of the runtime configuration document. No host, no scheme, no port.
-2. `provideAppInitializer(loadAppConfig)` fetches `config/app-config.json` **before the app
-   renders** (`src/app/core/config/app-config.ts`).
-3. If that document cannot be fetched, or its `apiBaseUrl` is missing or blank, the initializer
-   **throws and bootstrap fails loudly**. It never falls back to a host.
+2. `provideAppInitializer(bootstrapApp)` (`src/app/core/api/app-bootstrap.ts`, **M2-C02**) fetches
+   `config/app-config.json` **before the app renders** (`src/app/core/config/app-config.ts`), then
+   wires `ApiConfiguration.rootUrl` — what every generated client call actually targets — to it,
+   then runs the silent-auth bootstrap (see [Authentication and
+   permissions](#authentication-and-permissions) below). All three steps are sequenced with real
+   `await`s in one function, not three separate initializers: Angular runs every
+   `provideAppInitializer` factory **concurrently** (`Promise.all`), so two separate initializers
+   here would race and a login/refresh call could fire before `rootUrl` was set.
+3. If the config document cannot be fetched, or its `apiBaseUrl` is missing or blank, the
+   initializer **throws and bootstrap fails loudly**. It never falls back to a host.
 4. `public/config/app-config.json` ships `"apiBaseUrl": "/api"` — a _same-origin relative path_,
    not a host. Deployments that serve the API from another origin overwrite this one file; nothing
    is rebuilt. `public/config/app-config.example.json` documents the shape.
+
+## Authentication and permissions
+
+Built by **M2-C02** (`src/app/core/auth/`, `src/app/core/http/`, `src/app/features/auth/`).
+
+**The client permission store is for RENDERING ONLY — it is not a security boundary.** The
+server re-checks the caller's `UserRight` rows on every request
+([ADR-004](../../docs/kb/decisions/ADR-004-server-side-authorization.md) §3); hiding a button
+here is a UX affordance, never enforcement. `PermissionService`'s own file header,
+`HasRightDirective`'s TSDoc and `forScreen()`'s TSDoc all repeat this so it cannot be missed by
+reading only one of them.
+
+- **Token custody: both the access token and the refresh token live in memory only**
+  (`TokenStore`), never `localStorage`, never `sessionStorage`, never a public signal. This
+  deviates from this task's own recommended default (access token in memory, refresh token in
+  an httpOnly cookie) because the real `POST /api/v1/auth/refresh` returns the refresh token as
+  a plain response-body string, not a `Set-Cookie` header — building the cross-origin cookie
+  transport is `M2-A05`'s scope. **Consequence: a hard page reload always ends the session** —
+  `bootstrap()` finds no refresh token on a fresh load and settles straight to `anonymous`. A
+  full login → refresh → logout cycle is asserted (by spying on `Storage.prototype.setItem`) to
+  write nothing to either Web Storage.
+- **Deny-by-default, matching `RightsHelper.cs`.** A screen the caller holds no `UserRight` row
+  for has no key in `PermissionService`'s rights map at all — `forScreen(name)` returns every
+  field `false` for a missing key, never `undefined` treated as "allow".
+- **Three permission-reading surfaces, one service:** the `requireScreen(screen, right)`
+  `CanActivateFn` factory only gates _authentication_ — an authenticated caller always
+  activates the route regardless of the specific right, because `CanActivateFn` can only
+  return `true`/`false`/`UrlTree`, with no way to "activate but render something else."
+  Rendering the denial is the **routed component's own job**: read
+  `PermissionService.forScreen(name)` and branch to `app-permission-denied-state`, exactly as
+  `PlaceholderComponent` does for its own `requireScreen('Dashboard', 'view')` route. The
+  `*appHasRight` structural directive and `forScreen()` itself are the same pattern at
+  control-level and imperative-signal granularity respectively.
+- **Single-flight refresh.** `authInterceptor` attaches `Authorization: Bearer <token>` to every
+  non-`/api/v1/auth/*` request; a 401 triggers one shared in-flight refresh for every concurrent
+  waiter, each original request is retried exactly once, and a failed refresh performs a hard
+  logout with no second attempt.
+- **Idle timeout replaces `SessionTimeoutService`, not ports it.** That Blazor service is
+  `AddSingleton` with one shared `_lastActivity` field — every concurrent user shares one idle
+  clock (R-17). `IdleTimeoutService` is `providedIn: 'root'` with every field an instance field,
+  per browser tab, regression-tested by constructing two instances directly in one test.
+- **No `/register` route, page, form or link.** `Q-09` (is self-registration still wanted) was
+  answered **No** by the repository owner on 2026-08-27 — a self-registered user would land
+  deny-by-default with zero `UserRight` rows and an empty application.
+- **Known gaps, disclosed rather than fixed here:** no automated `axe` accessibility scan runs
+  over `/login` or the idle-warning dialog (keyboard operability and focus behaviour are
+  covered by unit tests, not an automated accessibility-tree scan). `npm run e2e` now also
+  covers a full (network-mocked) login → shell → logout pass, added by `M2-C03` — see
+  [Navigation and shell](#navigation-and-shell) — but it is still mocked at the network layer,
+  not against a live backend + database, since none is reachable from a plain dev checkout.
+
+## Navigation and shell
+
+Built by **M2-C03** (`src/app/layout/`, `src/app/core/navigation/`,
+`src/app/shared/components/{sidebar,nav-group,nav-item,header,user-menu,
+financial-year-selector,breadcrumbs,page-header,tabs,command-palette}/`,
+`src/app/features/dashboard/`).
+
+- **The sidebar is filtered by SCREEN RIGHTS (`view && !hidden`), never by role.**
+  `RightsHelper.cs`'s deny-by-default is reproduced exactly: an item whose `screenName` has
+  no row in the rights map, or `view: false`, or `hidden: true`, is filtered out.
+  `NavMenu.razor:36,148`'s `Roles="Administrator,ERPAdmin,User"` gate (R-31, KB-060) is
+  **not** reproduced — role is never read anywhere in the navigation code, enforced by a
+  repo-wide static scan (`sidebar.roles.spec.ts`).
+- **`core/navigation/navigation.config.ts` is the one nav data source** — the sidebar and
+  the ⌘K command palette both read it through `NavFilterService`, never duplicate it. Built
+  from the _expanded_ `<MudNavMenu>` tree in `NavMenu.razor`, not the mini-rail's `NavGroups`
+  dictionary, which genuinely disagrees with it on two points — see the file's own header
+  comment and INV-033 (`docs/kb/investigation-registry.md`) for the full finding, including
+  two likely copy-paste `ScreenName` defects in the Blazor source reproduced verbatim, not
+  silently corrected.
+- **`shared/components/` still never imports the authentication module** — the same rule
+  `M2-C02` established. `NavFilterService` (`core/navigation/`) is the one seam that reads
+  `PermissionService`; `SidebarComponent` and the command palette read `NavFilterService`
+  instead. Caught by the same repo-wide scan test that already polices this for
+  `permission-denied-state.component.ts`.
+- **The command palette (⌘K / Ctrl+K) searches only the permission-filtered tree** — a
+  screen the caller lacks rights to is unreachable through it, even by exact name, or the
+  palette would be a directory of the tenant's configuration a caller cannot otherwise see.
+  Fuzzy matching is a small, dependency-free subsequence matcher
+  (`core/navigation/fuzzy-match.ts`), not a library.
+- **Only `/dashboard` is a real, registered destination route today.** `navigation.config.ts`
+  is nav _data_ for all ~145 items INV-033 mapped; `app.routes.ts` does not yet declare
+  routes for the other ~144 — those are `M2-D01` onward's job, one screen at a time. Clicking
+  an unbuilt item today falls through to the wildcard route back to `/`, which is the honest
+  state of "the frame exists, the screens do not yet."
+- **Responsive by real breakpoint** (`core/theme/breakpoint.service.ts`, KB-051): `≥1440`
+  full 240 px sidebar (user-toggled between that and the 56 px rail, persisted);
+  `1024–1439` forces the rail; `768–1023` becomes an overlay drawer (`p-drawer`); `<768`
+  still renders the full shell (KB-051's "read-and-approve only" is an application-wide
+  policy for that band, not a shell-rendering difference). The `sm`-band drawer's own
+  rendering was not exercised in a real narrow-viewport browser session — disclosed, not
+  hidden; see `docs/kb/execution/tasks/M2-C03.md`'s Close-out.
+- **`unsavedChangesGuard` / `useBeforeUnloadGuard`** (`core/navigation/unsaved-changes.guard.ts`)
+  replace `UnsavedChangesModal.razor`, built and unit-tested but with no real consumer yet —
+  `M2-C08` (the document editor) is the first candidate.
+- **Known gaps, disclosed rather than fixed here:** no automated `axe` scan over the shell;
+  the header's "tenant name" is `Tenant ${tenantId}`, not a real display name — `/me`
+  deliberately carries none (`MeController.cs`'s own doc comment, R-01).
+
+## Bundle baseline (`npm run build`, 2026-08-27, after M2-C03)
+
+| Chunk                                               | Raw           | Estimated transfer (gzip) |
+| --------------------------------------------------- | ------------- | ------------------------- |
+| `main-*.js`                                         | 421.87 kB     | 86.75 kB                  |
+| `chunk-*.js` (Angular + PrimeNG runtime)            | 184.61 kB     | 54.14 kB                  |
+| `styles-*.css` (tokens + base layer + `primeicons`) | 19.55 kB      | 4.02 kB                   |
+| **Initial total**                                   | **626.04 kB** | **144.92 kB**             |
+| Lazy `shell-component` chunk                        | 213.10 kB     | 40.68 kB                  |
+| Lazy `dashboard-component` chunk                    | 9.12 kB       | 2.46 kB                   |
+
+Against [KB-050](../../docs/kb/frontend-new/react-architecture.md)'s **< 250 kB gzip** target:
+**144.92 kB, 58 % of budget, comfortably inside it.** Against `angular.json`'s own separate
+**raw**-byte budget (warns at 600 kB, errors at 800 kB): a warning at +26.04 kB (+4.3 %) over
+the warn threshold, well short of the error threshold — the build still succeeds. Not
+investigated further given this task's time budget; a reasonable target for a dedicated
+bundle-analysis follow-up, not raised here. `primeicons` (the shell/sidebar/header icon set,
+this task's own addition, wired in `styles.scss`) is the whole of the CSS growth; the JS
+growth is `shared/components/overlay/` (`Drawer`, `Popover`) and `shared/components/form/`
+(`Select`) now being reachable from more of the initial dependency graph than M2-C04-01's
+baseline exercised — nothing new was added to `app.component.ts` or `app.config.ts` for this
+task.
 
 ## Bundle baseline (`npm run build`, 2026-08-23, after M2-C04-01)
 
@@ -262,6 +394,42 @@ the build now prints one budget warning while still exiting 0. Importing the two
 their files rather than from the `shared/components` barrel is what keeps it at 710 kB rather
 than 1.31 MB — the barrel drags every form control and `decimal.js` into the initial chunk.
 Deferring the confirm-dialog host is the obvious next move and is recorded in KB-060.
+
+## Money and quantities
+
+**The server owns every calculated result. The client never does.** Document totals, tax,
+discount, freight, TCS and round-off come from `CalculationService.UpdateTotalsAsync`
+(BR-CALC-001); stock allocation comes from `StockManagerService` (BR-STK-001). A screen may show
+a **provisional** local preview for responsiveness — it must be visually marked as provisional,
+and it is **overwritten by the server's result before save**. There is no line-total, tax or
+allocation function in this codebase, and adding one is a defect, not a feature.
+
+Every money, quantity, rate, percentage and tax value goes through
+[`src/app/shared/utils/decimal/`](src/app/shared/utils/decimal/README.md) (M2-C10) and is
+displayed with the `money` pipe in `src/app/shared/pipes/`. JavaScript's `number` is IEEE-754
+binary floating point (`0.1 + 0.2 !== 0.3`), the server-side model is C# `decimal`, and a
+one-paisa disagreement is an invoice that will not reconcile.
+
+Consequently, **outside that one folder**:
+
+- `decimal.js` may not be imported — use the module's `index.ts`.
+- `parseFloat`, `Number.parseFloat` and unary `+` coercion are banned; use `parseUserInput()`.
+- `.toFixed()` is banned; use `format()` or the `money` pipe.
+- `Math.round`, `Math.floor` and `Math.ceil` are banned; use `round()`.
+- Angular's `DecimalPipe` and `CurrencyPipe` must not be used on a money value — both coerce to
+  `number`.
+- An **absent** amount renders as an em dash, never `0.00`.
+
+`eslint.config.js` enforces all of it, and
+`src/app/shared/utils/decimal/no-float-money.spec.ts` scans `src/**` for the same patterns so an
+inline `eslint-disable` cannot slip one through. The one exemption,
+`src/app/core/theme/contrast.spec.ts`, computes WCAG contrast ratios and carries no ERP value; it
+is listed with that reason in both places.
+
+**The wire, updated 2026-08-26 (Q-85, `M2-B13`):** a money-typed property now crosses as a JSON
+**string**, not a number — a backend `JsonConverter`, opt-in per property. `fromApi()` already
+accepted a string alongside a number (it was written anticipating exactly this change), so no
+update to this folder was needed to consume it.
 
 ## Structure
 

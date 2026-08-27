@@ -32,6 +32,42 @@
     </script>
   </head>
   <body>
-    <app-root></app-root>
+    <!--
+      M2-C02 — the "status === 'unknown'" skeleton, outside Angular entirely. The bootstrap
+      auth check (AuthService.bootstrap(), run from provideAppInitializer in app.config.ts)
+      blocks Angular's root component from rendering at all until status settles to
+      'anonymous' or 'authenticated' — so without this, a hard refresh shows a blank white
+      body for that window instead of a themed loading state. Angular replaces this content
+      wholesale the moment app-root bootstraps; nothing here is Angular-aware or needs to be
+      removed by hand. Uses the same CSS custom properties the token layer defines
+      (KB-051/M2-C04-01) so it matches the pre-painted theme above, never a hardcoded colour.
+    -->
+    <app-root>
+      <div class="app-boot-skeleton" role="status" aria-live="polite" aria-label="Loading">
+        <span class="app-boot-skeleton__spinner"></span>
+      </div>
+    </app-root>
+    <style>
+      .app-boot-skeleton {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: var(--bg-surface, canvas);
+      }
+      .app-boot-skeleton__spinner {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 50%;
+        border: 3px solid var(--border, graytext);
+        border-top-color: var(--accent, highlight);
+        animation: app-boot-skeleton-spin 0.8s linear infinite;
+      }
+      @keyframes app-boot-skeleton-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
   </body>
 </html>

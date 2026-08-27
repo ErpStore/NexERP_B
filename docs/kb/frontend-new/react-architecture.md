@@ -18,7 +18,7 @@ database_tables: []
 business_rules: [BR-CALC-001, BR-STK-001, BR-SO-001, BR-SO-003, BR-AUTH-002]
 status: proposal
 confidence: n/a
-last_verified: 2026-08-26
+last_verified: 2026-08-27
 dependencies: [KB-013, KB-015, KB-040, KB-041, KB-051, KB-105, ADR-002, ADR-004, ADR-007]
 ---
 
@@ -188,8 +188,9 @@ Rules, each of which the pilot either already honours or is the counter-example 
 >   bundles it serves stay in `src/i18n/`.
 > - **`app/core/errors/`** — `global-error-handler.ts`, the `ErrorHandler` override this document's
 >   *Error handling* table already calls for at the "Global" layer, which had no folder named.
-> - **`app/features/placeholder/`** — the scaffold's single lazily-loaded page. It is not an ERP
->   module and `M2-C03` removes it when the real shell lands.
+> - **`app/features/placeholder/`** — the scaffold's single lazily-loaded page, removed by
+>   `M2-C03` (2026-08-27) as planned, replaced by `app/features/dashboard/` behind the real
+>   shell (`app/layout/shell/`). No longer present.
 > - **`e2e/`** at the workspace root (outside `src/`) — the Playwright specs, which cannot live
 >   under a `tsconfig.app.json` include.
 >
@@ -211,48 +212,97 @@ Rules, each of which the pilot either already honours or is the counter-example 
 > `core/auth/` (`M2-C02`), `core/http/` (`M2-C02`), `layout/*` (`M2-C03`) and every
 > other `shared/components/*` primitive (`M2-C04-02`, `M2-C04-03`, `M2-C05-01`) are empty
 > directories carrying a `.gitkeep`.
+>
+> **`shared/utils/decimal/` and `shared/pipes/money.pipe.ts`, realised by `M2-C10` (2026-08-23).**
+> `shared/utils/` and `shared/pipes/` are already named in the block above; the `decimal/`
+> subfolder is what fills the first of them. It is the **single** money/quantity representation
+> for the SPA — `decimal.ts` (the only file in the app that imports `decimal.js`, configured once
+> with `ROUND_HALF_UP`, the mode the server uses), `money.ts` (branded `Money`/`Qty`
+> constructors, the `fromApi`/`toApi` wire boundary, arithmetic, comparison, explicit rounding),
+> `format.ts`, `parse.ts`, `precision.ts` (the decimal-place policy, traceable to
+> `Companydetails.DecimalPlaces` — `Companydetails.cs:208` — so no component hardcodes `2`),
+> `index.ts` (the only import path anything outside may use) and its own `README.md`.
+> `shared/pipes/money.pipe.ts` is the display pipe; Angular's `DecimalPipe` and `CurrencyPipe`
+> must **not** be used on money, because both coerce to `number`.
+>
+> **The prohibition is mechanised, not advisory.** `eslint.config.js` bans `decimal.js` imports,
+> `parseFloat`, unary `+`, `.toFixed()` and `Math.round/floor/ceil` outside that folder, and
+> `shared/utils/decimal/no-float-money.spec.ts` re-scans `src/**` for the same patterns (plus
+> `DecimalPipe`/`CurrencyPipe` and arithmetic on money-named identifiers), catching what an
+> inline `eslint-disable` would let through.
+>
+> **The server owns every calculated result — the client only previews it.** Document totals,
+> tax, discount, freight, TCS and round-off come from `CalculationService.UpdateTotalsAsync`
+> (BR-CALC-001) and stock allocation from `StockManagerService` (BR-STK-001). A screen may show a
+> local preview for responsiveness, but it is **marked as provisional and overwritten by the
+> server's result before save**. The decimal module exists so that preview is *exact*, never so
+> the client can own the number. See § *What is deliberately not rebuilt in the SPA*, and
+> INV-032 / R-70 for how `decimal` crosses the wire.
 
 ## Authentication flow
 
 ```
-/login  --POST /api/v1/auth/login { tenant, username, password }
-          -> { accessToken, refreshToken, user, tenant, rights[] }
-          -> rights[] into the permission service (a signal)
-        --> redirect to the returnUrl or /dashboard
+/login  --POST /api/v1/auth/login { username, password }              (no tenant field — see below)
+          -> { token, refreshToken, tokenExpiresAtUtc, username, userId, tenantId, role }
+          -> GET /api/v1/me -> { userId, userName, tenantId, role, rights }
+          -> rights into the permission service (a signal)
+        --> redirect to the returnUrl or /
 
 Every request        -> functional HttpInterceptorFn attaches Authorization: Bearer <token>
                         (plus tenant / correlation headers)
-Every guarded route  -> functional CanActivateFn; a denial returns a UrlTree to /login
+authGuard             -> no session -> UrlTree to /login?returnUrl=…
+requireScreen(s, r)   -> gates authentication ONLY; an authenticated caller always activates
+                        the route regardless of the specific right — rendering the denial is
+                        the routed component's own job (forScreen()/*appHasRight), because a
+                        CanActivateFn can only return true/false/UrlTree, with no way to
+                        "activate but render something else" (see Permission-based rendering)
 401 on any request   -> single-flight refresh -> retry once -> else hard logout
 Idle timeout         -> warning dialog -> logout (replaces the broken singleton
                         SessionTimeoutService)
 ```
+
+**Login has no `tenant` field — confirmed against the real, shipped `AuthController`
+(`M2-C02`, 2026-08-27), not this document's earlier guess.** Tenant resolution stays
+Host-header-based (`ITenantProvider`) until `M2-A05` adds a client-side selector; this
+document's Flow diagram previously showed a `tenant` field it does not accept.
 
 The Angular shapes are the pilot's, and as shapes they are right: a `CanActivateFn` returning
 `true` or a `UrlTree` (`frontend/vsmart-erp/src/app/core/auth/auth.guard.ts:11-20`), and an
 `HttpInterceptorFn` cloning the request with a `Bearer` header
 (`frontend/vsmart-erp/src/app/core/auth/auth.interceptor.ts:12-24`), registered through
 `provideHttpClient(withInterceptors([...]))` (`frontend/vsmart-erp/src/app/app.config.ts:14`).
+**One shape was not copied as-is:** the pilot's guard always returns `true`/`UrlTree`, but this
+document originally implied every guarded route works that way. `M2-C02` found that a bare
+`CanActivateFn` cannot "activate but render something else," so `requireScreen` only ever
+gates authentication and the missing-*right* rendering moved to the routed component — see
+*Permission-based rendering* below, which is unchanged.
 
-### Token storage is an open decision owned by `M2-C02`
+### Token storage — closed by `M2-C02`, 2026-08-27
 
-**This document does not decide where the token lives, and no later task may treat any storage
-mechanism as settled by reading this section.** The decision belongs to **`M2-C02`**, taken against
-[ADR-004](../decisions/ADR-004-server-side-authorization.md) and recorded there — ADR-007 assigns it
-explicitly (`ADR-007-angular-stack.md:178-180`: *"`M2-C02` decides the token storage model … and
-must not copy the pilot's approach by default"*).
+**Decision: both the access token and the refresh token are held in-memory only**
+(`TokenStore`, `frontend/nexgen-web/src/app/core/auth/token-store.ts`) — never
+`localStorage`, never `sessionStorage`, never a public signal.
 
-The binding constraints on that decision:
+This is **not** this section's own recommended default (access token in memory, refresh token
+in an httpOnly cookie the server sets). The real, OpenAPI-verified `POST /api/v1/auth/refresh`
+returns the refresh token as a **plain response-body string**, not via `Set-Cookie` — there is
+no server-set cookie to receive. Building the cross-origin cookie transport such a response
+would need is [`M2-A05`](../execution/tasks/M2-A05.md)'s scope (tenant resolution + CORS), not
+`M2-C02`'s; inventing a client-side workaround to turn a body-returned secret into a cookie
+would be worse than the model taken.
 
-- **The pilot's `localStorage` JWT is explicitly not endorsed and must not be carried forward.**
-  `frontend/vsmart-erp/src/app/core/auth/auth.service.ts:29-35,60-61,66-72` stores both the token
-  (`TOKEN_KEY = 'vsmart_jwt'`) and the user object in `localStorage`. Any script executing in the
-  page can read it — XSS-exposed, flagged by ADR-003 and re-flagged by ADR-007.
-- **The client is never the enforcement point.** ADR-004 keeps the server authoritative for every
-  right check, so this is a token-theft question, not an authorisation question.
-- Whatever is chosen must still support the single-flight refresh and hard-logout behaviour above.
+**Consequence, recorded rather than discovered later:** a hard page reload always ends the
+session. `AuthService.bootstrap()` — the one function that decides `'anonymous'` vs
+`'authenticated'` at app start — finds no refresh token on a fresh load (memory does not
+survive a reload) and settles straight to `anonymous`, tested directly. This is the real cost
+of the decision, not a bug: nothing about the recommended cookie model was rejected on
+principle, only made moot by the real API's transport.
 
-Until `M2-C02` records its decision this is an **Unknown**, not an omission.
+Both binding constraints this section originally set are satisfied: the pilot's `localStorage`
+JWT was not carried forward (`git grep` confirms zero writes under `core/auth/`), and the
+client remains never the enforcement point (ADR-004 unchanged). A full login → refresh →
+logout cycle is asserted, by spying on `Storage.prototype.setItem`, to write nothing to either
+Web Storage — see `auth.service.spec.ts`.
 
 ### Environment configuration — a defect in the pilot, not a pattern
 
@@ -320,7 +370,12 @@ Three layers, all reading the same `PermissionService` signal. **The 152 × 5 ma
 only the rendering syntax changes** — a structural directive instead of a wrapper component.
 
 ```ts
-// 1. Route guard - a functional CanActivateFn produced by a factory
+// 1. Route guard - a functional CanActivateFn produced by a factory. It gates
+// AUTHENTICATION only (redirects an anonymous caller to /login) — an authenticated
+// caller always activates this route, regardless of the Sales Order right. Rendering
+// the denial inline is SalesOrderListComponent's own job via forScreen()/*appHasRight
+// below, because CanActivateFn can only return true/false/UrlTree — there is no way
+// for the guard itself to "activate but render something else" (M2-C02, 2026-08-27).
 {
   path: 'sales/orders',
   canActivate: [requireScreen('Sales Order', 'view')],
@@ -409,6 +464,20 @@ subsequent document is then configuration plus its own exceptions.
 
 **This is the single highest-leverage decision in the frontend.** It converts ~65 screens of
 3,000–6,500 LOC each into one component plus 65 configs.
+
+> **`RecordPickerDialog` delivered by `M2-C06` (2026-08-26)** in the
+> `shared/components/record-picker-dialog/` directory this structure already reserved. The
+> reference above is confirmed against what shipped: `LineItemGrid`'s "pull from upstream
+> document" opens `<app-record-picker-dialog>` and receives the chosen rows through its
+> `confirmed` output, **in the order the user ticked them**. The input surface `M2-C07` must
+> code against is `visible`/`visibleChange`, `header`, `columns`, `fetchPage`, `getRowId`,
+> `selectionMode`, `initialSelection`, `disabledRowIds`, `getCellState`, `confirmLabel`,
+> `exportRequest`, `searchParam` — and `fetchPage` is a **caller-supplied function**
+> `(query) => Observable<DataGridPage<TRow>>`, so `LineItemGrid` supplies the endpoint and the
+> dialog stays generic. Two things `M2-C07` must not assume: the picker decides **nothing**
+> about eligibility or duplicates — `disabledRowIds` comes from the caller, from server data —
+> and no endpoint exists yet for any real candidate set (INV-054), so each document's picker
+> needs its `<W>-03`/`<W>-06` backend work first.
 
 ### Workflow commands
 
@@ -531,11 +600,43 @@ server-side. See the INV-006 amendment of 2026-08-23 in [KB-003](../investigatio
 
 | Metric | Target |
 |---|---|
-| Initial JS (shell + login) | < 250 KB gzip |
+| Initial JS (shell + login) | < 250 KB gzip — **met, measured 2026-08-27 (M2-C03): 144.92 kB gzip transfer (58% of budget). The shell itself (`shell-component`) is a separate lazy chunk, 40.68 kB gzip, not counted in the initial figure.** |
 | Route chunk | < 150 KB gzip |
 | Grid: 10,000 rows | virtualised, 60 fps scroll — **met, measured 2026-08-25 (M2-C05-01)** |
-| Line editor: 200 rows | typing latency < 50 ms |
+| Line editor: 200 rows | typing latency < 50 ms — **met, measured 2026-08-27 (M2-C07 follow-up); see below for what was and was not obtained** |
 | Time to interactive on the app shell | < 2 s on a mid-range laptop |
+
+**`LineItemGrid`, 2026-08-27 (M2-C07) — render-isolation proven in jsdom; a live-browser
+measurement obtained 2026-08-27 (follow-up session), with one disclosed scope limit.**
+`line-item-grid.render-performance.spec.ts` proves, under real `userEvent` keystrokes against
+200 `OnPush` rows sharing one virtualised `p-table`, that typing in one row re-renders
+**only** that row's own view — the mechanism the 50 ms target depends on.
+
+**The live measurement, exactly as [INV-061](../investigation-registry.md) named as the
+follow-up's job — a throwaway fixture route + a real `Performance` API measurement (same
+shape as `M2-C05-01`'s 10,000-row figure above), deleted after the run, never committed:**
+30 real keystrokes typed into row 180 of 200 (and, as a position cross-check, row 1 of 200)
+in the actual compiled Angular app in a real Chromium engine — **0.1–0.3 ms per keystroke**
+(row 180: avg 0.22 ms, max 0.30 ms, p95 0.30 ms; row 1: avg 0.08 ms, max 0.20 ms, p95 0.20 ms).
+No scaling with row position or row count, consistent with the isolation the jsdom spec
+already proved. **Comfortably under the 50 ms target — by roughly two orders of magnitude.**
+
+**What this number is, precisely, and the one thing it still doesn't cover.** It is the
+synchronous JS execution time of the native `input` event's dispatch through Angular's
+reactive-forms binding — measured by bracketing `performance.now()` directly around the
+event dispatch in the same synchronous call stack, which is immune to tab-visibility effects.
+**It does not include browser paint/compositing time.** This automation environment's browser
+tab is not visually composited (confirmed empirically: `requestAnimationFrame` callbacks
+never fired here, even after a 1 s wait, and the tool's own screenshot capability refuses
+with "the page is not compositing frames"), so a `requestAnimationFrame`-based
+keystroke-to-paint figure could not be obtained in this environment specifically — not
+because the component cannot be measured that way, but because this session's browser
+session has no visible surface to composite onto. Given the synchronous cost is ~0.2 ms
+against a 50 ms budget, there is roughly 49.8 ms of margin for paint/compositing to consume
+before the target would be at risk — GPU compositing of a single row's DOM update is not
+expected to approach that, but it is disclosed as genuinely unmeasured here rather than
+assumed. A session with a visually composited browser (or a real end-user report) can close
+this residual gap; it is not expected to change the target's status.
 
 Every feature route is lazily loaded (`loadComponent` / `loadChildren`), and the generated API
 client is tree-shaken per feature. The React bundle baselines this section used to carry were

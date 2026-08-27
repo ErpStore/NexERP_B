@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using V.SMART.Shared.Data;
 using V.SMART.Shared.Data.Master.Admin;
 using V.SMART.Shared.Repository.MasterRepository.AdminRepository;
 using V.SMART.Shared.Services;
@@ -80,7 +81,7 @@ public class UserRepositoryQrTokenTests : IDisposable
         Assert.Null(await repository.GetUserByQrToken(unknown));
     }
 
-    private Data.ApplicationDbContext Seed(Guid token, DateTime? expiry)
+    private ApplicationDbContext Seed(Guid token, DateTime? expiry)
     {
         var db = _factory.CreateContext();
         db.Users.Add(NewUser(token, expiry, isQrEnabled: true, isActive: true));
@@ -101,7 +102,7 @@ public class UserRepositoryQrTokenTests : IDisposable
             QrExpiryDate = expiry
         };
 
-    private static UserRepository Repository(Data.ApplicationDbContext db)
+    private static UserRepository Repository(ApplicationDbContext db)
         => new(
             db,
             new PasswordHasher<User>(),

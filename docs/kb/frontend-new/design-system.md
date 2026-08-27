@@ -5,7 +5,7 @@ module: frontend-new
 source_files: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-26
+last_verified: 2026-08-27
 dependencies: [KB-015, KB-050]
 ---
 
@@ -202,6 +202,26 @@ animation in grids.
   150 screens, or search customers/items/documents inline. This alone will be the most
   visible "this is a new product" signal.
 
+#### Built — `M2-C03` (2026-08-27)
+
+`layout/shell/` composes header, sidebar, `<router-outlet>` and the command palette;
+`layout/auth-layout/` and `layout/print-layout/` are the other two layout routes. Against the
+description above: **Sidebar** — built exactly as described (single-level accordion,
+permission-filtered via `NavFilterService`, pinned Recent/Favourites); rail mode's group
+flyout is an `app-popover` anchored to the icon, a deliberate simplification of the Blazor
+mini-rail's flyout-into-the-top-bar mechanic, not a port of it. **Header** — built as
+described; one disclosed gap: the "tenant name" slot shows `Tenant ${tenantId}`, not a real
+display name, because `GET /api/v1/me` deliberately carries no name field (`MeController.cs`'s
+own doc comment, R-01) — no task has added a name-only tenant lookup yet. **⌘K palette** —
+built; searches only the permission-filtered tree (a screen the caller lacks rights to is
+unreachable even by exact name), fuzzy-matches via a small dependency-free subsequence scorer,
+recent-first when the query is empty. The full nav data (`core/navigation/navigation.config.ts`)
+was mapped by `INV-033` (`docs/kb/investigation-registry.md`) — 145 items, screen names and
+routes traced to source, two likely Blazor `ScreenName` copy-paste defects found and
+reproduced verbatim rather than silently corrected. Full detail, including the two-part
+responsive/`axe` gap disclosed rather than hidden: `docs/kb/execution/tasks/M2-C03.md` §
+Close-out and `frontend/nexgen-web/README.md` § Navigation and shell.
+
 ## Component inventory
 
 ### Navigation
@@ -217,7 +237,8 @@ animation in grids.
   in; CSV/Excel export via server endpoint.
 - **`LineItemGrid`** — editable variant. Keyboard: `Enter` = commit + new row, `Tab` =
   next cell, `Shift+Tab` = previous, `Esc` = revert row, `Ctrl+D` = duplicate row,
-  `Alt+↑/↓` = reorder. Per-row validation badge. Running totals in a sticky footer row.
+  `Alt+↑/↓` = reorder, `Delete` = remove row (confirmed first if it holds data). Per-row
+  validation badge. Running totals in a sticky footer row.
 - `DetailPanel` · `KeyValueList` · `StatusBadge` · `Tag` · `Avatar` · `Timeline`
   (approval history) · `AttachmentList` · `AuditTrail`
 
@@ -264,6 +285,33 @@ Two deviations, each with its reason:
   an `app-` element. A `<thead>` may contain only `<tr>`; an element between them is invalid
   table markup that the browser hoists out of the table. The `component-selector` lint rule is
   waived on that one line and nowhere else.
+
+#### Built — LineItemGrid, M2-C07 (2026-08-27)
+
+`LineItemGridComponent<TLine>` and its supporting modules live in
+`frontend/nexgen-web/src/app/shared/components/line-item-grid/`, standalone and `OnPush`,
+built on PrimeNG's editable `p-table` reusing `DataGrid`'s column model and cell-navigation
+primitives, per [ADR-007 §Key rationales, Addendum (Q-83)](../decisions/ADR-007-angular-stack.md#addendum--the-lineitemgrid-see-below-pointer-resolved-q-83-2026-08-27).
+
+| Requirement | State |
+|---|---|
+| Full keyboard model | **Built.** `Enter`/`Tab`/`Shift+Tab`/`Esc`/`Ctrl+D`/`Alt+↑↓`/arrows/`Delete`, each covered by a test. `Tab`/`Shift+Tab` are native DOM tab order, not intercepted — a `readonly` column renders no focusable element at all, so the browser already skips it. |
+| Row isolation at 200 rows | **Built and measured (isolation, not latency — see below).** `line-item-grid.render-performance.spec.ts` proves typing in one row re-renders only that row. |
+| Decimal-safe cells | **Built.** Every numeric cell parses/formats through `shared/utils/decimal` directly, not through `app-currency-input`/`app-number-input` — see this task's Close-out for why (`DECIMAL_PORT` has no real implementation anywhere in the app yet). |
+| `rowEvent` domain-event contract | **Built.** A discriminated union with a `respond(patch)` callback per domain event; the grid busies the row and applies only what the caller returns. |
+| Row-error gutter | **Built.** Icon + text, `aria-describedby`, `aria-live`. |
+| Sticky footer | **Built as a pure slot.** The grid computes no aggregate — enforced by `line-item-grid.no-business-logic.spec.ts`. |
+| Clipboard paste | **Built.** Tab/newline-separated grid parsed against the target columns, previewed in a modal, decimal-safe. |
+| Responsive (<768px) | **Built.** Renders a stacked read-only list; editing is not offered below the breakpoint. |
+| 200-row typing latency < 50 ms | **Unknown — not measured live.** See [KB-050 §Performance targets](react-architecture.md#performance-targets) and [INV-061](../investigation-registry.md). |
+
+**One selector deviation, same reasoning as `DataGridHeaderComponent` above:**
+`LineItemRowComponent`'s selector is `tr[appLineItemRow]` for the identical reason — a `<tr>`
+is the only legal child of `<tbody>`, and the `component-selector` lint rule is waived on that
+one line, following the existing precedent rather than inventing a new one.
+
+`axe` reports no critical violation on a populated grid (with a row error) or the one-row
+empty state, in either theme.
 
 The URL is the grid's state in route-bound mode — `?page=3&size=50&sort=name:desc&code=C1`,
 which round-trips and survives back/forward. A detached mode holds the same signals and never
@@ -380,6 +428,35 @@ primary action) · `ErrorState` (message + `traceId` + retry) · `PermissionDeni
 `app-empty-state`, `app-error-state`, `app-permission-denied-state`.
 `RecordPickerDialog` and `QuickCreateDialog` stay with `M2-C06` — they are *contents* placed
 inside this layer's modal and drawer.
+
+**`RecordPickerDialog` built by `M2-C06` (2026-08-26)**, in
+`src/app/shared/components/record-picker-dialog/`: `app-record-picker-dialog`, generic over
+`TRow`, composing `app-modal` (this layer) and `app-data-grid` (M2-C05-01) — no second table
+and no second component library. It takes a caller-supplied `fetchPage` function rather than
+a resource, so one component serves the 33 `DetailsModal.razor` call sites; its query state
+is `DataGridQueryState` in **detached** mode, so it never writes to the page URL behind it.
+Selections are returned **in the order the user ticked them**, guaranteed by an
+insertion-ordered `Map` in `record-selection.ts` and asserted by `selection-order.spec.ts` —
+this is not cosmetic: 34 Blazor call sites append the returned rows in iteration order and
+48 renumber afterwards, so the ticking sequence is the document's line order (INV-054).
+
+`QuickCreateDialog` remains unbuilt; per INV-054, `MasterModal.razor` is plain modal chrome
+and maps to `app-modal`, not to a picker.
+
+**Four deliberate divergences from `DetailsModal.razor`, each recorded rather than silent:**
+
+| Divergence | Old behaviour | Why |
+|---|---|---|
+| **`Esc` cancels the dialog** | `data-bs-keyboard="false"` and a `static` backdrop (`DetailsModal.razor:10-11`) — `Esc` did nothing | The accessibility commitments below require a modal to be escapable. A picker is a non-destructive selection dialog. |
+| **Select-all is page-scoped and labelled with its count** ("Select all 25 on this page") | Select-all covered the client-side *filtered* set, which was the whole candidate set (`:181-198`) | With server paging "all" is ambiguous; silently selecting thousands of unseen rows is a data-integrity hazard. |
+| **The button says Export, not "Print"** | Labelled "Print", called `ExcelExportService.ExportPendingListToExcel` and downloaded an `.xlsx` (`:241-244`) | It never printed. A mislabel corrected, not a feature changed. Export stays server-side per ADR-005; only the base64-through-JS-interop hop is dropped, in favour of a blob. |
+| **Confirm is disabled while nothing is selected**, with an accessible explanation | Update was always enabled (`:90`); the only guard was unreachable (`:156-168`) | The reachable case — an empty selection — was never handled. The Blazor defect is recorded in KB-015 and **not** fixed. |
+
+The hardcoded domain highlighting at `:218-230` is replaced by a generic, caller-supplied
+`getCellState(row, field)` returning a `tone` **and a required `label`** — a shared component
+that knows ERP field names is domain leakage into presentation, and per the status vocabulary
+below a tone may never travel without words. A directory scan in
+`record-picker-dialog.component.spec.ts` fails the build if a domain field name reappears.
 
 **Confirmed keyboard model** (asserted by test, not inherited from PrimeNG's defaults): the
 modal, drawer and confirm dialog move focus in on open, trap it, close on `Esc`, return focus

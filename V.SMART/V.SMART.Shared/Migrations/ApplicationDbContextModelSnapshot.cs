@@ -4449,6 +4449,41 @@ namespace V.SMART.Shared.Migrations
                     b.ToTable("ProjectTypeMaster");
                 });
 
+            modelBuilder.Entity("V.SMART.Shared.Data.Master.Admin.RefreshToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RefreshTokens");
+                });
+
             modelBuilder.Entity("V.SMART.Shared.Data.Master.Admin.User", b =>
                 {
                     b.Property<int>("UserId")
@@ -4603,26 +4638,6 @@ namespace V.SMART.Shared.Migrations
                         .HasDatabaseName("IX_User_Role_IsActive");
 
                     b.ToTable("Users");
-
-                    b.HasData(
-                        new
-                        {
-                            UserId = 1,
-                            EmailId = "admin@example.com",
-                            HideManualJobOrderButton = false,
-                            IsActive = true,
-                            IsDesktop = false,
-                            IsMobile = false,
-                            IsProductionBased = false,
-                            IsQrEnabled = false,
-                            IsViewOnly = false,
-                            LevelAuthorization = false,
-                            PhoneNumber = "9999999999",
-                            Role = 0,
-                            TrialDays = 0,
-                            UserName = "Administrator",
-                            UserPassword = "AQAAAAIAAYagAAAAEBDHR4whgjIYMVkEU8I4FUjARxtH1DI/eoKgzld07jJ5NSwY+iIDLIiFRt7Q1YxcYQ=="
-                        });
                 });
 
             modelBuilder.Entity("V.SMART.Shared.Data.Master.Admin.UserRight", b =>
@@ -20737,6 +20752,9 @@ namespace V.SMART.Shared.Migrations
                     b.Property<string>("AssemblyIssNo")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("CustName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("DcNo")
                         .HasColumnType("nvarchar(max)");
 
@@ -25918,6 +25936,17 @@ namespace V.SMART.Shared.Migrations
                         .IsRequired();
 
                     b.Navigation("Currency");
+                });
+
+            modelBuilder.Entity("V.SMART.Shared.Data.Master.Admin.RefreshToken", b =>
+                {
+                    b.HasOne("V.SMART.Shared.Data.Master.Admin.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("V.SMART.Shared.Data.Master.Admin.User", b =>

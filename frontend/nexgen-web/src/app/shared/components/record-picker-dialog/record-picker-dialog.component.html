@@ -1,0 +1,108 @@
+<!--
+  The frame is `app-modal` (M2-C04-03) - a PrimeNG `p-dialog` with
+  `[modal]="true"`, `role="dialog"`, `aria-modal`, a focus trap and `Esc`
+  handling, all proven by that component's own specs. Reusing it is why this
+  file contains no focus-management code beyond moving focus into the search
+  field on open.
+-->
+<app-modal
+  [title]="header()"
+  [size]="size()"
+  [(visible)]="visible"
+  (opened)="onOpened()"
+  (closed)="onClosed()"
+>
+  <div #body class="app-record-picker">
+    <div class="app-record-picker__toolbar">
+      <div #searchBox class="app-record-picker__search">
+        <app-text-input
+          [ariaLabel]="searchLabel()"
+          [placeholder]="searchPlaceholder()"
+          [trim]="false"
+          [ngModel]="searchTerm()"
+          [ngModelOptions]="{ standalone: true }"
+          (ngModelChange)="onSearchInput($event)"
+        />
+      </div>
+
+      @if (selectionMode() === 'multiple' && pageRowCount() > 0) {
+        <!--
+          The scope is stated in words, with a count. With server paging "all"
+          is ambiguous, and silently selecting thousands of unseen rows is a
+          data-integrity hazard - so "all" means this page, and says so.
+        -->
+        <button type="button" class="app-record-picker__button" (click)="toggleSelectAllOnPage()">
+          {{ selectAllLabel() }}
+        </button>
+      }
+    </div>
+
+    @if (headerTemplate()) {
+      <!-- Caller slot: a scope filter, or a legend for `getCellState`. -->
+      <div class="app-record-picker__header-slot">
+        <ng-container [ngTemplateOutlet]="headerTemplate()!" />
+      </div>
+    }
+
+    @if (permissionDenied()) {
+      <app-permission-denied-state [screen]="deniedScreen()" [right]="deniedRight()" />
+    } @else {
+      @if (hasError()) {
+        <!--
+          The dialog stays open on failure. Closing it would throw away the
+          selection the user has already built across earlier pages.
+        -->
+        <app-error-state
+          [message]="errorMessage()"
+          [detail]="errorDetail()"
+          [traceId]="errorTraceId()"
+          (retry)="retry()"
+        />
+      }
+
+      @if (!failedEmpty()) {
+        <app-data-grid
+          [columns]="columns()"
+          [rows]="grid.rows()"
+          [totalCount]="grid.totalCount()"
+          [state]="grid.state()"
+          [loading]="grid.loading()"
+          [refetching]="grid.refetching()"
+          [getRowId]="getRowId()"
+          [selectionMode]="selectionMode()"
+          [selection]="selectedRows()"
+          [ariaLabel]="header()"
+          (selectionChange)="onSelectionProposed($event)"
+          (stateChange)="grid.apply($event)"
+          (rowActivate)="onRowActivate($event)"
+        >
+          <ng-template #empty>
+            @if (isFiltered()) {
+              <app-empty-state
+                variant="filtered"
+                title="No matches for this search"
+                description="Nothing in this list matches what you typed."
+                (clearFilters)="clearSearch()"
+              />
+            } @else {
+              <app-empty-state variant="no-data" [title]="emptyTitle()" />
+            }
+          </ng-template>
+        </app-data-grid>
+      }
+    }
+  </div>
+
+  <div appModalFooter>
+    <app-record-picker-footer
+      [count]="selectedCount()"
+      [confirmLabel]="confirmLabel()"
+      [cancelLabel]="cancelLabel()"
+      [canExport]="canExport()"
+      [exporting]="exporting()"
+      (confirmed)="confirm()"
+      (cancelled)="cancel()"
+      (exported)="onExport()"
+    />
+  </div>
+</app-modal>

@@ -1,0 +1,137 @@
+<div class="app-line-item-grid" (paste)="onPaste($event)">
+  @if (!effectiveReadOnly()) {
+    <div class="app-line-item-grid__toolbar">
+      <button type="button" class="app-line-item-grid__toolbar-btn" (click)="onAddLineClick()">
+        + Add line
+      </button>
+      <button
+        type="button"
+        class="app-line-item-grid__toolbar-btn"
+        (click)="pullFromUpstream.emit()"
+      >
+        Pull from upstream…
+      </button>
+    </div>
+  }
+
+  @if (belowMobileBreakpoint()) {
+    <!--
+      KB-051 Responsive behaviour: document editing is not supported on
+      phone. A stacked read-only list, not a broken editor squeezed into a
+      viewport it was never designed for.
+    -->
+    <ul class="app-line-item-grid__stacked-list" [attr.aria-label]="ariaLabel()">
+      @for (group of rows(); track $index) {
+        <li class="app-line-item-grid__stacked-row">
+          @for (column of columns(); track column.field) {
+            <div class="app-line-item-grid__stacked-field">
+              <span class="app-line-item-grid__stacked-label">{{ column.title }}</span>
+              <span class="app-line-item-grid__stacked-value">{{
+                stackedValue(group, column)
+              }}</span>
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  } @else {
+    <div class="app-line-item-grid__viewport" tabindex="-1" (keydown)="onKeydown($event)">
+      <p-table
+        [value]="tableRows()"
+        [virtualScroll]="rows().length >= 500"
+        [virtualScrollItemSize]="36"
+        [scrollable]="true"
+        [scrollHeight]="'480px'"
+        [tableStyleClass]="'app-line-item-grid__table'"
+        [pt]="{
+          table: {
+            role: 'grid',
+            'aria-label': ariaLabel(),
+            'aria-rowcount': rows().length,
+            'aria-colcount': columns().length + 1,
+          },
+        }"
+      >
+        <ng-template #header>
+          <tr>
+            <th scope="col" class="app-line-item-grid__gutter-header" aria-label="Row status"></th>
+            @for (column of columns(); track column.field) {
+              <th scope="col" [style.width]="column.width ?? null">{{ column.title }}</th>
+            }
+          </tr>
+        </ng-template>
+
+        <ng-template #body let-group let-rowIndex="rowIndex">
+          <tr
+            appLineItemRow
+            [style.height.px]="36"
+            [attr.aria-rowindex]="rowIndex + 2"
+            [attr.aria-busy]="isBusy(rowIdAt(rowIndex))"
+            [group]="group"
+            [columns]="columns()"
+            [rowId]="rowIdAt(rowIndex)"
+            [rowIndex]="rowIndex"
+            [busy]="isBusy(rowIdAt(rowIndex))"
+            [readOnly]="effectiveReadOnly()"
+            [errors]="errorsFor(rowIdAt(rowIndex))"
+            [focusedRow]="focusedCell().row"
+            [focusedCol]="focusedCell().col"
+            (cellCommitted)="onCellCommitted(rowIdAt(rowIndex), $event)"
+            (cellFocus)="onCellFocus(rowIndex, $event)"
+          ></tr>
+        </ng-template>
+
+        <ng-template #emptymessage>
+          <!-- Reached only in the instant before the empty-state auto-append lands. -->
+          <tr>
+            <td [attr.colspan]="columns().length + 1">Loading…</td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+  }
+
+  <app-line-item-footer [template]="footerTemplate()" [invalidRowCount]="invalidRowCount()" />
+
+  @if (pastePreview(); as preview) {
+    <app-modal title="Confirm paste" [visible]="true" (closed)="cancelPaste()">
+      <p>
+        Pasting {{ preview.rows.length }} row{{ preview.rows.length === 1 ? '' : 's' }} into
+        {{ preview.targetColumns.length }} column{{
+          preview.targetColumns.length === 1 ? '' : 's'
+        }}.
+      </p>
+      @if (!preview.allValid) {
+        <p class="app-line-item-grid__paste-error" role="alert">
+          Some pasted values could not be parsed. Fix the source data and paste again.
+        </p>
+      }
+      <table class="app-line-item-grid__paste-preview">
+        <thead>
+          <tr>
+            @for (column of preview.targetColumns; track column.field) {
+              <th scope="col">{{ column.title }}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of preview.rows; track row.rowOffset) {
+            <tr>
+              @for (cell of row.cells; track cell.field) {
+                <td [class.app-line-item-grid__paste-cell--error]="cell.parsed?.ok === false">
+                  {{ cell.raw }}
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div appModalFooter class="app-line-item-grid__paste-actions">
+        <button type="button" (click)="cancelPaste()">Cancel</button>
+        <button type="button" [disabled]="!preview.allValid" (click)="confirmPaste()">
+          Apply paste
+        </button>
+      </div>
+    </app-modal>
+  }
+</div>

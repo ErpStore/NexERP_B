@@ -29,7 +29,7 @@ database_tables: [Users, Leads]
 business_rules: [BR-AUTH-001, BR-AUTH-002]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-20
+last_verified: 2026-08-27
 dependencies: [KB-013, KB-105, KB-003, KB-004, KB-060]
 ---
 
@@ -226,7 +226,7 @@ compares, never writes `IsMobile`/`IsDesktop`, and calls `IJSRuntime` four times
 | Gate | API before M2-A08 | API after |
 |---|---|---|
 | Trial | none | **enforced** in `AuthController.Login`, all three carve-outs, message verbatim, `403` with `type: …/trial-expired` |
-| Device | none | **evaluator ported and tested** (`Auth/AccountGates.cs`, `DeviceGate`), **not wired** — P4 deferred, Q-40 |
+| Device | none | **evaluator ported and tested** (`Auth/AccountGates.cs`, `DeviceGate`), **not wired** — P4 deferred, Q-40 *(Q-40 currently has a second, unrelated definition too — id collision found 2026-08-27, not yet resolved)* |
 | QR expiry | no QR path exists at all | fixed at the query (§3); still no QR endpoint |
 | Row scope | none | mechanism in place (§5); no scoped endpoint exists yet |
 

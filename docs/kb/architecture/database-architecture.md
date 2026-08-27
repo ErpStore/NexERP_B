@@ -15,7 +15,7 @@ database_tables: [Tenants, Users, UserRights, Screens, Item, Customer, Vendor, M
 business_rules: [BR-STK-001]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-13
+last_verified: 2026-08-26
 dependencies: [KB-010, KB-013]
 ---
 
@@ -113,13 +113,29 @@ things:
 | `Screens` | **150** | The permission catalogue — `ScreenCode` runs 1…152 **with 114 and 115 absent**, `ScreenName` e.g. `"Sales Order"`, `"Purchase Order"`, `"Stock-Add"`. **This is the authoritative permission vocabulary.** **Corrected 2026-08-21 from "152" by direct measurement** (M0-01-03 rebuild drill): a database rebuilt from source control holds 150 rows and so does the live development database. 152 rows are seeded by `HasData`, and later migrations `DeleteData` two of them. ⚠ `V.SMART.Api/Authorization/ScreenCatalogue.cs` still carries all **152** names — the two phantoms are `Bill Paid List` and `Bill Pending List`, and the startup validator accepts them. See **R-65**. |
 | `User` | 1 | `UserName = "Administrator"`, `Role = Administrator`, with a **committed PBKDF2 hash** — a known default credential (risk R-09) |
 | `ScreenManagement`, `InspectionSettings`, `Category` | several | reference data |
+| `Store` | **9** | The stock-store catalogue, `StoreId` 1–9 (`HasData` at `ApplicationDbContext.cs:1714-1723`, no gaps, no `DeleteData`). `StoreId` doubles as the **stock-movement destination/source discriminator** passed to `StockManagerService.AddOrUpdateStockAsync`. **Corrected 2026-08-26 (`R-66`, `M2-B05`)** — see below. |
 
-`ScreenCode` doubles as the **stock movement source discriminator**: `StockAdd.ScreenCode`
-and `StockIssue.ScreenCode` record which screen produced the movement, and
-`StockManagerService` takes `int screenCode` as a parameter. Callers pass integer literals.
-There is **no enum or constants class** for screen codes — they are magic numbers
-correlated only with the seeded `Screens` table. **Confirmed.** This is a real hazard
-(risk R-10): the new API must introduce a typed constant set derived from the seed.
+**`ScreenCode` does *not* double as a caller-supplied literal, corrected 2026-08-21/26
+(`INV-044`, `R-10`).** The paragraph that stood here through 2026-08-21 claimed callers pass
+`screenCode` as an integer literal with no typed definition. **That is false.** `screenCode` is
+resolved at runtime from the `Screens` table by screen name (`GetScreenCodeByScreenNameAsync`)
+at all 166 real call sites; zero pass a literal. `StockAdd.ScreenCode`/`StockIssue.ScreenCode`
+still record which screen produced a movement, and `StockManagerService` still takes
+`int screenCode` — but the "magic number" risk R-10 was written against does not exist for this
+parameter. R-10 is retained in [KB-060](../risks/technical-debt-register.md) for that history.
+
+**The real magic-number hazard was in `storeId`, the very next parameter — resolved 2026-08-26.**
+`AddOrUpdateStockAsync`'s second parameter, `storeId`, had **55 bare integer literals** (`6`/`7`
+for `REJECTION STORE`/`REWORK STORE`) across 7 files, with no typed definition — confirmed
+against two databases (`INV-044`) and closed by risk **R-66**. A generated
+`V.SMART/V.SMART.Shared/Utility_Constants/StoreIds.cs` (`const int`, one per `Store` row, plus a
+`Names` lookup) now supplies named constants for all 9 stores; every one of the 55 literal sites
+uses one. **Regenerate it whenever a `Store` row is added, removed or renamed:**
+`node tools/generate-store-ids/generate.mjs` — it re-parses the seed above, re-asserts no
+duplicate `StoreId`, no duplicate `StoreName`, and no two names collapsing to the same C#
+identifier, and fails loudly (does not write the file) if any of those stop holding. Full record:
+[R-66](../risks/technical-debt-register.md#r-66--hardcoded-storeid-literals-6-and-7-in-stock-movements--resolved),
+`tasks/M2-B05.md`.
 
 ## Migrations
 

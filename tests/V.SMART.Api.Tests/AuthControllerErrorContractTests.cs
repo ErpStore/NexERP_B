@@ -28,15 +28,16 @@ namespace V.SMART.Api.Tests
             var controller = Controller(tenant: null, user: null);
 
             var result = Assert.IsType<ObjectResult>(
-                (await controller.Login(new AuthController.LoginRequest("u", "p"))).Result);
+                (await controller.Login(new AuthController.LoginRequest("acme", "u", "p"))).Result);
 
             Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
             Assert.Contains(ApiProblems.ContentType, result.ContentTypes);
 
             var problem = Assert.IsAssignableFrom<ProblemDetails>(result.Value);
-            Assert.Equal(
-                "Unable to resolve tenant. Check host or wwwroot/config/tenant.json.",
-                problem.Title);
+            // M2-A05 — the message dropped "Check host or wwwroot/config/tenant.json.": that
+            // fallback is no longer the primary path (the request's own `tenant` field is), and
+            // the API's own tenant.json was removed. See M2-A05's own KB-014 update.
+            Assert.Equal("Unable to resolve tenant.", problem.Title);
             Assert.Equal(ProblemTypes.TenantUnresolved, problem.Type);
             Assert.True(problem.Extensions.ContainsKey("traceId"));
 
@@ -51,7 +52,7 @@ namespace V.SMART.Api.Tests
             var controller = Controller(tenant: new TenantInfo { Id = 1 }, user: null);
 
             var result = Assert.IsType<ObjectResult>(
-                (await controller.Login(new AuthController.LoginRequest("u", "p"))).Result);
+                (await controller.Login(new AuthController.LoginRequest("acme", "u", "p"))).Result);
 
             Assert.Equal(StatusCodes.Status401Unauthorized, result.StatusCode);
             Assert.Contains(ApiProblems.ContentType, result.ContentTypes);
@@ -80,14 +81,15 @@ namespace V.SMART.Api.Tests
             // "AppEnvironment" key). An empty configuration means HostIsDesktop is false, which is
             // what a web-hosted API is.
             return new AuthController(
-                unitOfWork.Object,
+                // M2-A05 — IUnitOfWork, IRefreshTokenService and IUserRightService are resolved
+                // from this provider now, not constructor-injected directly. Only IUnitOfWork is
+                // wired: both tests in this file are refused before a refresh token would be
+                // issued or rights would be seeded (unresolved tenant / bad credentials), so
+                // reaching for either other service is itself a test failure worth surfacing.
+                ErrorContractTestContext.ServiceProvider(unitOfWork: unitOfWork.Object),
                 null!,
                 tenantProvider.Object,
                 new ConfigurationBuilder().Build(),
-                // M2-A10 added the IUserRightService and ILogger parameters. Both logins here are
-                // refused before the seeding call, so an inert stand-in is enough; the seeding
-                // behaviour itself is covered by AuthControllerRightsSeedingTests.
-                Mock.Of<IUserRightService>(),
                 NullLogger<AuthController>.Instance)
             {
                 ControllerContext = new ControllerContext

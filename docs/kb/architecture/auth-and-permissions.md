@@ -12,16 +12,17 @@ source_files:
   - V.SMART/V.SMART.Shared/Data/Master/Admin/User.cs
   - V.SMART/V.SMART.Shared/Data/Enum/UserRole.cs
   - V.SMART/V.SMART.Api/Auth/JwtTokenService.cs
+  - V.SMART/V.SMART.Api/Auth/RefreshTokenService.cs
   - V.SMART/V.SMART.Api/Controllers/AuthController.cs
   - V.SMART/V.SMART.Api/Controllers/MeController.cs
   - V.SMART/V.SMART.Api/Authorization/IUserRightsProvider.cs
-entities: [User, UserRight, UserAuthority, Screens, ApprovalHistory]
-api_endpoints: ["POST /api/v1/auth/login", "GET /api/v1/me"]
-database_tables: [Users, UserRights, UserAuthority, Screens, ApprovalHistory]
-business_rules: [BR-AUTH-001, BR-AUTH-002, BR-AUTH-003, BR-APPR-001]
+entities: [User, UserRight, UserAuthority, Screens, ApprovalHistory, RefreshToken]
+api_endpoints: ["POST /api/v1/auth/login", "POST /api/v1/auth/refresh", "POST /api/v1/auth/logout", "GET /api/v1/me"]
+database_tables: [Users, UserRights, UserAuthority, Screens, ApprovalHistory, RefreshTokens]
+business_rules: [BR-AUTH-001, BR-AUTH-002, BR-AUTH-003, BR-APPR-001, BR-TEN-002]
 status: complete
 confidence: confirmed
-last_verified: 2026-08-24
+last_verified: 2026-08-27
 dependencies: [KB-010, KB-012]
 ---
 
@@ -118,18 +119,39 @@ kept as-is so existing credentials keep working.
    error and skips `NavigateTo("/dashboard")`, leaving them signed in but stranded on the login
    page. The actual divergence is that Blazor loses the navigation while the API returns its
    normal `200`. `Login.razor` is unchanged.
-5. `JwtTokenService.CreateToken(user, tenant.Id)`.
-6. Returns `{ token, username, userId, tenantId, role }`.
+5. `JwtTokenService.CreateToken(user, tenant.Id)`, then (M2-A04)
+   `IRefreshTokenService.IssueAsync(user.UserId)`.
+6. Returns `{ token, refreshToken, tokenExpiresAtUtc, username, userId, tenantId, role }`
+   (M2-A04 — `refreshToken`/`tokenExpiresAtUtc` are new; the original four fields keep
+   their names, types and order).
 
 JWT claims: `ClaimTypes.Name`, `"UserId"`, `"TenantId"`, `ClaimTypes.Role`.
-HS256, `ExpiresMinutes` default 480 (8 h), `ClockSkew` 1 minute, issuer/audience validated.
+HS256, `ExpiresMinutes` default **15** (M2-A04, was 480/8 h), `ClockSkew` 1 minute,
+issuer/audience validated.
 
-**Gaps in the API auth design (Confirmed):**
-- No refresh token, no rotation, no revocation list.
+**Gaps in the API auth design (Confirmed), updated by M2-A04 (2026-08-27):**
+- ~~No refresh token, no rotation, no revocation list.~~ **Closed.** `POST /api/v1/auth/refresh`
+  rotates (one-time use, presented token revoked in the same call);
+  `POST /api/v1/auth/logout` revokes on demand. Tokens are stored hashed (SHA-256) in a new
+  `RefreshTokens` table, one row per tenant database (`RefreshTokenService`,
+  [KB-040](../api/api-overview.md#post-apiv1authrefresh--added-by-m2-a04-2026-08-27)).
+  `IsActive` is re-checked on every rotation — this is what makes deactivating a user
+  effective within one 15-minute access-token lifetime instead of up to 8 hours.
 - **No screen-permission claims** — the token cannot authorise anything beyond role.
+  **Unchanged by M2-A04**, deliberately: ADR-004 §2 still forbids embedding rights in any
+  token, access or refresh.
 - Secret is `builder.Configuration["Jwt:Secret"]`, committed in `appsettings.json`.
-- 8-hour non-revocable token is long for an ERP.
-- The Angular pilot stores the JWT in `localStorage` (`auth.service.ts`), exposing it to XSS.
+  **Superseded in substance, not struck here** — M0-03/M0-03-01 externalised the config
+  path and M0-04 rotated the workstation's value away from the published one (still
+  `Blocked` on the deployment-side rotation, C-4); see `task-tracker.md` footnote ¹⁰⁰.
+- ~~8-hour non-revocable token is long for an ERP.~~ **Closed by M2-A04.** 15 minutes,
+  configurable via `Jwt:ExpiresMinutes`, justified against the 1-minute `ClockSkew` above.
+- The Angular pilot stores the JWT in `localStorage` (`auth.service.ts`), exposing it to
+  XSS. **Unchanged — out of this task's scope.** M2-A04 chose body transport for the new
+  refresh token specifically *because* Q-16 (deployment topology / TLS termination) is
+  Unknown, so an `HttpOnly` cookie cannot yet be configured correctly; the refresh token
+  therefore inherits the same `localStorage`/XSS exposure the access token already has.
+  Still M2-C02's note to carry, not resolved here.
 
 ## 2. Screen rights — the core permission model
 
@@ -204,6 +226,44 @@ endpoint with a valid JWT, regardless of their `UserRight` rows.
 > **Defect (Confirmed):** `SessionTimeoutService` is a **singleton** with one shared
 > `_lastActivity` field (`V.SMART.Web/Program.cs`; `Services/SessionTimeoutService.cs`).
 > All concurrent users share one idle clock.
+
+### SPA client (as built, `M2-C02`, 2026-08-27)
+
+`frontend/nexgen-web/src/app/core/auth/` implements the Angular side of mechanism #2 above.
+Three points close the loop with this section's critical finding and related defects:
+
+- **The client store is rendering-only, restated everywhere it can be missed.**
+  `PermissionService`'s file header, `HasRightDirective`'s TSDoc, `forScreen()`'s TSDoc and
+  `frontend/nexgen-web/README.md` §*Authentication and permissions* all state that the server
+  re-checks the caller's `UserRight` rows on every request (ADR-004 §3) and that hiding a
+  control here is a UX affordance, never enforcement — directly because this section's critical
+  finding is that no such check exists anywhere else today.
+- **Deny-by-default parity with `RightsHelper.cs` is exact and tested.** A screen with no
+  matching `UserRight` row has no key in the client's rights map at all; `forScreen(name)`
+  returns every field `false` for a missing key. `IsHide` is read only as a navigation-listing
+  hint (`view && !hidden`), never a second access gate — confirmed from `RightsHelper.cs` and
+  `BaseUserRightsComponent.cs` (no consuming branch treats `IsHide` as a gate once `CanView` is
+  true), recorded as an amendment to [INV-004](../investigation-registry.md).
+- **`SessionTimeoutService`'s shared-clock defect (above) was deliberately not ported.**
+  `IdleTimeoutService` is `providedIn: 'root'` with every field an instance field, per browser
+  tab — regression-tested by constructing two instances directly in one test and proving
+  activity on one never resets the other's timer. The Blazor singleton defect itself remains
+  **open**; see [KB-060](../risks/technical-debt-register.md) R-17.
+
+Token custody — the access and refresh tokens are both held **in-memory only**, never
+`localStorage`/`sessionStorage` — is recorded in full, with its reasoning against ADR-004, in
+[KB-050 §Token storage](../frontend-new/react-architecture.md#token-storage-is-an-open-decision-owned-by-m2-c02)
+and in [`tasks/M2-C02.md`](../execution/tasks/M2-C02.md)'s own Close-out.
+
+**Navigation (`M2-C03`, 2026-08-27) closes the same loop for the sidebar and the ⌘K command
+palette.** Both read `core/navigation/nav-filter.service.ts`, not `PermissionService`
+directly — `shared/components/` (where the sidebar and palette live) may never import the
+authentication module, enforced by a repo-wide scan test — but the filtering logic is
+identical: `view && !hidden`, deny-by-default, role never read anywhere (R-31, below, not
+reproduced). The full nav data was mapped by
+[INV-033](../investigation-registry.md), which also confirmed — independent of, and
+consistent with, this section's own Finding 5 — that the Blazor sidebar itself filters on
+nothing but two role gates and has no rights-based filtering to have preserved.
 
 ## 3. Approval authority (multi-level document approval)
 

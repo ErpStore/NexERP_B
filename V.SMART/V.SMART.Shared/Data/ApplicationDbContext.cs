@@ -147,6 +147,9 @@ namespace V.SMART.Shared.Data
         public DbSet<UserRight> UserRights { get; set; }
         public DbSet<UserAuthority> UserAuthority { get; set; }
 
+        // M2-A04 — refresh tokens, one row per issued token. See RefreshToken.cs.
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
+
 
         //Inventory
         public DbSet<Category> Category { get; set; }
@@ -1132,19 +1135,23 @@ namespace V.SMART.Shared.Data
             }
 
 
-            builder.Entity<User>().HasData(
-                new User
-                {
-                    UserId = 1,
-                    StaffId = null,  // Assuming no staff assigned for the admin user
-                    UserName = "Administrator",
-                    UserPassword = "AQAAAAIAAYagAAAAEBDHR4whgjIYMVkEU8I4FUjARxtH1DI/eoKgzld07jJ5NSwY+iIDLIiFRt7Q1YxcYQ==",
-                    EmailId = "admin@example.com",
-                    PhoneNumber = "9999999999",
-                    IsActive = true,
-                    Role = UserRole.Administrator
-                }
-            );
+            // M0-06 (risk R-09): the default "Administrator" seed was REMOVED from here.
+            //
+            // Until 2026-08-19 this block called builder.Entity<User>().HasData(...) with
+            // UserId = 1, UserName = "Administrator", a fixed PBKDF2 hash, Role =
+            // UserRole.Administrator and IsActive = true. Because OnModelCreating runs for
+            // every tenant database (database-per-tenant), that credential existed in EVERY
+            // tenant, and the hash is published in this repository's git history.
+            //
+            // Do NOT reintroduce a seeded user here, and do NOT try to seed a
+            // "random per-deployment" password: HasData values are baked into the migration
+            // and the model snapshot as literals at scaffold time. Verified empirically on
+            // 2026-08-19 (INV-038): a Guid.NewGuid() value is accepted by the tooling but
+            // emits a fresh UpdateData on every `dotnet ef migrations add`, and the value
+            // that ships is the same constant for every deployment.
+            //
+            // The first administrator is now created out-of-band per tenant - see
+            // docs/kb/security/default-admin-removal-runbook.md (KB-106).
 
             builder.Entity<Screens>().ToTable("Screens");
             builder.Entity<Screens>().HasData(
@@ -1829,6 +1836,20 @@ namespace V.SMART.Shared.Data
                 new Currency { CurrId = 2, CurrName = "US Dollar", CurrSub = "Cent", Symbol = "$", IsSystemDefined = true },
                 new Currency { CurrId = 3, CurrName = "Euro", CurrSub = "Cent", Symbol = "€", IsSystemDefined = true }
             );
+
+            // M2-A04 — refresh tokens. Unique on TokenHash (the lookup key on every refresh/logout
+            // call); Cascade on the User FK so deleting a user does not orphan their token rows —
+            // the same convention UserRight/UserAuthority already rely on via EF's default
+            // required-FK behaviour, made explicit here rather than left implicit.
+            builder.Entity<RefreshToken>()
+                .HasIndex(t => t.TokenHash)
+                .IsUnique();
+
+            builder.Entity<RefreshToken>()
+                .HasOne(t => t.User)
+                .WithMany()
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // For Store MapFor all Screens
             builder.Entity<StoreMap>().HasData(StoreMapSeeder.GetDefaultStoreMaps());

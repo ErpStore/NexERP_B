@@ -11,13 +11,15 @@ source_files:
   - V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/IBusinessService/IPlanningService/IApprovalService.cs
   - V.SMART/V.SMART.Shared/Services/ReportViewer/ReportService.cs
   - V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/SalesPo_Pages/MfgPOUpsert.razor
+  - V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/CommonService.cs
+  - V.SMART/V.SMART.Shared/Services/FinancialYearHelper.cs
 entities: [MfgPo, MfgPoSub, StockAdd, StockIssue, StockIssueTrack, User, ApprovalHistory, TenantInfo]
 api_endpoints: []
 database_tables: [MfgPo, MfgPoSub, StockAdd, StockIssue, StockIssueTrack, Users, ApprovalHistory]
-business_rules: [BR-CALC-001, BR-CALC-002, BR-STK-001, BR-STK-002, BR-SO-001, BR-SO-002, BR-SO-003, BR-AUTH-001, BR-AUTH-002, BR-APPR-001, BR-RPT-001, BR-TEN-001]
+business_rules: [BR-CALC-001, BR-CALC-002, BR-STK-001, BR-STK-002, BR-SO-001, BR-SO-002, BR-SO-003, BR-AUTH-001, BR-AUTH-002, BR-APPR-001, BR-RPT-001, BR-TEN-001, BR-DOC-001, BR-DOC-002, BR-DOC-003, BR-DOC-004, BR-DOC-005, BR-DOC-006, BR-DOC-007, BR-DOC-008, BR-DOC-009, BR-DOC-010]
 status: partial
 confidence: mixed
-last_verified: 2026-08-21
+last_verified: 2026-08-27
 dependencies: [KB-011, KB-012, KB-013]
 ---
 
@@ -348,6 +350,18 @@ the password with `IPasswordHasher<User>.VerifyHashedPassword`. Only
 **Evidence.** `Repository/MasterRepository/Admins/UserRepository.cs:34-49`.
 **Confidence.** Confirmed. **Disposition.** Preserve unchanged (existing hashes must keep working).
 
+> **Note added by M0-06, 2026-08-19 — the rule is unchanged; the seed data is not.**
+> `UserRepository.cs` was **not modified** and login behaviour is byte-for-byte identical.
+> What changed is the *data* a fresh tenant database starts with: the seeded default
+> `Administrator` account (`ApplicationDbContext.cs:1136-1148`, risk R-09) was removed from
+> `OnModelCreating`, so a database created from the model now has **no users at all** until one
+> is created. Existing hashes still verify — pinned by
+> `tests/V.SMART.Shared.Tests/Data/SeedDataTests.cs`: `Login_WithRealHash_StillSucceeds`,
+> `Login_WithWrongPassword_Fails` and `Login_WithInactiveUser_Fails` exercise `LoginAsync`
+> through the real `PasswordHasher<User>` and cover both halves of this rule.
+> Removal from **existing** tenant databases is a separate, human, per-tenant procedure —
+> [KB-106](../security/default-admin-removal-runbook.md).
+
 ### BR-AUTH-002 — Screen rights are deny-by-default and enforced only in the UI
 
 **Statement.** For each of the 152 catalogued screens, a user has `CanView`, `CanCreate`,
@@ -427,6 +441,96 @@ to avoid duplication.
 
 ---
 
+## Document numbering rules
+
+Extracted by **INV-012** (task `M2-B12-01`, 2026-08-20). The full inventory — three
+allocation mechanisms, the format catalogue, the financial-year rules and the concurrency
+analysis — is [KB-100 `modules/document-numbering.md`](../modules/document-numbering.md).
+Only the *rules* live here.
+
+**Two discriminators, not one.** `Company.BookTypeDc` decides how the three **delivery
+challan** series share numbers; `Company.BookTypeInvoice` does the same for the three
+**invoice** series — and **its branch values are the mirror image**. Anyone who assumes they
+agree gets them exactly backwards. See BR-DOC-006 against BR-DOC-001.
+
+**Confidence for BR-DOC-001 … BR-DOC-010: Confirmed** (each traced to `file:line` in
+`V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/CommonService.cs`, re-verified
+2026-08-20). **Disposition for all ten: Preserve wholesale.** **Migration note for all ten:**
+these branches are the whole of the series-sharing behaviour; a remedy that reproduces nine
+of them silently renumbers documents for some tenants. Which branch a given tenant exercises
+depends on stored `Company` data and is **Unknown** from source — that is `M2-B12-02`'s
+census.
+
+### BR-DOC-001 … BR-DOC-005 — Delivery-challan series sharing (`Company.BookTypeDc`)
+
+`GenerateAutoRunningNoAsync(dcType, suffix)` (`CommonService.cs:1845-1963`) first reads three
+candidate high-water marks from `DcRunningNumbers` for the given `Suffix` — `mfg`
+(`:1862-1867`), `lab` (`:1869-1874`), `subcon` (`:1876-1881`) — then branches:
+
+| Rule | Statement | Evidence |
+|---|---|---|
+| **BR-DOC-001** | `BookTypeDc == 1` → **separate series**: each `dcType` takes its **own** mark, `startNumber = mfg` / `lab` / `subcon`, **with no `+1`** | `CommonService.cs:1883-1894` |
+| **BR-DOC-002** | `BookTypeDc == 2` and `dcType` in {`MFGDC`, `LABOURDCOUTGOING`} → those two **share** one series: `startNumber = Math.Max(mfg, lab) + 1` | `:1895-1898` |
+| **BR-DOC-003** | `BookTypeDc == 2` and `dcType == SUBCONDCOUT` → independent: `startNumber = subcon + 1` | `:1899-1902` |
+| **BR-DOC-004** | `BookTypeDc == 3` → **all three fully share** one series: `startNumber = Math.Max(Math.Max(mfg, lab), subcon) + 1` | `:1903-1907` |
+| **BR-DOC-005** | `BookTypeDc <= 0` **and a `DcRunningNumbers` row already exists** → per-type increment: `startNumber = mfg`/`lab`/`subcon` `+ 1` for the matching `dcType` | `:1928-1944` |
+
+When no row exists for (`dcType`, `Suffix`) one is **created** with `LastNumber = startNumber`
+(`:1915-1925`); the `<= 0` fallback is reached only on the existing-row path.
+
+> **Open — Q-104** *(renumbered from Q-38 on 2026-08-27; that id collided with the unrelated
+> M2-C11/ADR-007 question)*. BR-DOC-001 omits the `+1` that every other branch applies, then writes the
+> value back (`:1947`) and returns it (`:1955`), so under `BookTypeDc == 1` the allocator
+> appears to return the **same number on every call**. Whether that is an intended "manual
+> entry sets the mark" design or a duplicate-number defect **cannot be determined from
+> source** — see [`open-questions.md`](../open-questions.md) Q-104. It is recorded as observed
+> behaviour, not endorsed as intent.
+
+### BR-DOC-006 … BR-DOC-010 — Invoice series sharing (`Company.BookTypeInvoice`)
+
+`GenerateInvoiceAutoRunningNoAsync(invType, Suffix)` (`CommonService.cs:2078-2201`) has the
+same shape over `InvoiceAutoRunningNumbers` — `mfg` (`:2097-2102`), `lab` (`:2104-2109`),
+`expinv` (`:2111-2116`) — **but the discriminator values 1 and 2 are swapped relative to the
+DC allocator.**
+
+| Rule | Statement | Evidence |
+|---|---|---|
+| **BR-DOC-006** | `BookTypeInvoice == 2` → **separate series**, `startNumber = mfg` / `lab` / `expinv`, **no `+1`**. *(The DC allocator uses value `1` for this case.)* | `CommonService.cs:2119-2130` |
+| **BR-DOC-007** | `BookTypeInvoice == 1` and `invType` in {`MFGINV`, `LABINV`} → those two **share**: `Math.Max(mfg, lab) + 1`. *(The DC allocator uses value `2` for this case.)* | `:2131-2134` |
+| **BR-DOC-008** | `BookTypeInvoice == 1` and `invType == EXPINV` → independent: `expinv + 1` | `:2135-2138` |
+| **BR-DOC-009** | `BookTypeInvoice == 3` → **all three fully share**: `Math.Max(Math.Max(mfg, lab), expinv) + 1` | `:2139-2143` |
+| **BR-DOC-010** | `BookTypeInvoice <= 0` **and a row already exists** → per-type increment `+ 1` | `:2164-2177` |
+
+### Behaviours that constrain any remedy
+
+Not rules in their own right, but Confirmed behaviours that a replacement must reproduce.
+Full treatment in [KB-100](../modules/document-numbering.md) §3.3 and §8.
+
+- **Financial-year suffix.** Every stored `Suffix` is `/{yyyy}-{yy}` (e.g. `/2025-26`) from
+  `Services/FinancialYearHelper.cs:11-17`, with the year starting **1 April**. The rival
+  implementation at `CommonService.cs:1849-1851` is **dead** — its local is assigned and never
+  read. **Confirmed.** The suffix is computed in Razor `@code` in **53 files** and passed into
+  the services, so it must be extracted server-side before any Angular document screen.
+- **Gap-avoiding decrement on delete.** When the deleted document held the current high-water
+  mark, `LastNumber` is decremented. **Eight blocks in six services** — `MfgDcService.cs:368-382`,
+  `MfgInvService.cs:973-986`, `ExpInvService.cs:247-259`, `LabourInvoiceService.cs:636-648`,
+  `LabourDcOutgoingService.cs:596-609` and `:5177-5190`, `SubConDcOutService.cs:222-235` and
+  `:1583-1596` — so **every auto-allocated document type decrements**. Two of the eight
+  (`LabourDcOutgoingService.cs:5186`, `SubConDcOutService.cs:1592`) additionally require
+  `LastNumber > 1`; the other six can write `LastNumber = 0` (**Q-40**, intent Unknown).
+  **Confirmed. This rules out a plain `CREATE SEQUENCE`.** *(Census corrected 2026-08-20 by
+  M2-B12-01 attempt 2 — this entry previously named only the first four sites.)*
+- **Manual entry sets the mark, and can lower it.** `MfgDcService.cs:815-841` writes the
+  user-typed number to `LastNumber` unconditionally, defaulting to the manual path when
+  `IsManualDcNo` is null (`:815`). **Confirmed.**
+- **Allocation failure yields `null`, not an error.** `CommonService.cs:1957-1961` and
+  `:2195-2199` catch, log and `return null`. **Confirmed.**
+- **Duplicate checks are scoped by customer/vendor, not by number alone** — e.g.
+  `MfgDcService.IsDuplicateDcNoAsync:771-790` scopes by `CustId`. **Confirmed.** An
+  unqualified `(Number, Suffix)` unique index would reject data the application accepts today.
+
+---
+
 ## Rules known to exist but not yet extracted
 
 These are visible in the code structure but have not been individually traced. Each is an
@@ -434,7 +538,7 @@ open investigation.
 
 | Area | Where it lives | Investigation |
 |---|---|---|
-| Document numbering (next PO/DC/invoice number, financial-year suffixes) | ~20 `SELECT TOP 1 … ORDER BY … DESC` repository methods; `DcRunningNumber`, `InvoiceAutoRunningNumber`, `FinancialYearHelper.cs` | INV-012 |
+| ~~Document numbering (next PO/DC/invoice number, financial-year suffixes)~~ **EXTRACTED 2026-08-20** — see *Document numbering rules* above (`BR-DOC-001` … `BR-DOC-010`) and [KB-100](../modules/document-numbering.md) | 38 raw-SQL sites across 36 repositories, 6 lock-free LINQ methods, and the `DcRunningNumbers` / `InvoiceAutoRunningNumbers` allocation tables driven from `CommonService.cs:1845-1963` and `:2078-2201`; `FinancialYearHelper.cs` | **INV-012 — Complete** |
 | Balance-quantity derivation across every `Ref*SubId` chain | services + `@code` | INV-013 |
 | Payroll calculation (salary heads, loan deduction, attendance→salary) | `HumanResourceService/PayrollService/SalaryService.cs` | INV-014 |
 | e-Invoice / e-Way payload construction and error handling | `E_Invoice/`, `EinvoiceDatabaseService.cs` (2,136 LOC) | INV-015 |

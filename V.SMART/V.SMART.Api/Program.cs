@@ -13,9 +13,11 @@ using System.Text;
 using V.SMART.Api.Auth;
 using V.SMART.Api.Authorization;
 using V.SMART.Api.Caching;
+using V.SMART.Api.Cors;
 using V.SMART.Api.HealthChecks;
 using V.SMART.Api.Logging;
 using V.SMART.Api.Middleware;
+using V.SMART.Api.Reporting;
 using V.SMART.Api.Services;
 using V.SMART.Shared.DependencyInjection;
 using V.SMART.Shared.Services;
@@ -162,12 +164,35 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// M2-A05 — replaces the hardcoded "AngularDev" policy (WithOrigins("http://localhost:4200")
+// only) with a per-environment configured origin list, per ADR-002 §5. Bound directly from
+// configuration here, synchronously, rather than through IOptions<CorsOptions>: AddCors()'s
+// policy is built once, before the DI container exists to serve an injected IOptions<T>.
+// CorsOptions is still registered below via Configure<CorsOptions>() so anything that DOES
+// want it through DI (diagnostics, a future health check) can read the same bound values.
+var corsOptions = builder.Configuration.GetSection(CorsOptions.SectionName).Get<CorsOptions>()
+    ?? new CorsOptions();
+builder.Services.Configure<CorsOptions>(builder.Configuration.GetSection(CorsOptions.SectionName));
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AngularDev", policy =>
-        policy.WithOrigins("http://localhost:4200")
-              .AllowAnyHeader()
-              .AllowAnyMethod());
+    options.AddPolicy(CorsOptions.PolicyName, policy =>
+    {
+        // Fails closed: an environment with no configured origins allows none, rather than
+        // falling back to AllowAnyOrigin() or the old dev-only host. See CorsOptions' own doc
+        // comment for why this is empty by default (Q-16, explicitly deferred).
+        if (corsOptions.AllowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(corsOptions.AllowedOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+
+            // AllowCredentials() and AllowAnyOrigin() are mutually exclusive under the CORS
+            // spec; WithOrigins() above means this is always safe to call when requested.
+            if (corsOptions.AllowCredentials)
+                policy.AllowCredentials();
+        }
+    });
 });
 
 // Already validated above (M0-03-03): StartupConfigurationValidator is the single code path
@@ -214,8 +239,13 @@ builder.Services.AddHttpClient();
 // host ever reaches a request. ValidateScopes is left at the framework's own default (on in
 // Development, off elsewhere): captive-dependency detection is not what has to be relaxed.
 //
-// REMOVE THIS BLOCK once M2-B06 and M2-B08 supply IPathProvider / IFileUploadService /
-// IFileOpener for this host. At that point the graph validates and the check must go back on.
+// M2-B08 update: this block does NOT come off yet. M2-B06 and M2-B08 between them supply
+// IPathProvider and IFileUploadService, but IUserService and IUserThemePreferenceService still
+// need IJSRuntime — a Blazor concept with no meaningful API implementation (M2-B08.md
+// §Prerequisites) — so two of the original seven registrations remain genuinely unresolvable.
+// This block comes off only when something supplies IJSRuntime for this host, or those two
+// services are refactored not to need it. Re-run with ValidateOnBuild = true first to confirm
+// the count before removing it — do not assume from this comment alone.
 builder.Host.UseDefaultServiceProvider((context, options) =>
 {
     options.ValidateOnBuild = false;
@@ -229,10 +259,9 @@ builder.Host.UseDefaultServiceProvider((context, options) =>
 // IRepository<> open generic, so any second controller compiled fine and then failed at
 // activation time with a DI resolution error.
 //
-// Deliberately still absent, and therefore not resolvable in this host: IPathProvider,
-// IFileUploadService, IFileOpener and IJSRuntime have no V.SMART.Api implementation yet
-// (M2-B08 and M2-B06). Exactly seven registrations therefore stay unresolvable here —
-// measured by running this host with ValidateOnBuild = true, not assumed (M2-B07):
+// Originally (M2-B07): IPathProvider, IFileUploadService, IFileOpener and IJSRuntime had no
+// V.SMART.Api implementation, leaving exactly seven registrations unresolvable here — measured
+// by running this host with ValidateOnBuild = true, not assumed:
 //     ReportService                 needs IPathProvider
 //     IUserService                  needs IPathProvider + IJSRuntime
 //     IGSTITCService                needs IPathProvider
@@ -240,8 +269,12 @@ builder.Host.UseDefaultServiceProvider((context, options) =>
 //     ICompanyService               needs IFileUploadService
 //     IItemService                  needs IFileUploadService
 //     IEnquirySalesService          needs IPathProvider, transitively via ReportService
-// That gap is expected and is not closed by this task. Injecting any of the seven into a
-// controller still fails at activation time, exactly as it did before this task. The
+// M2-B06 supplied IFileUploadService (below), resolving ICompanyService/IItemService.
+// M2-B08 supplies IPathProvider (ApiPathProvider, below), resolving ReportService/
+// IGSTITCService/IEnquirySalesService. That leaves exactly two still unresolvable —
+// IUserService and IUserThemePreferenceService, both needing IJSRuntime, a Blazor concept with
+// no meaningful web-API implementation (M2-B08.md §Prerequisites) — so ValidateOnBuild stays
+// off. Injecting either of those two into a controller still fails at activation time. The
 // equivalent build-time guarantee for the shared graph is enforced instead by
 // tests/V.SMART.Shared.Tests/DependencyInjection/AddVSmartDomainTests.cs, which validates the
 // identical graph with the host seams supplied.
@@ -264,6 +297,13 @@ builder.Services.Configure<FileStorageOptions>(
     builder.Configuration.GetSection(FileStorageOptions.SectionName));
 builder.Services.AddScoped<ApiFileUploadService>();
 builder.Services.AddScoped<IFileUploadService>(sp => sp.GetRequiredService<ApiFileUploadService>());
+
+// M2-B08 — the API host's report-template path seam. IPathProvider is host-specific by design
+// (WebPathProvider/DesktopPathProvider each resolve a different IWebHostEnvironment/AppContext
+// root) and AddVSmartDomain() deliberately omits it for the same reason IFileUploadService is
+// omitted above. Resolves ReportService, IGSTITCService and IEnquirySalesService, none of which
+// were constructible in this host before this task — see the ValidateOnBuild note above.
+builder.Services.AddScoped<IPathProvider, ApiPathProvider>();
 
 // M2-A01-02 — server-side screen-right authorization (ADR-004, KB-105 §6.2). Both are scoped:
 // the provider reaches IUnitOfWork, which AddVSmartDomain() registers scoped over the
@@ -306,6 +346,12 @@ builder.Services.AddScoped<IRowScopeProvider, RowScopeProvider>();
 
 builder.Services.AddScoped<AuthenticationStateProvider, ApiAuthStateProvider>();
 builder.Services.AddSingleton(new JwtTokenService(builder.Configuration));
+
+// M2-A04 — scoped, not singleton like JwtTokenService above: RefreshTokenService depends on
+// ApplicationDbContext, which is itself scoped (tenant-resolved per request, see
+// AddVSmartDomain()'s comment above it). A singleton here would capture the first request's
+// tenant database for the lifetime of the host.
+builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 
 // M2-B11 — this host resolves the STRUCTURED ILoggingService; the other two do not.
 //
@@ -413,7 +459,7 @@ app.UseSerilogRequestLogging(options =>
         : LogEventLevel.Information;
 });
 
-app.UseCors("AngularDev");
+app.UseCors(CorsOptions.PolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 

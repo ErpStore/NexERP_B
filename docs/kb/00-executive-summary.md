@@ -152,7 +152,7 @@ effectively public to any authenticated user. See
 
 | # | Risk | Severity |
 |---|---|---|
-| R-01 | Live database credentials committed in `appsettings.json` (incl. a production host `154.61.76.112` with password, commented but present) | **Critical** |
+| R-01 | Live database credentials committed in `appsettings.json` (the local SA login, plus a **third party's** host `154.61.76.112` with a valid password, commented but present — owner-confirmed 2026-08-26 that host is not this project's; see R-01's correction note) | **Critical** |
 | R-02 | JWT signing secret committed in `V.SMART.Api/appsettings.json` | **Critical** |
 | R-03 | Authorization enforced only in UI components | **Critical** |
 | R-04 | **82** of 94 stored procedures have no DDL in source control (one scripted file is dead code) | **Critical** |

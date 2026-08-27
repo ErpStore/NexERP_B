@@ -118,7 +118,7 @@ namespace V.SMART.Api.Tests
             var controller = Controller(User(userId: 7, trialDays: 30, expiry: DateTime.Today.AddDays(-1)));
 
             var result = Assert.IsType<ObjectResult>(
-                (await controller.Login(new AuthController.LoginRequest("u", "p"))).Result);
+                (await controller.Login(new AuthController.LoginRequest("acme", "u", "p"))).Result);
 
             // Distinguishable, and deliberately NOT a 401: the password was correct, so re-prompting
             // for it — which is what a 401 tells a client to do — cannot resolve this.
@@ -150,7 +150,7 @@ namespace V.SMART.Api.Tests
             // A 200 test needs a host, which this project deliberately has no harness for (see
             // PagedContractTests' note on Microsoft.AspNetCore.Mvc.Testing).
             await Assert.ThrowsAsync<NullReferenceException>(
-                () => controller.Login(new AuthController.LoginRequest("u", "p")));
+                () => controller.Login(new AuthController.LoginRequest("acme", "u", "p")));
         }
 
         [Fact]
@@ -159,7 +159,7 @@ namespace V.SMART.Api.Tests
             var controller = Controller(user: null);
 
             var result = Assert.IsType<ObjectResult>(
-                (await controller.Login(new AuthController.LoginRequest("u", "p"))).Result);
+                (await controller.Login(new AuthController.LoginRequest("acme", "u", "p"))).Result);
 
             Assert.Equal(StatusCodes.Status401Unauthorized, result.StatusCode);
             Assert.Equal(
@@ -295,19 +295,27 @@ namespace V.SMART.Api.Tests
             tenantProvider.Setup(p => p.GetCurrentTenant()).Returns(new TenantInfo { Id = 1 });
 
             return new AuthController(
-                unitOfWork.Object,
+                // M2-A05 — IUnitOfWork and IUserRightService both resolve from here now. Every
+                // login in this file either reaches the seeder (a real gate refusal already
+                // happened) or reaches token issuance (the "live trial" test — a jwtTokenService
+                // stand-in throws there, matching pre-M2-A05 behaviour), so both are wired; no
+                // test here reaches refresh-token issuance, so IRefreshTokenService is left
+                // unwired on purpose.
+                ErrorContractTestContext.ServiceProvider(
+                    unitOfWork: unitOfWork.Object,
+                    userRightService: Mock.Of<IUserRightService>()),
+                // M2-A04/M2-A08 — every login in this file is refused (by the trial/account
+                // gates) or, for the one "live trial" test, deliberately reaches a null
+                // JwtTokenService and throws there — matching pre-M2-A05 behaviour, where a null
+                // stand-in served the same purpose.
                 null!,
                 tenantProvider.Object,
                 new ConfigurationBuilder().Build(),
-                // M2-A10 added the IUserRightService and ILogger parameters. Every login in this
-                // file is refused before the seeding call, so an inert stand-in is enough here;
-                // the seeding behaviour itself is covered by AuthControllerRightsSeedingTests.
-                Mock.Of<IUserRightService>(),
                 NullLogger<AuthController>.Instance)
             {
                 ControllerContext = new ControllerContext
                 {
-                    HttpContext = ErrorContractTestContext.Create("/api/auth/login", "POST")
+                    HttpContext = ErrorContractTestContext.Create("/api/v1/auth/login", "POST")
                 }
             };
         }

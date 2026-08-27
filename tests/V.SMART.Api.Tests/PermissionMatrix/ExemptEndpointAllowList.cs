@@ -34,8 +34,8 @@ namespace V.SMART.Api.Tests.PermissionMatrix
     internal static class ExemptEndpointAllowList
     {
         /// <summary>
-        /// Endpoints reachable with no token at all. <b>One entry, and adding a second is a
-        /// security decision that belongs at review, not in a controller diff.</b>
+        /// Endpoints reachable with no token at all. <b>Three entries as of M2-A04, each a
+        /// security decision made at review, not folded silently into a controller diff.</b>
         /// </summary>
         public static IReadOnlyDictionary<string, ExemptEndpoint> AnonymousActions { get; } =
             new Dictionary<string, ExemptEndpoint>(StringComparer.Ordinal)
@@ -44,6 +44,17 @@ namespace V.SMART.Api.Tests.PermissionMatrix
                     "POST /api/v1/auth/login",
                     "Login is how a caller obtains a token; requiring one to call it would be circular. " +
                     "It is the only [AllowAnonymous] action in the API (V.SMART/V.SMART.Api/Controllers/AuthController.cs:76-78)."),
+
+                ["AuthController.Refresh"] = new(
+                    "POST /api/v1/auth/refresh",
+                    "M2-A04 — the access token this call would authenticate with may already be expired; that is " +
+                    "the entire reason the endpoint exists. The refresh token itself is the credential, validated " +
+                    "against RefreshTokenService, not against [Authorize]."),
+
+                ["AuthController.Logout"] = new(
+                    "POST /api/v1/auth/logout",
+                    "M2-A04 — must be reachable with an already-expired access token so a client can always end " +
+                    "its session; revocation is keyed on the presented refresh token, not on bearer auth."),
             };
 
         /// <summary>
@@ -84,6 +95,14 @@ namespace V.SMART.Api.Tests.PermissionMatrix
                 ["ReferenceController.GetCurrencies"] = new(
                     "GET /api/v1/reference/currencies",
                     "Reference lookup: no single screen owns it (M2-B03; ReferenceController.cs:33)."),
+
+                ["ReportsController.GetCatalogue"] = new(
+                    "GET /api/v1/reports",
+                    "Metadata only - lists registered report slugs, display names, parameter shapes and which " +
+                    "screen gates each one. Executes no stored procedure and returns no report row, so nothing " +
+                    "here can leak report data; each report's own endpoint (e.g. HsnSummaryReportController.Get) " +
+                    "still independently enforces its own [RequireScreen] when actually called (M2-B08; " +
+                    "ReportsController.cs)."),
             };
 
         /// <summary>Both lists together — every key that is allowed to be ungated.</summary>
