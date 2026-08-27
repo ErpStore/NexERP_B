@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-26
+last_verified: 2026-08-27
 dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
@@ -64,7 +64,7 @@ its children are `Completed` — it is never worked directly.
 | M0-15 | M0 | Toolchain and build baseline | DevOps | **Completed**² | P0 | M0-00 | 0.5 d | G0 |
 | M0-08 | M0 | `.gitignore` + remove committed build output | DevOps | **Completed**⁵ | P1 | M0-00 | 0.5 d | G0 |
 | M0-07 | M0 | CI pipeline: restore → build → analyzers | DevOps | **Completed**⁷ | P0 | M0-15, M0-08 | 2 d | G0 |
-| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴˒⁸¹˒⁸⁴˒⁸⁵ *(C-1 and C-3 rotated and verified 2026-08-26 — §8 items 1–3 signed, footnote ⁸⁵; C-2 is **void**, footnote ⁸⁴; C-4 rotated on the developer workstation only, not deployment; C-5/C-7 not started — vendor-dependent)* | P0 | — | 1 d | G0 |
+| M0-04 | M0 | Rotate the exposed credentials | Security | **Blocked**⁴˒⁸¹˒⁸⁴˒⁸⁵˒¹⁰⁰ *(C-1 and C-3 rotated and verified 2026-08-26 — §8 items 1–3 signed, footnote ⁸⁵; C-2 is **void**, footnote ⁸⁴; C-4 has no deployment target to rotate against — owner ruled 2026-08-27 this is not a blocker on other work, footnote ¹⁰⁰; C-5/C-7 not started — vendor-dependent)* | P0 | — | 1 d | G0 |
 | M0-03 | M0 | Externalise configuration secrets *(parent)* | Security | **Completed**¹¹ | P0 | M0-00 | 1 d | G0 |
 | M0-03-01 | M0 | — `appsettings.json` → environment / user-secrets | Security | **Completed**³ | P0 | M0-00 | 0.5 d | G0 |
 | M0-03-02 | M0 | — hardcoded connection strings in C# | Security | **Completed**⁸ | P0 | M0-03-01 | 0.5 d | G0 |
@@ -111,7 +111,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-A01-03 | M2 | — per-request rights resolution + caching | Security | **Completed**²⁷ | P0 | M2-A01-02 | 2 d | G2 |
 | M2-A02 | M2 | Apply to `CurrencyController` + denial tests | Security | **Completed**⁵⁹˒⁶² *(merged to `master` on owner instruction 2026-08-24)* | P0 | M2-A01-03 | 1 d | G2 |
 | M2-A03 | M2 | Permission-matrix test harness (CI gate) | Testing | **Completed**⁶³˒⁶⁴˒⁸² *(the last criterion closed 2026-08-26 — owner added the required status check in GitHub branch protection; see footnote ⁸²)* | P0 | M2-A02 | 3 d | G2 |
-| M2-A04 | M2 | Refresh tokens + revocation | Security | **Blocked**⁴⁸ *(correctly — on **M0-04**, not on `M2-A01-02`; ruled 2026-08-23)* | P0 | M2-A01-02, **M0-03/M0-04** | 3–5 d | G2 |
+| M2-A04 | M2 | Refresh tokens + revocation | Security | **Ready**⁴⁸˒¹⁰⁰ *(was `Blocked` on **M0-04**'s unrotated `Jwt:Secret`, ruled 2026-08-23; owner decision 2026-08-27 supersedes that — the workstation rotation, footnote ⁸¹, plus the fail-closed startup validator discharge the forgeability concern for local-only operation. See footnote ¹⁰⁰)* | P0 | M2-A01-02, **M0-03-03** *(re-scoped from M0-04, footnote ¹⁰⁰)* | 3–5 d | G2 |
 | M2-A05 | M2 | Cross-origin SPA tenant resolution + real CORS | Security | Blocked | P0 | M2-A04 | 3–5 d | G2 |
 | M2-A06 | M2 | Exception middleware → `ProblemDetails` | Backend | **Completed**²³ | P0 | G0 | 3–5 d | G2 |
 | M2-A07 | M2 | `GET /api/v1/me` | Backend | **Completed**³⁷ *(merged to `master` `80c209b` on owner instruction 2026-08-21)* | P0 | M2-A01-03 | 2 d | G2 |
@@ -3913,3 +3913,33 @@ addendum directly beneath that paragraph —
 above is moved from `Blocked` to `Ready`. Branch `migration/Q-83-adr-007-linegrid-addendum`;
 this footnote's own change is documentation-only — no code, no `V.SMART/` or `tests/` files
 touched.
+¹⁰⁰ **Owner decision, 2026-08-27: the undecided deployment topology (`M6-01`/Q-16) does not
+gate other work, and `M2-A04` is unblocked on that basis.** Raised when asked how `M0-04`'s
+open `C-4` item (deployment-side `Jwt:Secret` rotation) could be resolved. The owner's own
+words: *"this we should yet decide the deployment but it should not block other task first we
+build a product which run clean on our machine then we can investigate on the deployment."*
+
+**What this changes, and what it does not.** `M0-04` itself stays `Blocked` — C-4 (deployment
+rotation) and C-5/C-7 (vendor-owned) are all still genuinely open, and nothing here closes the
+task. What changes is the one thing that was actually deriving from C-4's *deployment* half:
+`M2-A04`'s block (footnote ⁴⁸), which held that refresh tokens signed with a key whose value is
+published in a public repository's history are forgeable. That premise assumed the key in active
+use was the leaked one. It is not, as of 2026-08-26 (footnote ⁸¹): `Jwt:Secret` was rotated to a
+fresh 48-byte value in the workstation's user-secret store, and `M0-03-03`'s
+`StartupConfigurationValidator` independently hard-fails startup if it ever detects the leaked
+key's SHA-256 digest, null, empty, or under 32 UTF-8 bytes — so the only host that can currently
+issue or verify a token (the workstation) cannot do so with the compromised secret. Refresh
+tokens minted and revocation-listed here are therefore not forgeable with the published key
+today. The residual risk footnote ⁸¹ named — *"a deployment with a fresh secret would"* answer
+this more durably than a workstation rotation — is accepted as a known, deferred item, not
+resolved: **when a real deployment target exists, its `Jwt:Secret` must be freshly generated
+there too, independent of the workstation value, and C-4 must be signed off against that
+deployment before it ships.** `M2-A04`'s row's Hard dependency is corrected from `M0-04` to
+`M0-03-03` (the validator, already `Completed`) to reflect what the task substantively depends
+on now; `M0-04` is dropped from `depends_on` but stays named in this footnote for provenance.
+
+**Downstream effect, deliberately not taken here.** `M2-A04` moving `Blocked` → `Ready` does
+**not**, by itself, move `M2-C02` (and transitively `M2-C03`, `M2-D01`, `M2-D02*`, `M2-D03`) to
+`Ready` — those still need `M2-A04` itself at genuine `Completed` and merged to `master` before
+rule 1 of the five-part "can actually be done" test clears. `M2-A04` becomes the next
+selectable task in this chain, not a bypass of the chain.
