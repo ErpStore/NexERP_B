@@ -9,9 +9,39 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-27
+last_verified: 2026-08-28
 dependencies: [KB-089, KB-091, KB-092, KB-081]
-model_routing_this_run: none — select-only pass, `M2-D01` selected but not dispatched
+model_routing_this_run: none — single-session implementation, no subagent delegation
+
+## Status — 2026-08-28 (`M2-D01` implemented, this session — master tip `5f83a88`)
+
+**RUNNING → left `Needs Review`** (dispatched directly off the prior pass's selection, on
+explicit owner instruction, "continue")
+
+**This pass:** `M2-D01` — Currency end-to-end in Angular — implemented in full on
+`migration/M2-D01-currency-end-to-end`, resumed from its prior `Blocked` attempt (footnote
+⁷⁸ in `task-tracker.md`) after rebasing that branch onto current `master`. The first vertical
+slice: full CRUD against the real API, permission-gated throughout, the KB-052/KB-053
+drawer-vs-routes conflict resolved. 706/706 unit tests, 4/4 e2e, both builds clean. One real
+client-integration gap found and reported rather than fixed locally — R-80
+(`technical-debt-register.md`): `deleteCurrency()`'s generated client loses a 409's `title`.
+Full detail: `task-tracker.md` footnote ¹¹⁹, `tasks/M2-D01.md`'s Close-out,
+`react-architecture.md`'s new Slice review section.
+
+**Current task:** `M2-D01`, `Needs Review` — not `Completed`; only the owner may set that
+([KB-088](workflow.md#who-may-set-completed)).
+
+**Selected next, not dispatched:** `M2-C08-01` (document editor shell). Clears all five
+parts of the "can actually be done" test — see `current-task.md`'s own reasoning. Deliberately
+left for a fresh session: KB-050 names it "the single highest-leverage decision in the
+frontend" (the config-driven shape every one of ~65 Upsert screens builds from), a 4-day
+estimate, and this session already carried `M2-D01`'s full implementation. Per
+[`workflow.md`](workflow.md) §3 step 7 — select, write it into `current-task.md`, do not
+implement.
+
+**Requires human decision:** review `tasks/M2-D01.md`'s Close-out and either confirm
+`Completed` or send back changes. Not a blocker for `M2-C08-01`'s own dispatch — it clears the
+five-part test regardless of that decision.
 
 ## Status — 2026-08-27 (select-only pass, this session — after `M2-C03` marked `Completed`, master tip `9187abb`)
 

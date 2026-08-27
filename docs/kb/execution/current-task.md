@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-27
+last_verified: 2026-08-28
 dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 ---
 
@@ -21,29 +21,78 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Selected: `M2-D01` — Currency end-to-end in Angular
+## Selected: `M2-C08-01` — Document editor shell (header + lines + totals + commands)
 
-Full spec: [`tasks/M2-D01.md`](tasks/M2-D01.md). **Not yet dispatched — selection only, no
-implementation.** Owner reviewed [`tasks/M2-C03.md`](tasks/M2-C03.md)'s Close-out
-in-conversation and set it `Completed` ("yes mark it as completed"), which cleared the one
-remaining gap in `M2-D01`'s own "transitively required" table (footnote ¹¹⁷'s `M2-C03` row)
-— `M2-A05`, the table's other gap, had already cleared the pass before. Both `M2-D01` and
-`M2-C08-01` moved `Blocked` → `Ready` on the same decision; ranked per
-[`dependency-graph.md`](dependency-graph.md) § *Selecting the next task*: both `P0` (tie),
-`M2-D01` wins on downstream unblocking (`M2-D02`, `M2-D02-01` both name it directly; nothing
-names `M2-C08-01`) and independently sits on the project critical path
-(`dependency-graph.md:212`), unlike `M2-C08-01`. Full detail:
-[`task-tracker.md`](task-tracker.md) footnote ¹¹⁸.
+Full spec: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md). **Selected only, not yet
+dispatched — no implementation.** Per `M2-D01`'s own close-out, this is the next candidate:
+its five Hard `depends_on` rows (`M2-C07`, `M2-C04-02`, `M2-C04-03`, `M2-C03`, `M2-C02`) are
+all `Completed` and merged (`task-tracker.md` footnote ¹¹⁸); it is `task_type: Frontend`, not
+a `Product Decision`; no hit in `open-questions.md`; no ⛔ banner; no sibling branch open on
+its own files (`git branch --list '*M2-C08*'` — empty). All five parts of the "can actually
+be done" test clear.
 
-A branch from `M2-D01`'s prior stopped attempt already exists —
-`migration/M2-D01-currency-end-to-end` (footnote ⁷⁸: dispatched 2026-08-26, stopped on
-arrival when `M2-C02` was found `Blocked`) — and is the one to resume, not a fresh cut;
-`M2-C02` is now `Completed` and merged, so the specific blocker that stopped that attempt no
-longer applies, but the branch should be re-read from its own state before continuing, not
-assumed current.
+**Deliberately not dispatched in the same session that closed `M2-D01`.** KB-050 names this
+"the single highest-leverage decision in the frontend" — it defines the config-driven
+`<app-document-editor>` shape every one of the ~65 Upsert screens will be built from
+(`M2-C08-02`/`-03` extend it directly, per its own Dependencies table), embeds both
+`LineItemGrid` (M2-C07) and `RecordPickerDialog` (M2-C06, `Soft` — stub if unavailable) whole,
+and carries a 4-day estimate. That scope deserves a fresh session's full attention, not the
+tail end of one already carrying `M2-D01`'s full implementation — this is exactly the
+handoff point [`workflow.md`](workflow.md) §3 step 7 describes ("select the next task…
+rewrite `current-task.md`… do not implement it").
 
-**`M2-C08-01` stays `Ready`** and is the next candidate after `M2-D01`, unless a
-higher-priority row appears first.
+**What a resuming session should do:** read [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md) in
+full, reuse INV-006 for the page-shape inventory (do not re-survey), then do the one
+narrow structural investigation the task itself calls for — layout variability across the
+five largest Upsert screens it names — before scaffolding anything.
+
+---
+
+## Superseded pointer, retained for lineage — `M2-D01` implemented, `Needs Review` (2026-08-28, master tip `0762e6b`)
+
+Full spec: [`tasks/M2-D01.md`](tasks/M2-D01.md). **Implemented 2026-08-28, branch
+`migration/M2-D01-currency-end-to-end`, left `Needs Review`.** Resumed from the prior
+`Blocked` attempt (footnote ⁷⁸) — rebased onto current `master` (merged in, keeping the
+branch's own history) before any feature code was written, since `M2-C02`, the specific
+blocker that stopped that attempt, is now `Completed` and merged.
+
+**What was built, briefly** (full detail: [`task-tracker.md`](task-tracker.md) footnote
+¹¹⁹, [`tasks/M2-D01.md`](tasks/M2-D01.md)'s Close-out): the first vertical slice — full CRUD
+against the real `/api/v1/currencies` contract, the KB-052/KB-053 drawer-vs-routes conflict
+resolved by a route-addressable drawer, permission-gated throughout, server-paged grid with
+Excel export. 706/706 unit tests + 4/4 e2e, both builds clean.
+
+**Real findings, not anticipated by the task file:** R-80 — `deleteCurrency()`'s generated
+client loses a 409's `title` because its `responseType` (set for the empty `204` success
+body) also governs how the error body parses, reported rather than special-cased locally; a
+genuine architectural tension between KB-050's pre-`DataGridQueryState` service shape and
+the mechanism that now exists, resolved and documented in KB-050's own new Slice review
+section; several measured Playwright/PrimeNG interaction quirks, worked around and
+documented in place.
+
+**Disclosed, not silently done:** the delete-refusal message is not byte-identical today
+(R-80); the rights-less-caller 403 is proven client-side only (no live backend in this
+environment); the Blazor screens were not manually re-verified, same reason. **Superseded
+above** — `M2-C08-01` selected next.
+
+---
+
+## Superseded pointer, retained for lineage — `M2-D01` selected, not yet dispatched (2026-08-27, master tip `5f83a88`)
+
+Full spec: [`tasks/M2-D01.md`](tasks/M2-D01.md). Owner reviewed
+[`tasks/M2-C03.md`](tasks/M2-C03.md)'s Close-out in-conversation and set it `Completed`
+("yes mark it as completed"), which cleared the one remaining gap in `M2-D01`'s own
+"transitively required" table (footnote ¹¹⁷'s `M2-C03` row) — `M2-A05`, the table's other
+gap, had already cleared the pass before. Both `M2-D01` and `M2-C08-01` moved `Blocked` →
+`Ready` on the same decision; ranked per [`dependency-graph.md`](dependency-graph.md) §
+*Selecting the next task*: both `P0` (tie), `M2-D01` wins on downstream unblocking
+(`M2-D02`, `M2-D02-01` both name it directly; nothing names `M2-C08-01`) and independently
+sits on the project critical path (`dependency-graph.md:212`), unlike `M2-C08-01`. Full
+detail: [`task-tracker.md`](task-tracker.md) footnote ¹¹⁸. **Superseded above** — dispatched
+and implemented in the same continuation.
+
+`M2-C08-01` stays `Ready` and is the next candidate after `M2-D01`, unless a higher-priority
+row appears first.
 
 ---
 
