@@ -41,12 +41,21 @@ one** — `npm run format:check` fails, but on two files (`eslint.config.js`,
 Format-check job is red for the same reason. One small in-scope defect the validator flagged
 (a wrong `doc_id` citation, `INV-062` → `INV-065`) was fixed and committed (`c5c1b77`).
 
-> **`Q-105` answered 2026-08-28 — option (a).** The owner chose the standalone hygiene branch
-> in session. `hygiene/prettier-format-check` (`a0bcc28`, cut from `master` `fcf5d6f`) now
-> carries the two-file `prettier --write` and nothing else; `format:check`, `lint`, `typecheck`
-> and 685/685 unit tests are green on it. **It is not merged** — that is the owner's step, and
-> `M2-C08-01` stays `BLOCKED` until it lands, after which only `npm run format:check` needs
-> re-running here. Everything below is the record as written when the question was raised.
+> **`Q-105` answered and closed 2026-08-28 — option (a), and the branch is merged.** The owner
+> chose the standalone hygiene branch in session, then instructed its merge:
+> `hygiene/prettier-format-check` landed on `master` at `5a543aa` (`--no-ff`, no conflicts),
+> carrying the two-file `prettier --write` and nothing else. **Re-verified on merged `master`:
+> `format:check` green for the first time since `1c93bb3`, with `lint`, `typecheck` and
+> 706/706 unit tests clean.** The blocker below is therefore gone — `master`'s CI Format-check
+> job is no longer red and no branch inherits the failure.
+>
+> **What `M2-C08-01` still needs:** bring `master` into
+> `migration/M2-C08-01-document-editor-layout` and re-run `npm run format:check` alone. Every
+> other acceptance criterion is already independently validated as met — do not re-run the
+> layout survey (INV-065) or re-investigate the implementation. R-82's register entry lives on
+> that branch (`technical-debt-register.md:2190`), so it must be closed out there.
+>
+> Everything below is the record as written when the question was raised.
 
 **Blocked on an owner decision, recorded as [`Q-105`](../open-questions.md).** Three options,
 none an execution session's to choose: (a) a standalone `npm run format` hygiene branch merged
