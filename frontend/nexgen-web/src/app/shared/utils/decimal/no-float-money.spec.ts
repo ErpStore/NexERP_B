@@ -44,7 +44,7 @@ const EXEMPT = new Map<string, string>([
   ],
   [
     'app/shared/components/form/fake-decimal-port.ts',
-    'Documented test fixture only (M2-C04-02) - not exported from index.ts, not provided anywhere in the application. Wiring DECIMAL_PORT\'s real production provider is in neither task\'s own written scope.',
+    "Documented test fixture only (M2-C04-02) - not exported from index.ts, not provided anywhere in the application. Wiring DECIMAL_PORT's real production provider is in neither task's own written scope.",
   ],
 ]);
 

@@ -295,7 +295,12 @@ module.exports = defineConfig([
     rules: {
       'no-restricted-imports': [
         'error',
-        { patterns: [...bannedComponentLibraries.patterns, ...bannedGeneratedClientImports.patterns] },
+        {
+          patterns: [
+            ...bannedComponentLibraries.patterns,
+            ...bannedGeneratedClientImports.patterns,
+          ],
+        },
       ],
       'no-restricted-syntax': ['error', ...noRawColour],
       'no-restricted-properties': 'off',
