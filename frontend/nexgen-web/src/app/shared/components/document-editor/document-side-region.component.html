@@ -1,0 +1,54 @@
+@if (asAccordion()) {
+  <div class="document-side-region__accordion">
+    @for (region of regions(); track region.id) {
+      <div class="document-side-region__item">
+        <h3 class="document-side-region__heading">
+          <button
+            type="button"
+            class="document-side-region__toggle"
+            [id]="'app-document-region-header-' + region.id"
+            [attr.aria-expanded]="isOpen(region.id)"
+            [attr.aria-controls]="'app-document-region-panel-' + region.id"
+            (click)="toggle(region.id)"
+          >
+            {{ region.label }}
+          </button>
+        </h3>
+        @if (isOpen(region.id)) {
+          <div
+            class="document-side-region__panel"
+            [id]="'app-document-region-panel-' + region.id"
+            role="region"
+            [attr.aria-labelledby]="'app-document-region-header-' + region.id"
+          >
+            @if (templateFor(region.id); as slot) {
+              <ng-container *ngTemplateOutlet="slot" />
+            }
+          </div>
+        }
+      </div>
+    }
+  </div>
+} @else {
+  <app-tabs
+    [tabs]="tabs()"
+    [activeId]="activeId()"
+    (activeIdChange)="selectTab($event)"
+    idPrefix="app-document-region"
+  />
+  @for (region of regions(); track region.id) {
+    @if (activeId() === region.id) {
+      <div
+        class="document-side-region__panel"
+        role="tabpanel"
+        [id]="'app-document-region-panel-' + region.id"
+        [attr.aria-labelledby]="'app-document-region-tab-' + region.id"
+        tabindex="0"
+      >
+        @if (templateFor(region.id); as slot) {
+          <ng-container *ngTemplateOutlet="slot" />
+        }
+      </div>
+    }
+  }
+}

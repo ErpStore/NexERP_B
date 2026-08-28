@@ -7,3 +7,5 @@ export * from './overlay';
 export * from './feedback';
 export * from './record-picker-dialog';
 export * from './line-item-grid';
+
+export * from './document-editor';

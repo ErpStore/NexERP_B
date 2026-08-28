@@ -1,0 +1,72 @@
+@if (layout().kind === 'tabbed') {
+  <app-tabs
+    [tabs]="tabs()"
+    [activeId]="activeTabId()"
+    (activeIdChange)="selectTab($event)"
+    idPrefix="app-document-header"
+  />
+}
+
+@for (section of visibleSections(); track section.id) {
+  <app-form-section
+    [title]="section.title"
+    [description]="section.description"
+    [collapsible]="section.collapsible ?? false"
+    [collapsed]="initiallyCollapsed(section)"
+    [headingLevel]="2"
+  >
+    <app-form-layout [form]="form()" [loading]="loading()" [skeletonFields]="section.fields.length">
+      @for (field of section.fields; track field.name) {
+        <div class="document-header-form__field" [attr.data-field]="field.name">
+          <app-form-field
+            [label]="field.label"
+            [hint]="field.hint"
+            [required]="field.required ?? false"
+          >
+            @switch (field.control) {
+              @case ('textarea') {
+                <app-textarea
+                  [formControl]="controlFor(field)"
+                  [readonly]="isFieldReadOnly(field)"
+                  [placeholder]="field.placeholder"
+                />
+              }
+              @case ('number') {
+                <app-number-input
+                  [formControl]="controlFor(field)"
+                  [readonly]="isFieldReadOnly(field)"
+                />
+              }
+              @case ('date') {
+                <app-date-picker
+                  [formControl]="controlFor(field)"
+                  [readonly]="isFieldReadOnly(field)"
+                />
+              }
+              @case ('select') {
+                <app-select
+                  [formControl]="controlFor(field)"
+                  [options]="optionsFor(field)"
+                  [readonly]="isFieldReadOnly(field)"
+                />
+              }
+              @case ('checkbox') {
+                <app-checkbox
+                  [formControl]="controlFor(field)"
+                  [readonly]="isFieldReadOnly(field)"
+                />
+              }
+              @default {
+                <app-text-input
+                  [formControl]="controlFor(field)"
+                  [readonly]="isFieldReadOnly(field)"
+                  [placeholder]="field.placeholder"
+                />
+              }
+            }
+          </app-form-field>
+        </div>
+      }
+    </app-form-layout>
+  </app-form-section>
+}
