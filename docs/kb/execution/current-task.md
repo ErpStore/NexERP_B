@@ -21,7 +21,39 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Selected: `M2-D02-01` — Customer Master `@code` triage + business-logic extraction
+## Selected: `M2-C08-03` — Workflow command pattern
+
+Full spec: [`tasks/M2-C08-03.md`](tasks/M2-C08-03.md). **Selected 2026-08-28 by direct owner
+instruction** ("continue the migration runner on M2-C08-03"), not by a ranking pass. `master`
+tip `7a8f952`, clean tree, in sync with `origin`.
+
+**Dispatched with a known likely outcome, put to the owner first and accepted.** This task
+consumes workflow-command endpoints of the shape ADR-002 §3 defines
+(`POST /api/v1/{resource}/{id}/{verb}`), and **no such endpoint exists**. Verified on `master`
+before dispatch: every `[HttpPost]` in `V.SMART/V.SMART.Api/Controllers/` is `login`, `refresh`,
+`logout`, `createCurrency`, `importCurrencies` or `uploadFile` — none is a command verb. The
+task file anticipates exactly this (`M2-C08-03.md:95`, `:469-491`): *"Implementing any command
+endpoint … If none exists, this task is **Blocked**"*, and instructs the session to record the
+gap as a negative result and report `Blocked` proposing the contract, naming `M2-B03`'s
+controller template as where it belongs. **That is the expected deliverable, and it is a real
+one** — the same shape `M2-C08-02` produced as `INV-066`/`Q-110`. If a command endpoint *is*
+found, so much the better: build it as specified.
+
+**The five-part test clears** on the mechanical reading: all four Hard `depends_on` rows
+(`M2-C08-01`, `M2-C04-03`, `M2-A06`, `M2-B03`) are `Completed` and merged; `task_type:
+Frontend`, not `Product Decision`; no hit for `M2-C08-03` in
+[`open-questions.md`](../open-questions.md); no live ⛔ banner. Rule 5 note: the sibling branch
+`migration/M2-C08-02-server-authoritative-totals` is open but **docs-only** — it wrote no code,
+so it holds no file this task needs. `M2-C08-02` is **Coordination**, not Hard, so its
+`BLOCKED` state does not block this task.
+
+**What a session must not do here:** implement a command endpoint (explicitly out of scope,
+`:95`), or recalculate totals — a command changes the document, so totals change, but that
+handoff belongs to `DocumentTotalsService` and `M2-C08-02`, not here.
+
+---
+
+## Superseded pointer, retained for lineage — `M2-D02-01` — Customer Master `@code` triage + business-logic extraction
 
 Full spec: [`tasks/M2-D02-01.md`](tasks/M2-D02-01.md). **Run State: `BLOCKED` (`environment`),
 2026-08-28.** Implemented and independently validated on
