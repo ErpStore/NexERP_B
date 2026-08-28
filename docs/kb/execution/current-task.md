@@ -41,6 +41,13 @@ one** — `npm run format:check` fails, but on two files (`eslint.config.js`,
 Format-check job is red for the same reason. One small in-scope defect the validator flagged
 (a wrong `doc_id` citation, `INV-062` → `INV-065`) was fixed and committed (`c5c1b77`).
 
+> **`Q-105` answered 2026-08-28 — option (a).** The owner chose the standalone hygiene branch
+> in session. `hygiene/prettier-format-check` (`a0bcc28`, cut from `master` `fcf5d6f`) now
+> carries the two-file `prettier --write` and nothing else; `format:check`, `lint`, `typecheck`
+> and 685/685 unit tests are green on it. **It is not merged** — that is the owner's step, and
+> `M2-C08-01` stays `BLOCKED` until it lands, after which only `npm run format:check` needs
+> re-running here. Everything below is the record as written when the question was raised.
+
 **Blocked on an owner decision, recorded as [`Q-105`](../open-questions.md).** Three options,
 none an execution session's to choose: (a) a standalone `npm run format` hygiene branch merged
 to `master` — recommended, clears the gate for every unmerged branch at once, including
