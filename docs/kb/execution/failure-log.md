@@ -7632,3 +7632,262 @@ to fix, and a stronger model cannot authorise a scope decision.
 
 **Attempts used: 1 of 3.** Retry budget deliberately not spent: a retry that cannot change the
 outcome is the loop this log exists to prevent.
+
+---
+
+## M2-D02-01 · attempt 1 · independent validation · 2026-08-28 · `FAIL` (`environment`)
+
+Branch `migration/M2-D02-01-customer-code-triage-extraction`, task commit `c894902`, cut from
+`b1b6332`. Validated by an independent session that re-ran every command itself; the
+implementer's reported numbers were **not** taken on trust.
+
+### What passes — verified, not accepted
+
+All commands re-run by the validator, output observed:
+
+```
+$ dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-incremental
+    6694 Warning(s)
+    0 Error(s)
+    Time Elapsed 00:01:08.26
+
+$ dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj --no-incremental
+    6697 Warning(s)
+    0 Error(s)
+    Time Elapsed 00:01:05.02
+
+$ dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj
+Passed!  - Failed: 0, Passed: 166, Skipped: 1, Total: 167, Duration: 9 s
+
+$ dotnet test ... --filter "FullyQualifiedName~Customer"
+Passed!  - Failed: 0, Passed: 64, Skipped: 0, Total: 64
+```
+
+Api 6,694 is **one below** the 6,695 baseline; Web 6,697 matches KB-083's Web baseline exactly.
+(The implementer's "6,695 / 5 warnings" figures were an incremental build; the counts above are
+`--no-incremental` and are the ones that mean something.)
+
+Independently confirmed:
+
+- `@code` measurement re-taken: `CustomerUpsert.razor` 1,309 → 1,082 lines, `^@code` at `:678` →
+  `:679`, block 632 → 404 lines. `CustomerList.razor` byte-unchanged (984 lines, `@code` `:394`).
+- Forbidden-construct grep over the post-extraction page returns **0** for all seven patterns
+  (`BeginTransactionAsync`, `ExistsByNameAsync`, `_unitOfWork.Customers.CreateAsync/UpdateAsync`,
+  `_unitOfWork.CustomerIndirects`, `_unitOfWork.ContactPersons`, `Regex.IsMatch`). The three
+  surviving `_unitOfWork` uses are `States.GetAllAsync` (`:853`), `Currencyis.GetAllAsync`
+  (`:869`) and `Customers.GetCustomerWithAllRelatedDataAsync` (`:887`) — data loading, declared
+  in KB-031 §6.
+- All 15 `errors.Add(...)` strings from the legacy `ValidateCustomer`
+  (`CustomerUpsert.razor:1126-1211` at `b1b6332`) are present **byte-identical** in
+  `CustomerService.cs` — checked mechanically, string by string; 15/15 OK.
+- Triage completeness re-derived from the source, not from the document: 37 declaration sites in
+  the pre-extraction `CustomerUpsert.razor` `@code` and 42 in `CustomerList.razor` `@code`; every
+  one has a row in KB-031 §2/§3, each with exactly one bucket (split members split into rows).
+- **No behavioural loss across the new entity→VM boundary.** Every scalar property of `Customer`,
+  `CustomerIndirect` and `ContactPerson` exists on its VM (checked property-by-property), so the
+  create path cannot silently drop a bound field. `VendorCode` was the only gap and was closed
+  (`CustomerVM.cs:39`). `CustomerMappingChildCollectionTests` additionally proves the whole
+  AutoMapper profile set still *builds* despite the pre-existing duplicate `CreateMap`
+  (R-84, `ContactPersonMapping.cs:28`).
+- No `BR-` id in KB-030 was renumbered or reused — set-diff of the old and new files shows
+  `removed: (none)`, `added: BR-CUST-001…018`.
+- Scope clean: the task commit touches 15 files, none under `V.SMART/V.SMART.Api/`, `frontend/`,
+  `V.SMART/V.SMART.Shared/Migrations/`, `Data/Master/General_Module/`, `CustomerConfiguration.cs`,
+  `ApplicationDbContext.cs` or `CustomerList.razor`. Blazor Server intact (Web builds at baseline).
+
+### Why it still fails
+
+**1. `environment` — the criterion that cannot be met without a database.**
+
+> "The manual Blazor scenarios in step 11 were executed and their persisted-row evidence is
+> recorded in the triage document."
+
+**Not met, and not checkable by the validator either.** No tenant database credential is
+available to an execution session — KB-083's "local dev database exists" note explicitly says a
+session must ask a human to confirm the connection string. The implementer did not claim
+otherwise: `customer-master-rules.md:558` carries the heading *"Manual Blazor validation — NOT
+PERFORMED"* and lists the eleven scenarios still owed. That honesty is worth recording, but it
+does not convert an unmet criterion into a met one.
+
+This matters more here than it usually would, because the extraction **changed the runtime shape
+of the update path**. The page used to mutate and save the tracked `Customer` entity directly;
+`CustomerService.UpsertCustomerAsync` (`CustomerService.cs:707-736`) now re-loads the tracked
+entity by id, maps a `CustomerVM` **onto** it, and restores the child collections and the
+`Created*` fields that the mapping overwrote. `CustomerMapping.cs:29-30` now maps
+`CustomerIndirects`/`ContactPersons` from the VM, so `_mapper.Map(vm, existing)` transiently
+replaces a tracked EF navigation collection before `CustomerService.cs:726-727` puts it back.
+That sequence is **reasoned, never executed**. Scenario 10 in `customer-master-rules.md:576-578`
+is exactly this check. No unit test can reach it — it needs EF and a real `DbContext`.
+
+**2. `acceptance-criterion` — two smaller, independently fixable gaps.**
+
+> "Every `BR-CUST-nnn` allocated carries a statement, `file:line` evidence, a
+> `Confirmed`/`Inferred`/`Unknown` rating, a disposition **and a migration note**."
+
+**Not met for 2 of 18.** `BR-CUST-007 — PAN validation` (`customer-master-rules.md:274-282`) and
+`BR-CUST-010 — Opening balance derives the pending balance` (`:309-318`) end at **Disposition**;
+they have no `- **Migration note:**` line. The other sixteen have one. Counted mechanically:
+`Statement: 18, Evidence: 18, Confidence: 18, Disposition: 18, Migration note: 16`.
+
+> "`dotnet test …` passes, including at least one test per rule listed in the *Testing
+> Requirements* table."
+
+**Partially met.** The characterisation and unit rows are covered (34 tests across
+`CustomerServiceCharacterisationTests.cs` and `CustomerMappingChildCollectionTests.cs`, all
+passing). The table's **integration** row — "round-trip `GetCustomerByIdAsync` →
+`UpsertCustomerAsync` preserves consignees and contacts" — has **no test**: it is proved only at
+the AutoMapper layer, which is a different assertion. The implementer states this in the task
+file's Execution Record. It is folded into the same missing database.
+
+**3. Not an acceptance criterion, but a required Documentation Update that was skipped.**
+`task-tracker.md:183` still reads `M2-D02-01 … Blocked⁴⁶` — the task's *Documentation Updates*
+table requires "Update the M2-D02-01 row". Stale in a way that misleads the next selection pass.
+
+### What was looked for and **not** found
+
+No missing business rule. Every legacy branch, regex, message string, ordering, the id-set diff,
+the blank-name discard (BR-CUST-012/-013), the audit stamping (BR-CUST-011), the `LogUserAction`
+screen `"Customer"` and action text, the transaction and the rollback-on-exception are present in
+`CustomerService.cs`. No ERP logic in TypeScript (`frontend/` untouched). No schema change. No
+permission check added to the service (correct — BR-AUTH-002 / ADR-004). The one authorised
+behaviour addition (BR-CUST-017) is exactly the one made.
+
+Two cosmetic behaviour deltas were noted and judged **not** rule violations, recorded so a later
+session need not re-derive them:
+
+- `OnCustomerIndirectGstChanged` with a `null` `e.Value` used to throw an (immediately-caught)
+  `NullReferenceException` at `CustomerUpsert.razor:727` (pre-extraction) and leave `GSTNo`
+  untouched; it now sets `GSTNo`/`PANNo` to the empty string. Unreachable from a real change event.
+- After a **create**, the page copies back only `CustId` and `StateName`
+  (`CustomerUpsert.razor:955-959`); `OpenBalPndg`, `OpenBalDate`, `CreatedBy` and `CreatedDate`
+  stay stale on the in-memory model. The page navigates away immediately, so it is not
+  observable — but it would become observable if the modal host (`isCustModelVisible`) is ever
+  changed to keep the form open.
+
+### What would clear this
+
+A non-production tenant database and a running `V.SMART.Web`, then the eleven scenarios in
+`customer-master-rules.md:562-580` — **scenario 10 first**, because an EF tracking exception on
+update is the failure mode the extraction's design is betting against. Plus two edits a retry can
+make without a database: the two missing migration notes, and the `task-tracker.md` row.
+
+**Do not re-dispatch a stronger model.** There is no code defect to fix and no business-rule or
+architecture question in dispute; the blocker is a credential a human holds.
+
+**Attempts used: 1 of 3.**
+---
+
+## M2-D02-01 · attempt 1 · diagnosis · 2026-08-28 · `BLOCKED` (`environment`; two acceptance-criterion gaps closed)
+
+Diagnosing session, branch `migration/M2-D02-01-customer-code-triage-extraction`, on top of task
+commit `c894902`. Read the attempt-1 validator entry above **first** — nothing in it is
+contradicted here.
+
+### Reproduced, not taken on trust
+
+```
+$ for k in Statement Evidence Confidence Disposition "Migration note"; do
+      grep -c -- "\*\*$k:\*\*" docs/kb/business-rules/customer-master-rules.md; done
+18 18 18 18 16          <- before
+18 18 18 18 18          <- after the fix below
+```
+
+The two rules with no migration note were `BR-CUST-007 — PAN validation` and
+`BR-CUST-010 — Opening balance derives the pending balance`, exactly as reported.
+
+The manual-Blazor criterion reproduced as unmet too: `customer-master-rules.md` still carries the
+heading *"Manual Blazor validation — NOT PERFORMED"*, and this session has no tenant-database
+credential either.
+
+### Root cause — two distinct causes, not one
+
+1. **`environment` (primary, not fixable here).** The criterion *"the manual Blazor scenarios in
+   step 11 were executed and their persisted-row evidence is recorded"* needs a non-production
+   tenant database and a running `V.SMART.Web`. No execution session holds that credential
+   (KB-083). A safety stop, not a code defect — the criterion must **not** be softened to pass.
+2. **`implementation-error` (secondary, fixed).** Two acceptance criteria were simply not
+   finished: two missing migration notes, and the *Testing Requirements* **integration** row with
+   no test. Both sit inside the task's authorised surface; both are now done.
+
+### Fix applied
+
+**(a) The two missing migration notes.** `customer-master-rules.md` BR-CUST-007 and BR-CUST-010
+each now carry a `- **Migration note:**` line, derived from the rule's own already-cited
+`file:line` evidence — no new rule invented. BR-CUST-007's says the PAN pattern is a display-time
+mirror only and required-ness follows the business type; BR-CUST-010's says
+`OpenBalPndg`/`OpenBalDate` are server-derived like `StateName` (BR-CUST-008) and must not be
+writable input, with Q-107 flagged as able to change the server, not the payload shape.
+
+**(b) The integration test that was missing.** New file
+`tests/V.SMART.Shared.Tests/Services/CustomerServiceRoundTripTests.cs` (2 tests). It drives the
+**real** `CustomerService` over a **real** `ApplicationDbContext` — EF Core InMemory per INV-031;
+Sqlite provably cannot host this model — and the real `CustomerRepository`,
+`CustomerIndirectRepository`, `ContactPersonRepository` and `StateRepository`. Only
+`IUnitOfWork.BeginTransactionAsync` is faked, because InMemory has no transactions. Precedent for
+the shape: `SalesOrderDeleteGuardHarness` (M0-09).
+
+Test 1 round-trips create → `GetCustomerByIdAsync` → edit a parent field → `UpsertCustomerAsync` →
+re-read, asserting the two consignees and two contact persons survive **with the same ids**, plus
+the persisted row counts. Test 2 exercises BR-CUST-013's id-set diff: keep-and-edit one consignee,
+drop one, add one, drop one contact.
+
+**This is the first observed evidence about the update path's EF change tracking.** Because
+`UpsertCustomerAsync` catches everything and returns
+`(false, "An error occurred while saving the customer.")`, a tracking failure in the
+`_mapper.Map(vm, existing)` sequence (`CustomerService.cs:707-736`) would surface as a failed
+`Success` assertion. It does not — both tests pass. That is the risk the attempt-1 validator
+called "reasoned, never executed"; it is now executed at the change-tracker level.
+
+**(c) Documentation.** KB-031 §9 gains a row and a subsection recording the new tests and,
+explicitly, **what they do not settle**: InMemory enforces no foreign keys, translates no LINQ to
+SQL and has no collation, so Q-109's collation question, the delete guard's real refusal text and
+`DELETE`/identity behaviour stay unobserved and **all eleven manual scenarios remain owed in
+full**. The M2-D02-01 task file's Execution Record is updated to match.
+
+### Re-validated — commands run in this session, output observed
+
+```
+$ dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj --filter "FullyQualifiedName~CustomerServiceRoundTripTests"
+Passed!  - Failed: 0, Passed: 2, Skipped: 0, Total: 2, Duration: 6 s
+
+$ dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj
+Passed!  - Failed: 0, Passed: 168, Skipped: 1, Total: 169, Duration: 10 s
+
+$ dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj --filter "FullyQualifiedName~Customer"
+Passed!  - Failed: 0, Passed: 66, Skipped: 0, Total: 66, Duration: 5 s
+
+$ dotnet build V.SMART/V.SMART.Api/V.SMART.Api.csproj --no-incremental
+    6694 Warning(s)
+    0 Error(s)
+    Time Elapsed 00:01:12.28
+```
+
+166 → 168 passed, and 64 → 66 on the Customer filter: the two new tests, nothing else moved.
+The Api build is unchanged at one below the 6,695 baseline.
+
+### Still not met, and why no retry changes it
+
+> "The manual Blazor scenarios in step 11 were executed and their persisted-row evidence is
+> recorded in the triage document."
+
+Unchanged. **`environment` — a human must supply a non-production tenant database and start
+`V.SMART.Web`.** Run scenario 10 first. Nothing in this session claims otherwise; the
+NOT-PERFORMED heading in KB-031 stands.
+
+### Not fixed, deliberately
+
+`task-tracker.md:183` still reads `M2-D02-01 … Blocked⁴⁶`. That file is orchestrator-owned; a
+diagnosing session does not write it. The orchestrator should set the row to reflect the
+environment block.
+
+### Do not try these again
+
+- Re-running `dotnet test` / `dotnet build` to "confirm" the manual criterion. They cannot reach
+  it. The InMemory test above is the closest any test project can get, and it is now written.
+- Adding a Sqlite-backed integration test. INV-031 recorded the negative result and
+  `DbFixtureTests.Spike_SqliteInMemory_FailsOnSqlServerOnlyColumnType` pins it.
+- Softening or deleting the manual-scenario criterion. It is the only check standing between this
+  extraction and an unobserved EF regression on a real tenant database.
+
+**Attempts used: 1 of 3.** Retry budget not spent — the remaining gap is a credential, not a
+defect.
