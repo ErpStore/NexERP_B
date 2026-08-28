@@ -14,31 +14,31 @@ dependencies: [KB-089, KB-091, KB-092, KB-081]
 model_routing_this_run: Investigate=opus, Implement=opus, Validate=opus (complexity HIGH,
 task M2-D02-01)
 
-## Status — 2026-08-28 (`M2-D02-01` implemented, independently validated, diagnosed — master tip `b1b6332`)
+## Status — 2026-08-28 (`M2-D02-01` runner stopped, diagnosis complete — master tip `b1b6332`)
 
-**BLOCKED** (`environment`) — task `M2-D02-01` implemented and independently validated; a
-diagnosis pass closed the two database-independent gaps; the remaining gap needs a
-human-supplied tenant-database credential.
+**BLOCKED** (`environment`) — autonomous migration runner stopped. Task `M2-D02-01` 
+implemented and independently validated; diagnosis pass closed database-independent gaps; 
+remaining gap requires human-supplied tenant-database credential.
 
-**This pass:** `M2-D02-01` (Customer Master — `@code` triage + business-logic extraction) was
-implemented on `migration/M2-D02-01-customer-code-triage-extraction` (commit `c894902`),
-independently validated by a separate session that re-ran every command itself rather than
-trusting the implementer's numbers, then diagnosed. **14 of 15 checkable acceptance criteria
-are met.** The diagnosis pass fixed the two gaps that did not need a database — the two missing
-migration notes (BR-CUST-007, BR-CUST-010) in `customer-master-rules.md`, and the *Testing
-Requirements* integration-test row, via a new EF Core InMemory round-trip test
-(`tests/V.SMART.Shared.Tests/Services/CustomerServiceRoundTripTests.cs`, 2 tests, committed as
-`50adf9d`) — leaving exactly one criterion unmet.
+**Runner stop:** The autonomous migration runner has stopped after completing the 
+implementation, independent validation, and diagnosis of `M2-D02-01` (Customer Master — 
+`@code` triage + business-logic extraction). **14 of 15 checkable acceptance criteria are 
+met.** The diagnosis pass fixed the two gaps that did not need a database — the two missing 
+migration notes (BR-CUST-007, BR-CUST-010) in `customer-master-rules.md`, and the *Testing 
+Requirements* integration-test row, via a new EF Core InMemory round-trip test 
+(`tests/V.SMART.Shared.Tests/Services/CustomerServiceRoundTripTests.cs`, 2 tests, committed 
+as `50adf9d`).
 
-**Stop reason (verbatim):** M2-D02-01: blocked during diagnosis (environment): the acceptance
-criterion "the manual Blazor scenarios in step 11 were executed and their persisted-row
-evidence is recorded" requires a non-production tenant database and a running `V.SMART.Web`
-that no execution session holds a credential for. Secondarily, two pieces of unfinished work
-inside the task's own surface (BR-CUST-007/-010 migration notes, the integration-test row) were
-found and fixed on diagnosis.
+**Stop reason (verbatim):** M2-D02-01: blocked during diagnosis (environment): Two separate 
+causes: primarily an environment block — the acceptance criterion "the manual Blazor scenarios 
+in step 11 were executed and their persisted-row evidence is recorded" requires a 
+non-production tenant database and a running V.SMART.Web that no execution session holds a 
+credential for; secondarily two pieces of unfinished work inside the task's own surface 
+(BR-CUST-007 and BR-CUST-010 had no migration note, and the Testing Requirements integration 
+row had no test), which I fixed.
 
-**Current task:** `M2-D02-01` — implemented, independently validated, diagnosed, blocked on an
-owner-held tenant-database credential (not on any other task).
+**Current task:** `M2-D02-01` — implemented, independently validated, diagnosed, blocked on 
+an owner-held tenant-database credential (not on any other task).
 
 **Last validation result:** `FAIL` → `environment` (diagnosis pass). Full detail:
 [`failure-log.md`](failure-log.md) §§ "M2-D02-01 · attempt 1 · independent validation" and
@@ -46,23 +46,23 @@ owner-held tenant-database credential (not on any other task).
 
 **Attempts used:** 1 of 3
 
-**Escalations:** 0 — KB-091 §8 treats an environment stop as a successful outcome; a retry
+**Escalations:** 0 — KB-091 §8 treats an environment stop as a successful outcome; a retry 
 without the credential cannot change the outcome, so the budget was deliberately not spent.
 
-**Next dependency-ready task:** empty — `nextTaskId` is returned empty by this close-out pass,
-per its own instruction (record the outcome, do not select or start another task).
+**Next dependency-ready task:** empty — no task passes the five-part "can actually be done" 
+test. `M2-D02-02` needs `M2-D02-01` `Completed` **and** merged.
 
 **Requires human decision:** YES
 
 **Human decision needed:**
-- Owner: **Vivek**. Confirm/supply a non-production tenant-database connection string and start
-  `V.SMART.Web` against it, so the eleven manual scenarios in `customer-master-rules.md` §9 can
-  be run (**scenario 10 first** — an update must not trip an EF change-tracking exception, the
-  risk the extraction's design is betting against) and their persisted-row evidence recorded.
-  Then review [`tasks/M2-D02-01.md`](tasks/M2-D02-01.md)'s Close-out and either confirm
-  `Completed` or send back changes ([KB-088](workflow.md#who-may-set-completed)). This single
-  decision also unblocks `M2-D02-02` (`CustomersController`), which needs `M2-D02-01`
-  `Completed` **and** merged.
+- Owner: **Vivek**. Confirm/supply a non-production tenant-database connection string and 
+  start `V.SMART.Web` against it, so the eleven manual scenarios in `customer-master-rules.md` 
+  §9 can be run (**scenario 10 first** — an update must not trip an EF change-tracking 
+  exception, the risk the extraction's design is betting against) and their persisted-row 
+  evidence recorded. Then review [`tasks/M2-D02-01.md`](tasks/M2-D02-01.md)'s Close-out and 
+  either confirm `Completed` or send back changes ([KB-088](workflow.md#who-may-set-completed)). 
+  This single decision also unblocks `M2-D02-02` (`CustomersController`), which needs 
+  `M2-D02-01` `Completed` **and** merged.
 
 ---
 
