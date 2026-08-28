@@ -178,7 +178,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID   | Milestone | Task                                | Type      | Status                                                                                                                                                                                                          | Priority | Depends On                                                | Estimate | Gate |
 | --------- | --------- | ----------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------- | -------- | ---- |
-| M2-D01    | M2        | Currency end-to-end in Angular      | Frontend  | **Ready**⁷⁸˒¹⁰⁷˒¹¹⁷˒¹¹⁸ _(`depends_on` clears — all 7 Hard deps `Completed` and merged — and the task file's own "transitively required" table now clears in full: `M2-A05` and `M2-C03`, its last two gaps, are both `Completed` and merged. See footnote ¹¹⁸)_ | P0       | M2-C05-03, M2-A02, M2-B10, M2-C02, M2-A07, M2-A06, M2-B01 | 3 d      | G2   |
+| M2-D01    | M2        | Currency end-to-end in Angular      | Frontend  | **Completed**⁷⁸˒¹⁰⁷˒¹¹⁷˒¹¹⁸˒¹¹⁹ _(implemented in full 2026-08-28 on `migration/M2-D01-currency-end-to-end` (`0762e6b`) — first vertical slice, full CRUD against the real API, permission-gated; 706/706 unit, 4/4 e2e, both builds clean. Owner confirmed `Completed` 2026-08-28. **Not merged to `master`** — dependents needing rule 1 of the five-part test must wait for a merge. See footnote ¹¹⁹)_ | P0       | M2-C05-03, M2-A02, M2-B10, M2-C02, M2-A07, M2-A06, M2-B01 | 3 d      | G2   |
 | M2-D02    | M2        | Customer Master _(parent)_          | Migration | Blocked⁴⁶ _(parent — never worked directly; re-specified by `M2-C12-05`; real blocker is `M2-D01`)_                                                                                                             | P0       | M2-D01                                                    | 1.5 wks  | G2   |
 | M2-D02-01 | M2        | — `@code` triage + logic extraction | Backend   | Blocked⁴⁶ _(re-specified by `M2-C12-05`; real blocker is `M2-D01`. Allocates the `BR-CUST-*` series)_                                                                                                           | P0       | M2-D01                                                    | 4 d      | G2   |
 | M2-D02-02 | M2        | — `CustomersController` + API tests | Backend   | Blocked⁴⁶ _(re-specified by `M2-C12-05`; real blocker is `M2-D02-01`)_                                                                                                                                          | P0       | M2-D02-01                                                 | 3 d      | G2   |
@@ -4607,3 +4607,37 @@ one to resume, not a conflicting sibling.
 
 `M2-C08-01` stays `Ready` and is the next candidate after `M2-D01`, unless a higher-priority
 row appears first.
+
+¹¹⁹ **`M2-D01` set `Completed`, 2026-08-28, on explicit owner instruction** ("mark M2-D01 as
+completed"). Per [`workflow.md`](workflow.md#who-may-set-completed) (KB-088) this records the
+owner's sign-off; it is not this session inferring `Completed` from "the code was written".
+
+**What was implemented** — `migration/M2-D01-currency-end-to-end`, tip `0762e6b`, resumed from
+the prior `Blocked` attempt (footnote ⁷⁸) after merging current `master` into the branch. The
+first vertical slice through the whole Angular stack: full Currency CRUD against the real
+`/api/v1/currencies` endpoints, permission-gated throughout, with the KB-052/KB-053
+drawer-vs-routes conflict resolved in favour of a drawer. 23 files, +1,694/−83. Validation as
+reported by the implementing session: 706/706 unit tests, 4/4 e2e, `typecheck`/`lint`/
+`format:check`/`build` clean. One integration gap was disclosed rather than fixed in scope —
+**R-80** ([`technical-debt-register.md`](../risks/technical-debt-register.md)):
+`deleteCurrency()`'s generated client drops a 409 response's `title`.
+
+**⚠ `Completed` but not merged — the distinction matters here.** The branch has never been
+merged to `master`; `master` carries none of the 23 files. The five-part "can actually be
+done" test in [`CLAUDE.md`](../../../CLAUDE.md) requires a Hard prerequisite to be `Completed`
+**and merged to `master`**, so this row alone does **not** unblock `M2-D02` or `M2-D02-01` —
+they need the merge, not the status. Their rows above are left `Blocked` for that reason and
+are still accurate as written. Merging is a separate, explicitly-instructed step and has not
+been requested.
+
+**Bookkeeping note.** [`current-task.md`](current-task.md) (KB-089) and
+[`runner-state.md`](runner-state.md) (KB-093), written by the implementing session at
+`34664ea`, both cite "`task-tracker.md` footnote ¹¹⁹" for `M2-D01`'s detail — but that commit
+touched only those two files, so the footnote did not exist and the tracker row still read
+`Ready` (never `Needs Review`). This footnote is that missing entry; the row is corrected
+straight from `Ready` to `Completed`. `tasks/M2-D01.md` on `master` is likewise stale
+(`status: Not Started`) because the implementing session's rewrite of it — including its
+Close-out — lives only on the unmerged branch, where the frontmatter reads `Needs Review`.
+Only `master`'s frontmatter `status` is corrected to `Completed` here, deliberately leaving
+the branch untouched while it is under review; expect a one-line frontmatter conflict on that
+`status:` line when the branch is merged, and resolve it to `Completed`.
