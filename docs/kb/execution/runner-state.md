@@ -14,51 +14,36 @@ dependencies: [KB-089, KB-091, KB-092, KB-081]
 model_routing_this_run: Investigate=opus, Implement=opus, Validate=opus (complexity HIGH,
 risk HIGH, task M2-C08-02)
 
-## Status — 2026-08-28 (`M2-C08-02` close-out — BLOCKED, session close-out complete)
+## Status — 2026-08-28 (`M2-C08-02` close-out — BLOCKED)
 
-**BLOCKED.** `M2-C08-02` (server-authoritative totals wiring) was dispatched off the
-select-only pass recorded immediately below, investigated in full through Implementation
-Requirements step 3, and stopped there per the task's own `## API Changes` clause
-(`M2-C08-02.md:388-396`), which forbids both implementing the calculate controller from this
-task and implementing the calculation in TypeScript as a stopgap. No client code was written;
-branch `migration/M2-C08-02-server-authoritative-totals` carries only this close-out's
-documentation edits.
+**BLOCKED.** The autonomous migration runner has stopped. Task `M2-C08-02` 
+(server-authoritative totals wiring) was dispatched and stopped during implementation 
+due to a missing Hard dependency blocking further progress.
 
-**Stop reason, exact.** The Hard dependency `Calculate endpoint (backend)`
-(`M2-C08-02.md:165`) does not exist and no task creates it. Confirmed by direct observation:
-`grep -rn "calculate" --include=*.cs V.SMART/V.SMART.Api/` returns no lines; `grep -c
-"calculate" api/openapi.json` returns `0` against 25 documented `/api/v1` operations; none of
-the 13 controllers in `V.SMART/V.SMART.Api/Controllers/` is calculation-related. Full evidence:
-**INV-066** (`docs/kb/investigation-registry.md:55`, `:1525`), re-verified unchanged this
-session. Blocking question: **Q-110** (`docs/kb/open-questions.md:130`) — the request/response
-shape across the 13 heterogeneous `ICalculationDocument` ViewModels, which only the repository
-owner/architect may decide.
+**Stop reason (exact, verbatim):** M2-C08-02: implementer blocked: The Hard dependency 'Calculate endpoint (backend)' (M2-C08-02.md:165) does not exist and no task creates it. Confirmed by direct observation: no 'calculate' match in any V.SMART.Api .cs file, 0 occurrences in api/openapi.json, and none of the 13 controllers is calculation-related. The task's own §API Changes (M2-C08-02.md:388-396) defines this exact situation as Blocked and forbids both implementing the controller here and implementing the calculation in TypeScript as a stopgap. Unblocking needs an owner/architect decision (Q-110: the request/response shape across 13 heterogeneous ICalculationDocument ViewModels — generic, polymorphic, or per-document) plus a small backend task wrapping the single-method ICalculationService behind POST /api/v1/documents/calculate, with every money property annotated [JsonConverter(typeof(MoneyJsonConverter))] or precision is lost on the wire.
 
-**Final validator verdict:** `{"verdict": "none", "note": "validation did not complete"}` — no
-implementation reached validation; nothing to validate.
+**Current task:** `M2-C08-02` — server-authoritative totals wiring
 
-**Attempts used: 1 of 3. Escalations: 0.** Per [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks)
-this is a successful stop on a self-defined hard block, not a failed attempt — a retry without
-the endpoint or the `Q-110` decision cannot change the outcome. `requiresHuman=true` for the
-unblocking path (an architecture decision), though the *stop itself* required no escalation.
+**Last validation result:** `none` — validation did not complete. No implementation reached 
+validation stage; task blocked during implementation phase on missing Hard dependency.
 
-**Documentation updated this close-out:** `tasks/M2-C08-02.md` (frontmatter `status: Blocked`,
-`last_verified: 2026-08-28`, `## Execution Record (2026-08-28)` appended);
-`task-tracker.md` (row `M2-C08-02` → `Blocked`, footnote ¹²⁴); this file; `current-task.md`
-(repointed to `M2-C08-02` with this Run State, per explicit instruction this session — **not**
-rewritten to a next task, since none is dispatchable: `M2-C08-02` needs a human decision,
-its sibling `M2-C08-03` was not selected this pass, and `M2-D02-01` stays the other open human
-block). **Not updated** (already correct, re-verified not re-applied): `business-rule-inventory.md`
-(KB-030, `:12-114` citation already fixed by the INV-066 session), `investigation-registry.md`
-(INV-066 already recorded), `open-questions.md` (Q-110 already recorded). **Not updated**
-(nothing observed to confirm yet): `react-architecture.md` (KB-050), `design-system.md`
-(KB-051) — both describe client behaviour that does not exist on this branch.
+**Attempts used: 1 of 3. Escalations: 0.** Per [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks) 
+this is a successful stop on a self-defined hard block; a retry without the endpoint or the 
+Q-110 decision cannot change the outcome.
 
-**`nextTaskId`: none returned by this close-out.** Selection is not this pass's job — the
-select-only entry below already ranked `M2-C08-02` and `M2-C08-03` as tied candidates off
-`M2-C08-01`'s release; `M2-C08-02` is now `Blocked` and `M2-C08-03` was not investigated this
-session. A future selection pass should re-rank from `task-tracker.md`'s current state, not
-assume `M2-C08-03` is still the only alternative.
+**Next dependency-ready task:** None. `M2-C08-02` is blocked and requires human decision. 
+No other task passes the five-part "can actually be done" test.
+
+**Requires human decision:** YES
+
+**Who can unblock it:**
+- **Owner: Vivek**. Two prerequisites are required:
+  1. Architect decision on Q-110 — the request/response shape across the 13 heterogeneous 
+     `ICalculationDocument` ViewModels (generic, polymorphic, or per-document).
+  2. A small backend task to wrap the single-method `ICalculationService` behind 
+     `POST /api/v1/documents/calculate`, with every money property annotated 
+     `[JsonConverter(typeof(MoneyJsonConverter))]` to preserve decimal precision across the wire. 
+     Once the calculate endpoint exists on the backend, `M2-C08-02` can be redispatched.
 
 ---
 
