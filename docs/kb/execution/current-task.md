@@ -23,28 +23,42 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 
 ## Selected: `M2-C08-01` — Document editor shell (header + lines + totals + commands)
 
-Full spec: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md). **Selected only, not yet
-dispatched — no implementation.** Per `M2-D01`'s own close-out, this is the next candidate:
-its five Hard `depends_on` rows (`M2-C07`, `M2-C04-02`, `M2-C04-03`, `M2-C03`, `M2-C02`) are
-all `Completed` and merged (`task-tracker.md` footnote ¹¹⁸); it is `task_type: Frontend`, not
-a `Product Decision`; no hit in `open-questions.md`; no ⛔ banner; no sibling branch open on
-its own files (`git branch --list '*M2-C08*'` — empty). All five parts of the "can actually
-be done" test clear.
+Full spec: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md). **Run State: `BLOCKED`, 2026-08-28.**
+Not a fresh selection — implemented on `migration/M2-C08-01-document-editor-layout` (tip
+`c5c1b77`), independently validated, diagnosed, and closed out, all in the same task's
+lifecycle. **Do not re-dispatch an implementer** — there is no code defect to fix, only an
+owner decision pending. **Do not select a new task from this pointer** — this session's
+instruction was to record the outcome only.
 
-**Deliberately not dispatched in the same session that closed `M2-D01`.** KB-050 names this
-"the single highest-leverage decision in the frontend" — it defines the config-driven
-`<app-document-editor>` shape every one of the ~65 Upsert screens will be built from
-(`M2-C08-02`/`-03` extend it directly, per its own Dependencies table), embeds both
-`LineItemGrid` (M2-C07) and `RecordPickerDialog` (M2-C06, `Soft` — stub if unavailable) whole,
-and carries a 4-day estimate. That scope deserves a fresh session's full attention, not the
-tail end of one already carrying `M2-D01`'s full implementation — this is exactly the
-handoff point [`workflow.md`](workflow.md) §3 step 7 describes ("select the next task…
-rewrite `current-task.md`… do not implement it").
+**What happened, briefly** (full detail: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md)'s
+Execution Record, [`task-tracker.md`](task-tracker.md) footnote ¹²⁰,
+[`failure-log.md`](failure-log.md) §§ "M2-C08-01 · attempt 1 · independent validation" and
+"· diagnosis"): the shell, config contract and both siblings' slots were implemented and
+independently validated against every acceptance criterion. **Every criterion passed except
+one** — `npm run format:check` fails, but on two files (`eslint.config.js`,
+`no-float-money.spec.ts`) that are byte-identical to `master` and already unformatted there
+(`1c93bb3`), outside this task's authorised file surface. `master`'s own blocking CI
+Format-check job is red for the same reason. One small in-scope defect the validator flagged
+(a wrong `doc_id` citation, `INV-062` → `INV-065`) was fixed and committed (`c5c1b77`).
 
-**What a resuming session should do:** read [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md) in
-full, reuse INV-006 for the page-shape inventory (do not re-survey), then do the one
-narrow structural investigation the task itself calls for — layout variability across the
-five largest Upsert screens it names — before scaffolding anything.
+**Blocked on an owner decision, recorded as [`Q-105`](../open-questions.md).** Three options,
+none an execution session's to choose: (a) a standalone `npm run format` hygiene branch merged
+to `master` — recommended, clears the gate for every unmerged branch at once, including
+`M2-D01`; (b) an explicit R-82 exception scoping the criterion to files this task actually
+touched; (c) folding the two-file reformat into this branch as an out-of-scope commit. **Named
+owner: Vivek** (repository owner) — per CLAUDE.md only he may authorise a merge to `master` or
+an acceptance-criterion exception. Attempts used: 1 of 3. Escalations: 0 — KB-091 §8 treats
+this stop as a successful outcome; a retry cannot change an owner-scope decision.
+
+**Downstream not released.** `M2-C08-02`/`M2-C08-03` still need `M2-C08-01` `Completed` **and
+merged**, not merely implemented — both stay `Blocked` until `Q-105` resolves and the branch
+merges.
+
+**What a resuming session should do:** if the owner has answered `Q-105`, act on the chosen
+option, then re-validate `npm run format:check` alone before touching anything else — every
+other criterion is already proven met and does not need re-running unless the merge/rebase
+changes something. Do not re-run the layout survey (INV-065, already recorded) or
+re-investigate the implementation.
 
 ---
 

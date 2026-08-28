@@ -9,7 +9,7 @@ database_tables: []
 business_rules: []
 status: active
 confidence: n/a
-last_verified: 2026-08-27
+last_verified: 2026-08-28
 dependencies: [KB-080, KB-082, KB-088, KB-089]
 ---
 
@@ -169,7 +169,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C06    | M2        | `RecordPickerDialog`                                                  | Frontend      | **Completed**⁷⁵˒⁸³ _(merged to `master` 2026-08-26 on owner instruction; independently validated PASS)_                                                                                                                                                                                                                                                                                                                                            | P0       | M2-C05-01                                    | 1 wk     | G2   |
 | M2-C07    | M2        | `LineItemGrid` — keyboard-first editable grid                         | Frontend      | **Completed**⁴⁶˒⁹⁹˒¹⁰²˒¹⁰³˒¹⁰⁴ _(implemented 2026-08-27 — all 18 planned files, 566/566 frontend tests pass, `typecheck`/`lint`/`format:check`/`build` all clean; the 200-row typing-latency figure, genuinely not obtained at first close-out, was measured 2026-08-27 by a follow-up session — 0.1–0.3 ms/keystroke, well inside the 50 ms target. Merged `72a5758`; owner-confirmed Completed 2026-08-27. See footnotes ¹⁰² – ¹⁰⁴)_             | P0       | M2-C05-01, M2-C10, M2-C04-02, M2-C04-03      | 2 wks    | G2   |
 | M2-C08    | M2        | `DocumentEditor` shell _(parent)_                                     | Frontend      | Not Started¹⁰⁴ _(parent — never worked directly, so never `Ready`; re-specified by `M2-C12-04`; its Hard prerequisite `M2-C07` is `Completed` and merged as of 2026-08-27 — see M2-C08-01)_                                                                                                                                                                                                                                                        | P0       | M2-C07                                       | 2 wks    | G2   |
-| M2-C08-01 | M2        | — layout: header + lines + totals + commands                          | Frontend      | **Ready**⁴⁶˒¹⁰⁴˒¹¹⁰˒¹¹⁸ _(re-corrected 2026-08-27 — all five Hard `depends_on` rows (`M2-C07`, `M2-C04-02`, `M2-C04-03`, `M2-C03`, `M2-C02`) are now `Completed` and merged, `M2-C03` having just closed. See footnote ¹¹⁸)_                                                                                                                                                                                                                 | P0       | M2-C07, M2-C04-02, M2-C04-03, M2-C03, M2-C02 | 4 d      | G2   |
+| M2-C08-01 | M2        | — layout: header + lines + totals + commands                          | Frontend      | **Blocked**⁴⁶˒¹⁰⁴˒¹¹⁰˒¹¹⁸˒¹²⁰ _(implemented 2026-08-28, branch `migration/M2-C08-01-document-editor-layout` tip `c5c1b77`, unmerged — independent validation found every acceptance criterion met except one: `npm run format:check` fails, on two files pre-existing on `master` itself, not caused by this branch. Blocked on an owner decision, `Q-105`. See footnote ¹²⁰)_                                                                                                                                                                                                                 | P0       | M2-C07, M2-C04-02, M2-C04-03, M2-C03, M2-C02 | 4 d      | G2   |
 | M2-C08-02 | M2        | — server-authoritative totals wiring                                  | Frontend      | Blocked⁴⁶ _(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)_                                                                                                                                                                                                                                                                                                                                                                             | P0       | M2-C08-01                                    | 3 d      | G2   |
 | M2-C08-03 | M2        | — workflow command pattern                                            | Frontend      | Blocked⁴⁶ _(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)_                                                                                                                                                                                                                                                                                                                                                                             | P0       | M2-C08-01                                    | 3 d      | G2   |
 | M2-C09    | M2        | `ReportPage` framework                                                | Frontend      | Blocked⁴⁶ _(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-B08`)_                                                                                                                                                                                                                                                                                                                                                                 | P1       | M2-C05-01, M2-B08                            | 1 wk     | G2   |
@@ -4641,3 +4641,31 @@ Close-out — lives only on the unmerged branch, where the frontmatter reads `Ne
 Only `master`'s frontmatter `status` is corrected to `Completed` here, deliberately leaving
 the branch untouched while it is under review; expect a one-line frontmatter conflict on that
 `status:` line when the branch is merged, and resolve it to `Completed`.
+
+¹²⁰ **`M2-C08-01`: `Ready` → `Blocked`, 2026-08-28, session close-out of an independent
+validation + diagnosis (no implementation performed by this session).** The implementation
+itself (`c5c1b77`) is not in question — the validator confirmed every other acceptance
+criterion met against observed command output (`typecheck`/`lint`/`test:ci`/`build` all pass;
+28/28 document-editor tests green in isolation; the layout, config contract, mode
+consolidation, dirty guard, non-blocking save, server-error mapping, slots and colour-token
+rules all directly verified against `file:line`). The sole unmet criterion is
+`tasks/M2-C08-01.md:418-419`'s _"`npm run format:check` … all pass"_: `prettier --check .`
+exits 1 on `frontend/nexgen-web/eslint.config.js` and
+`frontend/nexgen-web/src/app/shared/utils/decimal/no-float-money.spec.ts`, both **already
+red on `master`** (byte-identical to `master`, unformatted since `1c93bb3`) — proven, not
+inferred, and blocking `master`'s own CI Format-check job (`.github/workflows/ci.yml:307-308`)
+independent of this branch. The fix is outside this task's authorised file surface (neither
+file is in its *Files expected to change* nor its *Files that must not change* list), so it
+cannot be resolved by re-dispatching an implementer — the diagnosis deliberately left 2 of 3
+retry attempts unspent per KB-091 §8 ("a stop is a successful outcome"; a retry that cannot
+change the outcome is the loop the failure log exists to prevent). Full validation and
+diagnosis: [`failure-log.md`](failure-log.md) § "M2-C08-01 · attempt 1 · independent
+validation" and § "M2-C08-01 · attempt 1 · diagnosis." Owner decision recorded as
+[`Q-105`](../open-questions.md): a standalone `npm run format` hygiene branch merged to
+`master` (recommended — it also turns `master`'s own CI green and clears the same inherited
+gate for `M2-D01` and every later branch), an explicit R-82 exception on this one criterion,
+or folding the two-file reformat into this branch anyway. **Named owner: Vivek** (repository
+owner) — none of the three options is an execution session's to take unilaterally (no merge/
+push without explicit instruction; scope and criterion exceptions are owner calls under
+CLAUDE.md). `tasks/M2-C08-01.md`'s frontmatter `status` and its Field-table `Status` row are
+both corrected to `Blocked` in the same pass, and its Execution Record documents this in full.
