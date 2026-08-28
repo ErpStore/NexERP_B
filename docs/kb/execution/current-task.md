@@ -51,6 +51,26 @@ so it holds no file this task needs. `M2-C08-02` is **Coordination**, not Hard, 
 `:95`), or recalculate totals — a command changes the document, so totals change, but that
 handoff belongs to `DocumentTotalsService` and `M2-C08-02`, not here.
 
+**Run State: `BLOCKED`, 2026-08-28.** The known likely outcome above is exactly what happened.
+Investigated on `migration/M2-C08-03-workflow-commands` (commit `09c879a`); no application code
+was written or could be. Stop reason: no `POST /{resource}/{id}/{verb}` endpoint exists anywhere
+in `V.SMART.Api` (`grep -rnE "\[Http(Post|Put|Patch|Delete)" V.SMART/V.SMART.Api/Controllers/`
+→ 8 write actions, none a command verb; `api/openapi.json` → 24 `/api/v1` paths, zero command
+verbs). Recorded: `INV-067`, `Q-111`, `Q-112`, `R-85`, `task-tracker.md` footnote ¹²⁴, and the
+task file's own Execution Record. Attempts used: 1 of 4. Escalations: 0.
+
+**Unblocking needs, in order: (1)** an architect decision on `Q-112` (409-verbatim vs. the
+execution methods' throw-based refusal signalling), **(2)** an owner decision (named: owner
+Vivek) on `Q-111` (which resource gets the first command endpoint, and 204 vs. 200+VM per
+command), **(3)** a backend task — not yet in the tracker — implementing that endpoint against
+`KB-114` §7's frozen template. This is a close-out, not new work: **a resuming session should
+not re-investigate** — re-check only whether one of the three unblocking decisions has since
+been made, and if not, stop here again rather than re-deriving the same negative result.
+
+Branch left unmerged for review, no application code changed. Full detail:
+[`tasks/M2-C08-03.md`](tasks/M2-C08-03.md)'s Execution Record and
+[`task-tracker.md`](task-tracker.md) footnote ¹²⁴.
+
 ---
 
 ## Superseded pointer, retained for lineage — `M2-D02-01` — Customer Master `@code` triage + business-logic extraction

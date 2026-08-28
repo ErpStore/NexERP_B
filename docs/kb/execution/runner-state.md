@@ -12,7 +12,138 @@ confidence: n/a
 last_verified: 2026-08-28
 dependencies: [KB-089, KB-091, KB-092, KB-081]
 model_routing_this_run: Investigate=opus, Implement=opus, Validate=opus (complexity HIGH,
-task M2-D02-01)
+task M2-C08-03)
+
+## Status — 2026-08-28 (`M2-C08-03` session close-out — `BLOCKED`, branch `migration/M2-C08-03-workflow-commands`, commit `09c879a`)
+
+**BLOCKED.** Task: `M2-C08-03` (Workflow command pattern — `POST /{id}/{verb}`). This entry
+records the close-out per KB-084 "Session close-out"; no further implementation was attempted
+this pass — recording the outcome only.
+
+**Stop reason:** implementer blocked — no workflow-command endpoint exists to call.
+`grep -rnE "\[Http(Post|Put|Patch|Delete)" V.SMART/V.SMART.Api/Controllers/` returns exactly 8
+write actions across the 13 controllers — login/refresh/logout, currency create/update/delete,
+currency import, file upload — none of which is a command verb; `api/openapi.json` publishes
+24 `/api/v1` paths with zero command verbs. `M2-C08-03.md:496-504` makes the task `Blocked` in
+exactly this case and forbids both implementing the controller here and faking the sequence
+client-side.
+
+**Last validation result:**
+```
+{
+ "verdict": "none",
+ "note": "validation did not complete"
+}
+```
+No validation was reachable — there is no client code to verify and no `dotnet build`/`npm`
+target changed by this branch.
+
+**Attempts used: 1 of 4. Escalations: 0.** KB-091 §8 treats this as a legitimate stop, not a
+retry candidate: a second attempt without one of the three unblocking decisions below cannot
+change the outcome.
+
+**Unblocking needs three things, none an execution session's to decide:**
+1. Architect decision on **Q-112** — how a command returns a `409` with the service's refusal
+   message verbatim, given the execution methods throw (`MfgPoService.cs:1290,:1311,:1324,:1359`)
+   and `ExceptionHandlingMiddleware.cs:70` turns every throw into a constant-title `500`.
+2. Owner decision, named: **owner Vivek** — **Q-111** — which resource gets the first command
+   endpoint (not Sales Order, which is `M3-5`) and, per command, `204` vs `200 + updated VM`.
+3. A backend task, not yet in the tracker, implementing it against `KB-114` §7's frozen template
+   (`docs/kb/api/controller-conventions.md:679-702`).
+
+**Recorded in the repository** (nothing here exists only in this run's memory):
+`tasks/M2-C08-03.md`'s Execution Record (2026-08-28), `investigation-registry.md` `INV-067`,
+`open-questions.md` `Q-111`/`Q-112`, `risks/technical-debt-register.md` `R-85`, and
+`task-tracker.md` footnote ¹²⁴ — all committed on `migration/M2-C08-03-workflow-commands`
+(`09c879a`), branch left unmerged for review.
+
+**`current-task.md` left pointing at `M2-C08-03`** with its Run State updated to this failure,
+so a human or a later run resumes rather than restarts. `nextTaskId`: none — this is a
+close-out pass, not a selection pass.
+
+---
+
+## Status — 2026-08-28 (select-only pass, this session — resuming owner-selected `M2-C08-03`, master tip `fb131ab`)
+
+**RUNNING** — selected `M2-C08-03` (Workflow command pattern — `POST /{id}/{verb}`). No
+implementation performed this pass; select/classify only, per this session's instruction
+("selecting the next migration task ... do not implement anything").
+
+**Step 1 (KB-093):** No `STOP_REQUESTED` row exists anywhere in this file, and no stop was
+requested in conversation. Not a stop.
+
+**Step 2 (KB-089):** `current-task.md`'s `## Selected` section already names `M2-C08-03`,
+recorded as **"Selected 2026-08-28 by direct owner instruction"** ("continue the migration
+runner on M2-C08-03") at `master` tip `7a8f952`. Re-verified independently this pass, not
+trusted blind: `git log -1 --oneline` on `master` now shows `fb131ab` ("Select M2-C08-03
+(workflow command pattern) on direct owner instruction") — one commit past the pointer's own
+citation, docs-only, consistent with the accepted practice of runner-bookkeeping commits
+landing directly on `master`. `git branch -a` shows **no** `migration/M2-C08-03-*` branch yet
+and `git status --porcelain --branch` is clean (`ahead 1` of `origin/master`) — so no attempt
+is in progress (attempts: 0). This is not the "resume an in-flight attempt" case; it is the
+"owner already picked the task, dispatch is the next session's job" case, and per CLAUDE.md's
+instruction not to re-run selection from scratch when the pointer already names a task by
+direct owner instruction, `M2-C08-03` is carried forward rather than re-derived from the
+tracker.
+
+**Independent re-check of the five-part "can actually be done" test (not re-trusted from the
+pointer's own prose):**
+1. `task-tracker.md:174` — `M2-C08-03` row reads `**Ready**`; its Hard `depends_on`
+   (`M2-C08-01`, `M2-C04-03`, `M2-A06`, `M2-B03`) are each `Completed` **and merged**
+   (`M2-C08-01` merged `9dbb9bb`, confirmed by `task-tracker.md:172`). Rule 1 passes.
+2. `tasks/M2-C08-03.md:8` — `task_type: Frontend`, not `Product Decision`. Rule 2 passes.
+3. `grep -n "M2-C08-03" docs/kb/open-questions.md` — no hit. Rule 3 passes.
+4. `tasks/M2-C08-03.md` carries no ⛔ banner — removed by the `M2-C12-04` re-specification
+   (2026-08-22), recorded in the file's own header note. Rule 4 passes.
+5. `git branch -a | grep -i C08-03` — empty. The only other branch activity nearby,
+   `migration/M2-C08-02-server-authoritative-totals`, is docs-only (per `current-task.md`'s
+   own note) and shares no file with `M2-C08-03`'s `source_files`. Rule 5 passes.
+
+All five parts clear.
+
+**Known likely outcome, already disclosed to and accepted by the owner** (carried forward
+from `current-task.md`, not re-derived): this task consumes a workflow-command endpoint shape
+(`POST /api/v1/{resource}/{id}/{verb}`, ADR-002 §3) that does not yet exist anywhere in
+`V.SMART/V.SMART.Api/Controllers/` — every `[HttpPost]` there is `login`, `refresh`, `logout`,
+`createCurrency`, `importCurrencies` or `uploadFile`. The task file itself anticipates this
+(`M2-C08-03.md:95`, `:469-491`) and instructs the session to report `Blocked` proposing the
+contract if no such endpoint is found. That is an expected, legitimate deliverable, not a
+failure to avoid.
+
+### Classification (KB-091 §4 — `tasks/M2-C08-03.md` frontmatter carries no explicit
+`complexity`/`risk` override)
+
+- **Base**: `task_type: Frontend` → MEDIUM.
+- **Raises**:
+  - `estimate: 3 d` ≥ 3 d — yes.
+  - `depends_on` names 4 tasks (`M2-C08-01`, `M2-C04-03`, `M2-A06`, `M2-B03`) — yes, ≥ 3.
+  - `business_rules` non-empty — yes (`[BR-SO-001, BR-SO-002, BR-SO-003]`).
+  - `source_files` spans 2+ of the four .NET projects — no, all three listed paths sit under
+    `V.SMART/V.SMART.Shared/`.
+  - touches auth/tenancy/document numbering/calculation logic — no explicit hit; the task's
+    own scope note (`current-task.md`) explicitly excludes recalculating totals, delegating
+    that to `DocumentTotalsService`/`M2-C08-02`.
+  - `risk` HIGH — no.
+- **Complexity: HIGH** (MEDIUM + 3 raises; §4.2 caps at HIGH, no level above it).
+- **Risk: MEDIUM** (default — not Security/Product Decision, no schema change disclosed, no
+  secrets/`Program.cs`/`appsettings*` touched, and the task's own scope explicitly stays out
+  of calculation/totals logic; the disclosed likely outcome is a `Blocked` report proposing a
+  contract, not a live-behaviour change).
+- **Routing** (KB-091 §5.1, complexity HIGH): Investigate, Implement and Validate all route to
+  `opus`.
+
+### Safety / human-decision check (KB-091 §8)
+
+Not a safety stop: working tree clean, `master` tip verified at `fb131ab`, a fresh branch
+(`migration/M2-C08-03-...`) would be cut from it, no untracked-directory trap in play (past
+`623b1e1`). Not `requiresHuman`: the owner has already made the one decision this task
+needed (dispatch, with the likely `Blocked` outcome accepted in advance); no further product
+or architecture decision, DBA access or credential is disclosed by `tasks/M2-C08-03.md`'s
+Prerequisites. `requiresHuman=false`, `safetyStop=false`.
+
+**`nextTaskId`: `M2-C08-03`.** Not dispatched by this pass — select-only, per instruction.
+
+---
 
 ## Status — 2026-08-28 (`M2-D02-01` runner stopped, diagnosis complete — master tip `b1b6332`)
 
