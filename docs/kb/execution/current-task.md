@@ -21,37 +21,79 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 > Procedure: [`workflow.md`](workflow.md) (KB-088). Full spec: the task file linked below.
 > Status authority for all other tasks: [`task-tracker.md`](task-tracker.md) (KB-081).
 
-## Selected: `M2-C08-01` — Document editor shell (header + lines + totals + commands)
+## Selected: `M2-D02-01` — Customer Master `@code` triage + business-logic extraction
 
-Full spec: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md). **Run State: `Completed` and merged,
-2026-08-28 — was `BLOCKED`, unblocked, merged and signed off the same day.** Implemented on
+Full spec: [`tasks/M2-D02-01.md`](tasks/M2-D02-01.md). **Run State: `BLOCKED` (`environment`),
+2026-08-28.** Implemented and independently validated on
+`migration/M2-D02-01-customer-code-triage-extraction` (commits `c894902` triage + extraction,
+`50adf9d` diagnosis-pass fix). **This is a close-out, not new work — do not re-dispatch an
+implementer.** There is no code defect outstanding; the one thing standing between this task and
+`Completed` is a credential no execution session holds.
+
+**14 of 15 checkable acceptance criteria are met**, independently re-verified command by
+command (both builds at baseline, full test suite passing, every grep the criteria name
+returning what they should). Full detail: [`task-tracker.md`](task-tracker.md) footnote ¹²³,
+[`failure-log.md`](failure-log.md) §§ "M2-D02-01 · attempt 1 · independent validation" and
+"· diagnosis", and [`tasks/M2-D02-01.md`](tasks/M2-D02-01.md)'s Execution Record (close-out).
+
+**The one unmet criterion — environment, not a defect:** *"the manual Blazor scenarios in step
+11 were executed and their persisted-row evidence is recorded in the triage document."* No
+execution session holds a non-production tenant-database connection string or a running
+`V.SMART.Web` to run them against. `customer-master-rules.md` §9 states this plainly
+("Manual Blazor validation — NOT PERFORMED") and lists all eleven scenarios still owed, in the
+order they should be run — **scenario 10 first**, since it is the one the extraction's changed
+update-path shape (`CustomerService.cs:707-736`) is riskiest on.
+
+**Two smaller gaps that were fixable without a database were closed on diagnosis** (commit
+`50adf9d`): the two missing migration notes on BR-CUST-007/-010 in
+`customer-master-rules.md`, and the *Testing Requirements* integration-test row, via the new
+`tests/V.SMART.Shared.Tests/Services/CustomerServiceRoundTripTests.cs` (EF Core InMemory, per
+INV-031 — Sqlite cannot host this model). This is the first *observed* (not merely reasoned)
+evidence that the update path's `_mapper.Map(vm, existing)` sequence does not trip EF change
+tracking — though InMemory settles nothing about FK enforcement, SQL translation or collation,
+so the eleven manual scenarios stay owed in full.
+
+**Blocked on a human, named: owner Vivek.** Needed: confirm/supply a non-production
+tenant-database connection string so the eleven scenarios in `customer-master-rules.md` §9 can
+be run and their persisted-row evidence recorded; then review the Close-out and set
+`Completed` ([KB-088](workflow.md#who-may-set-completed) — only the owner may). **Attempts
+used: 1 of 3. Escalations: 0** — KB-091 §8 treats this stop as a successful outcome; a retry
+without the credential cannot change the outcome.
+
+**Downstream not released.** `M2-D02-02` (`CustomersController`) stays `Blocked` behind this
+row — it needs `M2-D02-01` `Completed` **and** merged, not merely implemented.
+
+**What a resuming session should do:** if the owner has supplied a tenant-DB connection string,
+run the eleven manual scenarios (`customer-master-rules.md` §9), record the persisted-row
+evidence there, then re-present the Close-out for the owner's `Completed` decision. Do not
+re-run the build/test commands unless the branch changes — they are already independently
+validated at commit `50adf9d`. Do not re-derive the triage, the rule table, or the round-trip
+test.
+
+---
+
+## Superseded pointer, retained for lineage — `M2-C08-01` `Completed` and merged (2026-08-28)
+
+Full spec: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md). **`Completed` and merged, 2026-08-28 —
+was `BLOCKED`, unblocked, merged and signed off the same day.** Implemented on
 `migration/M2-C08-01-document-editor-layout`, independently validated, then re-validated after
 `master` was merged into the branch: `format:check`, `lint`, `typecheck` clean, 734/734 unit
-tests, build succeeds. **Every acceptance criterion is now met.** The blocker was `master`'s
+tests, build succeeds. **Every acceptance criterion is met.** The blocker was `master`'s
 own red format gate (R-82/`Q-105`), cleared by `hygiene/prettier-format-check` at `5a543aa`.
 Detail: [`task-tracker.md`](task-tracker.md) footnote ¹²¹ and the task file's
-*Unblocked and re-validated* section. **Do not re-dispatch an implementer** — there is no
-defect to fix.
+*Unblocked and re-validated* section.
 
 **Merged to `master` 2026-08-28** (`9dbb9bb`, `--no-ff`, no conflicts) on explicit owner
 instruction, and re-verified there: all gates clean, 734/734 unit tests, build succeeds.
 **Set `Completed` 2026-08-28 on explicit owner instruction**, after that verification was
-reported. `Completed` **and** merged, so rule 1 of the five-part test is fully satisfied.
-Detail: [`task-tracker.md`](task-tracker.md) footnote ¹²².
+reported. Detail: [`task-tracker.md`](task-tracker.md) footnote ¹²².
 
-**Downstream released — both siblings are now `Ready`**, all five parts of the test re-checked
+**Downstream released — both siblings became `Ready`**, all five parts of the test re-checked
 rather than assumed: **`M2-C08-02`** (server-authoritative totals wiring — Hard deps
 `M2-C08-01`, `M2-C10`, `M2-A06`) and **`M2-C08-03`** (workflow command pattern — Hard deps
-`M2-C08-01`, `M2-C04-03`, `M2-A06`, `M2-B03`). Every one of those is `Completed` and merged;
-neither is a `Product Decision`; neither appears in `open-questions.md`; neither carries a live
-⛔ banner; no sibling branch is open on their files.
-
-**Next dispatchable work, for a selection pass to rank properly** — deliberately not selected
-here, since recording status is not dispatching. Three `P0` candidates now tie at rank 1:
-`M2-C08-02`, `M2-C08-03`, and `M2-D02-01` (Customer `@code` triage + logic extraction) with its
-parent `M2-D02` (Customer Master), which became eligible when `M2-D01` was set `Completed` and
-merged the same day. `M2-D02`/`M2-D02-01`'s tracker rows still read `Blocked` and need
-re-evaluating against the five-part test; `M2-C08-02`/`-03` are already `Ready` above.
+`M2-C08-01`, `M2-C04-03`, `M2-A06`, `M2-B03`). **Superseded above** — `M2-D02-01` (this session's
+close-out) ranked ahead of both on downstream unblocking and the critical path; `M2-C08-02` and
+`M2-C08-03` remain `Ready` and untouched, available to a future selection pass.
 
 **What happened, briefly** (full detail: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md)'s
 Execution Record, [`task-tracker.md`](task-tracker.md) footnote ¹²⁰,
@@ -64,40 +106,12 @@ one** — `npm run format:check` fails, but on two files (`eslint.config.js`,
 Format-check job is red for the same reason. One small in-scope defect the validator flagged
 (a wrong `doc_id` citation, `INV-062` → `INV-065`) was fixed and committed (`c5c1b77`).
 
-> **`Q-105` answered and closed 2026-08-28 — option (a), and the branch is merged.** The owner
-> chose the standalone hygiene branch in session, then instructed its merge:
-> `hygiene/prettier-format-check` landed on `master` at `5a543aa` (`--no-ff`, no conflicts),
-> carrying the two-file `prettier --write` and nothing else. **Re-verified on merged `master`:
-> `format:check` green for the first time since `1c93bb3`, with `lint`, `typecheck` and
-> 706/706 unit tests clean.** The blocker below is therefore gone — `master`'s CI Format-check
-> job is no longer red and no branch inherits the failure.
->
-> **What `M2-C08-01` still needs:** bring `master` into
-> `migration/M2-C08-01-document-editor-layout` and re-run `npm run format:check` alone. Every
-> other acceptance criterion is already independently validated as met — do not re-run the
-> layout survey (INV-065) or re-investigate the implementation. R-82's register entry lives on
-> that branch (`technical-debt-register.md:2190`), so it must be closed out there.
->
-> Everything below is the record as written when the question was raised.
-
-**Blocked on an owner decision, recorded as [`Q-105`](../open-questions.md).** Three options,
-none an execution session's to choose: (a) a standalone `npm run format` hygiene branch merged
-to `master` — recommended, clears the gate for every unmerged branch at once, including
-`M2-D01`; (b) an explicit R-82 exception scoping the criterion to files this task actually
-touched; (c) folding the two-file reformat into this branch as an out-of-scope commit. **Named
-owner: Vivek** (repository owner) — per CLAUDE.md only he may authorise a merge to `master` or
-an acceptance-criterion exception. Attempts used: 1 of 3. Escalations: 0 — KB-091 §8 treats
-this stop as a successful outcome; a retry cannot change an owner-scope decision.
-
-**Downstream not released.** `M2-C08-02`/`M2-C08-03` still need `M2-C08-01` `Completed` **and
-merged**, not merely implemented — both stay `Blocked` until `Q-105` resolves and the branch
-merges.
-
-**What a resuming session should do:** if the owner has answered `Q-105`, act on the chosen
-option, then re-validate `npm run format:check` alone before touching anything else — every
-other criterion is already proven met and does not need re-running unless the merge/rebase
-changes something. Do not re-run the layout survey (INV-065, already recorded) or
-re-investigate the implementation.
+**`Q-105` answered and closed 2026-08-28 — option (a), and the branch is merged.** The owner
+chose the standalone hygiene branch in session, then instructed its merge:
+`hygiene/prettier-format-check` landed on `master` at `5a543aa` (`--no-ff`, no conflicts),
+carrying the two-file `prettier --write` and nothing else. Re-verified on merged `master`:
+`format:check` green for the first time since `1c93bb3`, with `lint`, `typecheck` and
+706/706 unit tests clean.
 
 ---
 

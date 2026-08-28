@@ -180,7 +180,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | --------- | --------- | ----------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------- | -------- | ---- |
 | M2-D01    | M2        | Currency end-to-end in Angular      | Frontend  | **Completed**⁷⁸˒¹⁰⁷˒¹¹⁷˒¹¹⁸˒¹¹⁹ _(implemented in full 2026-08-28 on `migration/M2-D01-currency-end-to-end` (`0762e6b`) — the first vertical slice: full CRUD against the real `/api/v1/currencies` contract, permission-gated throughout, KB-052/KB-053 resolved by a route-addressable drawer; 706/706 unit tests, 4/4 e2e, both builds clean. Owner set `Completed` and then **merged to `master` 2026-08-28**, so rule 1 of the five-part test now passes for `M2-D02`/`M2-D02-01`. See footnote ¹¹⁹)_ | P0       | M2-C05-03, M2-A02, M2-B10, M2-C02, M2-A07, M2-A06, M2-B01 | 3 d      | G2   |
 | M2-D02    | M2        | Customer Master _(parent)_          | Migration | Blocked⁴⁶ _(parent — never worked directly; re-specified by `M2-C12-05`; real blocker is `M2-D01`)_                                                                                                             | P0       | M2-D01                                                    | 1.5 wks  | G2   |
-| M2-D02-01 | M2        | — `@code` triage + logic extraction | Backend   | Blocked⁴⁶ _(re-specified by `M2-C12-05`; real blocker is `M2-D01`. Allocates the `BR-CUST-*` series)_                                                                                                           | P0       | M2-D01                                                    | 4 d      | G2   |
+| M2-D02-01 | M2        | — `@code` triage + logic extraction | Backend   | Blocked¹²³ _(implemented + independently validated 2026-08-28 on `migration/M2-D02-01-customer-code-triage-extraction` (`50adf9d`); blocked on an owner-held tenant-database credential, not on code. Allocates the `BR-CUST-*` series)_                                                                                                           | P0       | M2-D01                                                    | 4 d      | G2   |
 | M2-D02-02 | M2        | — `CustomersController` + API tests | Backend   | Blocked⁴⁶ _(re-specified by `M2-C12-05`; real blocker is `M2-D02-01`)_                                                                                                                                          | P0       | M2-D02-01                                                 | 3 d      | G2   |
 | M2-D02-03 | M2        | — Angular screens + component tests | Frontend  | Blocked⁴⁶ _(re-specified for Angular by `M2-C12-05`; real blocker is `M2-D02-02`)_                                                                                                                              | P0       | M2-D02-02                                                 | 4 d      | G2   |
 | M2-D03    | M2        | Blazor ↔ Angular parity test        | Testing   | Blocked⁴⁶ _(re-specified for Angular by `M2-C12-05`; real blocker is `M2-D02-03`, plus a non-production tenant database — a day-1 infrastructure escalation)_                                                   | P0       | M2-D02-03                                                 | 3 d      | G2   |
@@ -4799,3 +4799,18 @@ each other — and against `M2-D02-01`, which `M2-D01`'s own `Completed`-and-mer
 same day made eligible (footnote ¹¹⁹) — is a selection pass's job per
 [`dependency-graph.md`](dependency-graph.md) § *Selecting the next task*. Recording status is
 not dispatching.
+
+¹²³ **`M2-D02-01` — implemented and independently validated 2026-08-28, blocked on a
+human-held credential, not on a task.** Branch `migration/M2-D02-01-customer-code-triage-extraction`,
+commits `c894902` (triage + extraction) and `50adf9d` (round-trip integration test + two missing
+migration notes, added on diagnosis). 14 of 15 checkable acceptance criteria met, independently
+re-verified command by command — see `failure-log.md`'s two `M2-D02-01` entries. The one unmet
+criterion is environment, not code: *"the manual Blazor scenarios in step 11 were executed and
+their persisted-row evidence is recorded"* needs a non-production tenant-database connection
+string and a running `V.SMART.Web`, neither of which any execution session holds. **Blocked on
+a human, named: owner Vivek** must confirm/supply the tenant-DB connection string (and, once the
+eleven manual scenarios in `customer-master-rules.md` §9 are run and their evidence recorded,
+review the Close-out and set `Completed` per
+[`workflow.md`](workflow.md#who-may-set-completed)). Not blocked on any other task — `M2-D02-02`
+stays `Blocked` behind this row until it clears. Full record:
+[`tasks/M2-D02-01.md`](tasks/M2-D02-01.md)'s Execution Record (close-out).

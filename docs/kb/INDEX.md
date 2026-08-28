@@ -4,7 +4,7 @@ title: Knowledge Base Index and RAG Strategy
 module: meta
 status: active
 confidence: n/a
-last_verified: 2026-08-27
+last_verified: 2026-08-28
 ---
 
 # Knowledge Base Index and RAG Strategy
@@ -27,6 +27,7 @@ last_verified: 2026-08-27
 | KB-015 | [Existing UI Architecture](architecture/frontend-architecture-existing.md) | as-is | complete | confirmed | 2026-08-12 |
 | KB-020 | [Module Inventory & Dependency Graph](modules/module-inventory.md) | as-is | complete | confirmed | 2026-08-12 |
 | KB-030 | [Business Rule Inventory](business-rules/business-rule-inventory.md) | as-is | **partial** | mixed | 2026-08-12 |
+| KB-031 | [Customer Master — `@code` triage and business rules](business-rules/customer-master-rules.md) | as-is | complete | mixed | 2026-08-28 |
 | KB-040 | [Existing API Surface](api/api-overview.md) | as-is | complete | confirmed | 2026-08-12 |
 | KB-041 | [API Readiness Assessment](api/api-readiness-assessment.md) | **proposal** | complete | — | 2026-08-12 |
 | KB-050 | [Frontend Architecture — Angular](frontend-new/react-architecture.md) *(filename kept; rewritten for Angular 2026-08-20 by M2-C00)* | **proposal** | complete | — | 2026-08-20 |

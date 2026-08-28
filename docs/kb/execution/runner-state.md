@@ -12,7 +12,136 @@ confidence: n/a
 last_verified: 2026-08-28
 dependencies: [KB-089, KB-091, KB-092, KB-081]
 model_routing_this_run: Investigate=opus, Implement=opus, Validate=opus (complexity HIGH,
-task M2-C08-01)
+task M2-D02-01)
+
+## Status — 2026-08-28 (`M2-D02-01` runner stopped, diagnosis complete — master tip `b1b6332`)
+
+**BLOCKED** (`environment`) — autonomous migration runner stopped. Task `M2-D02-01` 
+implemented and independently validated; diagnosis pass closed database-independent gaps; 
+remaining gap requires human-supplied tenant-database credential.
+
+**Runner stop:** The autonomous migration runner has stopped after completing the 
+implementation, independent validation, and diagnosis of `M2-D02-01` (Customer Master — 
+`@code` triage + business-logic extraction). **14 of 15 checkable acceptance criteria are 
+met.** The diagnosis pass fixed the two gaps that did not need a database — the two missing 
+migration notes (BR-CUST-007, BR-CUST-010) in `customer-master-rules.md`, and the *Testing 
+Requirements* integration-test row, via a new EF Core InMemory round-trip test 
+(`tests/V.SMART.Shared.Tests/Services/CustomerServiceRoundTripTests.cs`, 2 tests, committed 
+as `50adf9d`).
+
+**Stop reason (verbatim):** M2-D02-01: blocked during diagnosis (environment): Two separate 
+causes: primarily an environment block — the acceptance criterion "the manual Blazor scenarios 
+in step 11 were executed and their persisted-row evidence is recorded" requires a 
+non-production tenant database and a running V.SMART.Web that no execution session holds a 
+credential for; secondarily two pieces of unfinished work inside the task's own surface 
+(BR-CUST-007 and BR-CUST-010 had no migration note, and the Testing Requirements integration 
+row had no test), which I fixed.
+
+**Current task:** `M2-D02-01` — implemented, independently validated, diagnosed, blocked on 
+an owner-held tenant-database credential (not on any other task).
+
+**Last validation result:** `FAIL` → `environment` (diagnosis pass). Full detail:
+[`failure-log.md`](failure-log.md) §§ "M2-D02-01 · attempt 1 · independent validation" and
+"· diagnosis".
+
+**Attempts used:** 1 of 3
+
+**Escalations:** 0 — KB-091 §8 treats an environment stop as a successful outcome; a retry 
+without the credential cannot change the outcome, so the budget was deliberately not spent.
+
+**Next dependency-ready task:** empty — no task passes the five-part "can actually be done" 
+test. `M2-D02-02` needs `M2-D02-01` `Completed` **and** merged.
+
+**Requires human decision:** YES
+
+**Human decision needed:**
+- Owner: **Vivek**. Confirm/supply a non-production tenant-database connection string and 
+  start `V.SMART.Web` against it, so the eleven manual scenarios in `customer-master-rules.md` 
+  §9 can be run (**scenario 10 first** — an update must not trip an EF change-tracking 
+  exception, the risk the extraction's design is betting against) and their persisted-row 
+  evidence recorded. Then review [`tasks/M2-D02-01.md`](tasks/M2-D02-01.md)'s Close-out and 
+  either confirm `Completed` or send back changes ([KB-088](workflow.md#who-may-set-completed)). 
+  This single decision also unblocks `M2-D02-02` (`CustomersController`), which needs 
+  `M2-D02-01` `Completed` **and** merged.
+
+---
+
+## Status — 2026-08-28 (select-only pass, this session — master tip `b1b6332`, RUNNING)
+
+**RUNNING** — selected `M2-D02-01` (Customer Master — `@code` triage + business-logic
+extraction). No implementation performed this pass; select-only per this session's
+instruction ("selecting the next migration task ... do not implement anything").
+
+**Ground re-verified, not assumed.** `git status --porcelain --branch` on `master` is clean,
+`b1b6332` ("M2-C08-01: Mark Completed on explicit owner instruction; release both siblings"),
+21 commits ahead of `origin/master`, nothing pending. This is materially past the last time
+this file was updated (`fcf5d6f`) — the hygiene fix (`5a543aa`), `M2-D01`'s merge (`b67afa5`)
+and `Completed` mark, and `M2-C08-01`'s unblock/merge/`Completed` all landed since, per
+`current-task.md` and `task-tracker.md` (footnotes ¹²¹–¹²²), which were current at this
+tip and are trusted rather than re-derived.
+
+**Candidate set (rule 1, KB-082 § Ready-task selection rule), all three `P0`:**
+
+- **`M2-D02-01`** (Customer `@code` triage + logic extraction) — Hard `depends_on` `[M2-D01,
+  M0-12-01, M2-B07]`, all three `Completed` (tracker lines 79, 127, 181). Not a parent
+  container (`M2-D02` is; `M2-D02-01` is its child). No hit in `open-questions.md` for
+  `M2-D02-01`. No ⛔ banner (re-specified for Angular by `M2-C12-05`, 2026-08-22). No sibling
+  branch open on `Customer_Pages`/`CustomerService`/`CustomerRepository` — `git branch -a`
+  shows none.
+- **`M2-C08-02`** (server-authoritative totals wiring) — Hard `depends_on` `[M2-C08-01,
+  M2-C10, M2-A06]`, all `Completed` and merged as of 2026-08-28 (tracker line 173). Clears
+  rules 2–5 the same way; no branch open on its files.
+- **`M2-C08-03`** (workflow command pattern) — Hard `depends_on` `[M2-C08-01, M2-C04-03,
+  M2-A06, M2-B03]`, all `Completed` and merged (tracker line 174). Clears rules 2–5; no
+  branch open.
+
+**Ranked (KB-082 § Ready-task selection rule, step 3).** All three tie at P0 (step 1).
+Step 2, most downstream unblocking: `M2-D02-01` gates `M2-D02-02` → `M2-D02-03` → `M2-D03`
+(three tasks name it, transitively, in `depends_on`); nothing in `task-tracker.md` names
+`M2-C08-02` or `M2-C08-03` as a dependency — grepped, no hits. `M2-D02-01` wins outright at
+step 2; step 3 (critical path) independently agrees — `dependency-graph.md:212` lists
+`... → M2-D01 → M2-D02-01 → M2-D02-02 → M2-D02-03 → M2-D03 → ★G2★` by name, and neither
+`M2-C08-02` nor `M2-C08-03` appears on that line. **`M2-D02-01` selected.** `M2-C08-02` and
+`M2-C08-03` remain `Ready` and independent of each other and of `M2-D02-01` (no shared files
+between the Customer module and the document-editor totals/commands slices) — a legitimate
+parallel-capacity note for the owner, not a tie this pass needs to break (KB-082 step 4 is
+for genuinely equal rank; `M2-D02-01` is not tied with them, it outranks them).
+
+### Classification (KB-091 §4 — `tasks/M2-D02-01.md` frontmatter carries no explicit
+`complexity`/`risk` override)
+
+- **Base**: `task_type: Backend` → MEDIUM.
+- **Raises**:
+  - `estimate: 4 d` ≥ 3 d — yes.
+  - `depends_on` names 3 tasks (`M2-D01`, `M0-12-01`, `M2-B07`) — yes, ≥ 3.
+  - `business_rules` non-empty — no (`[]` in frontmatter; the task *allocates* the new
+    `BR-CUST-*` series during the work, but the metadata as written is empty).
+  - `source_files` spans 2+ of the four .NET projects — no, every listed path is under
+    `V.SMART/V.SMART.Shared/`.
+  - touches auth/tenancy/document numbering/calculation logic — no (Customer master; services
+    stay authorization-free by design, BR-AUTH-002, per the task's own Dependencies table).
+  - `risk` HIGH — no (see below).
+- **Complexity: HIGH** (MEDIUM + 2 raises).
+- **Risk: MEDIUM** (default — not Security/Product Decision, no schema change disclosed, no
+  secrets/`Program.cs`/`appsettings*`, `business_rules: []` in frontmatter, and the task is a
+  behaviour-preserving extraction with Blazor staying live and unchanged — no live-observable
+  behaviour change).
+- **Routing** (KB-091 §5.1, complexity HIGH): Investigate, Implement and Validate all route to
+  `opus`.
+
+### Safety / human-decision check (KB-091 §8)
+
+Not a safety stop: working tree clean, `master` tip verified at `b1b6332`, a fresh branch
+(`migration/M2-D02-01-...`) would be cut from it, no untracked-directory trap in play (past
+`623b1e1`). Not `requiresHuman`: not a `Product Decision`, no architecture decision pending
+(`ADR-007` already governs the stack; this task touches no ADR), no schema change disclosed
+by the task file, no secrets/credentials/DBA access needed for a code-triage/extraction task
+against the local repository, and `dotnet test`/the Angular test commands are usable
+(`M0-12-01` is `Completed`). `requiresHuman=false`, `safetyStop=false`.
+
+**`nextTaskId`: `M2-D02-01`.** Not dispatched by this pass — select-only, per instruction.
+
+---
 
 ## Status — 2026-08-28 (after `M2-C08-01` implementation and diagnosis, master tip `34664ea`)
 

@@ -18,6 +18,13 @@ namespace V.SMART.Shared.Mappings.MasterMapping.GeneralMasterProfile
                 .ForMember(dest => dest.CustomerName, opt => opt.MapFrom(src => src.Customer != null ? src.Customer.CustName : string.Empty));
 
             // VM -> Entity
+            // M2-D02-01 / BR-CUST-017: ContactPersonVM -> ContactPerson did not exist, so the
+            // ContactPersons <-> ContactPersonVMs collection mapping added to CustomerMapping
+            // had no element map to use. Added here, its natural home.
+            CreateMap<ContactPersonVM, ContactPerson>()
+                .ForMember(dest => dest.Customer, opt => opt.Ignore())
+                .ForMember(dest => dest.Lead, opt => opt.Ignore());
+
             CreateMap<CustomerIndirectVM, CustomerIndirect>()
                 .ForMember(dest => dest.Customer, opt => opt.Ignore());
         }
