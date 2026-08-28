@@ -11,8 +11,91 @@ status: active
 confidence: n/a
 last_verified: 2026-08-28
 dependencies: [KB-089, KB-091, KB-092, KB-081]
-model_routing_this_run: Investigate=opus, Implement=opus, Validate=opus (complexity HIGH,
-risk MEDIUM, task M2-C08-03; the M2-C08-02 pass before it ran at risk HIGH)
+model_routing_this_run: none — no task selected, nothing to route
+
+## Status — 2026-08-28 (autonomous runner stopped, no dependency-ready task)
+
+**STOPPED.** Autonomous migration runner has stopped. No task in the current task tracker carries `Ready` status, and all `Blocked` tasks require unresolved human decisions or missing backend infrastructure.
+
+**Stop reason (verbatim):** no dependency-ready task remains: No task in docs/kb/execution/task-tracker.md currently carries `Ready` status (`grep -n -- '\*\*Ready\*\*' task-tracker.md` returns zero matches at master tip 81fe184). current-task.md points at M2-C08-03 with Run State BLOCKED (closed out, attempts 1/4, no attempt in progress) — not resumable per its own instruction to only re-check whether Q-111/Q-112 have been answered (they have not). Re-derived the candidate set from scratch per the Ready-task selection rule (dependency-graph.md): M2-C08-02 (Blocked, needs architect answer to Q-110 plus a not-yet-filed backend task implementing POST /api/v1/documents/calculate); M2-C08-03 (Blocked, needs owner answer to Q-111 and architect answer to Q-112 plus a not-yet-filed backend task for the workflow-command endpoint); M2-D02-01 (implemented, independently validated, merged to master at e27976c, but Blocked — 14/15 acceptance criteria met, the 15th needs an owner-held tenant-database credential no execution session holds); M2-D02-02/-03 chained Blocked behind it; M0-06 Blocked on Q-25 (production tenant-DB access, human-only). M2-C08 and M2-D02 are parent containers, never worked directly. No candidate clears the five-part "can actually be done" test. Verified Q-109/Q-110/Q-111/Q-112/Q-25 are all still unanswered in open-questions.md. This is a legitimate empty-candidate-set outcome (same shape recorded previously at runner-state.md lines ~704 and ~761 for prior identical situations), not a STOP_REQUESTED condition.
+
+**Current task:** `M2-C08-03` (Workflow command pattern) — Blocked.
+
+**Last validation result:** Not applicable — implementation not started this session.
+
+**Attempts used:** 1 of 4. Escalations: 0.
+
+**Next dependency-ready task:** none.
+
+**Requires human decision:** YES
+
+**Human decisions blocking progress:**
+1. **Owner: Vivek** — **Q-111** — which resource gets the first command endpoint (not Sales Order, which is M3-5) and, per command, `204` vs `200 + updated VM`.
+2. **Architect decision** — **Q-112** — how a command returns a `409` with the service's refusal message verbatim when the execution methods throw and `ExceptionHandlingMiddleware.cs:70` turns every throw into a constant-title `500`.
+3. **Owner: Vivek** — **Q-110** — the request/response shape across the 13 heterogeneous `ICalculationDocument` ViewModels for `M2-C08-02` (generic, polymorphic, or per-document).
+4. **Owner: Vivek** — **Q-109** — tenant-database credential to run `M2-D02-02`'s manual scenarios for Customer Master validation.
+5. **Owner: Vivek** — **Q-25** — production tenant-database access for `M0-06` (existing Blazor baseline documentation).
+
+---
+
+## Status — 2026-08-28 (select-only pass, this session — no dependency-ready task, master tip `81fe184`)
+
+**RUNNING → no task selected.** Both docs-only close-outs below (`M2-C08-02` at `6c22345`,
+`M2-C08-03` at `81fe184`) are now merged to `master`. This pass re-derived the candidate set
+from scratch against the merged tracker rather than trusting either entry's own "next" claim.
+
+**Step 1 (KB-093):** No `STOP_REQUESTED` row exists anywhere in this file, and no stop was
+requested in this conversation. Not a stop.
+
+**Step 2 (KB-089):** `current-task.md` points at `M2-C08-03` with Run State `BLOCKED`,
+2026-08-28 — closed out (attempts 1 of 4, no attempt in progress), not an in-flight attempt to
+resume. Its own text says so explicitly: *"a resuming session should not re-investigate — only
+re-check whether one of the three unblocking decisions has since been made."* Re-checked this
+pass, not carried forward blind:
+- `Q-112` (architect: 409-verbatim signalling) — `grep -n "Q-112" docs/kb/open-questions.md` →
+  still open, no answer recorded.
+- `Q-111` (owner Vivek: which resource gets the first command endpoint) — `grep -n "Q-111"
+  docs/kb/open-questions.md` → still open, no answer recorded.
+- No new backend task implementing a command endpoint exists in `task-tracker.md`.
+
+None of the three unblocking conditions has changed. `M2-C08-03` is not resumable; falls
+through to step 3.
+
+**Step 3 (KB-082 § Ready-task selection rule) against `task-tracker.md` (KB-081), status
+authority, re-read at `master` tip `81fe184`:**
+
+`grep -n -- '\*\*Ready\*\*' docs/kb/execution/task-tracker.md` → **zero matches.** No row in
+the entire tracker currently carries `Ready` status. Verified the specific rows a prior
+session's candidate sets have used, to make sure none silently flipped back to `Ready`:
+- `M2-C08-02` (tracker line 173, footnote ¹²⁴) — `Blocked`, re-blocked 2026-08-28 after
+  dispatch found no `POST /api/v1/documents/calculate` endpoint exists (`INV-066`); needs
+  architect answer to `Q-110` plus a not-yet-filed backend task.
+- `M2-C08-03` (tracker line 174, footnote ¹²⁵) — `Blocked`, re-blocked 2026-08-28 after
+  dispatch found no `POST /{resource}/{id}/{verb}` endpoint exists (`INV-067`); needs `Q-111`
+  and `Q-112` plus a not-yet-filed backend task.
+- `M2-D02-01` (tracker line 183, footnote ¹²³) — `Blocked`; implemented, independently
+  validated, merged to `master` (`e27976c`), but 1 of 15 acceptance criteria (manual Blazor
+  scenario evidence) needs an owner-held tenant-database credential no execution session
+  holds.
+- `M2-D02-02` / `M2-D02-03` (tracker lines 184–185) — `Blocked`, chained behind `M2-D02-01`
+  (which is merged but not `Completed`) and, for `-02`, additionally on `Q-109`.
+- `M0-06` (tracker line 84) — `Blocked` on `Q-25`, production tenant-database access nobody on
+  the project has; `Q-26`'s half already answered (2026-08-27) does not clear it.
+- `M2-C08` / `M2-D02` (tracker lines 171, 182) — parent containers, never worked directly per
+  rule 1's third bullet.
+
+No candidate clears the five-part "can actually be done" test. Every currently-`Blocked` row
+either needs a human decision (`Q-110`, `Q-111`, `Q-112`, `Q-109`, `Q-25`) or a task not yet
+filed in the tracker. Per KB-082 step 3's closing rule, `taskId` is empty.
+
+**Requires human decision:** YES, but distributed across several rows rather than one blocking
+gate — see the per-task owner/architect calls above, each already recorded in
+`open-questions.md` and each row's tracker footnote. No new decision is raised by this pass.
+
+**`nextTaskId`: none.** No implementation, no dispatch — select-only per this session's
+instruction, and there was nothing to dispatch regardless.
+
+---
 
 ## Status — 2026-08-28 (autonomous runner stopped, M2-C08-03 implementer blocked)
 
