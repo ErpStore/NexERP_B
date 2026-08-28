@@ -170,7 +170,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C07    | M2        | `LineItemGrid` — keyboard-first editable grid                         | Frontend      | **Completed**⁴⁶˒⁹⁹˒¹⁰²˒¹⁰³˒¹⁰⁴ _(implemented 2026-08-27 — all 18 planned files, 566/566 frontend tests pass, `typecheck`/`lint`/`format:check`/`build` all clean; the 200-row typing-latency figure, genuinely not obtained at first close-out, was measured 2026-08-27 by a follow-up session — 0.1–0.3 ms/keystroke, well inside the 50 ms target. Merged `72a5758`; owner-confirmed Completed 2026-08-27. See footnotes ¹⁰² – ¹⁰⁴)_             | P0       | M2-C05-01, M2-C10, M2-C04-02, M2-C04-03      | 2 wks    | G2   |
 | M2-C08    | M2        | `DocumentEditor` shell _(parent)_                                     | Frontend      | Not Started¹⁰⁴ _(parent — never worked directly, so never `Ready`; re-specified by `M2-C12-04`; its Hard prerequisite `M2-C07` is `Completed` and merged as of 2026-08-27 — see M2-C08-01)_                                                                                                                                                                                                                                                        | P0       | M2-C07                                       | 2 wks    | G2   |
 | M2-C08-01 | M2        | — layout: header + lines + totals + commands                          | Frontend      | **Completed**⁴⁶˒¹⁰⁴˒¹¹⁰˒¹¹⁸˒¹²⁰˒¹²¹˒¹²² _(implemented 2026-08-28 on `migration/M2-C08-01-document-editor-layout`, independently validated, and unblocked the same day — the `format:check` failure was `master`-owned (R-82/`Q-105`), fixed by `hygiene/prettier-format-check` and merged at `5a543aa`. Re-validated after taking `master` into the branch: `format:check`, `lint`, `typecheck` clean, 734/734 unit tests, build succeeds. **Every acceptance criterion is now met.** **Merged to `master` 2026-08-28** (`9dbb9bb`); re-verified there — 734/734 tests, all gates clean. Owner confirmed `Completed` 2026-08-28, releasing `M2-C08-02`/`M2-C08-03`. See footnote ¹²². See footnote ¹²¹)_ | P0       | M2-C07, M2-C04-02, M2-C04-03, M2-C03, M2-C02 | 4 d      | G2   |
-| M2-C08-02 | M2        | — server-authoritative totals wiring                                  | Frontend      | **Ready**⁴⁶˒¹²² _(all three Hard `depends_on` rows — `M2-C08-01`, `M2-C10`, `M2-A06` — are `Completed` and merged as of 2026-08-28. Re-specified for Angular by `M2-C12-04`. See footnote ¹²²)_ | P0       | M2-C08-01                                    | 3 d      | G2   |
+| M2-C08-02 | M2        | — server-authoritative totals wiring                                  | Frontend      | **Blocked**⁴⁶˒¹²⁴ _(the calculate endpoint it consumes does not exist — no task creates it. Blocked on owner/architect decision `Q-110` plus a new backend task. See footnote ¹²⁴)_ | P0       | M2-C08-01                                    | 3 d      | G2   |
 | M2-C08-03 | M2        | — workflow command pattern                                            | Frontend      | **Ready**⁴⁶˒¹²² _(all four Hard `depends_on` rows — `M2-C08-01`, `M2-C04-03`, `M2-A06`, `M2-B03` — are `Completed` and merged as of 2026-08-28. Re-specified for Angular by `M2-C12-04`. See footnote ¹²²)_ | P0       | M2-C08-01                                    | 3 d      | G2   |
 | M2-C09    | M2        | `ReportPage` framework                                                | Frontend      | Blocked⁴⁶ _(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-B08`)_                                                                                                                                                                                                                                                                                                                                                                 | P1       | M2-C05-01, M2-B08                            | 1 wk     | G2   |
 
@@ -4834,3 +4834,41 @@ credential answers `Q-109`, which independently blocks a correct `CustomersContr
 **`M2-D02-02` is not released by this merge.** Rule 1 of the five-part test needs `M2-D02-01`
 `Completed` **and** merged; only the merge half holds, and `Q-109` is an unanswered question
 against it besides — rule 3 fails independently.
+
+¹²⁴ **`M2-C08-02`: `Ready` → `Blocked`, 2026-08-28, session close-out — dispatched, investigated
+in full, blocked before any code was written.** Branch
+`migration/M2-C08-02-server-authoritative-totals` was cut, but carries no client code change:
+per the task's own `## API Changes` clause (`M2-C08-02.md:388-396`), the implementer stopped
+at Implementation Requirements step 3 once the block was confirmed, rather than implementing
+the controller or a TypeScript stopgap.
+
+**Confirmed by direct observation, re-checked this session against current source:** the
+`POST /api/v1/documents/calculate` endpoint this task's Hard dependency row "Calculate endpoint
+(backend)" (`M2-C08-02.md:165`) requires does not exist. `grep -rn "calculate"
+--include=*.cs V.SMART/V.SMART.Api/` returns no lines; `grep -c "calculate" api/openapi.json`
+returns `0` against 25 documented `/api/v1` operations; none of the 13 controllers under
+`V.SMART/V.SMART.Api/Controllers/` is calculation-related; `ICalculationService` is referenced
+only from `V.SMART.Shared` DI and Blazor `@code`, never from `V.SMART.Api`. Full evidence:
+**INV-066** (`docs/kb/investigation-registry.md:55`, `:1525`), recorded earlier the same day by
+the session that first hit this block and re-verified unchanged by this close-out.
+
+**Blocked on a human, named: owner Vivek, as an architecture decision — not on a task
+alone.** Unblocking needs (1) **`Q-110`** answered
+([`open-questions.md:130`](../open-questions.md)) — the request/response shape across the 13
+heterogeneous `ICalculationDocument` ViewModels (one generic DTO, a polymorphic DTO, or one
+endpoint per document type), and whether line-level computed values are returned alongside
+header totals — which only the repository owner/architect may decide (never
+self-selectable, per [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks));
+then (2) a small new backend task, not yet filed, wrapping the single-method
+`ICalculationService.UpdateTotalsAsync` behind `POST /api/v1/documents/calculate` with every
+money property annotated `[JsonConverter(typeof(MoneyJsonConverter))]` — today applied to no
+DTO in the API (INV-066 finding 2). Full record: `tasks/M2-C08-02.md`'s Execution Record
+(close-out).
+
+**Downstream not released.** No task depends on `M2-C08-02`; it blocks nothing further in the
+dependency graph on its own, but the totals-dependent document waves (M3–M5) that would consume
+its output remain unable to show live server totals until this clears.
+
+**Attempts used: 1 of 3. Escalations: 0** — per KB-091 §8 this is a successful stop (blocked on
+a missing prerequisite the task itself defines as a hard stop), not a failed attempt; a retry
+without the endpoint or the Q-110 decision cannot change the outcome. **Not merged, not pushed.**

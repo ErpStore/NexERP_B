@@ -53,7 +53,55 @@ handoff belongs to `DocumentTotalsService` and `M2-C08-02`, not here.
 
 ---
 
-## Superseded pointer, retained for lineage — `M2-D02-01` — Customer Master `@code` triage + business-logic extraction
+## Superseded pointer, retained for lineage — `M2-C08-02` — Server-authoritative totals wiring (`BLOCKED`, 2026-08-28)
+
+Full spec: [`tasks/M2-C08-02.md`](tasks/M2-C08-02.md). **Run State: `BLOCKED` (`human-decision`),
+2026-08-28.** Investigated in full through Implementation Requirements step 3 on branch
+`migration/M2-C08-02-server-authoritative-totals`; **no client code was written**. Stopped per
+the task's own `## API Changes` clause (`M2-C08-02.md:388-396`), which forbids both
+implementing the calculate controller from this task and implementing the calculation in
+TypeScript as a stopgap. **This is a close-out, not a partial implementation — do not
+re-dispatch an implementer without the unblocking decision below.**
+
+**Stop reason, exact.** The Hard dependency `Calculate endpoint (backend)`
+(`M2-C08-02.md:165`) does not exist and no task creates it. Confirmed by direct observation:
+`grep -rn "calculate" --include=*.cs V.SMART/V.SMART.Api/` returns no lines; `grep -c
+"calculate" api/openapi.json` returns `0` against 25 documented `/api/v1` operations; none of
+the 13 controllers under `V.SMART/V.SMART.Api/Controllers/` is calculation-related;
+`ICalculationService` is referenced only from `V.SMART.Shared` DI and Blazor `@code`, never
+from `V.SMART.Api`. Full evidence: **INV-066**
+(`docs/kb/investigation-registry.md:55`, `:1525`), re-verified unchanged this session. A
+secondary finding was confirmed alongside it and escalated, not papered over: money crosses
+the wire as a plain JSON number today (no DTO anywhere uses the opt-in
+`MoneyJsonConverter`) — same evidence.
+
+**Blocked on a human, named: owner Vivek, as an architecture decision.** Needed: an answer to
+**`Q-110`** ([`open-questions.md:130`](../open-questions.md)) — the request/response shape
+across the 13 heterogeneous `ICalculationDocument` ViewModels (one generic DTO, a polymorphic
+DTO, or one endpoint per document type), and whether the response returns line-level computed
+values or header totals only — plus a small new backend task, not yet filed, wrapping
+`ICalculationService.UpdateTotalsAsync` behind `POST /api/v1/documents/calculate` with every
+money property annotated `[JsonConverter(typeof(MoneyJsonConverter))]`. **Attempts used: 1 of
+3. Escalations: 0** — per KB-091 §8 this is a successful stop on a self-defined hard block, not
+a failed attempt.
+
+**Downstream not released.** No task's `depends_on` names `M2-C08-02`; it does not block
+tracker progress on its own, but the document waves (M3–M5) that would consume live server
+totals stay unable to show them until this clears.
+
+**What a resuming session should do:** if the owner has answered `Q-110` and a backend task has
+shipped `POST /api/v1/documents/calculate`, re-open `M2-C08-02`, re-confirm the endpoint exists
+and re-check the wire format, then proceed from Implementation Requirements step 4 — do not
+re-derive the step-9 algorithm table or steps 1–3's investigation, both re-verified and current
+as of this record. If neither has happened, do not re-dispatch; there is nothing new to
+investigate. Full record: [`tasks/M2-C08-02.md`](tasks/M2-C08-02.md)'s Execution Record,
+[`task-tracker.md`](task-tracker.md) footnote ¹²⁴, [`runner-state.md`](runner-state.md)'s
+matching status entry.
+
+---
+
+## Superseded pointer, retained for lineage — `M2-D02-01` blocked on a human credential
+(2026-08-28)
 
 Full spec: [`tasks/M2-D02-01.md`](tasks/M2-D02-01.md). **Run State: `BLOCKED` (`environment`),
 2026-08-28.** Implemented and independently validated on

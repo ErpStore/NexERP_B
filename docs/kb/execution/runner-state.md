@@ -12,7 +12,108 @@ confidence: n/a
 last_verified: 2026-08-28
 dependencies: [KB-089, KB-091, KB-092, KB-081]
 model_routing_this_run: Investigate=opus, Implement=opus, Validate=opus (complexity HIGH,
-task M2-D02-01)
+risk HIGH, task M2-C08-02)
+
+## Status — 2026-08-28 (`M2-C08-02` close-out — BLOCKED)
+
+**BLOCKED.** The autonomous migration runner has stopped. Task `M2-C08-02` 
+(server-authoritative totals wiring) was dispatched and stopped during implementation 
+due to a missing Hard dependency blocking further progress.
+
+**Stop reason (exact, verbatim):** M2-C08-02: implementer blocked: The Hard dependency 'Calculate endpoint (backend)' (M2-C08-02.md:165) does not exist and no task creates it. Confirmed by direct observation: no 'calculate' match in any V.SMART.Api .cs file, 0 occurrences in api/openapi.json, and none of the 13 controllers is calculation-related. The task's own §API Changes (M2-C08-02.md:388-396) defines this exact situation as Blocked and forbids both implementing the controller here and implementing the calculation in TypeScript as a stopgap. Unblocking needs an owner/architect decision (Q-110: the request/response shape across 13 heterogeneous ICalculationDocument ViewModels — generic, polymorphic, or per-document) plus a small backend task wrapping the single-method ICalculationService behind POST /api/v1/documents/calculate, with every money property annotated [JsonConverter(typeof(MoneyJsonConverter))] or precision is lost on the wire.
+
+**Current task:** `M2-C08-02` — server-authoritative totals wiring
+
+**Last validation result:** `none` — validation did not complete. No implementation reached 
+validation stage; task blocked during implementation phase on missing Hard dependency.
+
+**Attempts used: 1 of 3. Escalations: 0.** Per [KB-091 §8](autonomous-runner.md#8-safety-limits--the-runner-stops-and-asks) 
+this is a successful stop on a self-defined hard block; a retry without the endpoint or the 
+Q-110 decision cannot change the outcome.
+
+**Next dependency-ready task:** None. `M2-C08-02` is blocked and requires human decision. 
+No other task passes the five-part "can actually be done" test.
+
+**Requires human decision:** YES
+
+**Who can unblock it:**
+- **Owner: Vivek**. Two prerequisites are required:
+  1. Architect decision on Q-110 — the request/response shape across the 13 heterogeneous 
+     `ICalculationDocument` ViewModels (generic, polymorphic, or per-document).
+  2. A small backend task to wrap the single-method `ICalculationService` behind 
+     `POST /api/v1/documents/calculate`, with every money property annotated 
+     `[JsonConverter(typeof(MoneyJsonConverter))]` to preserve decimal precision across the wire. 
+     Once the calculate endpoint exists on the backend, `M2-C08-02` can be redispatched.
+
+---
+
+## Status — 2026-08-28 (select-only pass, this session — selecting past `M2-D02-01`'s human
+block, master tip `7a8f952`, RUNNING)
+
+**RUNNING** — selected `M2-C08-02` (server-authoritative totals wiring) for dispatch. No
+implementation performed this pass; select-only per this session's instruction.
+
+**Ground re-verified, not assumed.** `git status --porcelain --branch` on `master` is clean
+at `7a8f952` ("M2-D02-01: Record the merge to master (status stays Blocked)"). `current-task.md`
+still points at `M2-D02-01`, but its own Run State record says this is a **close-out, not new
+work** — implemented, independently validated, diagnosed, and now merged to `master`
+(`e27976c`) on owner instruction while still `Blocked`, 14/15 acceptance criteria met, the
+15th needs an owner-held tenant-database credential no execution session holds
+(`task-tracker.md` footnote ¹²³). Nothing further is dispatchable on that task, so this pass
+looks past it to the next dependency-ready candidate, per the same pattern the prior
+`M2-C08-01`→Q-105 block used to select `M2-D02-01` itself (see the `M2-C08-01` status entry
+below).
+
+**Candidate set (rule 1, KB-082 § Ready-task selection rule):** `task-tracker.md` lines
+173–174 — **`M2-C08-02`** (server-authoritative totals wiring) and **`M2-C08-03`** (workflow
+command pattern), both `Ready`, both P0. Both Hard `depends_on` sets are fully `Completed`
+**and** merged: `M2-C08-02` needs `M2-C08-01`, `M2-C10`, `M2-A06` (tracker lines 172, 158,
+116, all `Completed`); `M2-C08-03` needs `M2-C08-01`, `M2-C04-03`, `M2-A06`, `M2-B03` (tracker
+lines 172, 163, 116, 131, all `Completed`). Neither is a parent container. No hit for either
+in `open-questions.md`. Neither task file carries a ⛔ banner — both re-specified for Angular
+by `M2-C12-04`, 2026-08-22. `git branch -a` shows no open branch on either task's
+`source_files` (`CalculationService.cs`/calc endpoint for `-02`; `MfgPoService.cs`,
+`MfgPOUpsert.razor`, `BsModal.razor` for `-03`) — the two candidates also share no files with
+each other.
+
+**Ranked (KB-082 § Ready-task selection rule, step 3).** Both P0 (step 1, tied). Step 2, most
+downstream unblocking: `dependency-graph.md:126-127` shows both as leaf children of
+`M2-C08-01` with nothing further named in any `depends_on` — 0 for each, tied. Step 3,
+critical path: neither appears on the `... → M2-D01 → M2-D02-01 → M2-D02-02 → M2-D02-03 →
+M2-D03 → ★G2★` line (`dependency-graph.md:212`) — off the critical path, tied. Step 4, no
+external-dependency lead time applies to either. Step 5, estimate: both `3 d` — tied.
+**Genuinely tied and independent** (different files, different subsystems: calculation
+totals vs. workflow command pattern). Per KB-082 step 4, reporting both rather than picking
+silently; `M2-C08-02` is named first (lower id, tracker order) as the nominal pick for this
+run's `nextTaskId`.
+
+### Classification (KB-091 §4 — `tasks/M2-C08-02.md` frontmatter carries no explicit
+`complexity`/`risk` override)
+
+- **Base**: `task_type: Frontend` → MEDIUM.
+- **Raises**: `estimate: 3 d` ≥ 3 d — yes. `depends_on` names 3 tasks — yes. `business_rules`
+  non-empty (`BR-CALC-001`, `BR-CALC-002`) — yes. `source_files` spans 2+ of the four
+  projects — no (all under `V.SMART/V.SMART.Shared/`). Touches calculation logic — yes
+  (server-authoritative totals, the task's whole subject). `risk` HIGH — yes (below).
+- **Complexity: HIGH** (MEDIUM + well over the two raises needed; no level above HIGH).
+- **Risk: HIGH** (`business_rules` populated — KB-091 §4.3 table).
+- **Routing** (KB-091 §5.1 at HIGH, and §5.2 floor 2 — risk HIGH forces `opus` for
+  validation regardless): Investigate, Implement and Validate all route to `opus`.
+
+### Safety / human-decision check (KB-091 §8)
+
+Not a safety stop: working tree clean, `master` tip verified at `7a8f952`, a fresh branch
+(`migration/M2-C08-02-...`) would be cut from it, no untracked-directory trap in play (past
+`623b1e1`). Not `requiresHuman`: not a `Product Decision`, no architecture decision pending,
+no schema change disclosed by the task file, no secrets/credentials/DBA access needed, and
+the verified Angular/`.NET` command set applies (`M0-12-01` `Completed`). `requiresHuman=false`,
+`safetyStop=false`.
+
+**`nextTaskId`: `M2-C08-02`.** Tied candidate: `M2-C08-03` (genuinely independent parallel
+capacity — an owner staffing choice, not a tie this pass needs to break further). Not
+dispatched by this pass — select-only, per instruction.
+
+---
 
 ## Status — 2026-08-28 (`M2-D02-01` runner stopped, diagnosis complete — master tip `b1b6332`)
 
