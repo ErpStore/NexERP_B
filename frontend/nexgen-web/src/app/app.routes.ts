@@ -41,6 +41,15 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
       },
+      // M2-D01 — the first vertical slice. requireScreen only gates authentication (see this
+      // file's own doc comment); CurrencyListComponent renders the missing-view-right surface
+      // itself, the same pattern DashboardComponent established.
+      {
+        path: 'masters/currencies',
+        canActivate: [requireScreen('Currency', 'view')],
+        loadChildren: () =>
+          import('./features/masters/currency/currency.routes').then((m) => m.currencyRoutes),
+      },
     ],
   },
   { path: '**', redirectTo: '' },

@@ -178,7 +178,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 
 | Task ID   | Milestone | Task                                | Type      | Status                                                                                                                                                                                                          | Priority | Depends On                                                | Estimate | Gate |
 | --------- | --------- | ----------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------- | -------- | ---- |
-| M2-D01    | M2        | Currency end-to-end in Angular      | Frontend  | **Completed**⁷⁸˒¹⁰⁷˒¹¹⁷˒¹¹⁸˒¹¹⁹ _(implemented in full 2026-08-28 on `migration/M2-D01-currency-end-to-end` (`0762e6b`) — first vertical slice, full CRUD against the real API, permission-gated; 706/706 unit, 4/4 e2e, both builds clean. Owner confirmed `Completed` 2026-08-28. **Not merged to `master`** — dependents needing rule 1 of the five-part test must wait for a merge. See footnote ¹¹⁹)_ | P0       | M2-C05-03, M2-A02, M2-B10, M2-C02, M2-A07, M2-A06, M2-B01 | 3 d      | G2   |
+| M2-D01    | M2        | Currency end-to-end in Angular      | Frontend  | **Completed**⁷⁸˒¹⁰⁷˒¹¹⁷˒¹¹⁸˒¹¹⁹ _(implemented in full 2026-08-28 on `migration/M2-D01-currency-end-to-end` (`0762e6b`) — the first vertical slice: full CRUD against the real `/api/v1/currencies` contract, permission-gated throughout, KB-052/KB-053 resolved by a route-addressable drawer; 706/706 unit tests, 4/4 e2e, both builds clean. Owner set `Completed` and then **merged to `master` 2026-08-28**, so rule 1 of the five-part test now passes for `M2-D02`/`M2-D02-01`. See footnote ¹¹⁹)_ | P0       | M2-C05-03, M2-A02, M2-B10, M2-C02, M2-A07, M2-A06, M2-B01 | 3 d      | G2   |
 | M2-D02    | M2        | Customer Master _(parent)_          | Migration | Blocked⁴⁶ _(parent — never worked directly; re-specified by `M2-C12-05`; real blocker is `M2-D01`)_                                                                                                             | P0       | M2-D01                                                    | 1.5 wks  | G2   |
 | M2-D02-01 | M2        | — `@code` triage + logic extraction | Backend   | Blocked⁴⁶ _(re-specified by `M2-C12-05`; real blocker is `M2-D01`. Allocates the `BR-CUST-*` series)_                                                                                                           | P0       | M2-D01                                                    | 4 d      | G2   |
 | M2-D02-02 | M2        | — `CustomersController` + API tests | Backend   | Blocked⁴⁶ _(re-specified by `M2-C12-05`; real blocker is `M2-D02-01`)_                                                                                                                                          | P0       | M2-D02-01                                                 | 3 d      | G2   |
@@ -4608,39 +4608,84 @@ one to resume, not a conflicting sibling.
 `M2-C08-01` stays `Ready` and is the next candidate after `M2-D01`, unless a higher-priority
 row appears first.
 
-¹¹⁹ **`M2-D01` set `Completed`, 2026-08-28, on explicit owner instruction** ("mark M2-D01 as
-completed"). Per [`workflow.md`](workflow.md#who-may-set-completed) (KB-088) this records the
-owner's sign-off; it is not this session inferring `Completed` from "the code was written".
+¹¹⁹ **`M2-D01` implemented 2026-08-28, branch `migration/M2-D01-currency-end-to-end`, left
+`Needs Review`.** Dispatched directly off footnote ¹¹⁸'s selection, in the same continuation,
+on explicit owner instruction ("continue"). Resumed from the prior `Blocked` attempt
+(footnote ⁷⁸) rather than cut fresh — the branch was rebased onto current `master` (merged
+in, not force-reset, keeping its own three-commit history) before any feature code was
+written; the merge itself touched only 5 KB bookkeeping files, all resolved by taking
+`master`'s version, with zero conflict in any `V.SMART/` or `frontend/` file.
 
-**What was implemented** — `migration/M2-D01-currency-end-to-end`, tip `0762e6b`, resumed from
-the prior `Blocked` attempt (footnote ⁷⁸) after merging current `master` into the branch. The
-first vertical slice through the whole Angular stack: full Currency CRUD against the real
-`/api/v1/currencies` endpoints, permission-gated throughout, with the KB-052/KB-053
-drawer-vs-routes conflict resolved in favour of a drawer. 23 files, +1,694/−83. Validation as
-reported by the implementing session: 706/706 unit tests, 4/4 e2e, `typecheck`/`lint`/
-`format:check`/`build` clean. One integration gap was disclosed rather than fixed in scope —
-**R-80** ([`technical-debt-register.md`](../risks/technical-debt-register.md)):
-`deleteCurrency()`'s generated client drops a 409 response's `title`.
+**What was built:** the first vertical slice, in full — `currency.routes.ts` (three routes,
+one component, the drawer resolving KB-052/KB-053's List-vs-routes conflict by being
+route-addressable), `core/api/currency-api.ts` (the generated-client seam
+`bannedGeneratedClientImports` requires, mirroring `core/api/auth-api.ts`), `currency.service.ts`
+(`CurrencyFeatureService`), the list page (`app-data-grid` + export toolbar + permission-gated
+row actions), and the create/edit drawer (typed Reactive Form, `CurrencyVM`'s
+`DataAnnotations` mirrored exactly including the unanchored `Symbol` regex, `applyServerErrors`
+wired for 400s, a system-defined-currency client refusal mirroring `CurrencyUpsert.razor`'s
+own).
 
-**⚠ `Completed` but not merged — the distinction matters here.** The branch has never been
-merged to `master`; `master` carries none of the 23 files. The five-part "can actually be
-done" test in [`CLAUDE.md`](../../../CLAUDE.md) requires a Hard prerequisite to be `Completed`
-**and merged to `master`**, so this row alone does **not** unblock `M2-D02` or `M2-D02-01` —
-they need the merge, not the status. Their rows above are left `Blocked` for that reason and
-are still accurate as written. Merging is a separate, explicitly-instructed step and has not
-been requested.
+**Verification, all observed:** `typecheck`/`lint` clean. `test:ci` — **706/706** (685 + 21
+new). `build` clean — initial bundle 644.91 kB raw / 151.08 kB gzip, up from `M2-C03`'s
+626.22 kB baseline by a real new lazy `currency-list-component` chunk (515.14 kB raw), not a
+regression in the initial chunk. `e2e` — **4/4** (2 pre-existing + 2 new: full CRUD, and the
+rights-less permission-denied path). Backend untouched (`git diff --stat master -- V.SMART/`
+empty); `dotnet build` re-verified once (0 errors) before this branch's own commits.
 
-**Bookkeeping note.** [`current-task.md`](current-task.md) (KB-089) and
-[`runner-state.md`](runner-state.md) (KB-093), written by the implementing session at
-`34664ea`, both cite "`task-tracker.md` footnote ¹¹⁹" for `M2-D01`'s detail — but that commit
-touched only those two files, so the footnote did not exist and the tracker row still read
-`Ready` (never `Needs Review`). This footnote is that missing entry; the row is corrected
-straight from `Ready` to `Completed`. `tasks/M2-D01.md` on `master` is likewise stale
-(`status: Not Started`) because the implementing session's rewrite of it — including its
-Close-out — lives only on the unmerged branch, where the frontmatter reads `Needs Review`.
-Only `master`'s frontmatter `status` is corrected to `Completed` here, deliberately leaving
-the branch untouched while it is under review; expect a one-line frontmatter conflict on that
-`status:` line when the branch is merged, and resolve it to `Completed`.
+**Real findings, not anticipated by the task file:**
+- **R-80**
+  ([technical-debt-register.md](../risks/technical-debt-register.md)): `deleteCurrency()`'s
+  generated `responseType: 'text'` (correct for its empty `204` success) also governs how a
+  409 **error** body parses, losing `title` — every DELETE endpoint generated the same way
+  carries this, not just Currency. Reported, not special-cased locally, per this task's own
+  "stop and report" instruction.
+- A measured Playwright/PrimeNG interaction: `getByLabel()` resolved to zero elements against
+  `app-form-field`'s markup despite a correctly-linked `for`/`id` pair; worked around with
+  `app-form-field[label="…"] input`, documented in place.
+- `app-data-grid` activates a row on double-click or Enter, never a single click; the e2e
+  spec's first draft assumed otherwise.
+- `TokenStore`'s in-memory-only custody (M2-C02) means `page.goto()` after login discards the
+  session like a real reload would; fixed with `returnUrl` and the app's own redirect.
+- `p-confirmdialog` renders `role="alertdialog"`, not `role="dialog"`.
+
+**A genuine, disclosed architectural tension, resolved rather than silently deviated from
+either side:** KB-050's own data-fetching shape (a feature service holding `list`/`loading`
+signals) predates `DataGridQueryState`, which now owns exactly that. `CurrencyFeatureService`
+does not duplicate it — full reasoning, and the correction KB-050 itself now needs, are in
+[react-architecture.md](../frontend-new/react-architecture.md) § Slice review — Currency
+(M2-D01), the deliverable this task's own Completion Conditions name explicitly.
+
+**Disclosed gaps:** the delete-refusal message is not byte-identical today (R-80); the four
+grid filters' URL-survival was not independently re-tested for Currency (inherited, proven
+mechanism); loading/error grid states were not directly exercised by this task's own tests;
+the rights-less-caller 403 is proven client-side only, no live backend in this environment;
+the Blazor screens were not manually re-verified, same reason. Full detail:
+[`tasks/M2-D01.md`](tasks/M2-D01.md)'s Close-out and Acceptance Criteria.
+
+**Set `Completed` 2026-08-28 on explicit owner instruction** ("mark M2-D01 as completed"),
+recorded first on `master` alone while the branch was still unmerged. Per
+[`workflow.md`](workflow.md#who-may-set-completed) (KB-088) this is the owner's sign-off, not
+this session inferring `Completed` from "the code was written". The disclosed gaps listed
+above are accepted as known limitations, not retracted.
+
+**Merged to `master` 2026-08-28 on explicit owner instruction** ("merge M2-D01 to master"),
+`--no-ff`. Four bookkeeping files conflicted — `current-task.md`, `runner-state.md`, this
+file and `tasks/M2-D01.md` — because `master` had moved on to `M2-C08-01`'s close-out and the
+owner's `Completed` decision in the meantime; every conflict was in prose, none in any
+`V.SMART/` or `frontend/` file, and each was resolved by keeping both records rather than
+discarding either. Both sides had independently claimed the number ¹¹⁹: the branch's
+implementation record (this footnote) is kept as the entry `current-task.md` and
+`runner-state.md` already cite, with `master`'s sign-off text folded in above.
+
+**Rule 1 of the five-part test now passes for the dependents.** `M2-D02` (Customer Master)
+and `M2-D02-01` (Customer `@code` triage + logic extraction) needed `M2-D01` `Completed`
+**and merged**; both conditions now hold. Their rows above still read `Blocked` and should be
+re-evaluated by the next selection pass — this footnote does not re-rank them.
+
+**Pre-existing gate inherited, not caused here:** `npm run format:check` is red on `master`
+itself (**R-82**, `Q-105`) on two files this task never touched. The fix is waiting on branch
+`hygiene/prettier-format-check`.
 
 ¹²⁰ **`M2-C08-01`: `Ready` → `Blocked`, 2026-08-28, session close-out of an independent
 validation + diagnosis (no implementation performed by this session).** The implementation

@@ -69,14 +69,20 @@ re-investigate the implementation.
 
 ---
 
-## Superseded pointer, retained for lineage — `M2-D01` implemented, **`Completed`** but unmerged (2026-08-28, branch tip `0762e6b`)
+## Superseded pointer, retained for lineage — `M2-D01` **`Completed` and merged to `master`** (2026-08-28)
 
-> **Updated 2026-08-28:** the owner set `M2-D01` `Completed` in conversation ("mark M2-D01 as
-> completed") — [`task-tracker.md`](task-tracker.md) footnote ¹¹⁹, which is also the entry
-> this file and [`runner-state.md`](runner-state.md) already cited before it existed. **The
-> branch is still unmerged**, so `M2-D02`/`M2-D02-01` stay blocked: rule 1 of the five-part
-> test needs `Completed` *and merged*. The `Needs Review` wording below is the record as
-> written at the time and is left intact.
+> **Updated 2026-08-28, twice.** The owner set `M2-D01` `Completed` in conversation ("mark
+> M2-D01 as completed"), then instructed the merge ("merge M2-D01 to master"), which was done
+> `--no-ff` from `migration/M2-D01-currency-end-to-end` (`0762e6b`). Detail:
+> [`task-tracker.md`](task-tracker.md) footnote ¹¹⁹ — the branch's own implementation record,
+> which is the entry this file and [`runner-state.md`](runner-state.md) cited all along, with
+> the sign-off and merge folded into it.
+>
+> **Rule 1 of the five-part test now passes for `M2-D02` (Customer Master) and `M2-D02-01`
+> (Customer `@code` triage + logic extraction)** — `Completed` *and* merged. Their tracker
+> rows still read `Blocked`; re-evaluating them is the next selection pass's job, not this
+> pointer's. The `Needs Review` wording below is the record as written at the time and is left
+> intact.
 
 Full spec: [`tasks/M2-D01.md`](tasks/M2-D01.md). **Implemented 2026-08-28, branch
 `migration/M2-D01-currency-end-to-end`, left `Needs Review`.** Resumed from the prior
