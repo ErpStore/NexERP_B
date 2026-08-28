@@ -180,7 +180,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | --------- | --------- | ----------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------- | -------- | ---- |
 | M2-D01    | M2        | Currency end-to-end in Angular      | Frontend  | **Completed**⁷⁸˒¹⁰⁷˒¹¹⁷˒¹¹⁸˒¹¹⁹ _(implemented in full 2026-08-28 on `migration/M2-D01-currency-end-to-end` (`0762e6b`) — the first vertical slice: full CRUD against the real `/api/v1/currencies` contract, permission-gated throughout, KB-052/KB-053 resolved by a route-addressable drawer; 706/706 unit tests, 4/4 e2e, both builds clean. Owner set `Completed` and then **merged to `master` 2026-08-28**, so rule 1 of the five-part test now passes for `M2-D02`/`M2-D02-01`. See footnote ¹¹⁹)_ | P0       | M2-C05-03, M2-A02, M2-B10, M2-C02, M2-A07, M2-A06, M2-B01 | 3 d      | G2   |
 | M2-D02    | M2        | Customer Master _(parent)_          | Migration | Blocked⁴⁶ _(parent — never worked directly; re-specified by `M2-C12-05`; real blocker is `M2-D01`)_                                                                                                             | P0       | M2-D01                                                    | 1.5 wks  | G2   |
-| M2-D02-01 | M2        | — `@code` triage + logic extraction | Backend   | Blocked¹²³ _(implemented + independently validated 2026-08-28 on `migration/M2-D02-01-customer-code-triage-extraction` (`50adf9d`); blocked on an owner-held tenant-database credential, not on code. Allocates the `BR-CUST-*` series)_                                                                                                           | P0       | M2-D01                                                    | 4 d      | G2   |
+| M2-D02-01 | M2        | — `@code` triage + logic extraction | Backend   | Blocked¹²³ _(implemented + independently validated 2026-08-28 on `migration/M2-D02-01-customer-code-triage-extraction` (`50adf9d`); **merged to `master` 2026-08-28** (`e27976c`) on owner instruction and re-verified there — 168/169 tests pass (1 skipped), both builds 0 errors. Still `Blocked`, not `Completed`: 14 of 15 criteria met, the 15th needs an owner-held tenant-database credential, not code. Allocates the `BR-CUST-*` series)_                                                                                                           | P0       | M2-D01                                                    | 4 d      | G2   |
 | M2-D02-02 | M2        | — `CustomersController` + API tests | Backend   | Blocked⁴⁶ _(re-specified by `M2-C12-05`; real blocker is `M2-D02-01`)_                                                                                                                                          | P0       | M2-D02-01                                                 | 3 d      | G2   |
 | M2-D02-03 | M2        | — Angular screens + component tests | Frontend  | Blocked⁴⁶ _(re-specified for Angular by `M2-C12-05`; real blocker is `M2-D02-02`)_                                                                                                                              | P0       | M2-D02-02                                                 | 4 d      | G2   |
 | M2-D03    | M2        | Blazor ↔ Angular parity test        | Testing   | Blocked⁴⁶ _(re-specified for Angular by `M2-C12-05`; real blocker is `M2-D02-03`, plus a non-production tenant database — a day-1 infrastructure escalation)_                                                   | P0       | M2-D02-03                                                 | 3 d      | G2   |
@@ -4814,3 +4814,23 @@ review the Close-out and set `Completed` per
 [`workflow.md`](workflow.md#who-may-set-completed)). Not blocked on any other task — `M2-D02-02`
 stays `Blocked` behind this row until it clears. Full record:
 [`tasks/M2-D02-01.md`](tasks/M2-D02-01.md)'s Execution Record (close-out).
+
+**Merged to `master` 2026-08-28** (`e27976c`, `--no-ff`) on explicit owner instruction, with no
+conflicts — `master` had not moved since the branch was cut. Re-verified on the merged tree:
+`dotnet test tests/V.SMART.Shared.Tests` → **Failed: 0, Passed: 168, Skipped: 1**;
+`dotnet build V.SMART.Api.csproj` → 0 errors, 2 warnings; `dotnet build V.SMART.Web.csproj` →
+0 errors, 5 warnings (both incremental — `V.SMART.Shared` was already built, so its KB-083
+baseline warnings were not re-emitted; not comparable to a cold build, and no new warning was
+observed).
+
+**The merge does not change the status.** Still `Blocked`, not `Completed` and not
+`Needs Review`: the owner instructed the merge and nothing else, and the fifteenth acceptance
+criterion — executing the manual Blazor scenarios and recording persisted-row evidence — is
+unmet for a reason merging cannot fix. **What it needs is a non-production tenant database and
+a running `V.SMART.Web`**, which no execution session holds a credential for. The same
+credential answers `Q-109`, which independently blocks a correct `CustomersController`
+(`M2-D02-02`).
+
+**`M2-D02-02` is not released by this merge.** Rule 1 of the five-part test needs `M2-D02-01`
+`Completed` **and** merged; only the merge half holds, and `Q-109` is an unanswered question
+against it besides — rule 3 fails independently.
