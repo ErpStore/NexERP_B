@@ -13,14 +13,17 @@ source_files:
   - V.SMART/V.SMART.Shared/Pages/SalesAndLabour_pages/SalesPo_Pages/MfgPOUpsert.razor
   - V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/CommonService.cs
   - V.SMART/V.SMART.Shared/Services/FinancialYearHelper.cs
-entities: [MfgPo, MfgPoSub, StockAdd, StockIssue, StockIssueTrack, User, ApprovalHistory, TenantInfo]
+  - V.SMART/V.SMART.Shared/Pages/Master_Module_pages/Customer_Pages/CustomerUpsert.razor
+  - V.SMART/V.SMART.Shared/Pages/Master_Module_pages/Customer_Pages/CustomerList.razor
+  - V.SMART/V.SMART.Shared/BusinessLayer/BusinessService/MasterService/GeneralService/CustomerService.cs
+entities: [MfgPo, MfgPoSub, StockAdd, StockIssue, StockIssueTrack, User, ApprovalHistory, TenantInfo, Customer, CustomerIndirect, ContactPerson]
 api_endpoints: []
-database_tables: [MfgPo, MfgPoSub, StockAdd, StockIssue, StockIssueTrack, Users, ApprovalHistory]
-business_rules: [BR-CALC-001, BR-CALC-002, BR-STK-001, BR-STK-002, BR-SO-001, BR-SO-002, BR-SO-003, BR-AUTH-001, BR-AUTH-002, BR-APPR-001, BR-RPT-001, BR-TEN-001, BR-DOC-001, BR-DOC-002, BR-DOC-003, BR-DOC-004, BR-DOC-005, BR-DOC-006, BR-DOC-007, BR-DOC-008, BR-DOC-009, BR-DOC-010]
+database_tables: [MfgPo, MfgPoSub, StockAdd, StockIssue, StockIssueTrack, Users, ApprovalHistory, Customer, CustomerIndirect, ContactPerson]
+business_rules: [BR-CALC-001, BR-CALC-002, BR-STK-001, BR-STK-002, BR-SO-001, BR-SO-002, BR-SO-003, BR-AUTH-001, BR-AUTH-002, BR-APPR-001, BR-RPT-001, BR-TEN-001, BR-DOC-001, BR-DOC-002, BR-DOC-003, BR-DOC-004, BR-DOC-005, BR-DOC-006, BR-DOC-007, BR-DOC-008, BR-DOC-009, BR-DOC-010, BR-CUST-001, BR-CUST-002, BR-CUST-003, BR-CUST-004, BR-CUST-005, BR-CUST-006, BR-CUST-007, BR-CUST-008, BR-CUST-009, BR-CUST-010, BR-CUST-011, BR-CUST-012, BR-CUST-013, BR-CUST-014, BR-CUST-015, BR-CUST-016, BR-CUST-017, BR-CUST-018]
 status: partial
 confidence: mixed
-last_verified: 2026-08-27
-dependencies: [KB-011, KB-012, KB-013]
+last_verified: 2026-08-28
+dependencies: [KB-011, KB-012, KB-013, KB-031]
 ---
 
 # Business Rule Inventory (As-Is)
@@ -528,6 +531,43 @@ Full treatment in [KB-100](../modules/document-numbering.md) §3.3 and §8.
 - **Duplicate checks are scoped by customer/vendor, not by number alone** — e.g.
   `MfgDcService.IsDuplicateDcNoAsync:771-790` scopes by `CustId`. **Confirmed.** An
   unqualified `(Number, Suffix)` unique index would reject data the application accepts today.
+
+---
+
+## Customer Master rules
+
+`BR-CUST-001` … `BR-CUST-018` are recorded in full — statement, `file:line` evidence,
+confidence, disposition and migration note — in
+[**KB-031 — Customer Master `@code` triage and business rules**](customer-master-rules.md).
+They are kept in their own document rather than inlined here because that document is also
+**INV-024's first `@code` triage** and the two halves only make sense together: the triage
+says which lines of `CustomerUpsert.razor` were business logic, and the rules say what those
+lines decided.
+
+Allocated by **M2-D02-01** (2026-08-28), which extracted them from
+`Pages/Master_Module_pages/Customer_Pages/CustomerUpsert.razor`'s `@code` block into
+`CustomerService`. No existing `BR-` id was renumbered or reused.
+
+| ID | One line | Confidence |
+|---|---|---|
+| BR-CUST-001 | Customer name must be unique; the check short-circuits all other validation | Confirmed |
+| BR-CUST-002 | PAN is derived from a 15-character GST as `Substring(2, 10)` | Confirmed |
+| BR-CUST-003 | Customer GST is upper-cased and trimmed; a consignee's is trimmed only | Confirmed (intent Unknown — Q-106) |
+| BR-CUST-004 | Business type constrains `SupTyp` and supplies its default | Confirmed |
+| BR-CUST-005 | `Imports`/`Exports` forces GST `URP`, state 99, PAN cleared | Confirmed |
+| BR-CUST-006 | GST validation branches on business type | Confirmed |
+| BR-CUST-007 | PAN is required domestically, optional-but-validated overseas | Confirmed |
+| BR-CUST-008 | State must exist; `StateName` is denormalised onto the customer | Confirmed |
+| BR-CUST-009 | Named consignee rows need a valid GST and PAN | Confirmed |
+| BR-CUST-010 | `OpenBal` derives `OpenBalPndg`/`OpenBalDate` on **every** save | Confirmed (defect — Q-107) |
+| BR-CUST-011 | Create stamps `Created*` only; update stamps `Modified*` only | Confirmed |
+| BR-CUST-012 | Blank-named child rows are silently discarded | Confirmed (Q-108) |
+| BR-CUST-013 | Child collections synchronise by **id**-set difference, not by name | Confirmed (defect — Q-108) |
+| BR-CUST-014 | Delete guard: not found / referenced elsewhere / inactive | Confirmed |
+| BR-CUST-015 | Delete removes only the `Customer` row; `CustomerIndirect` cascades, `ContactPerson` restricts | Confirmed |
+| BR-CUST-016 | Five list filter keys; ordering fixed to `CustId` descending | Confirmed |
+| BR-CUST-017 | `CustomerVM` could not round-trip its children — **fixed** by M2-D02-01 | Confirmed |
+| BR-CUST-018 | Customer name and business type are unconditionally required | Confirmed |
 
 ---
 

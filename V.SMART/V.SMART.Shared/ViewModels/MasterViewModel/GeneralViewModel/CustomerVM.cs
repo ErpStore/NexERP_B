@@ -32,6 +32,12 @@ namespace V.SMART.Shared.ViewModels.MasterViewModel.GeneralViewModel
         [StringLength(10, ErrorMessage = "PAN Number must be 10 characters.")]
         public string? PANNo { get; set; }
 
+        // M2-D02-01: CustomerUpsert.razor:258 binds Customer.VendorCode, but CustomerVM did not
+        // carry it. Once the save path runs through the VM, an unmapped VendorCode would be
+        // silently dropped on create. Additive; mirrors Customer.cs:28-29.
+        [StringLength(50, ErrorMessage = "Vendor Code cannot exceed 50 characters.")]
+        public string? VendorCode { get; set; }
+
         [Phone(ErrorMessage = "Please enter a valid contact number.")]
         [StringLength(15, ErrorMessage = "Contact number cannot exceed 15 characters.")]
         public string? ContactNo { get; set; }

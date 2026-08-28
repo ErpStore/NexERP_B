@@ -1,6 +1,6 @@
 ﻿@page "/customer/create"
 @page "/customer/update/{CustId:int}"
-@using System.Text.RegularExpressions
+@using V.SMART.Shared.BusinessLayer.BusinessService.MasterService.GeneralService
 @using V.SMART.Shared.Data.Master.Accounts
 @using V.SMART.Shared.Data.Master.General
 @using V.SMART.Shared.Data.Master.Inventory
@@ -15,6 +15,7 @@
 @inject IJSRuntime _js
 
 @inject ICustomerService customerService
+@inject AutoMapper.IMapper _mapper
 
 @if (isProcessing)
 {
@@ -719,21 +720,15 @@ else
         new PageHeader.BreadcrumbItem { Text = "Customer", IsLast = true }
     };
 
+    // M2-D02-01: the GST normalisation and PAN derivation this handler performed inline are
+    // BR-CUST-002 / BR-CUST-003 and now live in CustomerService. Thin wrapper only.
     private async Task OnCustomerIndirectGstChanged(ChangeEventArgs e, CustomerIndirect custInd)
     {
         try
         {
             var gst = e.Value?.ToString();
-            custInd.GSTNo = gst.Trim();
-
-            if (!string.IsNullOrWhiteSpace(gst) && gst.Length == 15)
-            {
-                custInd.PANNo = gst.Substring(2, 10);
-            }
-            else
-            {
-                custInd.PANNo = string.Empty; // Clear PAN if GST is invalid or empty
-            }
+            custInd.GSTNo = customerService.NormalizeConsigneeGst(gst);
+            custInd.PANNo = customerService.DerivePanFromGst(gst);
         }
         catch (Exception ex)
         {
@@ -747,18 +742,9 @@ else
         {
             if (e.Value is string gstValue)
             {
-                gstValue = gstValue.ToUpper().Trim(); // Trim and convert to uppercase
+                gstValue = customerService.NormalizeCustomerGst(gstValue); // Trim and convert to uppercase
                 Customer.GSTNo = gstValue;
-
-                if (!string.IsNullOrEmpty(gstValue) && gstValue.Length == 15)
-                {
-                    // PAN is typically the 3rd to 12th characters (10 chars total) in a 15-character GSTN
-                    Customer.PANNo = gstValue.Substring(2, 10);
-                }
-                else
-                {
-                    Customer.PANNo = string.Empty;
-                }
+                Customer.PANNo = customerService.DerivePanFromGst(gstValue);
             }
         }
         catch (Exception ex)
@@ -834,6 +820,8 @@ else
         }
     }
 
+    // M2-D02-01: the allowed customer types and the default SupTyp are BR-CUST-004 and now live
+    // in CustomerService. What is left here is the list the dropdown binds to.
     private async Task LoadCustomerTypesForBusinessType(string? busiType)
     {
         try
@@ -846,30 +834,8 @@ else
                 return;
             }
 
-            switch (busiType)
-            {
-                case "Local":
-                case "InterState":
-                    CustomerTypes.AddRange(new[] { "B2B", "SEZWP", "SEZWOP" });
-                    if (string.IsNullOrEmpty(Customer.SupTyp) || !CustomerTypes.Contains(Customer.SupTyp))
-                    {
-                        Customer.SupTyp = "B2B";
-                    }
-                    break;
-
-                case "Imports":
-                case "Exports":
-                    CustomerTypes.AddRange(new[] { "SEZWP", "SEZWOP", "EXPWP", "EXPWOP" });
-                    if (string.IsNullOrEmpty(Customer.SupTyp) || !CustomerTypes.Contains(Customer.SupTyp))
-                    {
-                        Customer.SupTyp = "SEZWP";
-                    }
-                    break;
-
-                default:
-                    Customer.SupTyp = null;
-                    break;
-            }
+            CustomerTypes.AddRange(customerService.GetCustomerTypesForBusinessType(busiType));
+            Customer.SupTyp = customerService.ResolveSupplyType(busiType, Customer.SupTyp);
         }
         catch (Exception ex)
         {
@@ -877,6 +843,9 @@ else
         }
     }
 
+    // M2-D02-01: reference-data reads. These deliberately stay on IUnitOfWork for now — the
+    // page still needs the injection for LoadCustomerData anyway. They become reference-data
+    // endpoints in M2-B09. The decision is recorded in customer-master-rules.md.
     private async Task LoadStates()
     {
         try
@@ -951,153 +920,45 @@ else
         (4, "Exports")
     };
 
+    // M2-D02-01: the whole save — the duplicate-name check, validation, the opening-balance
+    // derivation, the audit stamping, the transaction, the child-collection diff and the
+    // user-action log — is now CustomerService.UpsertCustomerAsync. What is left here is
+    // presentation: the busy flag, the toasts, the navigation guard and the navigation.
     private async Task UpsertCustomer()
     {
         isProcessing = true;
-        using var transaction = await _unitOfWork.BeginTransactionAsync();
         try
         {
-            bool isDuplicate = await _unitOfWork.Customers.ExistsByNameAsync("CustName", Customer.CustName?.Trim(), "CustId", Customer.CustId == 0 ? null : Customer.CustId);
-            if (isDuplicate)
-            {
-                await _js.ToastrError("Customer name already exists.");
-                isProcessing = false;
-                return;
-            }
+            var vm = _mapper.Map<CustomerVM>(Customer);
+            vm.CustomerIndirectVMs = _mapper.Map<List<CustomerIndirectVM>>(Indirects);
+            vm.ContactPersonVMs = _mapper.Map<List<ContactPersonVM>>(ContactPersons);
 
-            var errors = ValidateCustomer(Customer);
-            if (errors.Any())
+            var result = await customerService.UpsertCustomerAsync(vm);
+
+            if (result.Errors.Count > 0)
             {
-                foreach (var err in errors)
+                foreach (var err in result.Errors)
                 {
                     await _js.ToastrError(err);
                 }
-                isProcessing = false;
                 return;
             }
 
-            var currentUsername = await _userService.GetUsernameAsync();
-
-            if (Customer.OpenBal.HasValue)
+            if (!result.Success)
             {
-                Customer.OpenBalPndg = Customer.OpenBal;
-                Customer.OpenBalDate = DateTime.Now;
-            }
-            else
-            {
-                Customer.OpenBalPndg = null;
-                Customer.OpenBalDate = null;
+                await _js.ToastrError(result.Message);
+                return;
             }
 
-            if (Customer.CustId == 0)
+            // The service denormalises StateName onto the model it validated (BR-CUST-008);
+            // carry it back so the open form matches what was persisted.
+            Customer.StateName = vm.StateName;
+            if (result.Customer != null && Customer.CustId == 0)
             {
-                Customer.CreatedBy = currentUsername;
-                Customer.CreatedDate = DateTime.Now;
-
-                await _unitOfWork.Customers.CreateAsync(Customer);
-                await _unitOfWork.SaveAsync();
-
-                foreach (var indirect in Indirects.Where(i => !string.IsNullOrWhiteSpace(i.AltCustName)))
-                {
-                    indirect.CustId = Customer.CustId;
-                    await _unitOfWork.CustomerIndirects.CreateAsync(indirect);
-                    await _unitOfWork.SaveAsync();
-                }
-
-                foreach (var contact in ContactPersons.Where(c => !string.IsNullOrWhiteSpace(c.ContactPersonName)))
-                {
-                    contact.CustId = Customer.CustId;
-                    await _unitOfWork.ContactPersons.CreateAsync(contact);
-                    await _unitOfWork.SaveAsync();
-                }
-
-                await _unitOfWork.SaveAsync();
-                await transaction.CommitAsync();
-
-                await LoggingService.LogUserAction(
-                    UserName: currentUsername,
-                    Machine: _userService.MachineName,
-                    IP_Address: _userService.IpAddress,
-                    screen: "Customer",
-                    action: $"Customer Created: {Customer.CustName}",
-                    additionalInfo: $"CustomerName: {Customer.CustName}");
-
-                await _js.ToastrSuccess("Customer Created Successfully");
+                Customer.CustId = result.Customer.CustId;
             }
-            else
-            {
-                var currentIndirectIds = Indirects.Where(i => i.AltCustId != 0).Select(i => i.AltCustId).ToHashSet();
-                var currentContactIds = ContactPersons.Where(c => c.Id != 0).Select(c => c.Id).ToHashSet();
 
-                Customer.ModifiedBy = currentUsername;
-                Customer.ModifiedDate = DateTime.Now;
-
-                await _unitOfWork.Customers.UpdateAsync(Customer);
-
-                var indirectsToDelete = Customer.CustomerIndirects
-                                            .Where(originalIndirect => !currentIndirectIds.Contains(originalIndirect.AltCustId))
-                                            .ToList();
-
-                foreach (var indirectToDelete in indirectsToDelete)
-                {
-                    await _unitOfWork.CustomerIndirects.DeleteAsync(indirectToDelete.AltCustId);
-                    await _unitOfWork.SaveAsync();
-                }
-
-                foreach (var indirect in Indirects.Where(i => !string.IsNullOrWhiteSpace(i.AltCustName)))
-                {
-                    
-                    if (indirect.AltCustId == 0)
-                    {
-                        indirect.CustId = Customer.CustId;
-                        await _unitOfWork.CustomerIndirects.CreateAsync(indirect);
-                        await _unitOfWork.SaveAsync();
-
-                    }
-                    else
-                    {
-                        await _unitOfWork.CustomerIndirects.UpdateAsync(indirect);
-                        await _unitOfWork.SaveAsync();
-
-                    }
-                }
-
-                var contactPersonsToDelete = Customer.ContactPersons.Where(originalContact => !currentContactIds.Contains(originalContact.Id)).ToList();
-
-                foreach (var contactToDelete in contactPersonsToDelete)
-                {
-                    await _unitOfWork.ContactPersons.DeleteAsync(contactToDelete.Id);
-                    await _unitOfWork.SaveAsync();
-                }
-
-                foreach (var contact in ContactPersons.Where(c => !string.IsNullOrWhiteSpace(c.ContactPersonName)))
-                {
-                    if (contact.Id == 0)
-                    {
-                        contact.CustId = Customer.CustId;
-                        await _unitOfWork.ContactPersons.CreateAsync(contact);
-                        await _unitOfWork.SaveAsync();
-                    }
-                    else
-                    {
-                        await _unitOfWork.ContactPersons.UpdateAsync(contact);
-                        await _unitOfWork.SaveAsync();
-                    }
-                }
-
-                await _unitOfWork.SaveAsync();
-                await transaction.CommitAsync();
-
-                await LoggingService.LogUserAction(
-                    UserName: currentUsername,
-                    Machine: _userService.MachineName,
-                    IP_Address: _userService.IpAddress,
-                    screen: "Customer",
-                    action: $"Customer Updated: {Customer.CustName}",
-                    additionalInfo: $"CustomerName: {Customer.CustName}");
-
-                await _js.ToastrSuccess("Customer Updated Successfully");
-            }
+            await _js.ToastrSuccess(result.Message);
 
             // Discard popup Clear
             await _js.InvokeVoidAsync("NavigationGuard.clear");
@@ -1110,11 +971,9 @@ else
             {
                 await OnClose.InvokeAsync();
             }
-
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
             await _js.ToastrError("An error occurred while saving the customer.");
             await LoggingService.LogDeveloperError(ex, "An error occurred in UpsertCustomer()");
         }
@@ -1124,95 +983,9 @@ else
         }
     }
 
-    private List<string> ValidateCustomer(Customer customer)
-    {
-        var errors = new List<string>();
-
-        if (string.IsNullOrWhiteSpace(customer.CustName))
-        {
-            errors.Add("Customer Name is required.");
-        }
-        if (string.IsNullOrWhiteSpace(customer.BusiType))
-        {
-            errors.Add("Business Type is required.");
-        }
-
-        string busiType = customer.BusiType?.Trim();
-        if (busiType == "Imports" || busiType == "Exports")
-        {
-            if (!string.Equals(customer.GSTNo, "URP", StringComparison.OrdinalIgnoreCase))
-            {
-                errors.Add("For Imports/Exports, GST No must be 'URP'.");
-            }
-            // For Imports/Exports, PAN is not strictly tied to GST, but if it exists, it should be valid
-            if (!string.IsNullOrWhiteSpace(customer.PANNo) && !Regex.IsMatch(customer.PANNo, @"^[A-Z]{5}[0-9]{4}[A-Z]{1}$"))
-            {
-                errors.Add("Invalid PAN No format for Imports/Exports.");
-            }
-        }
-        else // Local, InterState
-        {
-            if (string.IsNullOrWhiteSpace(customer.GSTNo))
-            {
-                errors.Add("Please enter GST No.");
-            }
-            else if (customer.GSTNo.Length != 15)
-            {
-                errors.Add("GST No must be 15 characters.");
-            }
-            else if (!Regex.IsMatch(customer.GSTNo, @"^(URP|[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1})$"))
-            {
-                errors.Add("Invalid GST No format.");
-            }
-
-            if (string.IsNullOrWhiteSpace(customer.PANNo))
-            {
-                errors.Add("Please enter PAN No.");
-            }
-            else if (!Regex.IsMatch(customer.PANNo, @"^[A-Z]{5}[0-9]{4}[A-Z]{1}$"))
-            {
-                errors.Add("Invalid PAN No format.");
-            }
-        }
-
-        var matchedState = States.FirstOrDefault(s => s.StateCode == customer.StateId);
-        if (customer.StateId == 0 || matchedState == null)
-        {
-            errors.Add("Please select a valid State.");
-        }
-        else
-        {
-            customer.StateName = matchedState.StateName;
-        }
-
-        foreach (var indirect in Indirects.Where(i => !string.IsNullOrWhiteSpace(i.AltCustName)))
-        {
-            if (string.IsNullOrWhiteSpace(indirect.GSTNo))
-            {
-                errors.Add($"Consignee '{indirect.AltCustName}': Please enter GST No.");
-            }
-            else if (indirect.GSTNo.Length != 15)
-            {
-                errors.Add($"Consignee '{indirect.AltCustName}': GST No must be 15 characters.");
-            }
-            else if (!Regex.IsMatch(indirect.GSTNo, @"^(URP|[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1})$"))
-            {
-                errors.Add($"Consignee '{indirect.AltCustName}': Invalid GST No format.");
-            }
-
-            if (string.IsNullOrWhiteSpace(indirect.PANNo))
-            {
-                errors.Add($"Consignee '{indirect.AltCustName}': Please enter PAN No.");
-            }
-            else if (!Regex.IsMatch(indirect.PANNo, @"^[A-Z]{5}[0-9]{4}[A-Z]{1}$"))
-            {
-                errors.Add($"Consignee '{indirect.AltCustName}': Invalid PAN No format.");
-            }
-        }
-
-        return errors;
-    }
-
+    // M2-D02-01: the Imports/Exports forcing rule and the asymmetric clear-on-switch-back are
+    // BR-CUST-005 and now live in CustomerService; what is left here is a lookup in the
+    // already-loaded reference list.
     private async Task OnBusinessTypeChanged(ChangeEventArgs e)
     {
         try
@@ -1226,19 +999,19 @@ else
 
             await LoadCustomerTypesForBusinessType(value);
 
-            if (value == "Imports" || value == "Exports")
+            if (customerService.IsImportOrExport(value))
             {
-                Customer.GSTNo = "URP";
+                Customer.GSTNo = CustomerService.UrpGstNo;
                 // Find the "URP" state (StateCode 99) and assign it
-                var urpState = States.FirstOrDefault(s => s.StateCode == 99);
+                var urpState = States.FirstOrDefault(s => s.StateCode == CustomerService.UrpStateCode);
                 if (urpState != null)
                 {
-                    Customer.StateId = 99;
+                    Customer.StateId = CustomerService.UrpStateCode;
                     Customer.StateName = urpState.StateName;
                 }
                 Customer.PANNo = string.Empty;
             }
-            else if (string.IsNullOrWhiteSpace(Customer.GSTNo) || Customer.GSTNo.Length < 15 || Customer.GSTNo.Equals("URP", StringComparison.OrdinalIgnoreCase))
+            else if (customerService.ShouldClearOnBusinessTypeSwitch(Customer.GSTNo))
             {
                 Customer.GSTNo = string.Empty;
                 Customer.PANNo = string.Empty;
