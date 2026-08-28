@@ -280,6 +280,12 @@ note** says what the Angular/API side must do with it.
 - **Evidence:** `CustomerUpsert.razor:1147-1151`, `:1168-1175`.
 - **Confidence:** Confirmed.
 - **Disposition:** Extracted verbatim; pattern is `CustomerService.PanPattern`.
+- **Migration note:** the same shape as BR-CUST-006 — M2-D02-03 may transcribe `PanPattern`
+  **from this document** as a display-time mirror only, and must take the field's required-ness
+  from the business type (optional for `Imports`/`Exports`, required otherwise) rather than
+  marking PAN always-required; the decision stays server-side. M2-D02-02 returns all three
+  messages unchanged, and the two "invalid format" messages differ by business type, so the
+  client must not collapse them into one.
 
 ### BR-CUST-008 — State must exist, and `StateName` is denormalised
 
@@ -316,6 +322,11 @@ note** says what the Angular/API side must do with it.
 - **Confidence:** Confirmed for the behaviour. **Inferred** that the reset on edit is a defect.
 - **Disposition:** **Preserved verbatim** in `ApplyOpeningBalance`, and pinned by a test that
   asserts the reset. Raised as **Q-107**; not fixed here.
+- **Migration note:** `OpenBalPndg` and `OpenBalDate` are **server-derived**, like `StateName` in
+  BR-CUST-008 — a client that sends either one will have it overwritten from `OpenBal`, so
+  M2-D02-02 must not accept them as writable input and M2-D02-03 must render them read-only.
+  Because Q-107 may change the rule for the edit path, do **not** design the API contract around
+  the reset being permanent; the answer changes only the server, not the payload shape.
 
 ### BR-CUST-011 — Audit stamping
 
@@ -554,6 +565,29 @@ does not insert them twice — the legacy per-row insert loop is preserved.
 | Blazor host builds | `dotnet build V.SMART/V.SMART.Web/V.SMART.Web.csproj` | **0 errors, 5 warnings** (incremental: `V.SMART.Shared` was already built by the previous command, so its ~6,690 warnings were not re-emitted) |
 | Tests | `dotnet test tests/V.SMART.Shared.Tests/V.SMART.Shared.Tests.csproj` | **166 passed, 0 failed, 1 skipped** (the skip is the pre-existing `MfgPoServiceDeleteGuardTests` skip) |
 | Customer tests alone | same, `--filter "FullyQualifiedName~Customer"` | **64 passed, 0 failed** |
+| Service round trip over a real `DbContext` | same, `--filter "FullyQualifiedName~CustomerServiceRoundTripTests"` | **2 passed, 0 failed** |
+
+### Service round trip through EF — `CustomerServiceRoundTripTests`
+
+`tests/V.SMART.Shared.Tests/Services/CustomerServiceRoundTripTests.cs` drives the real
+`CustomerService` over a real `ApplicationDbContext` (Microsoft.EntityFrameworkCore.**InMemory**,
+per INV-031 — Sqlite cannot host this model) and the real `CustomerRepository`,
+`CustomerIndirectRepository`, `ContactPersonRepository` and `StateRepository`. Only
+`IUnitOfWork.BeginTransactionAsync` is faked, because the InMemory provider has no transactions.
+
+It is what satisfies the task's *Testing Requirements* **integration** row: `GetCustomerByIdAsync`
+→ `UpsertCustomerAsync` preserves consignees and contact persons, ids included. Because
+`UpsertCustomerAsync` catches every exception and returns
+`(false, "An error occurred while saving the customer.")`, an EF tracking failure in the update
+path (§6) surfaces as a failed `Success` assertion rather than as a thrown exception — so these
+two tests do reach the `_mapper.Map(vm, existing)` sequence that no test against the static
+helpers can.
+
+**What it does and does not settle.** It covers manual scenarios 1, 2 and 10 below *at the EF
+change-tracker level*. It settles **nothing** that depends on SQL Server: InMemory does not
+enforce foreign keys, does not translate LINQ to SQL, and has no collation, so the duplicate-name
+comparison (Q-109), the delete guard's real refusal text and identity/`DELETE` behaviour are
+still unobserved. The scenarios below remain owed in full.
 
 ### Manual Blazor validation — NOT PERFORMED
 
