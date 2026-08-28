@@ -8,7 +8,7 @@ source_files:
   - V.SMART/V.SMART.Shared/Layout/NavMenu.razor
 status: proposal
 confidence: n/a
-last_verified: 2026-08-12
+last_verified: 2026-08-28
 dependencies: [KB-020, KB-041, KB-050]
 ---
 
@@ -36,7 +36,7 @@ out of the Razor `@code` block (see
 
 | Existing feature | Existing routes | Existing service | New Angular screen | New components | Complexity |
 |---|---|---|---|---|---|
-| Currency Master | `/currency`, `/currency/create`, `/currency/update/{id}` | `ICurrencyService` — **API already exists** | `masters/currency` List + Drawer form | DataGrid, FormLayout, Drawer | **Low** ⭐ start here |
+| Currency Master | `/currency`, `/currency/create`, `/currency/update/{id}` | `ICurrencyService` — **API already exists** | **Delivered `M2-D01` (2026-08-28)** — folder `features/masters/currency/`, routes `/masters/currencies[/new\|/{id}]` (KB-053). The folder name (singular, `currency`) and the route (plural, `currencies`) are deliberately different — the folder groups the *feature*, the route names the *collection* it lists, matching every other list/detail resource in this API. Not a naming bug to reconcile. | DataGrid, FormLayout, Drawer | **Low** ⭐ start here |
 | Expense / Income / Bank / Cost Centre / Project Type | `/expense`, `/income`, `/bank`, `/costcenter`, `/project-type-master` | `MasterService/AccountsService` | one generic `MasterCrudPage` config per entity | DataGrid, FormLayout | **Low** |
 | UOM / Category / State / Factors / Grouping | `/uom`, `/category`, `/state`, `/factorlist`, `/groupingList` | `MasterService/InventoryService`, `GeneralService` | same generic page | DataGrid, FormLayout | **Low** |
 | HSN/SAC Master | `/hsnMaster` | `IHSNService` | List + form | DataGrid, FormLayout | **Low** |

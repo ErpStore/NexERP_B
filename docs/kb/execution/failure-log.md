@@ -7398,3 +7398,237 @@ task but means the seeded row is more privileged than its `UserRight` rows sugge
 **Next attempt routed to** — no model. KB-091 §6.3 trigger 2 (an architecture decision is
 required) and trigger 7 (validator category `architecture`). A stronger model cannot decide how
 tenants are provisioned.
+
+---
+
+## M2-C08-01 · attempt 1 · independent validation · 2026-08-28 · `FAIL` (`acceptance-criterion`)
+
+Branch `migration/M2-C08-01-document-editor-layout`, commit `d0b7ea9`, unmerged. Validated
+against `docs/kb/execution/tasks/M2-C08-01.md` § *Acceptance Criteria*, not against the
+implementer's report.
+
+**One criterion, and only one, is unmet.** Everything else on the list is objectively met
+against output I observed.
+
+### The failure
+
+> - [ ] `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm run test:ci` and
+>       `npm run build` all pass.  — `tasks/M2-C08-01.md:418-419`
+
+Re-run by me from `frontend/nexgen-web/`:
+
+```
+> prettier --check .
+Checking formatting...
+[warn] eslint.config.js
+[warn] src/app/shared/utils/decimal/no-float-money.spec.ts
+[warn] Code style issues found in 2 files. Run Prettier with --write to fix.
+FMT_EXIT=1
+```
+
+**The failure is pre-existing on `master` and provably not caused by this diff**, which is why
+this is `acceptance-criterion` and not `regression`:
+
+- `git diff --name-only master...HEAD -- frontend/nexgen-web/eslint.config.js frontend/nexgen-web/src/app/shared/utils/decimal/no-float-money.spec.ts` → empty. Both files are byte-identical to `master`.
+- `git diff --name-only master...HEAD -- frontend/nexgen-web/.prettierrc frontend/nexgen-web/.prettierignore frontend/nexgen-web/package.json` → empty. Prettier's configuration is unchanged, so its verdict on two unchanged files cannot differ from `master`'s.
+- `eslint.config.js` was last touched on `master` by `1c93bb3` (merge of M2-C10).
+
+The implementer disclosed this and recorded it as **R-82** in
+`docs/kb/risks/technical-debt-register.md` rather than fixing it, on the ground that
+`npm run format` would touch files owned by other tasks. That reasoning is defensible under
+CLAUDE.md § *Standing constraints* ("no opportunistic refactoring of unrelated code") and it
+directly contradicts an explicit acceptance criterion. **The two rules conflict; the task file
+is the binding list, so the criterion is recorded unmet.** Neither file appears in this task's
+*Files that must not change* list (`tasks/M2-C08-01.md:298-307`), so the fix is not forbidden —
+it is merely out of the task's natural scope.
+
+### Everything else — observed, met
+
+| Command | Observed |
+|---|---|
+| `npm run typecheck` | exit 0, no output |
+| `npm run lint` | `All files pass linting.` exit 0 |
+| `npm run test:ci` | `Test Files 103 passed (103)` / `Tests 713 passed (713)`, 38.81 s, exit 0. Green on my single run — I did not reproduce the flakiness the implementer recorded as R-83 |
+| `npm run build` | `Application bundle generation complete.`, initial total 626.22 kB, exit 0 (pre-existing 600 kB budget warning) |
+| `npx ng test --no-watch --filter=…` | document-editor specs in isolation: `DocumentEditorComponent` 17 passed, `unsavedChangesGuard`+store 7 passed, a11y 4 passed — 28 tests, all green |
+| `git status --porcelain` | only ` M docs/kb/execution/runner-state.md`, orchestrator bookkeeping, not task work |
+
+- All 18 numbered Testing Requirements have a corresponding assertion; I mapped each one to a
+  spec. Test 18's `axe` scan runs over create / edit / view / load-error and asserts
+  `impact === 'critical'` is empty (`document-editor.a11y.spec.ts:26-75`); `color-contrast` is
+  disabled because jsdom computes no layout — disclosed, and the same choice the feedback
+  layer's own scan makes.
+- `grep -nE '#[0-9a-fA-F]{3,8}'` over `shared/components/document-editor/` → exit 1, no hits.
+  No `primeng`/`@mantine`/`bootstrap`/`@mui` import in the directory.
+- Layout survey **INV-065** recorded with negative results. I re-verified five of its citations
+  in the .NET source: `MfgPOUpsert.razor:750`, `PurchPOUpsert.razor:686`, `MfgInvUpsert.razor:990`,
+  `LabourDcOutgoingUpsert.razor:994` are all the single line-grid `<table>`;
+  `ItemUpsert.razor:2141` is `private string activeTab = "itemDetails";`;
+  `MfgPOUpsert.razor:449`/`:469` are the `PoCancl` / `ShortClose` header toggles;
+  `grep -rn beforeunload V.SMART/` finds no source hit, confirming the negative result.
+  `MfgPOUpsert.razor:1-3` declares create / create-with-parent / update and **no** details
+  route, which is the evidence behind KB-053's "`view` is new capability" caveat.
+- Route-consolidation rule recorded in KB-053 (`page-map.md`, new section); KB-050 and KB-051
+  updated and their `last_verified` bumped.
+- **No regression, no scope escape.** `git diff --name-status master...HEAD` touches only
+  `docs/kb/**` (6 files) and `frontend/nexgen-web/src/app/shared/components/` (27 new files in
+  `document-editor/` plus one barrel line). `V.SMART/**`, `frontend/vsmart-erp/**`, `db/**`,
+  `line-item-grid/**` and `record-picker-dialog/**` are untouched; no schema change; no ERP
+  business rule is implemented in TypeScript — `rowEvent` is forwarded verbatim
+  (`document-editor.component.ts:325-332`) and totals/commands are slots that render only
+  caller templates.
+
+### Deviations I checked and accept as sound
+
+- **`app-modal` instead of `ConfirmDialog`** for the three-outcome dirty prompt
+  (Implementation Requirement 9). Not an acceptance criterion; the criterion only requires the
+  guard to block and to register `beforeunload` while dirty, which
+  `unsaved-changes.guard.spec.ts:69-154` proves through the real router.
+- **`config.canSave` instead of an injected `PermissionService`** (Implementation Requirement
+  13). Verified the stated reason: `shared/components/feedback/permission-denied-state.component.spec.ts:29-50`
+  walks `src/app/shared/components` and fails if any `.ts`/`.html` contains `core/auth`.
+  Following requirement 13 literally would break that invariant test. Not an acceptance
+  criterion.
+- **`subLines` declared but not rendered (R-81).** The criterion is that the config
+  *accommodates* what the survey found; the survey found **no** document needs sub-lines, so
+  the declared-only shape over-satisfies it.
+
+### Two smaller items for whoever picks this up — neither is the failure
+
+1. `document-editor.model.ts:33` cites the survey as **INV-062**. The registry row is
+   **INV-065**; `investigation-registry.md` says INV-062 was a reserved placeholder on the
+   merged M2-C07 branch and was never used as a real row. A wrong `doc_id` in a doc comment.
+2. `docs/kb/execution/task-tracker.md:172` still reads `**Ready**` for M2-C08-01. The task
+   file's *Documentation Updates* table names the tracker; the implementer left it to the
+   orchestrator, which matches this repository's practice.
+
+**Disposition** — `retry`, cheap and mechanical. Either run `npm run format` on the two
+pre-existing files in a commit of its own (they are not on this task's forbidden list), or
+amend the criterion to exempt files the task did not touch and record that against R-82. The
+implementation itself should be built on, not discarded. Attempts used: 1 of 3.
+
+**Next attempt routed to** — the same tier. Category `acceptance-criterion`, not `architecture`
+or `business-rule`: nothing about the design is in question, and no rule is missing.
+
+---
+
+## M2-C08-01 · attempt 1 · diagnosis · 2026-08-28 · `BLOCKED` (`missing-dependency` — pre-existing gate failure on `master`, outside this task's authorised files)
+
+Branch `migration/M2-C08-01-document-editor-layout`, tip `d0b7ea9`. Nothing merged, nothing
+pushed. **Previous attempts for this task in this log: one — the attempt-1 validation entry
+above. No fix for this failure has been tried before, so this is not a loop.**
+
+### Reproduced
+
+```
+$ cd frontend/nexgen-web && npm run format:check
+> prettier --check .
+Checking formatting...
+[warn] eslint.config.js
+[warn] src/app/shared/utils/decimal/no-float-money.spec.ts
+[warn] Code style issues found in 2 files. Run Prettier with --write to fix.
+FMT_EXIT=1
+```
+
+### Root cause — the two files are unformatted **on `master`**, not on this branch
+
+Proved against `master`'s own blobs, not by inference from the working tree:
+
+```
+$ git show master:frontend/nexgen-web/eslint.config.js \
+    | npx prettier --check --stdin-filepath eslint.config.js
+(stdin)
+MASTER_ESLINTCFG_EXIT=1
+
+$ git show master:frontend/nexgen-web/src/app/shared/utils/decimal/no-float-money.spec.ts \
+    | npx prettier --check --stdin-filepath src/app/shared/utils/decimal/no-float-money.spec.ts
+(stdin)
+MASTER_SPEC_EXIT=1
+```
+
+Both files are byte-identical between `master` and this branch
+(`git diff --name-only master...HEAD -- <both paths>` → empty), as are `.prettierrc`,
+`.prettierignore` and `package.json`. Both were last touched by `1c93bb3`
+(*Merge M2-C10: decimal.js money/quantity module, integration-fixed*) — the integration fix
+hand-edited two files and did not re-run `prettier --write` over them.
+
+The deviations are formatting only, and both are real (**not** the CRLF/EOL artefact of R-45 —
+`.prettierrc` now carries `"endOfLine": "auto"`, so `prettier --write` is a durable fix here,
+unlike in M2-C04-01):
+
+- `eslint.config.js:298` — a 108-column `{ patterns: [...] }` object literal over `printWidth: 100`;
+  prettier wants it wrapped across six lines.
+- `no-float-money.spec.ts:47` — `'…DECIMAL_PORT\'s…'`; prettier rewrites the escaped apostrophe
+  as a double-quoted string.
+
+`.github/workflows/ci.yml:307-308` runs `npm run format:check` as a **blocking** step with no
+`continue-on-error`, so **`master`'s own CI Format-check job is red**, and every task whose
+acceptance criteria include *"`npm run format:check` passes"* inherits an unmeetable criterion.
+This is already recorded as **R-82** (`docs/kb/risks/technical-debt-register.md:2190`) by the
+implementer, whose measurement I confirm.
+
+### Why this was not fixed inside M2-C08-01
+
+`frontend/nexgen-web/eslint.config.js` and
+`frontend/nexgen-web/src/app/shared/utils/decimal/no-float-money.spec.ts` are **not** on this
+task's *Files expected to be created / change* list (`tasks/M2-C08-01.md:262-292`). They are not
+on the *must not change* list either (`:298-307`), so the edit is not forbidden — it is
+**unauthorised rather than prohibited**, and CLAUDE.md § *Standing constraints* ("stay inside the
+current task's scope; no opportunistic refactoring of unrelated code") plus "one task, one
+branch — two task ids in one branch is a reject" both point away from folding another task's
+files into this commit. The M2-C04-01 precedent (`failure-log.md:4145-4354`) is the same shape and
+was resolved by an owner decision, not by the diagnosing session reformatting other tasks' files.
+
+There is also a technical reason not to fix it here: **the fix belongs on `master`.** Applied to
+this branch it clears the gate for M2-C08-01 only; every other unmerged branch (M2-D01 and any
+later cut) keeps failing until it merges. A two-file hygiene commit on its own branch, merged by
+the owner, clears it for all of them at once. This session may not merge or push
+(`allow_merge=false`), so it cannot deliver that.
+
+**Amending or dropping the criterion was not done** — that is weakening a check to hide a real
+defect, and the same conclusion was reached at `failure-log.md:4339`.
+
+### The one change made, and it is not the failure
+
+`document-editor.model.ts:33` cited the layout survey as **INV-062**. The registry row is
+**INV-065** (`investigation-registry.md:54`); `investigation-registry.md:1605` records that
+INV-062 was a never-claimed placeholder on the merged `migration/M2-C07-line-item-grid` branch.
+That file **is** inside this task's authorised surface (it created it) and a wrong `doc_id` sends
+the next session to a row that does not exist, so the citation was corrected — comment text only,
+one line, no code path touched.
+
+```
+$ npx prettier --check src/app/shared/components/document-editor/document-editor.model.ts
+All matched files use Prettier code style!            PRETTIER_EXIT=0
+$ npm run typecheck   -> exit 0, no output
+$ npm run lint        -> "All files pass linting."    LINT_EXIT=0
+```
+
+`npm run format:check` still exits 1 on the two `master`-owned files, unchanged — **re-validating
+now would fail again on exactly the same criterion.**
+
+### What the owner has to decide
+
+One of:
+
+- **(a)** Authorise a standalone hygiene branch (`npm run format` in `frontend/nexgen-web/`,
+  2 files, whitespace/quote only) and merge it to `master`; M2-C08-01 then re-validates clean
+  after a merge from `master`. This also turns `master`'s CI Format-check job green. Recommended.
+- **(b)** Grant an explicit R-82 exception so this criterion is judged on the four commands that
+  pass plus a clean `prettier --check` of the files the task authored — which was verified:
+  no file under `document-editor/` is reported by prettier.
+- **(c)** Fold the two-file reformat into this branch as a second commit, accepting the
+  out-of-scope diff. Not taken unilaterally.
+
+Until one of those lands, the criterion cannot be met from inside this task's authorised surface.
+
+### Not in question
+
+The implementation itself. The validator found every other acceptance criterion met, and this
+diagnosis found nothing to contradict that: no ERP business rule is implemented in TypeScript,
+`V.SMART/**`, `frontend/vsmart-erp/**`, `db/**` and `docs/kb/decisions/**` are untouched, no
+schema change, no merge, no push. **Do not re-dispatch an implementer** — there is no code defect
+to fix, and a stronger model cannot authorise a scope decision.
+
+**Attempts used: 1 of 3.** Retry budget deliberately not spent: a retry that cannot change the
+outcome is the loop this log exists to prevent.

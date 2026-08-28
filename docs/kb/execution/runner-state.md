@@ -11,7 +11,107 @@ status: active
 confidence: n/a
 last_verified: 2026-08-28
 dependencies: [KB-089, KB-091, KB-092, KB-081]
-model_routing_this_run: none — single-session implementation, no subagent delegation
+model_routing_this_run: Investigate=opus, Implement=opus, Validate=opus (complexity HIGH,
+task M2-C08-01)
+
+## Status — 2026-08-28 (after `M2-C08-01` implementation and diagnosis, master tip `34664ea`)
+
+**BLOCKED** — task `M2-C08-01` implemented and independently validated; blocked on an owner
+decision (Q-105).
+
+**This pass:** The autonomous runner stopped after dispatching and concluding `M2-C08-01`.
+`M2-C08-01` was implemented on `migration/M2-C08-01-document-editor-layout` (tip `c5c1b77`),
+independently validated against every acceptance criterion, and diagnostically closed out.
+**Every acceptance criterion passed except one**: `npm run format:check` fails on two files
+(`eslint.config.js`, `no-float-money.spec.ts`) that are byte-identical to the current `master`
+itself (last touched by commit `1c93bb3`, "Merge M2-C10", which hand-edited them without
+re-running prettier). The formatting gate is already red on `master` and on `master`'s own
+blocking CI job (`.github/workflows/ci.yml:307-308`), so the criterion is unmeetable from
+inside this task's authorised file surface. One small in-scope defect was found and fixed
+(wrong `doc_id` citation, `INV-062` → `INV-065`), committed in `c5c1b77`.
+
+**Stop reason (verbatim):** M2-C08-01: blocked during diagnosis (missing-dependency): `npm run
+format:check` (`prettier --check .`) fails on two files that are byte-identical to `master` —
+`frontend/nexgen-web/eslint.config.js` and `frontend/nexgen-web/src/app/shared/utils/decimal/no-float-money.spec.ts`,
+both last touched by commit `1c93bb3` (Merge M2-C10, "integration-fixed") which hand-edited
+them without re-running prettier; the gate is therefore already red on `master` and on
+`master`'s blocking CI job (`.github/workflows/ci.yml:307-308`), so M2-C08-01's criterion is
+unmeetable from inside the files the task authorises.
+
+**Current task:** `M2-C08-01` — implemented, independently validated, blocked on owner decision
+(Q-105)
+
+**Last validation result:** blocked during diagnosis (missing-dependency) — formatting gate is
+red on pre-existing files outside this task's scope
+
+**Attempts used:** 1 of 3
+
+**Escalations:** 0
+
+**Next dependency-ready task:** empty — no task passes the five-part "can actually be done"
+test. `M2-C08-02`/`M2-C08-03` need `M2-C08-01` `Completed` and merged; `M2-D02`/`M2-D02-01`
+need `M2-D01` `Completed` and merged (status: `Completed`, not yet merged).
+
+**Requires human decision:** YES
+
+**Human decision needed:**
+- Owner: Vivek
+- Decision: Q-105 — address the pre-existing formatting gate failure on `master`. Options:
+  (a) a standalone `npm run format` hygiene branch merged to `master` before this task closes
+  (recommended, clears the gate for every unmerged branch at once, including M2-D01);
+  (b) an explicit R-82 exception to the format criterion scoping it to files this task
+  actually touched; (c) fold the two-file reformat into this branch as an out-of-scope commit.
+  Unblocks M2-C08-01 closure, which in turn unblocks M2-C08-02/M2-C08-03. Separately, M2-D01
+  is also gated by the same format issue.
+
+## Status — 2026-08-28 (select-only pass, this session — dispatching `M2-C08-01`, master tip `34664ea`)
+
+**RUNNING** — task selected for dispatch, not yet implemented (this pass is select/classify
+only, per the calling instruction)
+
+**This pass:** Read `runner-state.md` — Status was `RUNNING → left Needs Review`, not
+`STOP_REQUESTED`. Read `current-task.md` (KB-089) — it already points to `M2-C08-01`,
+**selected but not dispatched** (no attempt in progress; `M2-D01` was the prior active task
+and is now superseded, left `Needs Review`). Per the calling instruction's step 2, resumed
+this pointer rather than re-running full selection from scratch, then independently
+re-verified it against `task-tracker.md` (KB-081), the status authority:
+
+- `task-tracker.md:172` — `M2-C08-01` row reads `**Ready**`; all five Hard `depends_on` rows
+  (`M2-C07`, `M2-C04-02`, `M2-C04-03`, `M2-C03`, `M2-C02`) confirmed `Completed` in the
+  tracker text itself. Rule 1 of the five-part test passes.
+- `tasks/M2-C08-01.md:9` — `task_type: Frontend`, not `Product Decision`. Rule 2 passes.
+- `grep -n "M2-C08-01" docs/kb/open-questions.md` — no hit. Rule 3 passes.
+- `tasks/M2-C08-01.md` carries no ⛔ banner — the one that stood here was explicitly removed
+  by the `M2-C12-04` re-specification (recorded in the file's own header note). Rule 4 passes.
+- `git branch --list '*M2-C08*'` — empty, no sibling branch open on these files. Rule 5
+  passes.
+
+All five parts of the "can actually be done" test clear. Working tree verified clean
+(`git status --porcelain --branch` — only `ahead 1` against `origin/master`, nothing
+uncommitted); current branch `master`; tip `34664ea`. No safety-stop condition applies — the
+branch to be cut is fresh from a clean `master` tip, not an unexpected point.
+
+**Classification (KB-091 §4, task file carries no explicit `complexity`/`risk` override):**
+- Base: `task_type: Frontend` → MEDIUM.
+- Raises: `estimate: 4 d` ≥ 3 d — yes. `depends_on` names 5 ≥ 3 tasks — yes. `business_rules`
+  is `[]` — no. `source_files` (six `.razor` files) all sit under one project,
+  `V.SMART.Shared` — no. Does not touch auth/tenancy/document numbering/calculation — no.
+  Two raises apply; MEDIUM + 2 caps at **HIGH** (no level above HIGH per §4.2).
+- **Complexity: HIGH.**
+- Risk: not Security/Product Decision; no schema change; no secrets, `Program.cs` or
+  `appsettings*`; `business_rules: []`; this is a new Angular component with no live Blazor
+  screen touched, so it changes nothing a live Blazor user observes. **Risk: MEDIUM** (default).
+- Routing (KB-091 §5.1, complexity HIGH): Investigate, Implement and Validate all route to
+  `opus`.
+
+**requiresHuman:** NO — no product/architecture decision, DBA access, credentials or missing
+environment disclosed by `tasks/M2-C08-01.md`'s Prerequisites; `ADR-007` already governs the
+stack this task builds into.
+
+**safetyStop:** NO — tree clean, branch to be cut fresh from verified `master` tip `34664ea`.
+
+**Current task:** `M2-C08-01` — selected and classified this pass. Implementation is a
+separate step, not performed by this select/classify pass.
 
 ## Status — 2026-08-28 (`M2-D01` implemented, this session — master tip `5f83a88`)
 
@@ -973,3 +1073,48 @@ prior pass: `M0-06` fails part 5 (`git log --oneline master..migration/M0-06-rem
 admin` still shows unmerged tip `5c9b34c`, closed `Blocked` on `Q-25`/`Q-26`); `M0-11` fails
 part 2 (`task_type: Product Decision`, `Q-01`, owner-only). No commit landed on `master`
 since `dba6c34` that changes this outcome. `nextTaskId` empty; no edit made to task-tracker.md.
+
+## Status — 2026-08-28 (session close-out, this session — `M2-C08-01` `BLOCKED`, branch `migration/M2-C08-01-document-editor-layout` tip `c5c1b77`)
+
+**BLOCKED** — implementation done, independent validation and diagnosis both complete;
+stopped on an owner decision. This session performed **no implementation**: it recorded the
+outcome of a prior attempt's validation (`FAIL`, `acceptance-criterion`) and diagnosis
+(`BLOCKED`, `missing-dependency`), which were already written to `failure-log.md` before this
+pass began.
+
+**Exact stop reason.** `tasks/M2-C08-01.md:418-419`'s acceptance criterion
+_"`npm run typecheck`, `npm run lint`, `npm run format:check`, `npm run test:ci` and
+`npm run build` all pass"_ is unmet: `npm run format:check` (`prettier --check .`) exits 1 on
+`frontend/nexgen-web/eslint.config.js` and
+`frontend/nexgen-web/src/app/shared/utils/decimal/no-float-money.spec.ts`. Both files are
+byte-identical to `master` (`git diff --name-only master...HEAD` on those two paths is empty),
+last hand-edited by `1c93bb3` (Merge M2-C10) without a `prettier --write` pass — **the gate is
+already red on `master`**, and `.github/workflows/ci.yml:307-308` runs it as a blocking CI
+step with no `continue-on-error`. Neither file is in this task's authorised *Files expected to
+change* or *Files that must not change* lists, so the fix is out of this task's scope, not
+merely undone. Every other acceptance criterion is met — see `failure-log.md` § "M2-C08-01 ·
+attempt 1 · independent validation" for the full criterion-by-criterion verdict.
+
+**Attempts used: 1 of 3** (the task's own retry budget; the calling instruction's "4" figure
+includes this close-out pass, which performed no retry). **Escalations: 0.** The diagnosis
+deliberately did not spend a retry: KB-091 §8 treats a stop as a successful outcome when the
+fix requires an authority the session does not have (owner scope/merge decision), and
+re-dispatching an implementer or a stronger model cannot change a decision that is not a code
+defect.
+
+**What would unblock it — recorded as `Q-105`** in
+[`open-questions.md`](../open-questions.md): (a) a standalone two-file `npm run format`
+hygiene branch merged to `master` by the owner (recommended — also turns `master`'s own CI
+Format-check job green and clears the same inherited gate for `M2-D01` and any later branch);
+(b) an explicit R-82 exception scoping this criterion to files the task actually touched
+(all Prettier-clean); or (c) folding the two-file reformat into this branch as a second,
+out-of-scope commit. None is this session's to choose. **Named owner: Vivek** (repository
+owner) — per CLAUDE.md, only he may authorise a merge to `master` or an acceptance-criterion
+exception.
+
+**Documentation updated this pass:** `tasks/M2-C08-01.md` (Execution Record appended;
+frontmatter `status` and Field-table `Status` corrected to `Blocked`), `task-tracker.md`
+(row + footnote ¹²⁰), `open-questions.md` (`Q-105` added), this file. `current-task.md`
+left pointing at `M2-C08-01` with its Run State reflecting `Blocked`, per this session's
+explicit instruction not to select or start another task. **`nextTaskId`: none — this was a
+record-only close-out, not a select pass.**

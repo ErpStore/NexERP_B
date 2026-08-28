@@ -23,39 +23,78 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 
 ## Selected: `M2-C08-01` — Document editor shell (header + lines + totals + commands)
 
-Full spec: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md). **Selected only, not yet
-dispatched — no implementation.** Per `M2-D01`'s own close-out, this is the next candidate:
-its five Hard `depends_on` rows (`M2-C07`, `M2-C04-02`, `M2-C04-03`, `M2-C03`, `M2-C02`) are
-all `Completed` and merged (`task-tracker.md` footnote ¹¹⁸); it is `task_type: Frontend`, not
-a `Product Decision`; no hit in `open-questions.md`; no ⛔ banner; no sibling branch open on
-its own files (`git branch --list '*M2-C08*'` — empty). All five parts of the "can actually
-be done" test clear.
+Full spec: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md). **Run State: `Needs Review`, 2026-08-28
+— was `BLOCKED`, unblocked the same day.** Implemented on
+`migration/M2-C08-01-document-editor-layout`, independently validated, then re-validated after
+`master` was merged into the branch: `format:check`, `lint`, `typecheck` clean, 734/734 unit
+tests, build succeeds. **Every acceptance criterion is now met.** The blocker was `master`'s
+own red format gate (R-82/`Q-105`), cleared by `hygiene/prettier-format-check` at `5a543aa`.
+Detail: [`task-tracker.md`](task-tracker.md) footnote ¹²¹ and the task file's
+*Unblocked and re-validated* section. **Do not re-dispatch an implementer** — there is no
+defect to fix. **Unmerged; only the owner may set `Completed` or merge.**
 
-**Deliberately not dispatched in the same session that closed `M2-D01`.** KB-050 names this
-"the single highest-leverage decision in the frontend" — it defines the config-driven
-`<app-document-editor>` shape every one of the ~65 Upsert screens will be built from
-(`M2-C08-02`/`-03` extend it directly, per its own Dependencies table), embeds both
-`LineItemGrid` (M2-C07) and `RecordPickerDialog` (M2-C06, `Soft` — stub if unavailable) whole,
-and carries a 4-day estimate. That scope deserves a fresh session's full attention, not the
-tail end of one already carrying `M2-D01`'s full implementation — this is exactly the
-handoff point [`workflow.md`](workflow.md) §3 step 7 describes ("select the next task…
-rewrite `current-task.md`… do not implement it").
+**What happened, briefly** (full detail: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md)'s
+Execution Record, [`task-tracker.md`](task-tracker.md) footnote ¹²⁰,
+[`failure-log.md`](failure-log.md) §§ "M2-C08-01 · attempt 1 · independent validation" and
+"· diagnosis"): the shell, config contract and both siblings' slots were implemented and
+independently validated against every acceptance criterion. **Every criterion passed except
+one** — `npm run format:check` fails, but on two files (`eslint.config.js`,
+`no-float-money.spec.ts`) that are byte-identical to `master` and already unformatted there
+(`1c93bb3`), outside this task's authorised file surface. `master`'s own blocking CI
+Format-check job is red for the same reason. One small in-scope defect the validator flagged
+(a wrong `doc_id` citation, `INV-062` → `INV-065`) was fixed and committed (`c5c1b77`).
 
-**What a resuming session should do:** read [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md) in
-full, reuse INV-006 for the page-shape inventory (do not re-survey), then do the one
-narrow structural investigation the task itself calls for — layout variability across the
-five largest Upsert screens it names — before scaffolding anything.
+> **`Q-105` answered and closed 2026-08-28 — option (a), and the branch is merged.** The owner
+> chose the standalone hygiene branch in session, then instructed its merge:
+> `hygiene/prettier-format-check` landed on `master` at `5a543aa` (`--no-ff`, no conflicts),
+> carrying the two-file `prettier --write` and nothing else. **Re-verified on merged `master`:
+> `format:check` green for the first time since `1c93bb3`, with `lint`, `typecheck` and
+> 706/706 unit tests clean.** The blocker below is therefore gone — `master`'s CI Format-check
+> job is no longer red and no branch inherits the failure.
+>
+> **What `M2-C08-01` still needs:** bring `master` into
+> `migration/M2-C08-01-document-editor-layout` and re-run `npm run format:check` alone. Every
+> other acceptance criterion is already independently validated as met — do not re-run the
+> layout survey (INV-065) or re-investigate the implementation. R-82's register entry lives on
+> that branch (`technical-debt-register.md:2190`), so it must be closed out there.
+>
+> Everything below is the record as written when the question was raised.
+
+**Blocked on an owner decision, recorded as [`Q-105`](../open-questions.md).** Three options,
+none an execution session's to choose: (a) a standalone `npm run format` hygiene branch merged
+to `master` — recommended, clears the gate for every unmerged branch at once, including
+`M2-D01`; (b) an explicit R-82 exception scoping the criterion to files this task actually
+touched; (c) folding the two-file reformat into this branch as an out-of-scope commit. **Named
+owner: Vivek** (repository owner) — per CLAUDE.md only he may authorise a merge to `master` or
+an acceptance-criterion exception. Attempts used: 1 of 3. Escalations: 0 — KB-091 §8 treats
+this stop as a successful outcome; a retry cannot change an owner-scope decision.
+
+**Downstream not released.** `M2-C08-02`/`M2-C08-03` still need `M2-C08-01` `Completed` **and
+merged**, not merely implemented — both stay `Blocked` until `Q-105` resolves and the branch
+merges.
+
+**What a resuming session should do:** if the owner has answered `Q-105`, act on the chosen
+option, then re-validate `npm run format:check` alone before touching anything else — every
+other criterion is already proven met and does not need re-running unless the merge/rebase
+changes something. Do not re-run the layout survey (INV-065, already recorded) or
+re-investigate the implementation.
 
 ---
 
-## Superseded pointer, retained for lineage — `M2-D01` implemented, **`Completed`** but unmerged (2026-08-28, branch tip `0762e6b`)
+## Superseded pointer, retained for lineage — `M2-D01` **`Completed` and merged to `master`** (2026-08-28)
 
-> **Updated 2026-08-28:** the owner set `M2-D01` `Completed` in conversation ("mark M2-D01 as
-> completed") — [`task-tracker.md`](task-tracker.md) footnote ¹¹⁹, which is also the entry
-> this file and [`runner-state.md`](runner-state.md) already cited before it existed. **The
-> branch is still unmerged**, so `M2-D02`/`M2-D02-01` stay blocked: rule 1 of the five-part
-> test needs `Completed` *and merged*. The `Needs Review` wording below is the record as
-> written at the time and is left intact.
+> **Updated 2026-08-28, twice.** The owner set `M2-D01` `Completed` in conversation ("mark
+> M2-D01 as completed"), then instructed the merge ("merge M2-D01 to master"), which was done
+> `--no-ff` from `migration/M2-D01-currency-end-to-end` (`0762e6b`). Detail:
+> [`task-tracker.md`](task-tracker.md) footnote ¹¹⁹ — the branch's own implementation record,
+> which is the entry this file and [`runner-state.md`](runner-state.md) cited all along, with
+> the sign-off and merge folded into it.
+>
+> **Rule 1 of the five-part test now passes for `M2-D02` (Customer Master) and `M2-D02-01`
+> (Customer `@code` triage + logic extraction)** — `Completed` *and* merged. Their tracker
+> rows still read `Blocked`; re-evaluating them is the next selection pass's job, not this
+> pointer's. The `Needs Review` wording below is the record as written at the time and is left
+> intact.
 
 Full spec: [`tasks/M2-D01.md`](tasks/M2-D01.md). **Implemented 2026-08-28, branch
 `migration/M2-D01-currency-end-to-end`, left `Needs Review`.** Resumed from the prior
