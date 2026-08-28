@@ -14,6 +14,56 @@ dependencies: [KB-089, KB-091, KB-092, KB-081]
 model_routing_this_run: Investigate=opus, Implement=opus, Validate=opus (complexity HIGH,
 task M2-C08-01)
 
+## Status — 2026-08-28 (after `M2-C08-01` implementation and diagnosis, master tip `34664ea`)
+
+**BLOCKED** — task `M2-C08-01` implemented and independently validated; blocked on an owner
+decision (Q-105).
+
+**This pass:** The autonomous runner stopped after dispatching and concluding `M2-C08-01`.
+`M2-C08-01` was implemented on `migration/M2-C08-01-document-editor-layout` (tip `c5c1b77`),
+independently validated against every acceptance criterion, and diagnostically closed out.
+**Every acceptance criterion passed except one**: `npm run format:check` fails on two files
+(`eslint.config.js`, `no-float-money.spec.ts`) that are byte-identical to the current `master`
+itself (last touched by commit `1c93bb3`, "Merge M2-C10", which hand-edited them without
+re-running prettier). The formatting gate is already red on `master` and on `master`'s own
+blocking CI job (`.github/workflows/ci.yml:307-308`), so the criterion is unmeetable from
+inside this task's authorised file surface. One small in-scope defect was found and fixed
+(wrong `doc_id` citation, `INV-062` → `INV-065`), committed in `c5c1b77`.
+
+**Stop reason (verbatim):** M2-C08-01: blocked during diagnosis (missing-dependency): `npm run
+format:check` (`prettier --check .`) fails on two files that are byte-identical to `master` —
+`frontend/nexgen-web/eslint.config.js` and `frontend/nexgen-web/src/app/shared/utils/decimal/no-float-money.spec.ts`,
+both last touched by commit `1c93bb3` (Merge M2-C10, "integration-fixed") which hand-edited
+them without re-running prettier; the gate is therefore already red on `master` and on
+`master`'s blocking CI job (`.github/workflows/ci.yml:307-308`), so M2-C08-01's criterion is
+unmeetable from inside the files the task authorises.
+
+**Current task:** `M2-C08-01` — implemented, independently validated, blocked on owner decision
+(Q-105)
+
+**Last validation result:** blocked during diagnosis (missing-dependency) — formatting gate is
+red on pre-existing files outside this task's scope
+
+**Attempts used:** 1 of 3
+
+**Escalations:** 0
+
+**Next dependency-ready task:** empty — no task passes the five-part "can actually be done"
+test. `M2-C08-02`/`M2-C08-03` need `M2-C08-01` `Completed` and merged; `M2-D02`/`M2-D02-01`
+need `M2-D01` `Completed` and merged (status: `Completed`, not yet merged).
+
+**Requires human decision:** YES
+
+**Human decision needed:**
+- Owner: Vivek
+- Decision: Q-105 — address the pre-existing formatting gate failure on `master`. Options:
+  (a) a standalone `npm run format` hygiene branch merged to `master` before this task closes
+  (recommended, clears the gate for every unmerged branch at once, including M2-D01);
+  (b) an explicit R-82 exception to the format criterion scoping it to files this task
+  actually touched; (c) fold the two-file reformat into this branch as an out-of-scope commit.
+  Unblocks M2-C08-01 closure, which in turn unblocks M2-C08-02/M2-C08-03. Separately, M2-D01
+  is also gated by the same format issue.
+
 ## Status — 2026-08-28 (select-only pass, this session — dispatching `M2-C08-01`, master tip `34664ea`)
 
 **RUNNING** — task selected for dispatch, not yet implemented (this pass is select/classify
