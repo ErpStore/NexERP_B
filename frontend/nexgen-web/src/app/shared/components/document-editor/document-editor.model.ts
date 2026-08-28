@@ -30,7 +30,7 @@ import type { RecordPickerFetchPage } from '../record-picker-dialog';
  *
  * ### What the layout survey found, and how this contract answers it
  *
- * The survey (INV-062, recorded in `docs/kb/investigation-registry.md`) read the
+ * The survey (INV-065, recorded in `docs/kb/investigation-registry.md`) read the
  * five largest Upsert screens named by the task. Each answer is load-bearing on
  * a field below:
  *
