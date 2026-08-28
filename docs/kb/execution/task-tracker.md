@@ -171,7 +171,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C08    | M2        | `DocumentEditor` shell _(parent)_                                     | Frontend      | Not Started¹⁰⁴ _(parent — never worked directly, so never `Ready`; re-specified by `M2-C12-04`; its Hard prerequisite `M2-C07` is `Completed` and merged as of 2026-08-27 — see M2-C08-01)_                                                                                                                                                                                                                                                        | P0       | M2-C07                                       | 2 wks    | G2   |
 | M2-C08-01 | M2        | — layout: header + lines + totals + commands                          | Frontend      | **Completed**⁴⁶˒¹⁰⁴˒¹¹⁰˒¹¹⁸˒¹²⁰˒¹²¹˒¹²² _(implemented 2026-08-28 on `migration/M2-C08-01-document-editor-layout`, independently validated, and unblocked the same day — the `format:check` failure was `master`-owned (R-82/`Q-105`), fixed by `hygiene/prettier-format-check` and merged at `5a543aa`. Re-validated after taking `master` into the branch: `format:check`, `lint`, `typecheck` clean, 734/734 unit tests, build succeeds. **Every acceptance criterion is now met.** **Merged to `master` 2026-08-28** (`9dbb9bb`); re-verified there — 734/734 tests, all gates clean. Owner confirmed `Completed` 2026-08-28, releasing `M2-C08-02`/`M2-C08-03`. See footnote ¹²². See footnote ¹²¹)_ | P0       | M2-C07, M2-C04-02, M2-C04-03, M2-C03, M2-C02 | 4 d      | G2   |
 | M2-C08-02 | M2        | — server-authoritative totals wiring                                  | Frontend      | **Blocked**⁴⁶˒¹²⁴ _(the calculate endpoint it consumes does not exist — no task creates it. Blocked on owner/architect decision `Q-110` plus a new backend task. See footnote ¹²⁴)_ | P0       | M2-C08-01                                    | 3 d      | G2   |
-| M2-C08-03 | M2        | — workflow command pattern                                            | Frontend      | **Ready**⁴⁶˒¹²² _(all four Hard `depends_on` rows — `M2-C08-01`, `M2-C04-03`, `M2-A06`, `M2-B03` — are `Completed` and merged as of 2026-08-28. Re-specified for Angular by `M2-C12-04`. See footnote ¹²²)_ | P0       | M2-C08-01                                    | 3 d      | G2   |
+| M2-C08-03 | M2        | — workflow command pattern                                            | Frontend      | **Blocked**⁴⁶˒¹²²˒¹²⁵ _(implemented 2026-08-28 on `migration/M2-C08-03-workflow-commands` — investigation only, no code written; no `POST /{id}/{verb}` endpoint exists anywhere in `V.SMART.Api`. Blocked on a human decision (owner Vivek, Q-111) and an architect decision (Q-112), both prerequisite to a backend task that does not yet exist. See footnote ¹²⁵)_ | P0       | M2-C08-01                                    | 3 d      | G2   |
 | M2-C09    | M2        | `ReportPage` framework                                                | Frontend      | Blocked⁴⁶ _(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-B08`)_                                                                                                                                                                                                                                                                                                                                                                 | P1       | M2-C05-01, M2-B08                            | 1 wk     | G2   |
 
 ### M2-D — Vertical slice
@@ -4872,3 +4872,38 @@ its output remain unable to show live server totals until this clears.
 **Attempts used: 1 of 3. Escalations: 0** — per KB-091 §8 this is a successful stop (blocked on
 a missing prerequisite the task itself defines as a hard stop), not a failed attempt; a retry
 without the endpoint or the Q-110 decision cannot change the outcome. **Not merged, not pushed.**
+¹²⁵ **`M2-C08-03`: `Ready` → `Blocked`, 2026-08-28, session close-out on
+`migration/M2-C08-03-workflow-commands` (commit `09c879a`).** No implementation was possible:
+the task's own `## API Changes` clause makes it `Blocked` when no `POST /{resource}/{id}/{verb}`
+endpoint exists, and none does — `grep -rnE "\[Http(Post|Put|Patch|Delete)"
+V.SMART/V.SMART.Api/Controllers/` returns exactly 8 write actions across the 13 controllers
+(login/refresh/logout, currency create/update/delete, currency import, file upload), none a
+command verb, and `api/openapi.json` publishes 24 `/api/v1` paths with zero command verbs. The
+task file (`M2-C08-03.md:496-504`) forbids both implementing the controller here and faking the
+sequence client-side, so none was attempted. Recorded as negative results: `INV-067`
+(investigation-registry.md — no optimistic-concurrency mechanism anywhere, six searches, zero
+hits each; the underlying `MfgPoService` cancel path is not idempotent, so no client-side Retry
+may ever be offered), `Q-111` and `Q-112` (open-questions.md), `R-85` (technical-debt-register.md
+— no concurrency token anywhere). One of the task's three named business rules, `BR-SO-002`, was
+re-verified against source and found already fixed (`8e3b19d`, 2026-08-19); `business-rule-inventory.md`
+needed no change since it already carries the corrected record.
+
+**Blocked on three things, none an execution session's to decide, in dependency order:**
+1. **Architect decision, `Q-112`** — how a command endpoint returns a `409` with the service's
+   refusal message verbatim, given the execution methods throw
+   (`MfgPoService.cs:1290,:1311,:1324,:1359`) and `ExceptionHandlingMiddleware.cs:70` maps every
+   throw to a constant-title `500`. Blocks the backend task's design.
+2. **Owner decision, named: owner Vivek — `Q-111`** — which resource gets the first command
+   endpoint (not Sales Order, which is `M3-5`), and, per command, `204` vs `200 + updated VM`
+   (a per-command choice `KB-114` §7 leaves open).
+3. **A backend task**, not yet in the tracker, implementing the chosen endpoint against `KB-114`
+   §7's frozen controller template (`api/controller-conventions.md:679-702`). Only once it is
+   `Completed` and merged does `M2-C08-03` clear rule 1 of the five-part "can actually be done"
+   test again.
+
+**Not blocked on any sibling task.** `M2-C08-02` (server-authoritative totals) is a separate
+`Blocked` row with the same shape (`INV-066`/`Q-110`) but is `Coordination`, not Hard, to this
+task — its own resolution does not unblock this one. **Branch left for review, unmerged, no
+application code changed** — only `M2-C08-03.md`'s frontmatter/Execution Record and the three
+knowledge-base records above. Attempts used: 1 of 4. Escalations: 0. Full record:
+[`tasks/M2-C08-03.md`](tasks/M2-C08-03.md)'s *Execution Record (2026-08-28)*.

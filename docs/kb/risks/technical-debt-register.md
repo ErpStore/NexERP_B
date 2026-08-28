@@ -2156,6 +2156,38 @@ when the value round-trips through IEEE-754 exactly and the exact decimal **stri
 not. The current API would reject that string, which is the point: loud beats a silently truncated
 amount.
 
+### R-85 — No optimistic-concurrency mechanism exists anywhere, so a stale view and a business-rule refusal are indistinguishable to any client
+
+**Confidence: Confirmed (negative result).** Recorded 2026-08-28 by `M2-C08-03`, whose
+investigation item 3 required the search and required the negative result to be recorded and
+escalated to **M2-B03** (`docs/kb/execution/tasks/M2-C08-03.md:233-236`, `:379-387`).
+
+Six searches across every `.cs` file under `V.SMART/` — `[Timestamp]`, `RowVersion`,
+`IsConcurrencyToken`, `ConcurrencyCheck`, `If-Match`, `ETag` — return **zero hits each**. Neither
+`docs/kb/api/controller-conventions.md` (KB-114) nor `ADR-002` contains the string "concurren".
+There is therefore no `rowversion` column, no EF concurrency token, no `ETag`/`If-Match` transport
+and no `DbUpdateConcurrencyException` handling in the system. Full evidence: **INV-067**.
+
+**Why it matters, concretely.** A user opens a document at 09:00; a colleague short-closes it at
+09:05; the user issues a command at 09:10. The server refuses — correctly — and the refusal arrives
+as a `409` that is byte-for-byte the same *shape* as an ordinary business-rule refusal. The client
+cannot tell "your screen is out of date" from "this operation is not legal for this document", and
+it must not guess: comparing timestamps or diffing the document to infer which one it was is
+client-side business inference, which ADR-007 (`:162-164`) forbids.
+
+**Consequence, already designed around rather than papered over.** Any command UI must apply the
+stale-view affordances to **every** `409`: render `problem.title` verbatim, keep the dialog open,
+offer **Reload document** as the primary action, never auto-retry and never auto-reload behind an
+open dialog. That is a real loss of precision in the UX, not a temporary one — it persists until a
+concurrency token exists.
+
+**Fix, when it is scheduled.** Adding one is a **schema change** (a `rowversion` column per
+document table) plus an EF mapping, a transport decision (`If-Match`/`ETag` versus a body field)
+and a `DbUpdateConcurrencyException` → `409`-with-a-distinguishable-`type` mapping in
+`ApiProblems`/`ExceptionHandlingMiddleware`. None of that is authorised by any current task, and
+the transport half belongs in KB-114 alongside M2-B03's command template. Until then the limitation
+stands and should be stated honestly in any screen that issues commands.
+
 _(R-68 belongs to the unmerged `migration/M2-C04-02-form-controls`; R-69 was left unclaimed to
 avoid colliding with another open branch.)_
 
