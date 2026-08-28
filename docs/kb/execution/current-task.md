@@ -31,7 +31,19 @@ tests, build succeeds. **Every acceptance criterion is now met.** The blocker wa
 own red format gate (R-82/`Q-105`), cleared by `hygiene/prettier-format-check` at `5a543aa`.
 Detail: [`task-tracker.md`](task-tracker.md) footnote ¹²¹ and the task file's
 *Unblocked and re-validated* section. **Do not re-dispatch an implementer** — there is no
-defect to fix. **Unmerged; only the owner may set `Completed` or merge.**
+defect to fix.
+
+**Merged to `master` 2026-08-28** (`9dbb9bb`, `--no-ff`, no conflicts) on explicit owner
+instruction, and re-verified there: all gates clean, 734/734 unit tests, build succeeds.
+**Still `Needs Review`, not `Completed`** — the owner instructed the merge, not the sign-off,
+and only the owner may set `Completed`. **`M2-C08-02`** (server-authoritative totals wiring)
+and **`M2-C08-03`** (workflow command pattern) stay `Blocked` on that one remaining decision:
+rule 1 needs `Completed` **and** merged, and only the merge half holds.
+
+**Next dispatchable work, for a selection pass to rank properly** — not selected here:
+`M2-D02-01` (Customer `@code` triage + logic extraction) and its parent `M2-D02` (Customer
+Master) became genuinely eligible when `M2-D01` was set `Completed` and merged the same day;
+their tracker rows still read `Blocked` and need re-evaluating against the five-part test.
 
 **What happened, briefly** (full detail: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md)'s
 Execution Record, [`task-tracker.md`](task-tracker.md) footnote ¹²⁰,
