@@ -23,8 +23,8 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 
 ## Selected: `M2-C08-01` — Document editor shell (header + lines + totals + commands)
 
-Full spec: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md). **Run State: `Needs Review`, 2026-08-28
-— was `BLOCKED`, unblocked the same day.** Implemented on
+Full spec: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md). **Run State: `Completed` and merged,
+2026-08-28 — was `BLOCKED`, unblocked, merged and signed off the same day.** Implemented on
 `migration/M2-C08-01-document-editor-layout`, independently validated, then re-validated after
 `master` was merged into the branch: `format:check`, `lint`, `typecheck` clean, 734/734 unit
 tests, build succeeds. **Every acceptance criterion is now met.** The blocker was `master`'s
@@ -35,15 +35,23 @@ defect to fix.
 
 **Merged to `master` 2026-08-28** (`9dbb9bb`, `--no-ff`, no conflicts) on explicit owner
 instruction, and re-verified there: all gates clean, 734/734 unit tests, build succeeds.
-**Still `Needs Review`, not `Completed`** — the owner instructed the merge, not the sign-off,
-and only the owner may set `Completed`. **`M2-C08-02`** (server-authoritative totals wiring)
-and **`M2-C08-03`** (workflow command pattern) stay `Blocked` on that one remaining decision:
-rule 1 needs `Completed` **and** merged, and only the merge half holds.
+**Set `Completed` 2026-08-28 on explicit owner instruction**, after that verification was
+reported. `Completed` **and** merged, so rule 1 of the five-part test is fully satisfied.
+Detail: [`task-tracker.md`](task-tracker.md) footnote ¹²².
 
-**Next dispatchable work, for a selection pass to rank properly** — not selected here:
-`M2-D02-01` (Customer `@code` triage + logic extraction) and its parent `M2-D02` (Customer
-Master) became genuinely eligible when `M2-D01` was set `Completed` and merged the same day;
-their tracker rows still read `Blocked` and need re-evaluating against the five-part test.
+**Downstream released — both siblings are now `Ready`**, all five parts of the test re-checked
+rather than assumed: **`M2-C08-02`** (server-authoritative totals wiring — Hard deps
+`M2-C08-01`, `M2-C10`, `M2-A06`) and **`M2-C08-03`** (workflow command pattern — Hard deps
+`M2-C08-01`, `M2-C04-03`, `M2-A06`, `M2-B03`). Every one of those is `Completed` and merged;
+neither is a `Product Decision`; neither appears in `open-questions.md`; neither carries a live
+⛔ banner; no sibling branch is open on their files.
+
+**Next dispatchable work, for a selection pass to rank properly** — deliberately not selected
+here, since recording status is not dispatching. Three `P0` candidates now tie at rank 1:
+`M2-C08-02`, `M2-C08-03`, and `M2-D02-01` (Customer `@code` triage + logic extraction) with its
+parent `M2-D02` (Customer Master), which became eligible when `M2-D01` was set `Completed` and
+merged the same day. `M2-D02`/`M2-D02-01`'s tracker rows still read `Blocked` and need
+re-evaluating against the five-part test; `M2-C08-02`/`-03` are already `Ready` above.
 
 **What happened, briefly** (full detail: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md)'s
 Execution Record, [`task-tracker.md`](task-tracker.md) footnote ¹²⁰,

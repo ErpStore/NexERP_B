@@ -169,9 +169,9 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C06    | M2        | `RecordPickerDialog`                                                  | Frontend      | **Completed**⁷⁵˒⁸³ _(merged to `master` 2026-08-26 on owner instruction; independently validated PASS)_                                                                                                                                                                                                                                                                                                                                            | P0       | M2-C05-01                                    | 1 wk     | G2   |
 | M2-C07    | M2        | `LineItemGrid` — keyboard-first editable grid                         | Frontend      | **Completed**⁴⁶˒⁹⁹˒¹⁰²˒¹⁰³˒¹⁰⁴ _(implemented 2026-08-27 — all 18 planned files, 566/566 frontend tests pass, `typecheck`/`lint`/`format:check`/`build` all clean; the 200-row typing-latency figure, genuinely not obtained at first close-out, was measured 2026-08-27 by a follow-up session — 0.1–0.3 ms/keystroke, well inside the 50 ms target. Merged `72a5758`; owner-confirmed Completed 2026-08-27. See footnotes ¹⁰² – ¹⁰⁴)_             | P0       | M2-C05-01, M2-C10, M2-C04-02, M2-C04-03      | 2 wks    | G2   |
 | M2-C08    | M2        | `DocumentEditor` shell _(parent)_                                     | Frontend      | Not Started¹⁰⁴ _(parent — never worked directly, so never `Ready`; re-specified by `M2-C12-04`; its Hard prerequisite `M2-C07` is `Completed` and merged as of 2026-08-27 — see M2-C08-01)_                                                                                                                                                                                                                                                        | P0       | M2-C07                                       | 2 wks    | G2   |
-| M2-C08-01 | M2        | — layout: header + lines + totals + commands                          | Frontend      | **Needs Review**⁴⁶˒¹⁰⁴˒¹¹⁰˒¹¹⁸˒¹²⁰˒¹²¹ _(implemented 2026-08-28 on `migration/M2-C08-01-document-editor-layout`, independently validated, and unblocked the same day — the `format:check` failure was `master`-owned (R-82/`Q-105`), fixed by `hygiene/prettier-format-check` and merged at `5a543aa`. Re-validated after taking `master` into the branch: `format:check`, `lint`, `typecheck` clean, 734/734 unit tests, build succeeds. **Every acceptance criterion is now met.** **Merged to `master` 2026-08-28** (`9dbb9bb`); re-verified there — 734/734 tests, all gates clean. `Needs Review`, not `Completed` — owner sign-off pending, and `M2-C08-02`/`M2-C08-03` need it. See footnote ¹²¹)_ | P0       | M2-C07, M2-C04-02, M2-C04-03, M2-C03, M2-C02 | 4 d      | G2   |
-| M2-C08-02 | M2        | — server-authoritative totals wiring                                  | Frontend      | Blocked⁴⁶ _(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)_                                                                                                                                                                                                                                                                                                                                                                             | P0       | M2-C08-01                                    | 3 d      | G2   |
-| M2-C08-03 | M2        | — workflow command pattern                                            | Frontend      | Blocked⁴⁶ _(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)_                                                                                                                                                                                                                                                                                                                                                                             | P0       | M2-C08-01                                    | 3 d      | G2   |
+| M2-C08-01 | M2        | — layout: header + lines + totals + commands                          | Frontend      | **Completed**⁴⁶˒¹⁰⁴˒¹¹⁰˒¹¹⁸˒¹²⁰˒¹²¹˒¹²² _(implemented 2026-08-28 on `migration/M2-C08-01-document-editor-layout`, independently validated, and unblocked the same day — the `format:check` failure was `master`-owned (R-82/`Q-105`), fixed by `hygiene/prettier-format-check` and merged at `5a543aa`. Re-validated after taking `master` into the branch: `format:check`, `lint`, `typecheck` clean, 734/734 unit tests, build succeeds. **Every acceptance criterion is now met.** **Merged to `master` 2026-08-28** (`9dbb9bb`); re-verified there — 734/734 tests, all gates clean. Owner confirmed `Completed` 2026-08-28, releasing `M2-C08-02`/`M2-C08-03`. See footnote ¹²². See footnote ¹²¹)_ | P0       | M2-C07, M2-C04-02, M2-C04-03, M2-C03, M2-C02 | 4 d      | G2   |
+| M2-C08-02 | M2        | — server-authoritative totals wiring                                  | Frontend      | **Ready**⁴⁶˒¹²² _(all three Hard `depends_on` rows — `M2-C08-01`, `M2-C10`, `M2-A06` — are `Completed` and merged as of 2026-08-28. Re-specified for Angular by `M2-C12-04`. See footnote ¹²²)_ | P0       | M2-C08-01                                    | 3 d      | G2   |
+| M2-C08-03 | M2        | — workflow command pattern                                            | Frontend      | **Ready**⁴⁶˒¹²² _(all four Hard `depends_on` rows — `M2-C08-01`, `M2-C04-03`, `M2-A06`, `M2-B03` — are `Completed` and merged as of 2026-08-28. Re-specified for Angular by `M2-C12-04`. See footnote ¹²²)_ | P0       | M2-C08-01                                    | 3 d      | G2   |
 | M2-C09    | M2        | `ReportPage` framework                                                | Frontend      | Blocked⁴⁶ _(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-B08`)_                                                                                                                                                                                                                                                                                                                                                                 | P1       | M2-C05-01, M2-B08                            | 1 wk     | G2   |
 
 ### M2-D — Vertical slice
@@ -4767,3 +4767,35 @@ only the owner may set `Completed` ([`workflow.md`](workflow.md#who-may-set-comp
 pattern) therefore stay `Blocked`: rule 1 of the five-part test needs `Completed` **and**
 merged, and only the merge half holds so far. One owner decision — review this task's
 Close-out and set `Completed` — releases both.
+
+¹²² **`M2-C08-01` set `Completed`, 2026-08-28, on explicit owner instruction**, given in
+session after being shown the merge (`9dbb9bb`) and its post-merge verification. Per
+[`workflow.md`](workflow.md#who-may-set-completed) (KB-088) this is the owner's sign-off.
+**No criterion is carried as a disclosed `[~]` exception** — unusually for this milestone,
+every acceptance criterion was independently validated as met, and the single one that failed
+was `master`'s own **R-82**, since fixed (`5a543aa`) and re-verified. **R-81** stands, but as a
+documented limit of the contract rather than an unmet criterion: the `subLines` descriptor is
+typed and recorded but not rendered, because rendering it needs row expansion inside
+`LineItemGrid`, which `M2-C08-01`'s *Files that must not change* list forbids it from
+touching. A future module needing sub-lines raises a change request against `M2-C07`; the
+binding shape is fixed, so that change is additive, not a contract break.
+
+**Downstream effect, now real — both siblings clear all five parts of the "can actually be
+done" test**, checked just now, not assumed:
+
+- **`M2-C08-02`** (server-authoritative totals wiring) — Hard `depends_on` is
+  `M2-C08-01`, `M2-C10`, `M2-A06`; all three `Completed` and merged. `Blocked` → `Ready`.
+- **`M2-C08-03`** (workflow command pattern) — Hard `depends_on` is `M2-C08-01`,
+  `M2-C04-03`, `M2-A06`, `M2-B03`; all four `Completed` and merged. `Blocked` → `Ready`.
+
+Rules 2–5 for both: `task_type: Frontend`, not `Product Decision`; no hit for either id in
+[`open-questions.md`](../open-questions.md); no ⛔ banner — the one that stood in each file was
+removed by the `M2-C12-04` Angular re-specification, in the same change that removed the
+ADR-003 instructions it guarded; and `git branch --list '*M2-C08-0*'` shows only the now-merged
+`migration/M2-C08-01-document-editor-layout`, so no sibling branch is open on their files.
+
+**Not selected by this footnote.** Both are `P0` and would tie at rank 1; ranking them against
+each other — and against `M2-D02-01`, which `M2-D01`'s own `Completed`-and-merged earlier the
+same day made eligible (footnote ¹¹⁹) — is a selection pass's job per
+[`dependency-graph.md`](dependency-graph.md) § *Selecting the next task*. Recording status is
+not dispatching.
