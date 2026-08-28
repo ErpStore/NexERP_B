@@ -1600,3 +1600,79 @@ frontmatter `status` and Field-table `Status` corrected to `Blocked`), `task-tra
 left pointing at `M2-C08-01` with its Run State reflecting `Blocked`, per this session's
 explicit instruction not to select or start another task. **`nextTaskId`: none — this was a
 record-only close-out, not a select pass.**
+
+## Status — 2026-08-28 (select-only pass, this session — re-confirmed at master tip `a4ff141`)
+
+**STOPPED** — no dependency-ready task remains.
+
+**This pass:** Selection-only invocation (no implementation performed). Started from master
+tip `a4ff141` ("Runner: record the empty-candidate-set pass"), tree clean
+(`git status --porcelain --branch` shows only `ahead 10`, no local modifications), current
+branch `master`. Re-ran `grep -n -- '\*\*Ready\*\*' task-tracker.md` — zero matches, unchanged.
+Re-checked Q-109/Q-110/Q-111/Q-112/Q-25 in `open-questions.md` — all five still unanswered,
+verbatim identical to the previous pass's readout. `current-task.md` still points at
+`M2-C08-03`, `Blocked`, awaiting Q-111/Q-112 — not resumable, no attempt in progress. No
+commit landed on `master` since `a4ff141` that changes the candidate set. Same outcome as the
+immediately preceding pass, for the same reasons (see the `a4ff141` entry above): M2-C08-02
+and M2-C08-03 blocked on architect/owner answers plus not-yet-filed backend tasks; M2-D02-01
+merged but Blocked on an owner-held tenant-database credential (M2-D02-02/-03 chained behind
+it); M0-06 Blocked on Q-25 (human-only production tenant-DB access). No candidate clears the
+five-part "can actually be done" test. `nextTaskId` empty; no edit made to `task-tracker.md`.
+
+**Requires human decision:** YES — same five items listed under the `a4ff141` entry above
+(Q-109, Q-110, Q-111, Q-112, Q-25), all still open.
+
+**model_routing_this_run:** none — no task selected, nothing to route.
+
+## Status — 2026-08-28 (select-only pass, this session — no dependency-ready task, master tip current)
+
+**STOPPED** — no dependency-ready task remains.
+
+**This pass:** Selection-only invocation (no implementation performed). Tree clean 
+(`git status --porcelain --branch` shows no local modifications, only normal ahead count), 
+current branch `master`. Executed the selection-readiness check per KB-093 against the current 
+task tracker and open-questions log.
+
+**Stop reason (verbatim, as instructed):** no dependency-ready task remains: Read runner-state.md 
+(KB-093): the latest entry, matching the current master tip a4ff141 ("Runner: record the 
+empty-candidate-set pass"), already records STOPPED with no dependency-ready task. Verified 
+independently: `grep -n -- '**Ready**' task-tracker.md` returns zero matches; current-task.md 
+still points at M2-C08-03 with Run State BLOCKED and no attempt in progress (not resumable, 
+since it can only resume by re-checking whether Q-111/Q-112 have been answered); open-questions.md 
+confirms Q-109, Q-110, Q-111, Q-112 and Q-25 are all still unanswered. Working tree is clean 
+(only ahead 10 of origin, no local modifications, matching the parent status message's staged 
+eslint.config.js/spec.ts diffs which are not present on this clean master checkout — those 
+must belong to a different working copy state than what git status --porcelain --branch shows 
+here). Applying the five-part "can actually be done" test to every non-Completed task: 
+M2-C08-02 and M2-C08-03 fail (blocked on unanswered human/architect questions plus missing 
+backend infrastructure); M2-D02-01 is merged to master but Blocked on an owner-held tenant-DB 
+credential (14/15 acceptance criteria met), and M2-D02-02/-03 are chained behind it; M0-06 is 
+Blocked on Q-25 (human-only). M2-C08 and M2-D02 are parent containers and are never worked 
+directly. No candidate clears the test, so this is a legitimate empty-candidate-set outcome, 
+not a bug.
+
+**Current task:** `M2-C08-03` (Workflow command pattern) — Blocked.
+
+**Last validation result:** Not applicable — implementation not started, no new validation 
+performed this pass.
+
+**Attempts used:** 1 of 4. Escalations: 0.
+
+**Next dependency-ready task:** none.
+
+**Requires human decision:** YES
+
+**Human decisions blocking progress:**
+1. **Owner: Vivek** — **Q-111** — which resource gets the first command endpoint (not Sales 
+   Order, which is M3-5) and, per command, `204` vs `200 + updated VM`.
+2. **Architect decision** — **Q-112** — how a command returns a `409` with the service's 
+   refusal message verbatim when the execution methods throw and `ExceptionHandlingMiddleware.cs:70` 
+   turns every throw into a constant-title `500`.
+3. **Owner: Vivek** — **Q-110** — the request/response shape across the 13 heterogeneous 
+   `ICalculationDocument` ViewModels for `M2-C08-02` (generic, polymorphic, or per-document).
+4. **Owner: Vivek** — **Q-109** — tenant-database credential to run `M2-D02-02`'s manual 
+   scenarios for Customer Master validation.
+5. **Owner: Vivek** — **Q-25** — production tenant-database access for `M0-06` (existing 
+   Blazor baseline documentation).
+
+**model_routing_this_run:** none — no task selected, nothing to route.
