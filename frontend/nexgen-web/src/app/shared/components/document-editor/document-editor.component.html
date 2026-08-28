@@ -1,0 +1,145 @@
+<div class="document-editor">
+  <app-page-header [title]="config().title">
+    <span appPageStatus>
+      @if (snapshot()?.status; as status) {
+        <span class="document-editor__status">
+          <span class="document-editor__status-icon" aria-hidden="true">&#x25CF;</span>
+          {{ status }}
+        </span>
+      }
+      @if (snapshot()?.documentNumber; as number) {
+        <span class="document-editor__number">{{ number }}</span>
+      }
+    </span>
+  </app-page-header>
+
+  <!-- The deterministic focus anchor a save returns to. -->
+  <span #anchor tabindex="-1" class="document-editor__anchor" [attr.aria-label]="config().title">
+  </span>
+
+  <p class="document-editor__live" aria-live="polite" role="status">{{ announcement() }}</p>
+
+  @if (loadProblem(); as problem) {
+    <app-error-state
+      [message]="problem.title ?? 'The document could not be loaded.'"
+      [detail]="problem.detail"
+      [traceId]="problem.traceId"
+      (retry)="retryLoad()"
+    />
+  } @else {
+    @if (permissionProblem(); as denied) {
+      <app-permission-denied-state
+        [screen]="denied.screen ?? config().screenName ?? config().noun"
+        [right]="denied.right ?? 'edit'"
+      />
+    }
+
+    @if (formErrors().length > 0) {
+      @for (message of formErrors(); track message) {
+        <app-inline-alert severity="error" [message]="message" />
+      }
+    }
+
+    <form
+      class="document-editor__form"
+      [formGroup]="headerForm()"
+      (ngSubmit)="$event.preventDefault()"
+    >
+      <section class="document-editor__region" aria-label="Document header">
+        @if (loading()) {
+          <app-skeleton-form [fields]="6" [columns]="2" label="Loading the document header" />
+        } @else {
+          <app-document-header-form
+            [layout]="config().header"
+            [form]="headerForm()"
+            [documentType]="config().documentType"
+            [mode]="effectiveMode()"
+            [readOnly]="readOnly()"
+            [loading]="loading()"
+          />
+        }
+      </section>
+
+      <div class="document-editor__body">
+        <section class="document-editor__region document-editor__lines" aria-label="Line items">
+          @if (loading()) {
+            <app-skeleton-table [rows]="4" [columns]="4" label="Loading the document lines" />
+          } @else {
+            @for (grid of visibleGrids(); track grid.id) {
+              <h2 class="document-editor__grid-title">{{ grid.title }}</h2>
+              <app-line-item-grid
+                [columns]="grid.columns"
+                [lines]="linesFor(grid.id)"
+                [createRow]="grid.createRow"
+                [rowErrors]="rowErrors()"
+                [readOnly]="readOnly()"
+                [ariaLabel]="grid.ariaLabel ?? grid.title"
+                (rowEvent)="onRowEvent(grid.id, $event)"
+                (pullFromUpstream)="onPullFromUpstream(grid.id)"
+              />
+            }
+          }
+        </section>
+
+        <app-totals-panel-slot
+          class="document-editor__totals"
+          [template]="totalsTemplate()"
+          [descriptor]="config().totals"
+          [totals]="snapshot()?.totals"
+        />
+      </div>
+
+      @if (config().sideRegions?.length) {
+        <section class="document-editor__region" aria-label="Document details">
+          <app-document-side-region
+            [regions]="config().sideRegions ?? []"
+            [templates]="regionTemplateMap()"
+          />
+        </section>
+      }
+    </form>
+  }
+
+  <app-document-command-bar
+    [mode]="effectiveMode()"
+    [dirty]="dirty()"
+    [saving]="saving()"
+    [canSave]="canSave() && !readOnly()"
+    [noun]="config().noun"
+    [commandsTemplate]="commandsTemplate()"
+    (save)="onSave()"
+    (saveAndNew)="onSaveAndNew()"
+    (cancelled)="cancel()"
+  />
+</div>
+
+@if (pickerGrid(); as grid) {
+  @if (grid.upstream; as upstream) {
+    <app-record-picker-dialog
+      [visible]="true"
+      [header]="upstream.header"
+      [columns]="upstream.columns"
+      [fetchPage]="upstream.fetchPage"
+      [getRowId]="upstream.getRowId"
+      [disabledRowIds]="upstream.disabledRowIds ?? []"
+      [confirmLabel]="upstream.confirmLabel ?? 'Add selected'"
+      (confirmed)="onUpstreamConfirmed($event)"
+      (cancelled)="onUpstreamCancelled()"
+    />
+  }
+}
+
+<app-modal
+  title="Unsaved changes"
+  size="sm"
+  [visible]="promptOpen()"
+  [closable]="false"
+  (visibleChange)="!$event && choosePrompt('stay')"
+>
+  <p>This {{ config().noun }} has unsaved changes.</p>
+  <ng-container appModalFooter>
+    <button type="button" (click)="choosePrompt('stay')">Stay on this page</button>
+    <button type="button" (click)="choosePrompt('discard')">Discard changes</button>
+    <button type="button" (click)="choosePrompt('save')">Save and leave</button>
+  </ng-container>
+</app-modal>

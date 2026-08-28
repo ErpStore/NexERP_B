@@ -7,7 +7,7 @@ source_files:
   - V.SMART/V.SMART.Shared/Layout/NavMenu.razor
 status: complete
 confidence: confirmed
-last_verified: 2026-08-12
+last_verified: 2026-08-28
 dependencies: [KB-015, KB-052]
 ---
 
@@ -36,6 +36,30 @@ components).** **Right column: proposal.**
 
 Casing is normalised to kebab-case throughout (the existing app mixes `/MfgPO/create`,
 `/mfgPO/details`, `/mfgPOList`).
+
+### One route plus a mode — the consolidation rule (`M2-C08-01`, 2026-08-28)
+
+The four rows above are not four screens. `<app-document-editor>` resolves **one** editor from a
+route parameter and a mode, so a document type registers two paths, not four:
+
+| Existing Blazor route | Angular route | Mode the shell resolves |
+|---|---|---|
+| `/{Entity}/create` | `/{module}/{entity}/new` | `create` — no `:id` in the route |
+| `/{Entity}/create/{ParentId:int}` | `/{module}/{entity}/new?parent={id}` | `create`; the parent id is the feature module's concern, not the shell's |
+| `/{Entity}/update/{Id:int}` | `/{module}/{entity}/{id}` | `edit` |
+| `/{entity}/details/{Id:int}` | `/{module}/{entity}/{id}?mode=view` | `view` |
+
+Resolution order, as implemented: an explicit `mode` input wins; then `?mode=`; otherwise the
+presence of an `:id` route parameter decides `edit` vs `create`.
+
+**Old routes are mapped, never silently dropped** — that is what this table is for. Two honest
+caveats. **`view` is new capability, not a consolidation**: the layout survey (INV-065) found that
+*none* of the five largest Upsert screens has a details route at all (`MfgPOUpsert.razor:2-3` and
+its three siblings declare create-with-parent and update only; `ItemUpsert.razor:2` declares update
+only), so there is no existing behaviour for `mode=view` to preserve. And **no real document route
+is registered yet** — `M2-C08-01` delivered the shell, not a module; the first of these paths
+appears in wave M3-5.
+
 
 ---
 

@@ -23,12 +23,15 @@ dependencies: [KB-081, KB-082, KB-088, KB-091, KB-092, KB-093, KB-060]
 
 ## Selected: `M2-C08-01` — Document editor shell (header + lines + totals + commands)
 
-Full spec: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md). **Run State: `BLOCKED`, 2026-08-28.**
-Not a fresh selection — implemented on `migration/M2-C08-01-document-editor-layout` (tip
-`c5c1b77`), independently validated, diagnosed, and closed out, all in the same task's
-lifecycle. **Do not re-dispatch an implementer** — there is no code defect to fix, only an
-owner decision pending. **Do not select a new task from this pointer** — this session's
-instruction was to record the outcome only.
+Full spec: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md). **Run State: `Needs Review`, 2026-08-28
+— was `BLOCKED`, unblocked the same day.** Implemented on
+`migration/M2-C08-01-document-editor-layout`, independently validated, then re-validated after
+`master` was merged into the branch: `format:check`, `lint`, `typecheck` clean, 734/734 unit
+tests, build succeeds. **Every acceptance criterion is now met.** The blocker was `master`'s
+own red format gate (R-82/`Q-105`), cleared by `hygiene/prettier-format-check` at `5a543aa`.
+Detail: [`task-tracker.md`](task-tracker.md) footnote ¹²¹ and the task file's
+*Unblocked and re-validated* section. **Do not re-dispatch an implementer** — there is no
+defect to fix. **Unmerged; only the owner may set `Completed` or merge.**
 
 **What happened, briefly** (full detail: [`tasks/M2-C08-01.md`](tasks/M2-C08-01.md)'s
 Execution Record, [`task-tracker.md`](task-tracker.md) footnote ¹²⁰,

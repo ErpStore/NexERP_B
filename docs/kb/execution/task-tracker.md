@@ -169,7 +169,7 @@ ahead of each migration ([KB-080 §8](README.md#8-m1--repository-understanding))
 | M2-C06    | M2        | `RecordPickerDialog`                                                  | Frontend      | **Completed**⁷⁵˒⁸³ _(merged to `master` 2026-08-26 on owner instruction; independently validated PASS)_                                                                                                                                                                                                                                                                                                                                            | P0       | M2-C05-01                                    | 1 wk     | G2   |
 | M2-C07    | M2        | `LineItemGrid` — keyboard-first editable grid                         | Frontend      | **Completed**⁴⁶˒⁹⁹˒¹⁰²˒¹⁰³˒¹⁰⁴ _(implemented 2026-08-27 — all 18 planned files, 566/566 frontend tests pass, `typecheck`/`lint`/`format:check`/`build` all clean; the 200-row typing-latency figure, genuinely not obtained at first close-out, was measured 2026-08-27 by a follow-up session — 0.1–0.3 ms/keystroke, well inside the 50 ms target. Merged `72a5758`; owner-confirmed Completed 2026-08-27. See footnotes ¹⁰² – ¹⁰⁴)_             | P0       | M2-C05-01, M2-C10, M2-C04-02, M2-C04-03      | 2 wks    | G2   |
 | M2-C08    | M2        | `DocumentEditor` shell _(parent)_                                     | Frontend      | Not Started¹⁰⁴ _(parent — never worked directly, so never `Ready`; re-specified by `M2-C12-04`; its Hard prerequisite `M2-C07` is `Completed` and merged as of 2026-08-27 — see M2-C08-01)_                                                                                                                                                                                                                                                        | P0       | M2-C07                                       | 2 wks    | G2   |
-| M2-C08-01 | M2        | — layout: header + lines + totals + commands                          | Frontend      | **Blocked**⁴⁶˒¹⁰⁴˒¹¹⁰˒¹¹⁸˒¹²⁰ _(implemented 2026-08-28, branch `migration/M2-C08-01-document-editor-layout` tip `c5c1b77`, unmerged — independent validation found every acceptance criterion met except one: `npm run format:check` fails, on two files pre-existing on `master` itself, not caused by this branch. Blocked on an owner decision, `Q-105`. See footnote ¹²⁰)_                                                                                                                                                                                                                 | P0       | M2-C07, M2-C04-02, M2-C04-03, M2-C03, M2-C02 | 4 d      | G2   |
+| M2-C08-01 | M2        | — layout: header + lines + totals + commands                          | Frontend      | **Needs Review**⁴⁶˒¹⁰⁴˒¹¹⁰˒¹¹⁸˒¹²⁰˒¹²¹ _(implemented 2026-08-28 on `migration/M2-C08-01-document-editor-layout`, independently validated, and unblocked the same day — the `format:check` failure was `master`-owned (R-82/`Q-105`), fixed by `hygiene/prettier-format-check` and merged at `5a543aa`. Re-validated after taking `master` into the branch: `format:check`, `lint`, `typecheck` clean, 734/734 unit tests, build succeeds. **Every acceptance criterion is now met.** Unmerged; owner sign-off pending. See footnote ¹²¹)_ | P0       | M2-C07, M2-C04-02, M2-C04-03, M2-C03, M2-C02 | 4 d      | G2   |
 | M2-C08-02 | M2        | — server-authoritative totals wiring                                  | Frontend      | Blocked⁴⁶ _(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)_                                                                                                                                                                                                                                                                                                                                                                             | P0       | M2-C08-01                                    | 3 d      | G2   |
 | M2-C08-03 | M2        | — workflow command pattern                                            | Frontend      | Blocked⁴⁶ _(re-specified by `M2-C12-04`; real blocker is `M2-C08-01`)_                                                                                                                                                                                                                                                                                                                                                                             | P0       | M2-C08-01                                    | 3 d      | G2   |
 | M2-C09    | M2        | `ReportPage` framework                                                | Frontend      | Blocked⁴⁶ _(re-specified by `M2-C12-04`; real blockers are `M2-C05-01`, `M2-B08`)_                                                                                                                                                                                                                                                                                                                                                                 | P1       | M2-C05-01, M2-B08                            | 1 wk     | G2   |
@@ -4714,3 +4714,42 @@ owner) — none of the three options is an execution session's to take unilatera
 push without explicit instruction; scope and criterion exceptions are owner calls under
 CLAUDE.md). `tasks/M2-C08-01.md`'s frontmatter `status` and its Field-table `Status` row are
 both corrected to `Blocked` in the same pass, and its Execution Record documents this in full.
+
+¹²¹ **`M2-C08-01`: `Blocked` → `Needs Review`, 2026-08-28 — the blocker was `master`'s, not
+this task's, and it is now gone.** Footnote ¹²⁰ recorded the stop: every acceptance criterion
+met except `npm run format:check`, which failed on two files (`eslint.config.js`,
+`no-float-money.spec.ts`) byte-identical to `master` and already unformatted there since
+`1c93bb3`. Recorded as **R-82** and escalated as **`Q-105`**, because none of the three fixes
+was an execution session's to take.
+
+**The owner answered `Q-105` with option (a)** — a standalone hygiene branch — and then
+instructed its merge. `hygiene/prettier-format-check` ran `npm run format` on exactly those
+two files and nothing else (one wrapped `no-restricted-imports` object literal; one
+apostrophe-containing string re-quoted, value unchanged) and merged to `master` at `5a543aa`,
+`--no-ff`, no conflicts. `master`'s blocking CI Format-check job
+(`.github/workflows/ci.yml:307-308`) is green for the first time since `1c93bb3`, and no
+branch inherits the failure any more. **R-82 is closed** in
+[`technical-debt-register.md`](../risks/technical-debt-register.md).
+
+**Re-validated on this branch after merging `master` into it** (`--no-ff`): `format:check`
+"All matched files use Prettier code style" — the criterion that blocked the task — plus
+`lint` clean, `typecheck` clean across app/spec/e2e, **734/734 unit tests over 107 files**,
+and `build` succeeding. Only `format:check` needed re-running on the merits; the rest were run
+because the merge changed the tree, not because anything was in doubt.
+
+**One merge conflict, in `investigation-registry.md`'s "next free" marker, resolved by keeping
+both sides:** `master` had gained `INV-064` (`M2-D01`, merged the same session) while this
+branch had advanced the marker to `INV-066` and described `INV-064` as sitting on an unmerged
+branch. `master`'s row is kept, this branch's marker is kept, and the marker's note corrected.
+No conflict in any `V.SMART/` or `frontend/` file.
+
+**Disclosed:** the first full `npm test` on the merged branch reported 7 failures in
+`sidebar.permissions.spec.ts`; two immediately following runs were clean at 734/734, exit 0.
+This is the intermittent full-suite noise already characterised at footnotes ¹⁰⁶/¹⁰⁹ — neither
+side touched that spec — not a regression from the merge. Separately, the initial bundle is
+44.91 kB over the 600 kB CLI budget; that overage arrived with `M2-D01` and is unchanged here.
+
+**Not merged, and `Needs Review`, not `Completed`** — only the owner may set that
+([`workflow.md`](workflow.md#who-may-set-completed)). **`M2-C08-02`** (server-authoritative
+totals wiring) and **`M2-C08-03`** (workflow command pattern) stay `Blocked`: they need
+`M2-C08-01` `Completed` **and** merged, per rule 1 of the five-part test.

@@ -479,6 +479,39 @@ subsequent document is then configuration plus its own exceptions.
 > and no endpoint exists yet for any real candidate set (INV-054), so each document's picker
 > needs its `<W>-03`/`<W>-06` backend work first.
 
+> **The shell itself was delivered by `M2-C08-01` (2026-08-28)**, in
+> `frontend/nexgen-web/src/app/shared/components/document-editor/`, and the diagram above is
+> **confirmed against what shipped** with three corrections that came out of the layout survey
+> (INV-065) rather than from this document:
+>
+> 1. **The line grid is an array, not a singleton.** `DocumentEditorConfig.lineGrids` is
+>    `readonly DocumentLineGrid<TLine>[]`, each grid optionally scoped to a header tab. Every
+>    sampled *document* has exactly one (`MfgPOUpsert.razor:750` and its three siblings); the one
+>    sampled *master*, `ItemUpsert.razor`, has four, one per tab. A `subLines` descriptor exists
+>    for line → sub-line nesting, which **no** sampled document needs — it is declared, not
+>    rendered (**R-81**).
+> 2. **`TotalsPanel` is optional and is a slot.** Two of the five sampled screens show no totals
+>    at all, so `config.totals` is optional; and the region renders **only** a caller-supplied
+>    `<ng-template #totals>`, because every value in the ladder is a `POST /documents/calculate`
+>    response (M2-C08-02), never a client computation. The same rule governs the workflow-command
+>    slot (`<ng-template #commands>`, M2-C08-03).
+> 3. **`Attachments · Terms · Remarks · Audit trail` is a caller-declared region set, not a
+>    fixed row.** None of the four exists as a side region in the Blazor screens today
+>    (attachments are the inline `CorrespondenceStatus` badge, terms a card in the form body,
+>    remarks a header textarea, and no priced document has an audit trail at all), so the shell
+>    renders tabs — an accordion below 1024 px — over whatever `config.sideRegions` declares, with
+>    each region's body supplied through `<ng-template appDocumentRegion="…">` and instantiated
+>    only while open.
+>
+> Two further contract points the siblings and the feature modules depend on. **Operations are
+> functions** (`load`/`create`/`update`/`calculate`/`command`/`rowEvent`), so the shell imports no
+> generated operation and hardcodes no URL; `createHttpDocumentOperations(http, baseUrl, slug)` is
+> offered as a convenience, not a requirement. And **permission-driven enablement arrives as
+> data** — `config.canSave` — rather than by injecting `PermissionService`, because this workspace
+> enforces by test that nothing under `shared/components/**` reaches into the authentication layer
+> (`feedback/permission-denied-state.component.spec.ts:29-49`). The server still enforces
+> independently (ADR-004).
+
 ### Workflow commands
 
 Cancel, short-close, approve, reject, release and post are **server commands**

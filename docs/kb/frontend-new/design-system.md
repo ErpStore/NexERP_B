@@ -5,7 +5,7 @@ module: frontend-new
 source_files: []
 status: proposal
 confidence: n/a
-last_verified: 2026-08-27
+last_verified: 2026-08-28
 dependencies: [KB-015, KB-050]
 ---
 
@@ -535,6 +535,34 @@ bytes and saves them; the client builds no spreadsheet, CSV or PDF (ADR-005), an
 `no-client-file-generation.spec.ts` fails the build if such a dependency is ever added. Only Excel is
 offered, because `xlsx` is the only format the export endpoint accepts
 (`V.SMART/V.SMART.Api/Controllers/CurrencyExcelController.cs:48`) — see **Q-95**.
+
+**The document-editor skeleton is built — `M2-C08-01` (2026-08-28).** Principle 5's *"same page
+skeleton on all 150 screens"* is now structural for the document half of the app:
+`<app-document-editor>` composes page header → header form → `LineItemGrid` → totals slot → side
+region → sticky command bar, and a feature module supplies a `DocumentEditorConfig`, not a layout.
+Responsive behaviour follows the table below: totals beside the lines at ≥1440, below them under
+it, the side region as an accordion below 1024, and the whole editor **read-only below 768**.
+
+**The blocking overlay is deliberately gone, and this is the record of that decision.** The
+*Saving* row above — *"disable the footer actions, show inline spinner on the button; never block
+the page"* — is what the shell implements, replacing `ProcessingOverlay.razor`, which covered the
+whole screen while a save was in flight. Two things make this a decision rather than a regression:
+the legacy behaviour is **already inconsistent** — `MfgInvUpsert.razor` renders no
+`ProcessingOverlay` at all while the other four sampled screens do (INV-065) — and the risk the
+overlay guarded against (a second submit) is handled by disabling the actions, which is what the
+overlay was really doing. A spec pins it: *"saving disables the footer actions and shows an inline
+spinner; the page is **not** overlaid"*.
+
+**The *Dirty form* row's mechanism is settled too, and it is not `app-confirm-dialog`.** The
+prompt has **three** outcomes — Save / Discard / Stay — and `app-confirm-dialog` models two by
+contract (INV-006's M2-C04-03 amendment), so the editor composes `app-modal` and the route carries
+a functional `CanDeactivateFn` (`unsavedChangesGuard`). `beforeunload` is registered **only while
+dirty** and removed on destroy. This is a **behaviour improvement, not preservation**: the existing
+guard is a single global JS boolean (`wwwroot/js/navigationGuard.js:1-39`) read by exactly one call
+site (`SmartBackButton.razor:64`), so navigating by the menu, the browser back button or a typed
+URL is unguarded today, and no `beforeunload` listener exists anywhere in it. (**R-72** — this
+document's own "via `useBlocker`" wording in the table above is the stale React remnant, still
+unfixed and still not a specification.)
 
 ## Status vocabulary
 
