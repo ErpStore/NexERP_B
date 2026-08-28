@@ -14,6 +14,46 @@ dependencies: [KB-089, KB-091, KB-092, KB-081]
 model_routing_this_run: Investigate=opus, Implement=opus, Validate=opus (complexity HIGH,
 task M2-C08-03)
 
+## Status — 2026-08-28 (autonomous runner stopped, M2-C08-03 implementer blocked)
+
+**BLOCKED.** Autonomous migration runner has stopped. Task `M2-C08-03` (Workflow command 
+pattern — `POST /{id}/{verb}`) cannot proceed without external decisions.
+
+**Stop reason (verbatim):** implementer blocked: No workflow-command endpoint exists to call. 
+`grep -rnE "\[Http(Post|Put|Patch|Delete)" V.SMART/V.SMART.Api/Controllers/` returns exactly 8 
+write actions across the 13 controllers — login/refresh/logout, currency create/update/delete, 
+currency import, file upload — none of which is a command verb; api/openapi.json publishes 24 
+/api/v1 paths with zero command verbs. M2-C08-03.md:496-504 makes the task Blocked in exactly 
+this case and forbids both implementing the controller here and faking the sequence client-side. 
+Unblocking needs three things, none of them an execution session's to decide: (1) an architect 
+decision on Q-112 — how a command returns a 409 with the service's message verbatim when the 
+execution methods throw (MfgPoService.cs:1290,:1311,:1324,:1359) and ExceptionHandlingMiddleware.cs:70 
+turns every throw into a constant-title 500; (2) an owner decision on Q-111 — which resource 
+gets the first command endpoint (not Sales Order, which is M3-5) and, per command, 204 vs 200 + 
+updated VM; (3) a backend task implementing it against KB-114 §7's frozen template 
+(docs/kb/api/controller-conventions.md:679-702).
+
+**Current task:** `M2-C08-03` — blocked.
+
+**Last validation result:** not applicable — implementation not started.
+
+**Attempts used:** 0 of 4. Escalations: 0.
+
+**Next dependency-ready task:** none.
+
+**Requires human decision:** YES
+
+**Human decisions needed:**
+1. **Owner: Vivek** — **Q-111** — which resource gets the first command endpoint (not Sales 
+   Order, which is M3-5) and, per command, `204` vs `200 + updated VM`.
+2. **Architect decision** — **Q-112** — how a command returns a `409` with the service's refusal 
+   message verbatim when the execution methods throw and `ExceptionHandlingMiddleware.cs:70` 
+   turns every throw into a constant-title `500`.
+3. A backend task, not yet in the tracker, implementing the endpoint against `KB-114` §7's 
+   frozen template (`docs/kb/api/controller-conventions.md:679-702`).
+
+---
+
 ## Status — 2026-08-28 (`M2-C08-03` session close-out — `BLOCKED`, branch `migration/M2-C08-03-workflow-commands`, commit `09c879a`)
 
 **BLOCKED.** Task: `M2-C08-03` (Workflow command pattern — `POST /{id}/{verb}`). This entry
